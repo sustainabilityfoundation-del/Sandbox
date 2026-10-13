@@ -31,6 +31,7 @@ interface ViewerState {
 
   openFile: (file: File) => Promise<void>
   openSample: () => Promise<void>
+  openUrl: (url: string, fileName: string) => Promise<void>
   dismissError: () => void
   select: (id: string | null) => void
   toggleHidden: (id: string) => void
@@ -90,6 +91,7 @@ export const useViewerStore = create<ViewerState>()((set, get) => {
 
     openFile: (file) => runLoad(file.name, () => loadModelFromFile(file)),
     openSample: () => runLoad('sample.glb', () => loadModelFromUrl(SAMPLE_MODEL_URL, 'sample.glb')),
+    openUrl: (url, fileName) => runLoad(fileName, () => loadModelFromUrl(url, fileName)),
     dismissError: () => set({ error: null }),
 
     select: (id) => set({ selectedId: id }),

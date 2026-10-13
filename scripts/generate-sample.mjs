@@ -1,7 +1,8 @@
-// Generates public/models/sample.glb: a small synthetic bracket assembly used
-// to demo and test the viewer. It is NOT a SolidWorks export, but mimics the
-// structure of one (nested sub-assemblies, instance names like "Bolt-1", names
-// with spaces, PBR materials and a multi-material part).
+// Generates two synthetic demo models. Neither is a SolidWorks export, but both
+// mimic the structure of one (nested sub-assemblies, instance names, names with
+// spaces, PBR materials).
+//   public/models/sample.glb    bracket assembly for the standalone viewer
+//   public/models/actuator.glb  ACT-100 actuator for the engineering workspace
 //
 // Usage: npm run generate:sample
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -102,8 +103,45 @@ const scene = new Scene()
 scene.name = 'Bracket Assembly'
 scene.add(root)
 
-const glb = await new GLTFExporter().parseAsync(scene, { binary: true })
-const out = resolve(dirname(fileURLToPath(import.meta.url)), '../public/models/sample.glb')
-await mkdir(dirname(out), { recursive: true })
-await writeFile(out, Buffer.from(glb))
-console.log(`Wrote ${out} (${glb.byteLength} bytes)`)
+async function writeGlb(scene, fileName) {
+  const glb = await new GLTFExporter().parseAsync(scene, { binary: true })
+  const out = resolve(dirname(fileURLToPath(import.meta.url)), '../public/models', fileName)
+  await mkdir(dirname(out), { recursive: true })
+  await writeFile(out, Buffer.from(glb))
+  console.log(`Wrote ${out} (${glb.byteLength} bytes)`)
+}
+
+await writeGlb(scene, 'sample.glb')
+
+// ---------------------------------------------------------------------------
+// actuator.glb: the ACT-100 linear actuator used by the engineering workspace.
+// Node names start with the digital-twin object IDs ("ROD-120 Rod"), which is
+// how the workspace's 3D Model Viewer links nodes to shared model objects.
+// Stroke axis is +X; dimensions follow the sample digital twin.
+// ---------------------------------------------------------------------------
+const housingPaint = new MeshStandardMaterial({ name: 'Housing Grey', color: 0xb8c0c9, metalness: 0.5, roughness: 0.45 })
+const chrome = new MeshStandardMaterial({ name: 'Hard Chrome', color: 0xd9dde2, metalness: 1, roughness: 0.15 })
+const motorBlack = new MeshStandardMaterial({ name: 'Motor Black', color: 0x2b3038, metalness: 0.3, roughness: 0.6 })
+const xAxis = (geometry) => geometry.rotateZ(-Math.PI / 2)
+
+const housing = group('HSG-110 Housing', [
+  mesh('Tube', xAxis(new CylinderGeometry(mm(30), mm(30), mm(420), 48)), housingPaint, [mm(210), 0, 0]),
+  mesh('Front Cap', xAxis(new CylinderGeometry(mm(33), mm(33), mm(20), 48)), housingPaint, [mm(430), 0, 0]),
+  mesh('Gearbox Cover', new BoxGeometry(mm(45), mm(150), mm(70)), housingPaint, [mm(-22), mm(45), 0]),
+  mesh('Rear Clevis', new BoxGeometry(mm(40), mm(36), mm(30)), steel, [mm(-60), 0, 0]),
+])
+
+const rod = group('ROD-120 Rod', [
+  mesh('Rod Body', xAxis(new CylinderGeometry(mm(12.5), mm(12.5), mm(300), 32)), chrome, [mm(590), 0, 0]),
+  mesh('Rod End Eye', new TorusGeometry(mm(15), mm(6), 16, 40), steel, [mm(760), 0, 0]),
+])
+
+const motor = group('MTR-130 Motor', [
+  mesh('Motor Body', xAxis(new CylinderGeometry(mm(32), mm(32), mm(200), 40)), motorBlack, [mm(100), mm(85), 0]),
+  mesh('Connector', new BoxGeometry(mm(30), mm(16), mm(24)), motorBlack, [mm(140), mm(125), 0]),
+])
+
+const actuator = new Scene()
+actuator.name = 'ACT-100 Actuator assembly'
+actuator.add(group('ACT-100 Actuator assembly', [housing, rod, motor]))
+await writeGlb(actuator, 'actuator.glb')

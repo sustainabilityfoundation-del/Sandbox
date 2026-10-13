@@ -5,12 +5,13 @@ function carriesFiles(event: DragEvent): boolean {
 }
 
 /** Accepts a file dropped anywhere on the window; returns whether a drag is over it. */
-export function useFileDrop(onFile: (file: File) => void): boolean {
+export function useFileDrop(onFile: (file: File) => void, enabled = true): boolean {
   const [dragging, setDragging] = useState(false)
   const onFileRef = useRef(onFile)
   onFileRef.current = onFile
 
   useEffect(() => {
+    if (!enabled) return
     let depth = 0 // dragenter/dragleave fire for every child element crossed
 
     const onEnter = (e: DragEvent) => {
@@ -47,8 +48,9 @@ export function useFileDrop(onFile: (file: File) => void): boolean {
       window.removeEventListener('dragover', onOver)
       window.removeEventListener('dragleave', onLeave)
       window.removeEventListener('drop', onDrop)
+      setDragging(false)
     }
-  }, [])
+  }, [enabled])
 
   return dragging
 }

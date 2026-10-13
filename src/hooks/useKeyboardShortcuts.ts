@@ -2,8 +2,9 @@ import { useEffect } from 'react'
 import { useViewerStore } from '../state/viewerStore'
 
 /** F: fit · W: toggle wireframe · H: hide selected · Esc: clear selection. */
-export function useKeyboardShortcuts(): void {
+export function useKeyboardShortcuts(enabled = true): void {
   useEffect(() => {
+    if (!enabled) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return
       const target = e.target as HTMLElement | null
@@ -38,5 +39,5 @@ export function useKeyboardShortcuts(): void {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [enabled])
 }

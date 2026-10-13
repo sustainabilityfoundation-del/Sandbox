@@ -6,6 +6,10 @@ Built with React, TypeScript, Vite, three.js, React Three Fiber and Drei.
 Models are processed entirely in the browser. Files are never uploaded anywhere, and the site
 is a static bundle suitable for AWS Amplify Hosting.
 
+This repository also contains the **Engineering Workspace** mockup at `/workspace/`, a
+multi-tool interface built around a shared digital twin. It includes this viewer as one of its
+tools. See [workspace/README.md](workspace/README.md).
+
 ## Features
 
 - Open a `.glb` with the **Open model** button, or drag and drop it anywhere on the window
@@ -69,6 +73,9 @@ like `M8 Hex Bolt-1`, PBR materials, a multi-material part) but was not made in 
 To use your own sample instead, replace `public/models/sample.glb` with any self-contained GLB.
 Delete the file to remove the button.
 
+`public/models/actuator.glb` is a second synthetic model, used by the Engineering Workspace.
+Its node names start with digital-twin object IDs (for example `ROD-120 Rod`).
+
 ## Exporting a GLB from SolidWorks
 
 SolidWorks 2019 and newer can export glTF directly:
@@ -106,7 +113,8 @@ To deploy:
 
 Notes:
 
-- The app is a single page with no client-side routes, so no rewrite rules are needed.
+- The build has two static pages, `/` (viewer) and `/workspace/`. Neither uses client-side
+  routes, so no rewrite rules are needed.
 - The `nvm install 22` line makes the build use Node 22, which Vite 7 requires (20.19+).
   Remove it if your Amplify build image already provides a recent Node version.
 - Without Git, you can run `npm run build` locally and drag the `dist` folder into Amplify's
@@ -136,7 +144,8 @@ src/
     ModelGrid.tsx            Size-aware floor grid
   components/                Toolbar, model tree sidebar, status bar, empty/loading/error/drop overlays
   hooks/                     File drag-and-drop, keyboard shortcuts, colour scheme
-scripts/generate-sample.mjs  Builds the synthetic demo model
+scripts/generate-sample.mjs  Builds the synthetic demo models
+src/workspace/, workspace/   Engineering Workspace mockup (see workspace/README.md)
 ```
 
 ### Resource handling
