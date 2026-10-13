@@ -3,7 +3,7 @@ import type { DemoRepository } from './repository/DemoRepository'
 import { PROJECT_ID } from './repository/seed'
 import { useWorkspaceStore } from './sdk/store'
 import { Icons } from './sdk/icons'
-import { ActivityPanel } from './shell/ActivityPanel'
+import { BottomDock } from './shell/BottomDock'
 import { Header } from './shell/Header'
 import { Inspector } from './shell/Inspector'
 import { ProductTree } from './shell/ProductTree'
@@ -116,7 +116,7 @@ export default function App({ repository }: { repository: DemoRepository }) {
           </div>
           {activeTool && <ToolToolbar tool={activeTool} />}
           <WorkArea />
-          <ActivityPanel />
+          <BottomDock />
         </div>
         <div className="ws-right" hidden={!layout.inspectorOpen}>
           <Inspector />

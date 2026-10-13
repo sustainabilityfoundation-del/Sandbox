@@ -154,7 +154,8 @@ function RequirementEditor({
   )
 }
 
-function TraceCells({ requirement }: { requirement: EngineeringObject }) {
+/** Outputs that trace to a requirement: evidence for its procedures, or records naming it. */
+function useRequirementOutputs(requirement: EngineeringObject) {
   const model = useModel()
   const outputs = useOutputs()
   const procedures = model.linkedObjects(requirement.id, 'verifies', 'in')
@@ -162,7 +163,21 @@ function TraceCells({ requirement }: { requirement: EngineeringObject }) {
   const linkedOutputs = outputs.filter(
     (o) => evidence.has(o.id) || o.objectIds.includes(requirement.id) || procedures.some((p) => o.objectIds.includes(p.id)),
   )
-  const stale = linkedOutputs.filter((o) => o.freshness.stale).length
+  return { procedures, linkedOutputs, stale: linkedOutputs.filter((o) => o.freshness.stale).length }
+}
+
+function StaleEvidenceBadge({ requirement }: { requirement: EngineeringObject }) {
+  const { stale } = useRequirementOutputs(requirement)
+  if (!stale) return null
+  return (
+    <Badge tone="warning" title="Evidence or results for this requirement used inputs that have since changed">
+      {stale} stale result{stale === 1 ? '' : 's'}
+    </Badge>
+  )
+}
+
+function TraceCells({ requirement }: { requirement: EngineeringObject }) {
+  const { procedures, linkedOutputs, stale } = useRequirementOutputs(requirement)
   return (
     <>
       <td>
@@ -301,7 +316,10 @@ export default function RequirementsView() {
                     </td>
                     <td>{methodsOf(r).join(', ') || <span className="ws-muted">—</span>}</td>
                     <td>
-                      <ComplianceBadge value={r.properties.compliance} />
+                      <div className="req-status">
+                        <ComplianceBadge value={r.properties.compliance} />
+                        <StaleEvidenceBadge requirement={r} />
+                      </div>
                     </td>
                     {viewState.showTrace && <TraceCells requirement={r} />}
                   </tr>

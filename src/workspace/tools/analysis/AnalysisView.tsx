@@ -216,6 +216,12 @@ function RunPanel({ run }: { run: RunState }) {
           <dt>Started</dt>
           <dd>{formatTime(captured.startedAt)}</dd>
         </div>
+        {run.origin && (
+          <div>
+            <dt>Requested from</dt>
+            <dd>{run.origin}</dd>
+          </div>
+        )}
       </dl>
 
       {(captured.scenarioId !== context.scenarioId || captured.configurationId !== context.configurationId) && (

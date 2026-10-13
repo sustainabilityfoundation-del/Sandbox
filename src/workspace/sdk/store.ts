@@ -1,6 +1,13 @@
 import { create } from 'zustand'
 import { buildModelIndex, type ModelIndex } from '../domain/modelIndex'
-import type { ActivityEntry, ActivityKind, ModelChange, OutputRecord, ReviewStatus } from '../domain/types'
+import type {
+  ActivityEntry,
+  ActivityKind,
+  ActivitySource,
+  ModelChange,
+  OutputRecord,
+  ReviewStatus,
+} from '../domain/types'
 import type { EngineeringRepository } from '../repository/EngineeringRepository'
 import { loadSession, saveSession, type SessionState } from './session'
 import type { OutputInput, ViewStateUpdate } from './toolTypes'
@@ -21,7 +28,18 @@ export interface ContextState {
 export interface Layout {
   treeOpen: boolean
   inspectorOpen: boolean
+  /** Whether the bottom dock (Activity / ChatGPT) is expanded. */
   activityOpen: boolean
+  dockTab: 'activity' | 'assistant'
+  /** Height of the expanded bottom dock body, in pixels. */
+  dockHeight: number
+}
+
+/** Optional provenance for writes made on behalf of another part of the workspace. */
+export interface WriteOptions {
+  source?: ActivitySource
+  /** Configuration to record against, when it was captured earlier (e.g. at message send). */
+  configurationId?: string
 }
 
 interface ToolSeed {
@@ -65,10 +83,21 @@ interface WorkspaceState {
   updateViewState: (toolId: string, update: ViewStateUpdate<unknown>) => void
   setScroll: (toolId: string, key: string, top: number) => void
 
-  submitChanges: (toolId: string, changes: ModelChange[], summary: string) => Promise<{ createdIds: string[] }>
-  saveOutput: (toolId: string, output: OutputInput) => Promise<OutputRecord>
+  submitChanges: (
+    toolId: string,
+    changes: ModelChange[],
+    summary: string,
+    options?: WriteOptions,
+  ) => Promise<{ createdIds: string[]; modelRevision: number }>
+  saveOutput: (toolId: string, output: OutputInput, options?: WriteOptions) => Promise<OutputRecord>
   setReviewStatus: (toolId: string, outputId: string, status: ReviewStatus) => Promise<OutputRecord>
-  log: (toolId: string | undefined, message: string, kind?: ActivityKind, objectIds?: string[]) => void
+  log: (
+    toolId: string | undefined,
+    message: string,
+    kind?: ActivityKind,
+    objectIds?: string[],
+    source?: ActivitySource,
+  ) => void
   dismissWriteError: () => void
 }
 
@@ -137,7 +166,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
     recents: [],
     viewStates: {},
     scrollStates: {},
-    layout: { treeOpen: true, inspectorOpen: true, activityOpen: true },
+    layout: { treeOpen: true, inspectorOpen: true, activityOpen: true, dockTab: 'activity', dockHeight: 280 },
     initialViewStates: {},
 
     initialize: async ({ repository, projectId, tools, defaultOpenToolIds }) => {
@@ -233,29 +262,33 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
     setScroll: (toolId, key, top) =>
       set((s) => ({ scrollStates: { ...s.scrollStates, [toolId]: { ...s.scrollStates[toolId], [key]: top } } })),
 
-    submitChanges: (toolId, changes, summary) =>
+    submitChanges: (toolId, changes, summary, options = {}) =>
       write(toolId, summary, async () => {
         const { context } = get()
         const result = await repo().submitChanges(context.projectId, changes, {
           toolId,
-          configurationId: context.configurationId,
+          configurationId: options.configurationId ?? context.configurationId,
           summary,
+          source: options.source,
         })
         set({ model: buildModelIndex(result.snapshot) })
-        return { createdIds: result.createdIds }
+        return { createdIds: result.createdIds, modelRevision: result.modelRevision }
       }),
 
-    saveOutput: (toolId, output) =>
+    saveOutput: (toolId, output, options = {}) =>
       write(toolId, `Saving ${output.title}`, async () => {
         const { context, model } = get()
-        const saved = await repo().saveOutput({
-          ...output,
-          toolId,
-          projectId: context.projectId,
-          configurationId: output.configurationId ?? context.configurationId,
-          scenarioId: output.scenarioId === undefined ? context.scenarioId : output.scenarioId,
-          inputRevision: output.inputRevision ?? model?.revision ?? 0,
-        })
+        const saved = await repo().saveOutput(
+          {
+            ...output,
+            toolId,
+            projectId: context.projectId,
+            configurationId: output.configurationId ?? context.configurationId,
+            scenarioId: output.scenarioId === undefined ? context.scenarioId : output.scenarioId,
+            inputRevision: output.inputRevision ?? model?.revision ?? 0,
+          },
+          { source: options.source },
+        )
         set((s) => ({ outputs: [...s.outputs, saved] }))
         return saved
       }),
@@ -272,9 +305,9 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
         return updated
       }),
 
-    log: (toolId, message, kind = 'info', objectIds = []) => {
+    log: (toolId, message, kind = 'info', objectIds = [], source) => {
       const { context } = get()
-      const optimistic = { ...localActivity(message, kind, toolId), objectIds }
+      const optimistic = { ...localActivity(message, kind, toolId), objectIds, source }
       set((s) => ({ activity: [optimistic, ...s.activity] }))
       repo()
         .addActivity(context.projectId, {
@@ -284,6 +317,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           objectIds,
           configurationId: context.configurationId,
           scenarioId: context.scenarioId,
+          source,
         })
         .then(refreshActivity)
         .catch(() => {

@@ -1,5 +1,6 @@
 import type {
   ActivityDraft,
+  ActivitySource,
   ActivityEntry,
   ChangeMeta,
   ChangeResult,
@@ -26,7 +27,8 @@ interface DemoDatabase {
   activity: ActivityEntry[]
 }
 
-const STORAGE_KEY = 'ews.demo-repository.v1'
+// v2: sample twin adds a maximum-load analysis and sets SCN-MAX to 11 kN.
+const STORAGE_KEY = 'ews.demo-repository.v2'
 const MAX_ACTIVITY = 300
 
 function seedDatabase(): DemoDatabase {
@@ -137,6 +139,7 @@ export class DemoRepository implements EngineeringRepository {
         message: `${meta.summary} (model rev ${revision})`,
         objectIds: [...new Set([...changedIds, ...createdIds])],
         configurationId: meta.configurationId,
+        source: meta.source,
       })
       return { snapshot: model, modelRevision: revision, changedIds, createdIds }
     })
@@ -146,7 +149,7 @@ export class DemoRepository implements EngineeringRepository {
     return this.call((db) => db.outputs.filter((o) => o.projectId === projectId))
   }
 
-  saveOutput(draft: OutputDraft) {
+  saveOutput(draft: OutputDraft, options: { source?: ActivitySource } = {}) {
     return this.mutate((db) => {
       this.assertProject(draft.projectId)
       const model = db.model
@@ -177,6 +180,7 @@ export class DemoRepository implements EngineeringRepository {
         objectIds: output.objectIds,
         configurationId: output.configurationId,
         scenarioId: output.scenarioId,
+        source: options.source,
       })
       return output
     })
@@ -190,10 +194,11 @@ export class DemoRepository implements EngineeringRepository {
       this.log(db, {
         kind: 'review',
         toolId: meta.toolId,
-        message: `${meta.summary}`,
+        message: meta.summary,
         objectIds: output.objectIds,
         configurationId: output.configurationId,
         scenarioId: output.scenarioId,
+        source: meta.source,
       })
       return output
     })

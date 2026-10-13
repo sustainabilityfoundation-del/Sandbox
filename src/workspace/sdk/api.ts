@@ -23,12 +23,12 @@ export function getToolApi<VS>(toolId: string): ToolApi<VS> {
       },
       select: (ids) => store().select(ids),
       setScenario: (id) => store().setScenario(id),
-      submitChanges: (changes, summary) => store().submitChanges(toolId, changes, summary),
-      saveOutput: (output) => store().saveOutput(toolId, output),
+      submitChanges: (changes, summary, options) => store().submitChanges(toolId, changes, summary, options),
+      saveOutput: (output, options) => store().saveOutput(toolId, output, options),
       setReviewStatus: (outputId, status) => store().setReviewStatus(toolId, outputId, status),
       getViewState: () => store().viewStates[toolId] ?? store().initialViewStates[toolId],
       updateViewState: (update) => store().updateViewState(toolId, update),
-      log: (message, options) => store().log(toolId, message, options?.kind, options?.objectIds),
+      log: (message, options) => store().log(toolId, message, options?.kind, options?.objectIds, options?.source),
       openTool: (id) => store().activateTool(id),
     }
     apis.set(toolId, api)

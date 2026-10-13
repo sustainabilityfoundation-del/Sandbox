@@ -1,5 +1,6 @@
 import type {
   ActivityDraft,
+  ActivitySource,
   ActivityEntry,
   ChangeMeta,
   ChangeResult,
@@ -34,7 +35,7 @@ export interface EngineeringRepository {
   submitChanges(projectId: string, changes: ModelChange[], meta: ChangeMeta): Promise<ChangeResult>
 
   listOutputs(projectId: string): Promise<OutputRecord[]>
-  saveOutput(draft: OutputDraft): Promise<OutputRecord>
+  saveOutput(draft: OutputDraft, options?: { source?: ActivitySource }): Promise<OutputRecord>
   setReviewStatus(outputId: string, status: ReviewStatus, meta: ChangeMeta): Promise<OutputRecord>
 
   listActivity(projectId: string, limit?: number): Promise<ActivityEntry[]>

@@ -127,6 +127,16 @@ export interface ChangeMeta {
   toolId: string
   configurationId: string
   summary: string
+  /** Where the change came from, e.g. a conversation message; shown in Activity. */
+  source?: ActivitySource
+}
+
+/** Links an activity entry back to its origin, such as an assistant conversation. */
+export interface ActivitySource {
+  kind: 'conversation'
+  conversationId: string
+  messageId: string
+  label: string
 }
 
 export interface ChangeResult {
@@ -147,6 +157,7 @@ export interface ActivityEntry {
   objectIds: string[]
   configurationId?: string
   scenarioId?: string | null
+  source?: ActivitySource
 }
 
 export type ActivityDraft = Omit<ActivityEntry, 'id' | 'at'>

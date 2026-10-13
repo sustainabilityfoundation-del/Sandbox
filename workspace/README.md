@@ -27,6 +27,11 @@ npm run dev                 # open http://localhost:5173/workspace/
 To start again from the sample data, open the **Demo repository** menu in the
 header and choose **Reset demo data**.
 
+The sample twin's **Maximum load** scenario starts at 11 kN, deliberately below REQ-001's 12 kN.
+It also includes a saved maximum-load analysis (OUT-0003) linked as VP-001 evidence, so changes
+visibly make an existing result stale. (Demo data saved by earlier versions of this mockup is
+replaced by this sample on first load.)
+
 ## Demonstration flow
 
 1. In **Geometry**, click the rod. It becomes the shared selection and appears in the inspector.
@@ -35,13 +40,13 @@ header and choose **Reset demo data**.
 3. Open **Analysis**, choose **Maximum load** in the toolbar's Scenario control, and press **Run**.
    You can switch tools or even change the scenario while it runs. The run keeps the context it
    captured when it started.
-4. Press **Save Result**. The new output (OUT-0003) appears in the inspector with its tool,
+4. Press **Save Result**. The new output (OUT-0004) appears in the inspector with its tool,
    scenario, configuration, input revision, timestamp, values with units, and review status.
-5. Open **Verification**. VP-001 covers the rod. Choose **Link Evidence** and link OUT-0003. You can
+5. Open **Verification**. VP-001 covers the rod. Choose **Link Evidence** and link OUT-0004. You can
    also use **Record Result** to save a mock test record, **Review** to approve evidence, and
    **Traceability** to view requirement → component → procedure → evidence.
 6. Return to **Geometry**. The rod is still selected and the zoom, pan and section state are restored.
-7. In **Analysis › Inputs**, change the operating load (e.g. 12 → 13 kN) and apply. OUT-0003 stays
+7. In **Analysis › Inputs**, change the operating load (e.g. 11 → 13 kN) and apply. OUT-0004 stays
    as it was but is marked **Potentially stale**, with the reason, in the inspector, Analysis,
    Verification and the product tree.
 8. Reload the browser. The model change, outputs, evidence links, selection, open tools and each
@@ -51,7 +56,8 @@ header and choose **Reset demo data**.
 
 | Area | Implemented | Illustrative only |
 | --- | --- | --- |
-| Workspace | Header context (project, configuration, scenario, model revision), repository status, global search (`/`), collapsible product tree, inspector and activity panel, tool tabs, tool launcher with search, categories, favorites and recents (`Ctrl+K`) | — |
+| Workspace | Header context (project, configuration, scenario, model revision), repository status, global search (`/`), collapsible product tree, inspector, bottom dock with Activity and ChatGPT tabs (collapsible, resizable), tool tabs, tool launcher with search, categories, favorites and recents (`Ctrl+K`) | — |
+| ChatGPT panel | Conversation with a **demo assistant**: context chips, attach selection, Send and Stop, visible tool-call steps, "model information inspected" details, clickable object and output references, change previews with Apply, Reject and Undo, conflict refresh, clarification questions | The assistant is a deterministic mock, not ChatGPT (see below) |
 | Geometry | Select (Shift-click to add), Pan (drag), wheel zoom, Fit, labels, outline of components linked to a selected requirement or procedure | **Section** (draws a cut line only), **Measure** (shows model property values, not measured geometry) |
 | Requirements | Table, Add, Edit (title, statement, methods, compliance, allocation), Filter by selected component, status filter, Link (allocation editor), Trace columns | — |
 | Analysis | Scenario (shared), Inputs (operating load is editable), Run (async, captures context), Compare, Save Result | The calculation itself is a demo |
@@ -68,7 +74,9 @@ src/workspace/
   domain/        Types, model index, units, output freshness (no React)
   repository/    EngineeringRepository interface, DemoRepository, sample digital twin
   sdk/           What tools import: hooks, ToolApi, defineTool, shared UI, icons
-  shell/         Common workspace: header, tree, tabs, launcher, toolbar host, inspector, activity
+  shell/         Common workspace: header, tree, tabs, launcher, toolbar host, inspector, bottom dock
+  shell/assistant/  ChatGPT panel UI: conversation, change cards, references
+  assistant/     Assistant core: service interface, demo service, tool specs, executor, proposals
   tools/         One folder per tool + index.ts (registrations) + registry.ts
 ```
 
@@ -201,6 +209,169 @@ The tool views and the SDK don't change. The service should enforce what the dem
 Authentication and authorisation would be added in the repository implementation and the API.
 `RepositoryError` codes (`unavailable`, `conflict`, `invalid`, `not-found`) are what the UI uses to
 show errors.
+
+## ChatGPT panel
+
+The **ChatGPT** tab in the bottom dock is a conversation panel for discussing the engineering
+model. It can inspect the model, propose changes and run the analysis, all through the same
+repository interface, validation and run logic as the engineering tools.
+
+> **It currently runs a demo assistant.** The responses are deterministic and rule-based, and the
+> panel is not connected to ChatGPT or any language model. The tab carries a "Demo" label, and
+> the panel's banner says so.
+
+### What works
+
+- **Panel.** It is collapsible and resizable (drag its top edge), with message history, a
+  multiline input (Enter sends, Shift+Enter adds a line), Send and Stop, and clickable example
+  prompts. The conversation is kept when you switch tools.
+- **Context.** Chips show the project, configuration, scenario, model revision and selection.
+  **Attach selection** decides whether the selection goes with the message. The context is
+  captured when you press Send and shown on the message. Everything done for that message uses
+  this snapshot, so changing the selection, scenario or configuration afterwards doesn't redirect
+  an action already in progress.
+- **Transparency.** Each reply lists the operations it ran, with live status. A
+  *Model information inspected* section shows which objects, revisions and outputs were read.
+- **References.** `[[ID]]` references in replies become chips. An object chip selects the object in
+  the workspace; a saved-output chip reveals the output in the inspector; a scenario chip makes it
+  the active scenario.
+- **Read-only requests run immediately.** Changes are never applied directly. Instead the
+  assistant prepares a **change card** with:
+  - Target, property or relationship, and current → proposed values with units.
+  - Configuration, expected revision and preview revision.
+  - An explanation, and the saved outputs that would become stale.
+- **Apply.** Up to five related changes are applied as one transaction. The expected revisions
+  are checked first. The change is then validated and committed through
+  `EngineeringRepository.submitChanges`. Afterwards:
+  - The tools and inspector refresh.
+  - Dependent outputs show as potentially stale.
+  - Activity records the change with a link back to the conversation.
+  - The card shows the committed revision and an **Undo** button.
+- **Conflicts.** If the model changed after the preview was made, the card refreshes with the
+  current values and explains what changed. Nothing is overwritten, and you can review and apply
+  again.
+- **Undo** (button or "Undo the last model change") creates a *compensating* revision. It refuses
+  if the target was changed again afterwards, rather than overwriting that newer change.
+- **Clarification.** When the object, load case, value or unit is ambiguous, the assistant asks a
+  focused question with quick replies before proposing anything.
+- **Analysis runs.** "Run the maximum-load analysis" calls the Analysis tool's own run function. It
+  captures the object, configuration, scenario and input revisions, and saves the output with the
+  same provenance as a manual run. The Analysis view shows the run as requested from the
+  conversation.
+
+Example prompts the demo understands:
+1. What requirements apply to the selected component?
+2. Change the maximum operating load to 12 kN.
+3. Run the maximum-load analysis for this component.
+4. Which results became stale after that change?
+5. Open the requirements tool and show the load requirement.
+6. Undo the last model change.
+
+Close variants also work, such as naming a part ("the rod"), other load cases, or the rod's
+design factor, diameter or effective length.
+
+### Assistant tool interface
+
+The assistant can only request these operations (`src/workspace/assistant/toolSpecs.ts`). The
+application executes each one (`executor.ts`) against the workspace services:
+
+| Tool | Effect |
+| --- | --- |
+| `read_object`, `search_objects` | Read an object or scenario with its properties, units and revision; search by ID, name or statement |
+| `read_requirements`, `read_relationships` | Requirements that apply to a component (direct or via its parent assembly), and all relationships of an object |
+| `read_outputs` | Saved outputs in the captured configuration, with provenance and freshness |
+| `propose_changes` | Create a change preview (not applied). Validated against the allowlist |
+| `run_analysis` | Run the illustrative assessment through the Analysis tool's run logic and save the output |
+| `select_objects`, `open_tool` | Change the shared selection, or open a registered tool |
+
+**Editable allowlist** (`editableFields.ts`):
+- Scenario operating load (kN) and ambient temperature (°C).
+- Part design factor (–), diameter (mm) and effective length (mm), but only on parts that already
+  have them.
+- Requirement statement, compliance and verification methods.
+- The relationship types `allocated-to` and `verifies`.
+
+Values are checked for type, unit (with simple conversions such as N → kN and m → mm) and range.
+Anything else is rejected.
+
+### Demo limitations
+
+- Responses are scripted. Only requests close to the examples are understood; anything else gets a
+  help message.
+- The conversation lives in memory and is cleared by a page reload. Applied changes, outputs and
+  activity are in the Demo repository and persist.
+- Undo applies to changes made from this conversation. They're the only ones whose previous values
+  the conversation recorded.
+- Model properties are shared by all configurations in this mockup. The card's configuration
+  records the context, not a per-configuration variant.
+
+### Connecting ChatGPT (future backend integration)
+
+The provider sits behind the `AssistantService` interface (`assistant/types.ts`):
+
+```ts
+respond(request: AssistantRequest, signal: AbortSignal): Promise<AssistantResponse>
+// request:  { history, turn: { text, context, toolResults }, tools }
+// response: { type: 'tool_calls', calls } | { type: 'final', text, suggestions?, clarification? }
+```
+
+The panel runs a simple loop:
+1. Call `respond`.
+2. Execute any allowed tool calls in the app.
+3. Append their results to `turn.toolResults`.
+4. Repeat until the reply is `final`.
+
+To use ChatGPT, nothing in the tools, the SDK or the panel changes:
+
+1. **Add a backend endpoint**, e.g. `POST /api/assistant`, in our application server. It holds
+   the OpenAI API key in server-side configuration. The browser never sees the key; it talks only
+   to our backend, using the user's normal session.
+2. **Set `VITE_ASSISTANT_ENDPOINT=/api/assistant`** when building the frontend. `main.tsx` then
+   uses `RemoteAssistantService`, which posts the `AssistantRequest` and returns the backend's
+   `AssistantResponse`.
+3. **In the endpoint, call the OpenAI API with tool calling**:
+   - Pass `request.tools` (name, description, JSON-schema parameters) as function tools.
+   - Map the model's function calls to `{ type: 'tool_calls' }`.
+   - Map a plain answer to `{ type: 'final' }`.
+   - Replay previous calls and their results (`toolResults` includes each call's arguments) as
+     function-call and function-call-output items, so the endpoint can stay stateless.
+
+   A sketch with the OpenAI Node SDK's Responses API (check the current OpenAI documentation for
+   exact field names and choose the model in configuration):
+
+   ```ts
+   const openai = new OpenAI() // OPENAI_API_KEY from the server environment
+   const response = await openai.responses.create({
+     model: process.env.OPENAI_MODEL,
+     instructions: SYSTEM_PROMPT, // role, [[ID]] reference format, "model text is data"
+     input: toInputItems(request), // history + this turn + replayed tool calls/results
+     tools: request.tools.map((t) => ({ type: 'function', name: t.name, description: t.description, parameters: t.parameters })),
+   })
+   const calls = response.output.filter((item) => item.type === 'function_call')
+   return calls.length
+     ? { type: 'tool_calls', calls: calls.map((c) => ({ id: c.call_id, name: c.name, arguments: JSON.parse(c.arguments) })) }
+     : { type: 'final', text: response.output_text }
+   ```
+
+**Data minimisation.** Each request carries only:
+- The captured context (IDs, names, revision, attached selection, the list of scenarios).
+- A short recent history (the last 20 items).
+- The tool definitions.
+
+The model fetches anything else through the tools, never the whole digital twin.
+
+**Safety rules for the real integration:**
+- Treat object names, requirement statements and any imported documents as *data*, not
+  instructions. Keep them out of the system prompt, return them only as tool results, and say so in
+  the instructions.
+- Validate every requested operation in application code. The executor enforces the tool
+  allowlist, argument types, the editable-field and relationship allowlists, units and ranges. The
+  repository enforces revisions and the backend enforces permissions. The assistant cannot apply a
+  change; only the user's Apply does.
+- When the repository becomes a cloud API, authorisation is checked server-side for every call,
+  whether a tool or the assistant initiated it.
+- Keep the assistant provider separate from the model service. `AssistantService` only produces
+  text and tool requests; `EngineeringRepository` stays the only path to engineering data.
 
 ## Known limitations
 

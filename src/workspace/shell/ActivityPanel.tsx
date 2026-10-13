@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import type { ActivityKind } from '../domain/types'
+import { useConversation } from '../assistant/conversation'
+import type { ActivityEntry, ActivityKind } from '../domain/types'
 import { useWorkspaceStore } from '../sdk/store'
-import { Icons } from '../sdk/icons'
 import { formatTime } from '../sdk/ui'
 import { getTool } from '../tools/registry'
 
@@ -23,66 +23,80 @@ const FILTERS: { id: 'all' | ActivityKind; label: string }[] = [
   { id: 'error', label: 'Errors' },
 ]
 
-export function ActivityPanel() {
+/** Activity sources that aren't registered tools. */
+const OTHER_SOURCES: Record<string, string> = { assistant: 'ChatGPT panel' }
+
+export function sourceName(toolId: string | undefined): string {
+  if (!toolId) return 'Workspace'
+  return getTool(toolId)?.name ?? OTHER_SOURCES[toolId] ?? toolId
+}
+
+export function latestActivityText(entry: ActivityEntry | undefined): string {
+  return entry ? `${formatTime(entry.at)} · ${entry.message}` : ''
+}
+
+export function ActivityView() {
   const activity = useWorkspaceStore((s) => s.activity)
-  const open = useWorkspaceStore((s) => s.layout.activityOpen)
-  const setLayout = useWorkspaceStore((s) => s.setLayout)
   const model = useWorkspaceStore((s) => s.model)!
   const select = useWorkspaceStore((s) => s.select)
+  const setLayout = useWorkspaceStore((s) => s.setLayout)
+  const focusMessage = useConversation((s) => s.focusMessage)
+  const conversationId = useConversation((s) => s.conversationId)
   const [filter, setFilter] = useState<'all' | ActivityKind>('all')
   const visible = filter === 'all' ? activity : activity.filter((a) => a.kind === filter)
 
   return (
-    <section className={`ws-activity${open ? ' is-open' : ''}`} aria-label="Activity">
-      <header className="ws-activity-header">
-        <button
-          type="button"
-          className="ws-activity-toggle"
-          onClick={() => setLayout({ activityOpen: !open })}
-          aria-expanded={open}
-        >
-          <Icons.chevron width={12} height={12} className={open ? 'is-open' : ''} />
-          Activity
-          <span className="ws-muted">{activity.length}</span>
-        </button>
-        {!open && activity[0] && (
-          <span className="ws-activity-latest ws-muted">
-            {formatTime(activity[0].at)} · {activity[0].message}
-          </span>
-        )}
-        {open && (
-          <div className="ws-segmented ws-segmented-small" role="group" aria-label="Filter activity">
-            {FILTERS.map((f) => (
-              <button key={f.id} type="button" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
-                {f.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </header>
-      {open && (
-        <div className="ws-activity-list" role="log">
-          {visible.length === 0 && <p className="ws-muted">No activity.</p>}
-          {visible.map((a) => (
-            <div key={a.id} className={`ws-activity-row is-${a.kind}`}>
-              <span className="ws-activity-time">{formatTime(a.at)}</span>
-              <span className={`ws-activity-kind is-${a.kind}`}>{KIND_LABEL[a.kind]}</span>
-              <span className="ws-activity-tool">{a.toolId ? (getTool(a.toolId)?.name ?? a.toolId) : 'Workspace'}</span>
-              <span className="ws-activity-msg">{a.message}</span>
-              <span className="ws-activity-objs">
-                {a.objectIds
-                  .filter((id) => model.get(id))
-                  .slice(0, 3)
-                  .map((id) => (
-                    <button key={id} type="button" className="ws-link ws-mono" onClick={() => select([id])}>
-                      {id}
-                    </button>
-                  ))}
-              </span>
-            </div>
+    <div className="ws-activity-view">
+      <div className="ws-activity-filters">
+        <div className="ws-segmented ws-segmented-small" role="group" aria-label="Filter activity">
+          {FILTERS.map((f) => (
+            <button key={f.id} type="button" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
+              {f.label}
+            </button>
           ))}
         </div>
-      )}
-    </section>
+      </div>
+      <div className="ws-activity-list" role="log">
+        {visible.length === 0 && <p className="ws-muted">No activity.</p>}
+        {visible.map((a) => (
+          <div key={a.id} className={`ws-activity-row is-${a.kind}`}>
+            <span className="ws-activity-time">{formatTime(a.at)}</span>
+            <span className={`ws-activity-kind is-${a.kind}`}>{KIND_LABEL[a.kind]}</span>
+            <span className="ws-activity-tool">{sourceName(a.toolId)}</span>
+            <span className="ws-activity-msg">
+              {a.message}
+              {a.source && (
+                <button
+                  type="button"
+                  className="ws-activity-source"
+                  title={
+                    a.source.conversationId === conversationId
+                      ? 'Show in the conversation'
+                      : `From conversation ${a.source.conversationId}, which is no longer open`
+                  }
+                  disabled={a.source.conversationId !== conversationId}
+                  onClick={() => {
+                    setLayout({ activityOpen: true, dockTab: 'assistant' })
+                    focusMessage(a.source!.messageId)
+                  }}
+                >
+                  {a.source.label}
+                </button>
+              )}
+            </span>
+            <span className="ws-activity-objs">
+              {a.objectIds
+                .filter((id) => model.get(id))
+                .slice(0, 3)
+                .map((id) => (
+                  <button key={id} type="button" className="ws-link ws-mono" onClick={() => select([id])}>
+                    {id}
+                  </button>
+                ))}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

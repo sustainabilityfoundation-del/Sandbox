@@ -31,7 +31,8 @@ export function seedModel(): ModelSnapshot {
         name: 'Maximum load',
         description: 'Peak axial compressive load case',
         properties: {
-          operatingLoad: { value: 12, unit: 'kN' },
+          // Deliberately below REQ-001's 12 kN, so the demo has a real change to make.
+          operatingLoad: { value: 11, unit: 'kN' },
           ambientTemperature: { value: 60, unit: '°C' },
         },
         revision: 3,
@@ -168,6 +169,7 @@ export function seedModel(): ModelSnapshot {
       { id: 'REL-0009', type: 'tests', from: 'VP-002', to: 'ACT-100', revision: 5 },
       { id: 'REL-0010', type: 'tests', from: 'VP-002', to: 'MTR-130', revision: 5 },
       { id: 'REL-0011', type: 'evidence-for', from: 'OUT-0002', to: 'VP-002', revision: 6 },
+      { id: 'REL-0012', type: 'evidence-for', from: 'OUT-0003', to: 'VP-001', revision: 6 },
     ],
     modelRevision: 6,
   }
@@ -225,11 +227,47 @@ export function seedOutputs(): OutputRecord[] {
       summary: 'Pass: 5.4 s measured (mock test record)',
       reviewStatus: 'approved',
     },
+    {
+      id: 'OUT-0003',
+      toolId: 'analysis',
+      kind: 'structural-assessment',
+      title: 'Rod buckling assessment',
+      projectId: PROJECT_ID,
+      configurationId: 'CFG-BASE',
+      scenarioId: 'SCN-MAX',
+      objectIds: ['ROD-120'],
+      inputRevision: 6,
+      inputs: [
+        { id: 'ROD-120', revision: 2 },
+        { id: 'SCN-MAX', revision: 3 },
+      ],
+      createdAt: '2026-10-04T09:30:00.000Z',
+      completion: 'complete',
+      result: [
+        { key: 'operatingLoad', label: 'Operating load', value: 11, unit: 'kN' },
+        { key: 'criticalLoad', label: 'Critical buckling load', value: 26.28, unit: 'kN' },
+        { key: 'allowableLoad', label: 'Allowable load', value: 13.14, unit: 'kN' },
+        { key: 'margin', label: 'Margin of safety', value: 0.195, unit: '-' },
+        { key: 'utilisation', label: 'Utilisation', value: 83.7, unit: '%' },
+      ],
+      summary: 'Margin of safety +0.19 (demo calculation)',
+      reviewStatus: 'in-review',
+    },
   ]
 }
 
 export function seedActivity(): ActivityEntry[] {
   return [
+    {
+      id: 'LOG-00003',
+      at: '2026-10-04T09:30:00.000Z',
+      kind: 'save',
+      toolId: 'analysis',
+      message: 'Saved OUT-0003 Rod buckling assessment',
+      objectIds: ['ROD-120'],
+      configurationId: 'CFG-BASE',
+      scenarioId: 'SCN-MAX',
+    },
     {
       id: 'LOG-00002',
       at: '2026-10-03T10:05:00.000Z',

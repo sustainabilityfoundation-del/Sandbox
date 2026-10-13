@@ -1,7 +1,9 @@
 import type { ComponentType, LazyExoticComponent, SVGProps } from 'react'
 import type { ModelIndex } from '../domain/modelIndex'
+import type { WriteOptions } from './store'
 import type {
   ActivityKind,
+  ActivitySource,
   EngineeringObject,
   ModelChange,
   ObjectType,
@@ -44,12 +46,16 @@ export interface ToolApi<VS = unknown> {
   getModel: () => ModelIndex
   select: (ids: string[]) => void
   setScenario: (scenarioId: string) => void
-  submitChanges: (changes: ModelChange[], summary: string) => Promise<{ createdIds: string[] }>
-  saveOutput: (output: OutputInput) => Promise<OutputRecord>
+  submitChanges: (
+    changes: ModelChange[],
+    summary: string,
+    options?: WriteOptions,
+  ) => Promise<{ createdIds: string[]; modelRevision: number }>
+  saveOutput: (output: OutputInput, options?: WriteOptions) => Promise<OutputRecord>
   setReviewStatus: (outputId: string, status: ReviewStatus) => Promise<OutputRecord>
   getViewState: () => VS
   updateViewState: (update: ViewStateUpdate<VS>) => void
-  log: (message: string, options?: { kind?: ActivityKind; objectIds?: string[] }) => void
+  log: (message: string, options?: { kind?: ActivityKind; objectIds?: string[]; source?: ActivitySource }) => void
   openTool: (toolId: string) => void
 }
 

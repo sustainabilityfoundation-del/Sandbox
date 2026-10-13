@@ -96,7 +96,7 @@ describe('DemoRepository', () => {
   it('saves outputs as drafts with new IDs and rejects unknown configurations or scenarios', async () => {
     const r = repo()
     const saved = await r.saveOutput(analysisDraft())
-    expect(saved.id).toBe('OUT-0003')
+    expect(saved.id).toBe('OUT-0004')
     expect(saved.reviewStatus).toBe('draft')
     await expect(r.saveOutput(analysisDraft({ configurationId: 'CFG-X' }))).rejects.toMatchObject({ code: 'invalid' })
     await expect(r.saveOutput(analysisDraft({ scenarioId: 'SCN-X' }))).rejects.toMatchObject({ code: 'invalid' })
@@ -129,13 +129,13 @@ describe('DemoRepository', () => {
     await first.saveOutput(analysisDraft())
     await first.submitChanges(
       PROJECT_ID,
-      [{ kind: 'add-relationship', relationship: { type: 'evidence-for', from: 'OUT-0003', to: 'VP-001' } }],
+      [{ kind: 'add-relationship', relationship: { type: 'evidence-for', from: 'OUT-0004', to: 'VP-001' } }],
       meta,
     )
     const second = repo(storage)
     const model = await second.loadModel(PROJECT_ID)
-    expect(model.relationships.some((x) => x.type === 'evidence-for' && x.from === 'OUT-0003')).toBe(true)
-    expect((await second.listOutputs(PROJECT_ID)).map((o) => o.id)).toContain('OUT-0003')
+    expect(model.relationships.some((x) => x.type === 'evidence-for' && x.from === 'OUT-0004')).toBe(true)
+    expect((await second.listOutputs(PROJECT_ID)).map((o) => o.id)).toContain('OUT-0004')
     expect((await second.listActivity(PROJECT_ID))[0].message).toContain('test change (model rev 7)')
   })
 
@@ -166,7 +166,7 @@ describe('demo assessment', () => {
     expect(nom.margin).toBeCloseTo(0.643, 3)
     const max = assess(maximum.inputs!)
     expect(max.margin).toBeGreaterThan(0)
-    expect(max.margin).toBeLessThan(0.15)
+    expect(max.margin).toBeCloseTo(0.195, 3)
   })
 
   it('reports missing inputs instead of guessing', async () => {
