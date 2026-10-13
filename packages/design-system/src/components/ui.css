@@ -1,0 +1,133 @@
+/* Shared component styles that are clearer in CSS than in utility classes:
+   overlay motion, table layouts and the state layer. Tokens only. */
+
+/* ---- Motion: overlays animate opacity and transform only; reduced motion collapses durations. ---- */
+
+@keyframes ws-fade-in { from { opacity: 0; } }
+@keyframes ws-fade-out { to { opacity: 0; } }
+@keyframes ws-pop-in { from { opacity: 0; transform: scale(0.96) translateY(-4px); } }
+@keyframes ws-pop-out { to { opacity: 0; transform: scale(0.98); } }
+@keyframes ws-rise-in { from { opacity: 0; transform: translateY(16px); } }
+@keyframes ws-sheet-in { from { transform: translateY(100%); } }
+@keyframes ws-sheet-out { to { transform: translateY(100%); } }
+@keyframes ws-drawer-left-in { from { transform: translateX(-100%); } }
+@keyframes ws-drawer-left-out { to { transform: translateX(-100%); } }
+@keyframes ws-drawer-right-in { from { transform: translateX(100%); } }
+@keyframes ws-drawer-right-out { to { transform: translateX(100%); } }
+@keyframes ws-spin { to { transform: rotate(360deg); } }
+
+.ws-overlay[data-entering] { animation: ws-pop-in var(--ws-motion-medium) var(--ws-ease-emphasized-decelerate); }
+.ws-overlay[data-exiting] { animation: ws-pop-out var(--ws-motion-short) var(--ws-ease-emphasized-accelerate); }
+.ws-tooltip[data-entering] { animation: ws-fade-in var(--ws-motion-short) var(--ws-ease-standard); }
+.ws-tooltip[data-exiting] { animation: ws-fade-out var(--ws-motion-short) var(--ws-ease-standard); }
+.ws-scrim[data-entering] { animation: ws-fade-in var(--ws-motion-medium) var(--ws-ease-standard); }
+.ws-scrim[data-exiting] { animation: ws-fade-out var(--ws-motion-short) var(--ws-ease-standard); }
+.ws-dialog[data-entering] { animation: ws-rise-in var(--ws-motion-long) var(--ws-ease-emphasized-decelerate); }
+.ws-sheet[data-entering] { animation: ws-sheet-in var(--ws-motion-long) var(--ws-ease-emphasized-decelerate); }
+.ws-sheet[data-exiting] { animation: ws-sheet-out var(--ws-motion-medium) var(--ws-ease-emphasized-accelerate); }
+.ws-drawer-left[data-entering] { animation: ws-drawer-left-in var(--ws-motion-long) var(--ws-ease-emphasized-decelerate); }
+.ws-drawer-left[data-exiting] { animation: ws-drawer-left-out var(--ws-motion-medium) var(--ws-ease-emphasized-accelerate); }
+.ws-drawer-right[data-entering] { animation: ws-drawer-right-in var(--ws-motion-long) var(--ws-ease-emphasized-decelerate); }
+.ws-drawer-right[data-exiting] { animation: ws-drawer-right-out var(--ws-motion-medium) var(--ws-ease-emphasized-accelerate); }
+
+.ws-spin { animation: ws-spin 900ms linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-spin { animation-duration: 2.4s; } /* a slow turn still signals activity */
+}
+
+/* Bottom sheet sized to the visible viewport (React Aria sets --visual-viewport-height),
+   so content stays above an on-screen keyboard. */
+.ws-sheet {
+  max-height: calc(var(--visual-viewport-height, 100dvh) - 8px);
+}
+
+.ws-sheet-full {
+  height: var(--visual-viewport-height, 100dvh);
+  max-height: var(--visual-viewport-height, 100dvh);
+}
+
+/* ---- Data table (React Aria Table) ---- */
+
+.ws-dtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ws-font-size);
+}
+
+.ws-dtable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0 var(--ws-space-3);
+  height: var(--ws-row-h);
+  border-bottom: 1px solid var(--ws-border);
+  background: var(--ws-surface-2);
+  color: var(--ws-text-2);
+  font-size: var(--ws-font-size-xs);
+  font-weight: var(--ws-weight-medium);
+  letter-spacing: 0.02em;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ws-dtable td {
+  padding: var(--ws-space-2) var(--ws-space-3);
+  border-bottom: 1px solid var(--ws-border);
+  vertical-align: top;
+}
+
+.ws-dtable tbody tr {
+  cursor: default;
+  outline: none;
+  transition: background-color var(--ws-motion-short) var(--ws-ease-standard);
+}
+
+.ws-dtable tbody tr[data-hovered] { background: var(--ws-state-hover); }
+.ws-dtable tbody tr[data-pressed] { background: var(--ws-state-pressed); }
+
+.ws-dtable tbody tr[data-selected] {
+  background: var(--ws-selected);
+  box-shadow: inset 3px 0 0 var(--ws-accent);
+}
+
+.ws-dtable tbody tr[data-focus-visible] {
+  outline: 2px solid var(--ws-focus);
+  outline-offset: -2px;
+}
+
+.ws-dtable tbody tr.is-stale td { background: var(--ws-warning-surface); }
+
+/* Narrow containers: rows become labelled cards (labels come from data-label on cells). */
+@container tool (max-width: 620px) {
+  .ws-dtable.ws-dtable-cards thead { display: none; }
+  .ws-dtable.ws-dtable-cards,
+  .ws-dtable.ws-dtable-cards tbody { display: block; }
+  .ws-dtable.ws-dtable-cards tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--ws-space-1) var(--ws-space-3);
+    padding: var(--ws-space-3);
+    border-bottom: 1px solid var(--ws-border);
+  }
+  .ws-dtable.ws-dtable-cards td { display: block; padding: 0; border: 0; min-width: 0; }
+  .ws-dtable.ws-dtable-cards td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--ws-text-3);
+    font-size: var(--ws-font-size-xs);
+    font-weight: var(--ws-weight-medium);
+  }
+  .ws-dtable.ws-dtable-cards td[data-wide] { grid-column: 1 / -1; }
+  .ws-dtable.ws-dtable-cards td[data-title]::before { display: none; }
+}
+
+/* ---- Simple tables (key/value and comparison tables) ---- */
+
+.ws-table-wrap {
+  overflow: auto;
+  min-height: 0;
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius-lg);
+  background: var(--ws-surface);
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@ews/platform-sdk",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Versioned tool contract and SDK for engineering workspace tools, plus a standalone development harness.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react/index.ts",
+    "./harness": "./src/harness/index.tsx",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/design-system": "^1.0.0",
+    "@ews/model-service": "^1.0.0",
+    "zustand": "^5.0.8",
+    "react-aria-components": "^1.22.1"
+  },
+  "peerDependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  }
+}

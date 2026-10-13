@@ -1,0 +1,279 @@
+/*
+ * Workspace design tokens: a restrained Material Design 3 direction.
+ *
+ * Everything in the workspace (shell, tools, ChatGPT, diagrams, charts, the 3D
+ * viewer) is styled from these semantic variables, either through Tailwind
+ * utilities (bg-surface, text-fg, border-line, rounded-control, shadow-1,
+ * duration-medium, …) or directly in component CSS. Switching
+ * <html data-theme> / <html data-density> restyles the whole workspace.
+ *
+ * Colour roles follow M3 (surface containers, on-surface, outline, primary,
+ * primary container, error); "warning" and "success" are added in the same
+ * tonal style. The accent is a muted slate blue so engineering data, not
+ * chrome, carries the visual weight.
+ */
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces (M3 neutral tonal palette) */
+  --ws-bg: #eceef4;                 /* app background behind panels */
+  --ws-surface: #fbfcff;            /* panels, tool views */
+  --ws-surface-2: #f3f4f9;          /* surface-container-low: raised rows, inputs */
+  --ws-surface-3: #e7e9ef;          /* surface-container-high: hover, tab bars */
+  --ws-surface-4: #e1e3e9;          /* surface-container-highest: pressed */
+  --ws-border: #d8dbe3;             /* outline-variant */
+  --ws-border-strong: #737782;      /* outline (control borders) */
+  --ws-scrim: rgba(18, 22, 30, 0.42);
+  --ws-overlay-surface: rgba(251, 252, 255, 0.92);
+  --ws-tab-hover: rgba(25, 28, 32, 0.06);
+  --ws-state-hover: rgba(25, 28, 32, 0.07);
+  --ws-state-pressed: rgba(25, 28, 32, 0.12);
+  --ws-inverse-surface: #2e3137;   /* tooltips, snackbars */
+  --ws-inverse-text: #eff0f7;
+
+  /* Text */
+  --ws-text: #191c21;               /* on-surface */
+  --ws-text-2: #42464f;             /* on-surface-variant */
+  --ws-text-3: #5d616b;
+  --ws-strike: rgba(66, 70, 79, 0.5);
+
+  /* Accent and selection */
+  --ws-accent: #3d5c8f;             /* primary */
+  --ws-accent-strong: #2b4a7b;
+  --ws-accent-soft: #d8e3fb;        /* secondary container: selection, toggles */
+  --ws-accent-border: #a7bce4;
+  --ws-accent-surface: #f6f8fe;
+  --ws-on-accent: #ffffff;
+  --ws-selected: var(--ws-accent-soft);
+  --ws-selected-text: #12305c;      /* on-secondary-container */
+  --ws-focus: #3d5c8f;
+  --ws-favorite: #8a5d00;
+
+  /* Status (tonal containers; always paired with an icon and text) */
+  --ws-success: #22693a;
+  --ws-success-soft: #d7f0dc;
+  --ws-success-border: #9fd3ab;
+  --ws-success-surface: #f5fbf6;
+  --ws-warning: #7b5500;
+  --ws-warning-soft: #ffe7bd;
+  --ws-warning-border: #e8c27a;
+  --ws-warning-surface: #fff8ee;
+  --ws-warning-marker: #c88a00;
+  --ws-danger: #ab2219;             /* error */
+  --ws-danger-soft: #ffdad5;        /* error container */
+  --ws-danger-border: #f2b2aa;
+  --ws-info: #2f5c9b;
+  --ws-info-soft: #dde8fb;
+  --ws-info-border: #b4c8ea;
+  --ws-info-overlay: rgba(221, 232, 251, 0.96);
+
+  /* Top app bar (M3 uses a surface container, not a dark bar) */
+  --ws-header-bg: #f0f2f7;
+  --ws-header-raised: #e3e6ed;
+  --ws-header-input: #e7e9ef;
+  --ws-header-line: #cfd3dc;
+  --ws-header-text: #191c21;
+  --ws-header-text-2: #4e535d;
+  --ws-header-accent: #3d5c8f;
+  --ws-header-focus: #3d5c8f;
+  --ws-status-ok: #2e8a4b;
+  --ws-status-busy: #c88a00;
+  --ws-status-error: #c4322a;
+
+  /* Diagrams (Geometry SVG) */
+  --ws-diagram-bg: #f8f9fc;
+  --ws-diagram-grid: #e6e8ee;
+  --ws-diagram-stroke: #5a5f6a;
+  --ws-diagram-stroke-strong: #22262d;
+  --ws-diagram-detail: #6b7586;
+  --ws-diagram-leader: #8a909c;
+  --ws-diagram-hatch: #9aa1ad;
+  --ws-diagram-part-1: #c9ced8;
+  --ws-diagram-part-2: #8e9bb0;
+  --ws-diagram-part-3: #e4e6eb;
+  --ws-diagram-selected: #b9cbef;
+
+  /* Charts */
+  --ws-chart-track: #eef0f4;
+  --ws-chart-band: #d5ecda;
+  --ws-chart-value: var(--ws-accent);
+  --ws-chart-over: var(--ws-danger);
+  --ws-chart-limit: var(--ws-success);
+  --ws-chart-reference: var(--ws-text-3);
+
+  /* 3D viewport background */
+  --ws-viewport-top: #eef0f4;
+  --ws-viewport-bottom: #d7dae1;
+
+  /* Shape (M3 corner scale) */
+  --ws-radius-xs: 4px;
+  --ws-radius-sm: 6px;
+  --ws-radius: 8px;                 /* inputs, small containers */
+  --ws-radius-lg: 12px;             /* cards, menus, panels */
+  --ws-radius-xl: 20px;             /* sheets, dialogs */
+  --ws-radius-full: 999px;          /* buttons, chips */
+
+  /* Elevation (M3 levels 1–3; subtle) */
+  --ws-shadow-sm: 0 1px 2px rgba(18, 22, 30, 0.12), 0 1px 3px 1px rgba(18, 22, 30, 0.06);
+  --ws-shadow: 0 2px 6px 2px rgba(18, 22, 30, 0.1), 0 1px 2px rgba(18, 22, 30, 0.16);
+  --ws-shadow-lg: 0 4px 8px 3px rgba(18, 22, 30, 0.1), 0 1px 3px rgba(18, 22, 30, 0.18);
+
+  /* Typography */
+  --ws-font-sans: 'Roboto Flex', Roboto, 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  --ws-mono: 'Roboto Mono', ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --ws-weight-regular: 400;
+  --ws-weight-medium: 500;
+  --ws-weight-strong: 600;
+  --ws-font-title: 16px;            /* title medium */
+  --ws-font-headline: 20px;         /* headline small, used sparingly */
+
+  /* Spacing (4 px grid) */
+  --ws-space-1: 4px;
+  --ws-space-2: 8px;
+  --ws-space-3: 12px;
+  --ws-space-4: 16px;
+  --ws-space-5: 20px;
+  --ws-space-6: 24px;
+
+  /* Motion (M3 durations and easing) */
+  --ws-motion-short: 100ms;
+  --ws-motion-medium: 200ms;
+  --ws-motion-long: 300ms;
+  --ws-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ws-ease-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ws-ease-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ws-bg: #0f1115;
+  --ws-surface: #16191e;
+  --ws-surface-2: #1c1f25;
+  --ws-surface-3: #262a31;
+  --ws-surface-4: #30343c;
+  --ws-border: #383c45;
+  --ws-border-strong: #8b909b;
+  --ws-scrim: rgba(0, 0, 0, 0.6);
+  --ws-overlay-surface: rgba(22, 25, 30, 0.92);
+  --ws-tab-hover: rgba(226, 228, 236, 0.07);
+  --ws-state-hover: rgba(226, 228, 236, 0.08);
+  --ws-state-pressed: rgba(226, 228, 236, 0.13);
+  --ws-inverse-surface: #e2e3ea;
+  --ws-inverse-text: #2e3137;
+
+  --ws-text: #e2e3ea;
+  --ws-text-2: #c3c6d0;
+  --ws-text-3: #a2a6b1;
+  --ws-strike: rgba(195, 198, 208, 0.55);
+
+  --ws-accent: #a8c4f5;
+  --ws-accent-strong: #c2d6fb;
+  --ws-accent-soft: #2c3f60;
+  --ws-accent-border: #4a6391;
+  --ws-accent-surface: #1b2232;
+  --ws-on-accent: #0a2a54;
+  --ws-selected-text: #d8e3fb;
+  --ws-focus: #a8c4f5;
+  --ws-favorite: #f2c25c;
+
+  --ws-success: #8fd5a0;
+  --ws-success-soft: #173b23;
+  --ws-success-border: #2e6a3e;
+  --ws-success-surface: #142019;
+  --ws-warning: #f2c25c;
+  --ws-warning-soft: #3d2f0b;
+  --ws-warning-border: #6e5317;
+  --ws-warning-surface: #221c10;
+  --ws-warning-marker: #e0a93a;
+  --ws-danger: #ffb4a9;
+  --ws-danger-soft: #5a1610;
+  --ws-danger-border: #8c2b22;
+  --ws-info: #a8c4f5;
+  --ws-info-soft: #1f2d45;
+  --ws-info-border: #34507e;
+  --ws-info-overlay: rgba(31, 45, 69, 0.96);
+
+  --ws-header-bg: #1a1d22;
+  --ws-header-raised: #262a31;
+  --ws-header-input: #22262c;
+  --ws-header-line: #343842;
+  --ws-header-text: #e2e3ea;
+  --ws-header-text-2: #b0b4be;
+  --ws-header-accent: #a8c4f5;
+  --ws-header-focus: #a8c4f5;
+  --ws-status-ok: #6fcf8b;
+  --ws-status-busy: #f2c25c;
+  --ws-status-error: #ff8a7d;
+
+  --ws-diagram-bg: #14171b;
+  --ws-diagram-grid: #22262d;
+  --ws-diagram-stroke: #9ca2ad;
+  --ws-diagram-stroke-strong: #dadde4;
+  --ws-diagram-detail: #8592a6;
+  --ws-diagram-leader: #6f7683;
+  --ws-diagram-hatch: #5e6572;
+  --ws-diagram-part-1: #4a505b;
+  --ws-diagram-part-2: #3e4f68;
+  --ws-diagram-part-3: #6b717d;
+  --ws-diagram-selected: #34507e;
+
+  --ws-chart-track: #23272e;
+  --ws-chart-band: #1e3a28;
+
+  --ws-viewport-top: #23272e;
+  --ws-viewport-bottom: #111317;
+
+  --ws-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px 1px rgba(0, 0, 0, 0.2);
+  --ws-shadow: 0 2px 6px 2px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ws-shadow-lg: 0 4px 8px 3px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+/* Density: control heights, row heights, spacing and type size. */
+:root,
+:root[data-density='comfortable'] {
+  --ws-font-size: 14px;
+  --ws-font-size-sm: 13px;
+  --ws-font-size-xs: 11.5px;
+  --ws-control-h: 36px;
+  --ws-control-h-sm: 30px;
+  --ws-row-h: 32px;
+  --ws-header-h: 56px;
+  --ws-pad: 16px;
+  --ws-gap: 8px;
+}
+
+:root[data-density='compact'] {
+  --ws-font-size: 13px;
+  --ws-font-size-sm: 12px;
+  --ws-font-size-xs: 11px;
+  --ws-control-h: 30px;
+  --ws-control-h-sm: 26px;
+  --ws-row-h: 26px;
+  --ws-header-h: 48px;
+  --ws-pad: 10px;
+  --ws-gap: 6px;
+}
+
+/* Touch-sized targets (about 44 px) wherever the primary pointer is coarse, whatever the density. */
+:root {
+  --ws-touch-target: 0px;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --ws-touch-target: 44px;
+  }
+}
+
+/* Reduced motion: transitions collapse to near-instant; nothing waits on animation. */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  :root[data-theme] {
+    --ws-motion-short: 1ms;
+    --ws-motion-medium: 1ms;
+    --ws-motion-long: 1ms;
+  }
+}

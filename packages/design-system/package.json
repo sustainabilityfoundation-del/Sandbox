@@ -1,0 +1,25 @@
+{
+  "name": "@ews/design-system",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared React Aria components, design tokens, Tailwind theme and Phosphor icon registry.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./icon-names": "./src/icons/names.ts",
+    "./preferences": "./src/theme/preferences.ts",
+    "./styles.css": "./src/theme/index.css"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "react-aria-components": "^1.22.1",
+    "zustand": "^5.0.8"
+  },
+  "peerDependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  }
+}

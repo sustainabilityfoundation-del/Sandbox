@@ -1,0 +1,799 @@
+/* Loaded into the components cascade layer (see @ews/design-system styles.css). */
+@layer components {
+/* Workspace component styles (shell and shared components). Colours, sizes and effects come from
+   theme/tokens.css; this file is loaded into the "components" cascade layer by theme/index.css. */
+
+/* ---------- Layout ---------- */
+
+.ws-pane-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 10px 0 12px;
+  border-bottom: 1px solid var(--ws-border);
+  font-size: var(--ws-font-size-xs);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ws-text-3);
+  flex: none;
+}
+
+/* ---------- Header ---------- */
+
+@keyframes ws-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---------- Buttons & form controls ---------- */
+
+/* ---------- Badges, notices, panels ---------- */
+
+@keyframes ws-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Tables & output lists ---------- */
+
+/* ---------- Product tree ---------- */
+
+/* ---------- Tabs & toolbar ---------- */
+
+.ws-toolbar-legend {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--ws-text-3);
+  font-size: var(--ws-font-size-xs);
+  white-space: nowrap;
+}
+
+/* ---------- Work area ---------- */
+
+.ws-work {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--ws-surface-2);
+}
+
+.ws-tool-host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-tool-host > * {
+  flex: 1;
+  min-height: 0;
+}
+
+.ws-unsupported {
+  padding: 10px 12px 0;
+  flex: none;
+}
+
+.ws-work-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: 1;
+  color: var(--ws-text-3);
+}
+
+/* ---------- Inspector ---------- */
+
+.ws-inspector {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ws-inspector-body {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+}
+
+.ws-insp-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--ws-text-2);
+}
+
+.ws-insp-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ws-text);
+}
+
+.ws-insp-sub {
+  color: var(--ws-text-3);
+  font-size: var(--ws-font-size-sm);
+}
+
+.ws-insp-statement {
+  margin: 10px 0 6px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--ws-border-strong);
+  background: var(--ws-surface-2);
+}
+
+.ws-insp-section {
+  margin-top: 14px;
+}
+
+.ws-insp-section h3 {
+  margin: 0 0 6px;
+  font-size: var(--ws-font-size-xs);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ws-text-3);
+}
+
+.ws-props {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+  gap: 3px 10px;
+  margin: 0;
+}
+
+.ws-prop {
+  display: contents;
+}
+
+.ws-props dt {
+  color: var(--ws-text-3);
+}
+
+.ws-props dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.ws-insp-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.ws-insp-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.ws-insp-outputs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ws-insp-outputs > li {
+  padding: 8px 10px;
+  border: 1px solid var(--ws-border);
+  border-radius: 6px;
+  background: var(--ws-surface-2);
+}
+
+.ws-insp-outputs > li.is-stale {
+  border-color: var(--ws-warning-border);
+  background: var(--ws-warning-surface);
+}
+
+.ws-insp-output-head {
+  display: flex;
+  gap: 6px;
+  font-weight: 650;
+}
+
+.ws-insp-output-summary {
+  margin: 2px 0 6px;
+}
+
+.ws-insp-output-meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1px 8px;
+  margin: 0 0 6px;
+  font-size: var(--ws-font-size-sm);
+}
+
+.ws-insp-output-meta dt {
+  color: var(--ws-text-3);
+}
+
+.ws-insp-output-meta dd {
+  margin: 0;
+}
+
+.ws-insp-result {
+  width: 100%;
+  margin-bottom: 6px;
+  border-collapse: collapse;
+  font-size: var(--ws-font-size-sm);
+}
+
+.ws-insp-result td {
+  padding: 2px 0;
+  border-top: 1px solid var(--ws-border);
+}
+
+.ws-insp-result td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-insp-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ws-stale-reasons {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--ws-warning);
+  font-size: var(--ws-font-size-sm);
+}
+
+.ws-insp-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* ---------- Bottom dock (Activity / ChatGPT) ---------- */
+
+.ws-dock {
+  position: relative;
+  border-top: 1px solid var(--ws-border);
+  background: var(--ws-surface);
+  min-width: 0;
+}
+
+.ws-dock-latest {
+  min-width: 0;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ws-font-size-sm);
+}
+
+.ws-dock-body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ws-activity-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ws-activity-filters {
+  display: flex;
+  justify-content: flex-end;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--ws-surface-3);
+  flex: none;
+}
+
+.ws-activity-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font-size: var(--ws-font-size-sm);
+}
+
+.ws-activity-list > p {
+  padding: 8px 12px;
+  margin: 0;
+}
+
+.ws-activity-row {
+  display: grid;
+  grid-template-columns: 150px 64px 110px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--ws-surface-3);
+}
+
+.ws-activity-time {
+  color: var(--ws-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-activity-kind {
+  justify-self: start;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: var(--ws-font-size-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  background: var(--ws-surface-3);
+  color: var(--ws-text-2);
+}
+
+.ws-activity-kind.is-save {
+  background: var(--ws-success-soft);
+  color: var(--ws-success);
+}
+
+.ws-activity-kind.is-run {
+  background: var(--ws-info-soft);
+  color: var(--ws-info);
+}
+
+.ws-activity-kind.is-change {
+  background: var(--ws-warning-soft);
+  color: var(--ws-warning);
+}
+
+.ws-activity-kind.is-error {
+  background: var(--ws-danger-soft);
+  color: var(--ws-danger);
+}
+
+.ws-activity-tool {
+  color: var(--ws-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-activity-msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Launcher ---------- */
+
+/* ---------- Splash ---------- */
+
+.ws-splash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  color: var(--ws-text-2);
+}
+
+.ws-splash-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  padding: 28px;
+  border: 1px solid var(--ws-border);
+  border-radius: 8px;
+  background: var(--ws-surface);
+  text-align: center;
+  color: var(--ws-danger);
+}
+
+.ws-splash-card h1 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--ws-text);
+}
+
+.ws-splash-card p {
+  margin: 0 0 8px;
+  color: var(--ws-text-2);
+}
+
+/* =================== ChatGPT panel (assistant) =================== */
+
+.as-root {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  height: 100%;
+  min-height: 0;
+}
+
+.as-conversation {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.as-banner {
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--ws-border);
+  background: var(--ws-warning-soft);
+  color: var(--ws-text-2);
+  font-size: var(--ws-font-size-sm);
+  flex: none;
+}
+
+.as-messages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.as-empty {
+  color: var(--ws-text-3);
+  max-width: 640px;
+}
+
+.as-empty p {
+  margin: 4px 0;
+}
+
+.as-msg {
+  max-width: 900px;
+  padding: 8px 10px;
+  border: 1px solid var(--ws-border);
+  border-radius: 6px;
+  background: var(--ws-surface);
+  transition: box-shadow 200ms;
+}
+
+.as-user {
+  align-self: flex-start;
+  background: var(--ws-surface-2);
+}
+
+.as-assistant {
+  border-left: 3px solid var(--ws-accent);
+}
+
+.as-msg.is-focused,
+.as-event.is-focused {
+  box-shadow: 0 0 0 2px var(--ws-accent);
+}
+
+.as-msg-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: var(--ws-font-size-sm);
+}
+
+.as-user-text {
+  white-space: pre-wrap;
+}
+
+.as-captured {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.as-captured span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--ws-surface-3);
+  color: var(--ws-text-3);
+  font-size: var(--ws-font-size-xs);
+}
+
+.as-tag {
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--ws-info-soft);
+  color: var(--ws-info);
+  font-size: var(--ws-font-size-xs);
+  font-weight: 600;
+}
+
+.as-steps {
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--ws-font-size-sm);
+  color: var(--ws-text-2);
+}
+
+.as-steps li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.as-steps li.is-error {
+  color: var(--ws-danger);
+}
+
+.as-step-icon {
+  width: 12px;
+  color: var(--ws-success);
+  font-weight: 700;
+  text-align: center;
+}
+
+.as-step-name {
+  font-family: var(--ws-mono);
+  font-size: var(--ws-font-size-xs);
+  color: var(--ws-text-3);
+}
+
+.as-thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ws-text-3);
+  font-size: var(--ws-font-size-sm);
+}
+
+.as-text p {
+  margin: 0 0 6px;
+}
+
+.as-text ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+}
+
+.as-text li {
+  margin: 3px 0;
+}
+
+.as-note {
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: var(--ws-surface-3);
+  color: var(--ws-text-2);
+  font-size: var(--ws-font-size-sm);
+}
+
+.as-note.is-error {
+  background: var(--ws-danger-soft);
+  color: var(--ws-danger);
+}
+
+.as-inspected {
+  margin-top: 6px;
+  font-size: var(--ws-font-size-sm);
+}
+
+.as-inspected summary {
+  color: var(--ws-text-3);
+  cursor: pointer;
+}
+
+.as-inspected ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.as-suggestions,
+.as-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.as-event {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 900px;
+  padding: 3px 10px;
+  border-left: 3px solid var(--ws-border-strong);
+  color: var(--ws-text-2);
+  font-size: var(--ws-font-size-sm);
+}
+
+.as-event.is-success {
+  border-left-color: var(--ws-success);
+  color: var(--ws-success);
+}
+
+.as-event.is-warning {
+  border-left-color: var(--ws-warning-marker);
+  color: var(--ws-warning);
+}
+
+.as-event.is-danger {
+  border-left-color: var(--ws-danger);
+  color: var(--ws-danger);
+}
+
+.as-event .as-card {
+  color: var(--ws-text);
+}
+
+/* Change card */
+
+.as-card {
+  margin-top: 8px;
+  border: 1px solid var(--ws-accent-border);
+  border-radius: 6px;
+  background: var(--ws-accent-surface);
+  font-size: var(--ws-font-size-sm);
+}
+
+.as-card.is-applied {
+  border-color: var(--ws-success-border);
+  background: var(--ws-success-surface);
+}
+
+.as-card.is-conflict {
+  border-color: var(--ws-warning-border);
+  background: var(--ws-warning-surface);
+}
+
+.as-card.is-rejected {
+  opacity: 0.7;
+}
+
+.as-card.is-failed {
+  border-color: var(--ws-danger-border);
+}
+
+.as-card-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ws-border);
+}
+
+.as-card-table {
+  overflow-x: auto;
+}
+
+.as-card-table .ws-table th {
+  position: static;
+}
+
+.as-old {
+  color: var(--ws-text-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--ws-strike);
+}
+
+.as-new {
+  font-weight: 650;
+}
+
+.as-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+  padding: 6px 10px 0;
+  font-size: var(--ws-font-size-sm);
+}
+
+.as-card-meta dt {
+  display: inline;
+  color: var(--ws-text-3);
+}
+
+.as-card-meta dt::after {
+  content: ': ';
+}
+
+.as-card-meta dd {
+  display: inline;
+  margin: 0;
+}
+
+.as-card-why,
+.as-card-affected {
+  margin: 4px 10px;
+  color: var(--ws-text-2);
+  font-size: var(--ws-font-size-sm);
+}
+
+.as-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 8px;
+}
+
+/* Composer */
+
+.as-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-left: 1px solid var(--ws-border);
+  background: var(--ws-surface-2);
+  min-height: 0;
+  overflow: auto;
+}
+
+.as-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.as-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 1px 7px;
+  border: 1px solid var(--ws-border);
+  border-radius: 10px;
+  background: var(--ws-surface);
+  font-size: var(--ws-font-size-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.as-chip-k {
+  color: var(--ws-text-3);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.as-examples {
+  margin-top: 2px;
+  align-items: center;
+}
+
+.ws-insp-outputs > li.is-flash {
+  box-shadow: 0 0 0 2px var(--ws-accent);
+  transition: box-shadow 200ms;
+}
+
+
+.ws-insp-rationale {
+  margin: 0 0 var(--ws-space-2);
+  color: var(--ws-text-3);
+  font-size: var(--ws-font-size-sm);
+}
+
+.ws-locked {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ws-space-6);
+}
+
+.ws-locked > * { max-width: 560px; }
+}

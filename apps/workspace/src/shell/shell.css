@@ -1,0 +1,605 @@
+/* Loaded into the components cascade layer (see @ews/design-system styles.css). */
+@layer components {
+/* Responsive workspace shell. Modes come from available space (data-mode = phone | tablet | desktop),
+   never from device detection. Uses design tokens only; controls come from the ui library. */
+
+.ws-app {
+  --ws-nav-h: calc(64px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  grid-template-rows: var(--ws-header-h) minmax(0, 1fr) auto;
+  height: 100dvh;
+  min-width: 0;
+  background: var(--ws-bg);
+}
+
+.ws-app.ws-detached {
+  grid-template-rows: var(--ws-header-h) auto minmax(0, 1fr);
+}
+
+.ws-body {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Explicit placement keeps desktop columns aligned whichever panels are shown. */
+.ws-body > .ws-area-tree-handle { grid-column: 2; grid-row: 1; }
+.ws-body > .ws-center { grid-column: 3; grid-row: 1; }
+.ws-body > .ws-area-inspector-handle { grid-column: 4; grid-row: 1; }
+.ws-app:not([data-mode='desktop']) .ws-body > .ws-center { grid-column: 1; }
+
+.ws-center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ---- Top app bar ---------------------------------------------------------------------------- */
+
+.ws-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-4);
+  height: var(--ws-header-h);
+  padding: 0 var(--ws-space-3);
+  border-bottom: 1px solid var(--ws-header-line);
+  background: var(--ws-header-bg);
+  color: var(--ws-header-text);
+  min-width: 0;
+}
+
+.ws-header[data-mode='phone'] { gap: var(--ws-space-2); padding: 0 var(--ws-space-2); }
+
+.ws-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  font-size: var(--ws-font-title);
+  font-weight: var(--ws-weight-medium);
+  white-space: nowrap;
+}
+
+.ws-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ws-radius);
+  background: var(--ws-accent-soft);
+  color: var(--ws-selected-text);
+}
+
+.ws-header-context {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ws-ctx {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 var(--ws-space-3);
+  border-left: 1px solid var(--ws-header-line);
+  min-width: 0;
+}
+
+.ws-ctx-label {
+  color: var(--ws-header-text-2);
+  font-size: var(--ws-font-size-xs);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ws-ctx-value {
+  overflow: hidden;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-ctx-select { max-width: 230px; }
+
+.ws-header-right {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ws-space-1);
+  margin-left: auto;
+}
+
+.ws-search { position: relative; display: flex; align-items: center; }
+.ws-search-input { width: 300px; background: var(--ws-surface); }
+
+.ws-kbd {
+  padding: 0 var(--ws-space-1);
+  border: 1px solid var(--ws-border-strong);
+  border-radius: var(--ws-radius-xs);
+  color: var(--ws-text-3);
+  background: var(--ws-surface);
+  font-family: var(--ws-mono);
+  font-size: var(--ws-font-size-xs);
+  font-weight: var(--ws-weight-regular);
+  line-height: 1.5;
+}
+
+.ws-repo-dot { background: var(--ws-status-ok); }
+.ws-repo-dot.is-saving { background: var(--ws-status-busy); animation: ws-pulse 0.9s ease-in-out infinite; }
+.ws-repo-dot.is-error,
+.ws-repo-dot.is-offline { background: var(--ws-status-error); }
+
+@keyframes ws-pulse { 50% { opacity: 0.35; } }
+
+@media (max-width: 1279px) { .ws-ctx-project-name { display: none; } }
+@media (max-width: 1499px) { .ws-repo-name { display: none; } }
+@media (max-width: 1599px) and (min-width: 1100px) { .ws-search-input { width: 230px; } }
+@media (max-width: 1099px) {
+  .ws-brand-name { display: none; }
+  .ws-search-input { width: 170px; }
+  .ws-palette-text { display: none; }
+  .ws-ctx-select { max-width: 160px; }
+}
+@media (max-width: 879px) {
+  .ws-ctx-project { display: none; }
+  .ws-search-input { width: 140px; }
+  .ws-ctx { padding: 0 var(--ws-space-2); }
+  .ws-palette-button .ws-kbd { display: none; }
+  .ws-ctx-select { max-width: 130px; }
+  .ws-search-input { width: 120px; }
+}
+
+/* ---- Side panels: columns on desktop, drawers otherwise ---------------------------------------- */
+
+.ws-side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ws-surface);
+}
+
+.ws-side-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ---- Resize handles (pointer, touch, pen and keyboard) -------------------------------------- */
+
+.ws-resize-handle {
+  position: relative;
+  z-index: 2;
+  background: transparent;
+}
+
+.ws-resize-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 1px;
+  height: 100%;
+  margin: auto;
+  border-radius: var(--ws-radius-full);
+  background: var(--ws-border);
+  transition: background-color var(--ws-motion-short) var(--ws-ease-standard);
+}
+
+.ws-resize-handle[aria-orientation='horizontal']::after { width: 100%; height: 1px; }
+
+.ws-resize-handle:hover::after,
+.ws-resize-handle:focus-visible::after,
+.ws-resize-handle:active::after { width: 3px; background: var(--ws-accent); }
+
+.ws-resize-handle[aria-orientation='horizontal']:hover::after,
+.ws-resize-handle[aria-orientation='horizontal']:focus-visible::after,
+.ws-resize-handle[aria-orientation='horizontal']:active::after { width: 100%; height: 3px; }
+
+.ws-resize-handle:focus-visible { outline: 2px solid var(--ws-focus); outline-offset: -2px; }
+
+@media (pointer: coarse) {
+  .ws-resize-handle[aria-orientation='vertical'] { width: 16px; }
+}
+
+/* ---- Product tree --------------------------------------------------------------------------- */
+
+.ws-tree { flex: 1; padding: var(--ws-space-1) 0 var(--ws-space-3); }
+.ws-tree-list { outline: none; }
+
+.ws-tree-item {
+  margin: 0 var(--ws-space-2);
+  border-radius: var(--ws-radius-full);
+  color: var(--ws-text);
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--ws-motion-short) var(--ws-ease-standard);
+}
+
+.ws-tree-item[data-hovered] { background: var(--ws-state-hover); }
+.ws-tree-item[data-pressed] { background: var(--ws-state-pressed); }
+.ws-tree-item[data-selected] { background: var(--ws-selected); color: var(--ws-selected-text); }
+.ws-tree-item[data-focus-visible] { outline: 2px solid var(--ws-focus); outline-offset: -2px; }
+.ws-tree-group { margin-top: var(--ws-space-2); cursor: default; }
+.ws-tree-group .ws-tree-name { font-weight: var(--ws-weight-medium); color: var(--ws-text-2); }
+
+.ws-tree-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  min-height: var(--ws-row-h);
+  padding-right: var(--ws-space-2);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.ws-tree-caret {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ws-radius-full);
+  background: none;
+  color: var(--ws-text-3);
+  cursor: pointer;
+  outline: none;
+}
+
+.ws-tree-caret[data-hovered] { background: var(--ws-state-hover); }
+.ws-tree-caret[data-focus-visible] { outline: 2px solid var(--ws-focus); }
+
+.ws-tree-icon { flex: none; color: var(--ws-text-3); }
+.ws-tree-id { color: var(--ws-text-3); font-size: 0.92em; }
+.ws-tree-item[data-selected] :is(.ws-tree-icon, .ws-tree-id) { color: currentColor; }
+.ws-tree-name { overflow: hidden; text-overflow: ellipsis; }
+.ws-tree-count { margin-left: auto; color: var(--ws-text-3); font-size: var(--ws-font-size-xs); }
+.ws-tree-stale { flex: none; margin-left: auto; color: var(--ws-warning); }
+
+@media (pointer: coarse) {
+  .ws-tree-row { min-height: var(--ws-touch-target); }
+  .ws-tree-caret { width: 36px; height: 36px; }
+}
+
+/* ---- Panes, tabs and split view -------------------------------------------------------------- */
+
+.ws-panes {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.ws-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--ws-surface);
+}
+
+.ws-pane[hidden] { display: none; }
+.ws-pane-split { border-left: 1px solid var(--ws-border); }
+.ws-pane > .ws-work,
+.ws-pane > div > .ws-work { flex: 1; min-height: 0; }
+
+.ws-pane-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  min-height: calc(var(--ws-control-h) + 8px);
+  padding: 0 var(--ws-space-1);
+  border-bottom: 1px solid var(--ws-border);
+  background: var(--ws-surface);
+  min-width: 0;
+}
+
+.ws-pane-tabs > .ws-panel-toggle { flex: none; }
+.ws-pane-split-header { padding: var(--ws-space-1) var(--ws-space-2); }
+
+.ws-tool-tabs {
+  display: flex;
+  align-self: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ws-tool-tab { flex: none; }
+
+.ws-work {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  background: var(--ws-surface-2);
+}
+
+.ws-tabpanel { display: flex; flex: 1; flex-direction: column; min-height: 0; outline: none; }
+.ws-tabpanel[data-inert] { display: none; }
+
+
+.ws-unsupported { flex: none; padding: var(--ws-space-3) var(--ws-space-3) 0; }
+
+.ws-work-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ws-space-3);
+  color: var(--ws-text-3);
+}
+
+/* ---- Tool toolbar ---------------------------------------------------------------------------- */
+
+.ws-toolbar-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-bottom: 1px solid var(--ws-border);
+  background: var(--ws-surface);
+  container: toolbar / inline-size;
+}
+
+.ws-toolbar {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--ws-space-1);
+  min-width: 0;
+  min-height: calc(var(--ws-control-h) + 12px);
+  padding: var(--ws-space-1) var(--ws-space-2);
+  overflow: hidden;
+}
+
+.ws-toolbar-trailing { flex: none; padding: 0 var(--ws-space-2) 0 var(--ws-space-1); }
+
+/* Off-screen copy used to measure natural control widths for the overflow menu. */
+.ws-toolbar-measure {
+  position: absolute;
+  top: 0;
+  left: -9999px;
+  display: flex;
+  gap: var(--ws-space-1);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.ws-tbtn { flex: none; }
+.ws-tbtn.has-icon { min-width: var(--ws-touch-target); }
+
+.ws-toolbar-legend {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--ws-space-3);
+  color: var(--ws-text-3);
+  font-size: var(--ws-font-size-xs);
+  white-space: nowrap;
+}
+
+/* Narrow toolbars (split view, small windows): icon-only buttons; the label stays the accessible name. */
+@container toolbar (max-width: 520px) {
+  .ws-tbtn.has-icon .ws-tb-label,
+  .ws-pin-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .ws-toolbar-legend { display: none; }
+  .ws-pin-badge { max-width: 110px; }
+  .ws-config-diff { max-width: 90px; }
+}
+
+@container toolbar (max-width: 760px) {
+  .ws-toolbar-legend { display: none; }
+}
+
+.ws-view-controls { display: flex; align-items: center; gap: var(--ws-space-1); }
+.ws-pin-badge,
+.ws-config-diff { max-width: 220px; }
+
+/* ---- Inspector ------------------------------------------------------------------------------- */
+
+.ws-inspector-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ws-space-2);
+  padding: var(--ws-space-1) var(--ws-space-2);
+  border-bottom: 1px solid var(--ws-border);
+}
+
+/* ---- Phone navigation bar (M3 navigation bar) ------------------------------------------------ */
+
+.ws-mobile-nav {
+  z-index: 65;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  height: var(--ws-nav-h);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--ws-border);
+  background: var(--ws-surface-3);
+}
+
+.ws-mobile-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ws-space-1);
+  min-height: 56px;
+  border: 0;
+  background: none;
+  color: var(--ws-text-2);
+  font-size: var(--ws-font-size-xs);
+  font-weight: var(--ws-weight-medium);
+  cursor: pointer;
+}
+
+.ws-mobile-nav-item[aria-pressed='true'] { color: var(--ws-text); }
+
+.ws-nav-badge {
+  position: absolute;
+  top: -2px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--ws-space-1);
+  border-radius: var(--ws-radius-full);
+  background: var(--ws-danger);
+  color: var(--ws-on-accent);
+  font-size: 10px;
+  font-weight: var(--ws-weight-strong);
+}
+
+/* ---- Bottom dock ------------------------------------------------------------------------------ */
+
+.ws-dock {
+  position: relative;
+  min-width: 0;
+  border-top: 1px solid var(--ws-border);
+  background: var(--ws-surface);
+}
+
+.ws-dock > .ws-resize-handle {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  left: 0;
+  z-index: 3;
+  height: 8px;
+}
+
+.ws-dock-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  min-height: calc(var(--ws-control-h) + 4px);
+  padding: 0 var(--ws-space-2) 0 var(--ws-space-1);
+  min-width: 0;
+}
+
+.ws-dock.is-open .ws-dock-header,
+.ws-dock.is-sheet .ws-dock-header { border-bottom: 1px solid var(--ws-border); }
+.ws-dock.is-sheet .ws-dock-header { min-height: var(--ws-header-h); }
+
+.ws-dock-tabs { display: flex; align-self: stretch; flex: none; }
+.ws-dock-tab { gap: var(--ws-space-2); }
+
+.ws-dock-demo {
+  padding: 0 var(--ws-space-1);
+  border: 1px dashed var(--ws-warning);
+  border-radius: var(--ws-radius-xs);
+  color: var(--ws-warning);
+  font-size: 10px;
+  font-weight: var(--ws-weight-medium);
+}
+
+.ws-dock-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--ws-space-1);
+  border-radius: var(--ws-radius-full);
+  background: var(--ws-accent);
+  color: var(--ws-on-accent);
+  font-size: 11px;
+}
+
+.ws-dock-latest {
+  min-width: 0;
+  margin-left: var(--ws-space-2);
+  overflow: hidden;
+  font-size: var(--ws-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-dock-body { min-height: 0; overflow: hidden; }
+.ws-dock-body[hidden] { display: none; }
+.ws-dock.is-sheet .ws-dock-body { flex: 1; }
+
+.ws-dock-view,
+.ws-detached-main {
+  height: 100%;
+  min-height: 0;
+  outline: none;
+  container: panel / inline-size;
+}
+
+.ws-dock-view[data-inert] { display: none; }
+
+.ws-detached-main { display: flex; flex-direction: column; }
+.ws-detached-main > * { flex: 1; min-height: 0; }
+
+.ws-detached-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  min-width: 0;
+  padding: var(--ws-space-1) var(--ws-space-3);
+  border-bottom: 1px solid var(--ws-info-border);
+  background: var(--ws-info-soft);
+  font-size: var(--ws-font-size-sm);
+}
+
+.ws-detached-bar > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- Activity --------------------------------------------------------------------------------- */
+
+.ws-activity-source { margin-left: var(--ws-space-2); }
+
+@container panel (max-width: 520px) {
+  .ws-activity-row { grid-template-columns: auto auto minmax(0, 1fr); row-gap: 2px; }
+  .ws-activity-msg { grid-column: 1 / -1; white-space: normal; }
+  .ws-activity-objs { grid-column: 1 / -1; }
+}
+
+/* ---- ChatGPT panel ---------------------------------------------------------------------------- */
+
+.as-input-row { display: flex; align-items: flex-end; gap: var(--ws-space-2); }
+.as-input { flex: 1; }
+.as-input textarea { min-height: 56px; max-height: 30vh; }
+.as-actions { display: flex; flex: none; flex-direction: column; gap: var(--ws-space-2); }
+.as-suggestion { height: auto; min-height: var(--ws-control-h-sm); white-space: normal; text-align: left; }
+.as-chip-attach { min-height: 0; gap: var(--ws-space-1); cursor: pointer; }
+.as-chip-attach.is-on { border-color: var(--ws-accent-border); background: var(--ws-accent-soft); }
+
+/* Stacks when the panel's container is narrow (phone sheet, narrow window, small dock). */
+@container panel (max-width: 720px) {
+  .as-root { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .as-composer { overflow: visible; border-top: 1px solid var(--ws-border); border-left: 0; }
+  .as-examples { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .as-examples .as-suggestion { white-space: nowrap; }
+}
+
+/* Very short viewports (e.g. phone with the on-screen keyboard open): keep the input and Send visible. */
+@media (max-height: 520px) {
+  .as-examples,
+  .as-banner,
+  .as-context { display: none; }
+  .as-composer { gap: var(--ws-space-1); padding: var(--ws-space-1) var(--ws-space-2); }
+  .as-input textarea { min-height: 44px; }
+  .as-actions { flex-direction: row; }
+}
+
+}

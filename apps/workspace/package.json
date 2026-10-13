@@ -1,0 +1,24 @@
+{
+  "name": "@ews/workspace",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Engineering workspace shell: navigation, docking, tool discovery, subscriptions, shared context and windows.",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/design-system": "^1.0.0",
+    "@ews/model-service": "^1.0.0",
+    "@ews/platform-sdk": "^1.0.0",
+    "@ews/tool-cad": "^1.0.0",
+    "@ews/tool-requirements": "^1.0.0",
+    "@ews/tool-sysml": "^1.0.0",
+    "react": "^19.1.1",
+    "react-aria-components": "^1.22.1",
+    "react-dom": "^19.1.1",
+    "zustand": "^5.0.8"
+  }
+}

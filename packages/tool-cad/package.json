@@ -1,0 +1,23 @@
+{
+  "name": "@ews/tool-cad",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CAD tool (mock geometry) for the engineering workspace.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "vite --port 5183",
+    "build:harness": "vite build",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/design-system": "^1.0.0",
+    "@ews/platform-sdk": "^1.0.0"
+  },
+  "peerDependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  }
+}

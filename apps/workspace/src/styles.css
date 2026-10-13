@@ -1,0 +1,3 @@
+/* Workspace shell styles, in the components layer declared by @ews/design-system/styles.css. */
+@import './workspace.css';
+@import './shell/shell.css';

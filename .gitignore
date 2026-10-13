@@ -5,3 +5,4 @@ dist
 .vite
 .DS_Store
 Thumbs.db
+dist-harness

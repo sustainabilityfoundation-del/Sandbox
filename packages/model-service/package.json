@@ -1,0 +1,13 @@
+{
+  "name": "@ews/model-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared digital-twin domain model and repository contract (framework-free).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

@@ -1,0 +1,48 @@
+/* Tool: Requirements. Design tokens only (see AGENTS.md, "Design system"). */
+@layer components {
+  .req-root { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .req-root.has-detail { grid-template-columns: minmax(0, 1fr) 400px; }
+
+  .req-main { display: flex; flex-direction: column; min-height: 0; padding: var(--ws-space-3); }
+
+  .req-filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-3); margin-bottom: var(--ws-space-2); }
+  .req-search { flex: 1 1 260px; max-width: 420px; }
+  .req-status-filter { display: flex; align-items: center; gap: var(--ws-space-3); margin-left: auto; }
+  .req-status-filter > div { flex-direction: row; align-items: center; gap: var(--ws-space-2); }
+  .req-scope { display: flex; align-items: center; min-height: var(--ws-control-h); margin-bottom: var(--ws-space-2); }
+
+  .req-table tbody tr { cursor: pointer; }
+  .req-title { font-weight: var(--ws-weight-medium); }
+  .req-statement { color: var(--ws-text-2); }
+  .req-rationale { margin-top: var(--ws-space-1); color: var(--ws-text-3); font-size: var(--ws-font-size-sm); }
+
+  .req-col-id { width: 92px; }
+  .req-col-status { width: 130px; }
+  .req-col-alloc { width: 190px; }
+  .req-col-trace { width: 170px; }
+
+  .req-detail { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--ws-border); background: var(--ws-surface); }
+  .req-detail-header {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--ws-space-2);
+    min-height: var(--ws-header-h); padding: 0 var(--ws-space-4); border-bottom: 1px solid var(--ws-border);
+  }
+  .req-detail-header h3 { margin: 0; font-size: var(--ws-font-title); font-weight: var(--ws-weight-medium); }
+  .req-detail-body { flex: 1; min-height: 0; overflow: auto; padding: var(--ws-space-4); }
+  .req-detail-body[data-inert] { display: none; }
+
+  .req-form { display: flex; flex-direction: column; gap: var(--ws-space-4); }
+  .req-form-actions { display: flex; align-items: center; gap: var(--ws-space-2); padding-top: var(--ws-space-2); border-top: 1px solid var(--ws-border); }
+  .req-focused { padding: var(--ws-space-2) var(--ws-space-3); border-radius: var(--ws-radius); background: var(--ws-accent-soft); }
+
+  .req-rels { display: flex; flex-direction: column; gap: var(--ws-space-3); margin: 0; }
+  .req-rels dt { color: var(--ws-text-3); font-size: var(--ws-font-size-xs); font-weight: var(--ws-weight-medium); }
+  .req-rels dd { margin: var(--ws-space-1) 0 0; }
+
+  .req-history { display: flex; flex-direction: column; gap: var(--ws-space-2); margin: 0; padding: 0; list-style: none; }
+  .req-history li { display: flex; flex-direction: column; padding-bottom: var(--ws-space-2); border-bottom: 1px solid var(--ws-border); }
+
+  @container tool (max-width: 820px) {
+    .req-root.has-detail { grid-template-columns: minmax(0, 1fr); position: relative; }
+    .req-root.has-detail .req-detail { position: absolute; inset: 0; z-index: 5; border-left: 0; }
+  }
+}

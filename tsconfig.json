@@ -1,14 +1,5 @@
 {
-  "files": [],
-  "references": [
-    {
-      "path": "./tsconfig.app.json"
-    },
-    {
-      "path": "./tsconfig.node.json"
-    },
-    {
-      "path": "./tsconfig.test.json"
-    }
-  ]
+  "//": "Each package type-checks itself: npm run typecheck (runs tsc in every workspace).",
+  "extends": "./tsconfig.base.json",
+  "include": ["vitest.config.ts"]
 }

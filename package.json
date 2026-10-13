@@ -1,34 +1,34 @@
 {
-  "name": "solidworks-glb-viewer",
+  "name": "engineering-platform",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Browser-based viewer for GLB models exported from SolidWorks.",
+  "description": "Engineering workspace platform with independently developed tools, plus a standalone GLB viewer.",
   "engines": {
     "node": ">=20.19"
   },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "npm run dev -w @ews/workspace",
+    "dev:viewer": "npm run dev -w @ews/glb-viewer",
+    "dev:requirements": "npm run dev -w @ews/tool-requirements",
+    "dev:sysml": "npm run dev -w @ews/tool-sysml",
+    "dev:cad": "npm run dev -w @ews/tool-cad",
+    "build": "npm run typecheck && npm run build -w @ews/glb-viewer && npm run build -w @ews/workspace",
+    "build:harnesses": "npm run build:harness --workspaces --if-present",
     "preview": "vite preview",
-    "typecheck": "tsc -b",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
-    "generate:sample": "node scripts/generate-sample.mjs"
-  },
-  "dependencies": {
-    "@react-three/drei": "^10.7.6",
-    "@react-three/fiber": "^9.3.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "three": "~0.180.0",
-    "zustand": "^5.0.8"
+    "check": "npm run typecheck && npm test"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.19.2",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
-    "@types/three": "~0.180.0",
     "@vitejs/plugin-react": "^5.0.3",
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9.2",

@@ -1,0 +1,63 @@
+/* Tool: CAD (mock geometry). Design tokens only (see AGENTS.md, "Design system"). */
+@layer components {
+  .cad-root { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .cad-root.has-panel { grid-template-columns: minmax(0, 1fr) 340px; }
+
+  .cad-stage { position: relative; display: flex; flex-direction: column; min-height: 0; background: var(--ws-diagram-bg); }
+  .cad-notices {
+    position: absolute; top: var(--ws-space-3); left: var(--ws-space-3); right: var(--ws-space-3); z-index: 2;
+    display: flex; flex-direction: column; align-items: flex-start; gap: var(--ws-space-2); max-width: 560px; pointer-events: none;
+  }
+  .cad-notices > * { pointer-events: auto; }
+
+  .cad-canvas { display: block; flex: 1; width: 100%; min-height: 0; user-select: none; touch-action: none; }
+  .cad-canvas.cad-mode-pan { cursor: grab; }
+  .cad-gridline { fill: none; stroke: var(--ws-diagram-grid); stroke-width: 1; }
+
+  .cad-part { cursor: pointer; outline: none; }
+  .cad-mode-pan .cad-part { cursor: grab; }
+  .cad-part > rect,
+  .cad-part > circle:not(.cad-hole) {
+    stroke: var(--ws-diagram-stroke); stroke-width: 1.5; vector-effect: non-scaling-stroke;
+    transition: fill var(--ws-motion-short) var(--ws-ease-standard);
+  }
+  .cad-shape-housing > rect, .cad-shape-housing > circle:not(.cad-hole) { fill: var(--ws-diagram-part-1); }
+  .cad-shape-motor > rect { fill: var(--ws-diagram-part-2); }
+  .cad-shape-rod > rect, .cad-shape-rod > circle:not(.cad-hole) { fill: var(--ws-diagram-part-3); }
+  .cad-hole { fill: var(--ws-diagram-bg); stroke: var(--ws-diagram-stroke); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+  .cad-detail { stroke: var(--ws-diagram-detail); stroke-width: 1; vector-effect: non-scaling-stroke; }
+
+  .cad-part.is-hovered > rect, .cad-part.is-hovered > circle:not(.cad-hole) { stroke: var(--ws-diagram-stroke-strong); stroke-width: 2; }
+  .cad-part:focus-visible > rect, .cad-part:focus-visible > circle:not(.cad-hole) { stroke: var(--ws-focus); stroke-width: 3; }
+  .cad-part.is-selected > rect, .cad-part.is-selected > circle:not(.cad-hole) {
+    fill: var(--ws-diagram-selected) !important; stroke: var(--ws-accent); stroke-width: 2.5;
+  }
+  .cad-assembly-frame { fill: none; stroke: var(--ws-accent); stroke-width: 1.5; stroke-dasharray: 8 5; vector-effect: non-scaling-stroke; }
+
+  .cad-dimension line { stroke: var(--ws-info); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .cad-dimension text { fill: var(--ws-info); font-size: 14px; font-family: var(--ws-font-sans); }
+
+  .cad-status {
+    display: flex; flex: none; align-items: center; gap: var(--ws-space-4); padding: var(--ws-space-1) var(--ws-space-3);
+    border-top: 1px solid var(--ws-border); background: var(--ws-surface); color: var(--ws-text-3); font-size: var(--ws-font-size-sm);
+  }
+  .cad-status > :last-child { margin-left: auto; }
+
+  .cad-panel { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--ws-border); background: var(--ws-surface); }
+  .cad-panel-header {
+    display: flex; align-items: center; justify-content: space-between; min-height: var(--ws-header-h);
+    padding: 0 var(--ws-space-2) 0 var(--ws-space-4); border-bottom: 1px solid var(--ws-border);
+  }
+  .cad-panel-header h3 { margin: 0; font-size: var(--ws-font-title); font-weight: var(--ws-weight-medium); }
+  .cad-panel-body { display: flex; flex: 1; flex-direction: column; gap: var(--ws-space-3); min-height: 0; overflow: auto; padding: var(--ws-space-4); }
+  .cad-form { display: flex; flex-direction: column; gap: var(--ws-space-3); }
+  .cad-form-actions { display: flex; align-items: center; gap: var(--ws-space-2); }
+  .cad-artifacts { display: flex; flex-direction: column; gap: var(--ws-space-2); padding-top: var(--ws-space-3); border-top: 1px solid var(--ws-border); }
+  .cad-artifacts h4 { margin: 0; font-size: var(--ws-font-size-sm); font-weight: var(--ws-weight-medium); }
+
+  @container tool (max-width: 760px) {
+    .cad-root.has-panel { grid-template-columns: minmax(0, 1fr); position: relative; }
+    .cad-root.has-panel .cad-panel { position: absolute; inset: auto 0 0 0; z-index: 5; max-height: 70%; border-left: 0; border-top: 1px solid var(--ws-border); box-shadow: var(--ws-shadow-lg); }
+    .cad-status { flex-wrap: wrap; gap: var(--ws-space-1) var(--ws-space-3); }
+  }
+}

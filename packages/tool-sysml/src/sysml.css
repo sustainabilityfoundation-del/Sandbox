@@ -1,0 +1,70 @@
+/* Tool: SysML. Design tokens only (see AGENTS.md, "Design system"). */
+@layer components {
+  .sysml-root {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+  }
+  .sysml-root.has-text { grid-template-rows: minmax(0, 1fr) minmax(160px, 38%); }
+
+  .sysml-stage { position: relative; display: flex; flex-direction: column; min-height: 0; background: var(--ws-diagram-bg); }
+  .sysml-notices {
+    position: absolute; top: var(--ws-space-3); left: var(--ws-space-3); right: var(--ws-space-3); z-index: 2;
+    display: flex; flex-direction: column; align-items: flex-start; gap: var(--ws-space-2); max-width: 560px; pointer-events: none;
+  }
+  .sysml-notices > * { pointer-events: auto; }
+  .sysml-canvas { display: block; flex: 1; width: 100%; min-height: 0; padding-top: 48px; user-select: none; }
+
+  .sysml-node { cursor: pointer; outline: none; }
+  .sysml-node > rect { fill: var(--ws-surface); stroke: var(--ws-diagram-stroke); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .sysml-node.is-definition > rect { fill: var(--ws-surface-2); stroke-dasharray: none; }
+  .sysml-node.is-requirement > rect { fill: var(--ws-info-soft); stroke: var(--ws-info); }
+  .sysml-node:hover > rect { stroke: var(--ws-diagram-stroke-strong); stroke-width: 2; }
+  .sysml-node:focus-visible > rect { stroke: var(--ws-focus); stroke-width: 3; }
+  .sysml-node.is-selected > rect { fill: var(--ws-diagram-selected); stroke: var(--ws-accent); stroke-width: 2.5; }
+  .sysml-stereotype { fill: var(--ws-text-3); font-size: 11px; font-family: var(--ws-font-sans); }
+  .sysml-name { fill: var(--ws-text); font-size: 14px; font-weight: 500; font-family: var(--ws-font-sans); }
+  .sysml-link-label { fill: var(--ws-text-3); font-size: 11px; font-family: var(--ws-mono); }
+
+  .sysml-edge line { stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .sysml-edge.is-satisfies line { stroke: var(--ws-info); stroke-dasharray: 6 4; }
+  .sysml-edge text { fill: var(--ws-info); font-size: 11px; font-family: var(--ws-font-sans); }
+  .sysml-arrowhead { fill: var(--ws-info); }
+
+  .sysml-status {
+    display: flex; flex: none; align-items: center; gap: var(--ws-space-3); padding: var(--ws-space-1) var(--ws-space-3);
+    border-top: 1px solid var(--ws-border); background: var(--ws-surface); color: var(--ws-text-3); font-size: var(--ws-font-size-sm);
+  }
+  .sysml-status > :last-child { margin-left: auto; }
+
+  .sysml-side {
+    grid-row: 1 / -1; grid-column: 2;
+    display: flex; flex-direction: column; gap: var(--ws-space-3); min-height: 0; overflow: auto;
+    padding: var(--ws-space-4); border-left: 1px solid var(--ws-border); background: var(--ws-surface);
+  }
+  .sysml-props { display: flex; flex-direction: column; gap: var(--ws-space-3); }
+  .sysml-form { display: flex; flex-direction: column; gap: var(--ws-space-3); }
+  .sysml-dl { display: flex; flex-direction: column; gap: var(--ws-space-3); margin: 0; }
+  .sysml-dl dt { color: var(--ws-text-3); font-size: var(--ws-font-size-xs); font-weight: var(--ws-weight-medium); }
+  .sysml-dl dd { margin: var(--ws-space-1) 0 0; }
+  .sysml-links { display: flex; flex-direction: column; gap: var(--ws-space-1); margin: 0; padding: 0; list-style: none; }
+  .sysml-links li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); }
+  .sysml-support { color: var(--ws-text-2); font-size: var(--ws-font-size-sm); }
+  .sysml-support summary { cursor: pointer; font-weight: var(--ws-weight-medium); }
+  .sysml-support p { margin-top: var(--ws-space-1); }
+
+  .sysml-text { grid-column: 1; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--ws-border); background: var(--ws-surface); }
+  .sysml-text header {
+    display: flex; align-items: center; justify-content: space-between; padding: var(--ws-space-1) var(--ws-space-2) var(--ws-space-1) var(--ws-space-3);
+    border-bottom: 1px solid var(--ws-border); color: var(--ws-text-3); font-size: var(--ws-font-size-xs); font-weight: var(--ws-weight-medium);
+  }
+  .sysml-text pre { flex: 1; margin: 0; overflow: auto; padding: var(--ws-space-3); font-family: var(--ws-mono); font-size: var(--ws-font-size-sm); white-space: pre; }
+
+  @container tool (max-width: 760px) {
+    .sysml-root { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(260px, 1fr) auto; }
+    .sysml-root.has-text { grid-template-rows: minmax(240px, 1fr) auto minmax(160px, auto); }
+    .sysml-side { grid-row: 2; grid-column: 1; border-left: 0; border-top: 1px solid var(--ws-border); max-height: 45vh; }
+    .sysml-text { grid-row: 3; }
+  }
+}
