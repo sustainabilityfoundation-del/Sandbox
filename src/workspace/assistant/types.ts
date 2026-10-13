@@ -168,4 +168,6 @@ export interface ChangeProposal {
   conversationId: string
   messageId: string
   createdAt: string
+  /** Last change, used to merge the conversation between windows. */
+  updatedAt?: string
 }

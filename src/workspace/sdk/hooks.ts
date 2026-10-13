@@ -3,20 +3,27 @@ import { useShallow } from 'zustand/react/shallow'
 import { outputFreshness, type Freshness } from '../domain/freshness'
 import type { ModelIndex } from '../domain/modelIndex'
 import type { EngineeringObject, OutputRecord } from '../domain/types'
-import { getToolApi } from './api'
+import { getToolApi, selectInView, sharedContextOf } from './api'
 import { useWorkspaceStore } from './store'
 import type { SharedContext, ToolApi, ViewStateUpdate } from './toolTypes'
 
 interface ToolScopeValue {
   toolId: string
+  /** View instance (see views.ts); defaults to the tool ID for the main pane. */
+  viewId: string
   active: boolean
 }
 
 const ToolScopeContext = createContext<ToolScopeValue | null>(null)
 
-/** Provided by the workspace around each tool; binds SDK hooks to that tool. */
-export function ToolScope({ toolId, active, children }: ToolScopeValue & { children: ReactNode }) {
-  const value = useMemo(() => ({ toolId, active }), [toolId, active])
+/** Provided by the workspace around each tool view; binds SDK hooks to that view instance. */
+export function ToolScope({
+  toolId,
+  viewId = toolId,
+  active,
+  children,
+}: { toolId: string; viewId?: string; active: boolean; children: ReactNode }) {
+  const value = useMemo(() => ({ toolId, viewId, active }), [toolId, viewId, active])
   return createElement(ToolScopeContext.Provider, { value }, children)
 }
 
@@ -31,20 +38,20 @@ export function useIsActiveTool(): boolean {
   return useScope().active
 }
 
-export function useToolApi<VS = unknown>(): ToolApi<VS> {
-  return getToolApi<VS>(useScope().toolId)
+/** The view instance this tool view is rendered in. */
+export function useViewId(): string {
+  return useScope().viewId
 }
 
+export function useToolApi<VS = unknown>(): ToolApi<VS> {
+  const { toolId, viewId } = useScope()
+  return getToolApi<VS>(toolId, viewId)
+}
+
+/** Shared context as this view sees it; a pinned view keeps its objects and configuration. */
 export function useSharedContext(): SharedContext {
-  return useWorkspaceStore(
-    useShallow((s) => ({
-      projectId: s.context.projectId,
-      configurationId: s.context.configurationId,
-      scenarioId: s.context.scenarioId,
-      selectedIds: s.context.selectedIds,
-      modelRevision: s.model?.revision ?? 0,
-    })),
-  )
+  const viewId = useContext(ToolScopeContext)?.viewId
+  return useWorkspaceStore(useShallow((s) => sharedContextOf(s, viewId)))
 }
 
 export function useModel(): ModelIndex {
@@ -58,9 +65,10 @@ export function useSelection(): {
   selectedObjects: EngineeringObject[]
   select: (ids: string[]) => void
 } {
-  const selectedIds = useWorkspaceStore((s) => s.context.selectedIds)
+  const viewId = useContext(ToolScopeContext)?.viewId
+  const selectedIds = useWorkspaceStore((s) => (viewId && s.views[viewId]?.pin?.ids) || s.context.selectedIds)
   const model = useModel()
-  const select = useWorkspaceStore((s) => s.select)
+  const select = useCallback((ids: string[]) => selectInView(viewId, ids), [viewId])
   const selectedObjects = useMemo(
     () => selectedIds.map((id) => model.get(id)).filter((o): o is EngineeringObject => o !== undefined),
     [selectedIds, model],
@@ -80,12 +88,13 @@ export interface OutputFilter {
 }
 
 /**
- * Saved outputs for the active configuration only, newest first, each with a
+ * Saved outputs for the view's configuration only, newest first, each with a
  * freshness assessment against the current model.
  */
 export function useOutputs(filter: OutputFilter = {}): OutputView[] {
+  const viewId = useContext(ToolScopeContext)?.viewId
   const outputs = useWorkspaceStore((s) => s.outputs)
-  const configurationId = useWorkspaceStore((s) => s.context.configurationId)
+  const configurationId = useWorkspaceStore((s) => sharedContextOf(s, viewId).configurationId)
   const model = useModel()
   const { objectId, scenarioId, toolId, kind } = filter
   return useMemo(
@@ -112,20 +121,20 @@ export function useOutput(id: string | undefined): OutputView | undefined {
   return useMemo(() => (output ? { ...output, freshness: outputFreshness(output, model) } : undefined), [output, model])
 }
 
-/** The tool's private view state, restored when the user returns to the tool. */
+/** This view instance's private state, restored when the user returns to it. */
 export function useToolViewState<VS>(): [VS, (update: ViewStateUpdate<VS>) => void] {
-  const { toolId } = useScope()
-  const state = useWorkspaceStore((s) => (s.viewStates[toolId] ?? s.initialViewStates[toolId]) as VS)
+  const { toolId, viewId } = useScope()
+  const state = useWorkspaceStore((s) => (s.viewStates[viewId] ?? s.initialViewStates[toolId]) as VS)
   const update = useCallback(
-    (u: ViewStateUpdate<VS>) => useWorkspaceStore.getState().updateViewState(toolId, u as ViewStateUpdate<unknown>),
-    [toolId],
+    (u: ViewStateUpdate<VS>) => useWorkspaceStore.getState().updateViewState(viewId, u as ViewStateUpdate<unknown>),
+    [viewId],
   )
   return [state, update]
 }
 
-/** Remembers and restores the scroll position of a scrollable element. */
+/** Remembers and restores the scroll position of a scrollable element, per view instance. */
 export function useRestoredScroll<T extends HTMLElement>(key: string): (element: T | null) => void {
-  const { toolId } = useScope()
+  const { viewId } = useScope()
   const cleanup = useRef<(() => void) | null>(null)
   useEffect(() => () => cleanup.current?.(), [])
 
@@ -134,20 +143,56 @@ export function useRestoredScroll<T extends HTMLElement>(key: string): (element:
       cleanup.current?.()
       cleanup.current = null
       if (!element) return
-      const saved = useWorkspaceStore.getState().scrollStates[toolId]?.[key]
+      const saved = useWorkspaceStore.getState().scrollStates[viewId]?.[key]
       if (saved) requestAnimationFrame(() => (element.scrollTop = saved))
       let timer: ReturnType<typeof setTimeout> | undefined
       const onScroll = () => {
         clearTimeout(timer)
-        timer = setTimeout(() => useWorkspaceStore.getState().setScroll(toolId, key, element.scrollTop), 100)
+        timer = setTimeout(() => useWorkspaceStore.getState().setScroll(viewId, key, element.scrollTop), 100)
       }
       element.addEventListener('scroll', onScroll, { passive: true })
       cleanup.current = () => {
         clearTimeout(timer)
         element.removeEventListener('scroll', onScroll)
-        useWorkspaceStore.getState().setScroll(toolId, key, element.scrollTop)
+        useWorkspaceStore.getState().setScroll(viewId, key, element.scrollTop)
       }
     },
-    [toolId, key],
+    [viewId, key],
   )
+}
+
+// ---- unsaved edits --------------------------------------------------------------------
+
+const dirtySources = new Set<symbol>()
+let beforeUnloadInstalled = false
+
+function installBeforeUnload() {
+  if (beforeUnloadInstalled || typeof window === 'undefined') return
+  beforeUnloadInstalled = true
+  window.addEventListener('beforeunload', (event) => {
+    if (dirtySources.size === 0) return
+    event.preventDefault()
+    event.returnValue = '' // asks the browser to confirm closing a window with unsaved edits
+  })
+}
+
+/**
+ * Declares that a form has unsaved edits. Closing or reloading the window then
+ * asks for confirmation. Saved work is always in the repository.
+ */
+export function useUnsavedChanges(dirty: boolean): void {
+  const token = useRef(Symbol('unsaved'))
+  useEffect(() => {
+    installBeforeUnload()
+    const id = token.current
+    if (dirty) dirtySources.add(id)
+    else dirtySources.delete(id)
+    return () => {
+      dirtySources.delete(id)
+    }
+  }, [dirty])
+}
+
+export function hasUnsavedChanges(): boolean {
+  return dirtySources.size > 0
 }

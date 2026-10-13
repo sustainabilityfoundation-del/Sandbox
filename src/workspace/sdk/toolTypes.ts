@@ -15,11 +15,17 @@ import type {
 /** The context shared by every tool. Survives tool switches and page reloads. */
 export interface SharedContext {
   projectId: string
+  /** The configuration this view shows (a pinned view keeps the one it was pinned in). */
   configurationId: string
   /** Current model revision (read-only; changes when the model changes). */
   modelRevision: number
+  /** The view's selection: the workspace selection, or the pinned objects. */
   selectedIds: string[]
   scenarioId: string
+  /** True when this view is pinned to particular objects instead of following the workspace. */
+  pinned: boolean
+  /** The workspace's configuration, which may differ from a pinned view's. */
+  workspaceConfigurationId: string
 }
 
 export type ToolCategory = 'Design' | 'Requirements' | 'Analysis' | 'Verification' | 'Data'
@@ -112,6 +118,11 @@ export interface ToolDefinition<VS = unknown> {
   initialViewState: VS
   /** Keep the view mounted (hidden) after first use, for views that are expensive to rebuild. */
   keepMounted?: boolean
+  /**
+   * The view keeps window-wide state, so only one instance per window is possible
+   * (it can still be opened in other windows). Excludes the tool from the split pane.
+   */
+  singleInstance?: boolean
 }
 
 /** Identity helper that keeps the view-state type linked across the definition. */

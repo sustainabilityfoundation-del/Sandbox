@@ -1,0 +1,173 @@
+/* Tool: Analysis: styles use workspace design tokens only (see workspace/README.md, "Styling contract"). */
+@layer components {
+
+.an-root {
+  overflow: auto;
+  padding: 12px;
+}
+
+.an-root > .ws-notice {
+  margin-bottom: 12px;
+}
+
+.an-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.an-intro h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.an-intro p {
+  margin: 2px 0 0;
+}
+
+.an-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.an-inputs td.ws-mono {
+  white-space: nowrap;
+  font-size: var(--ws-font-size-xs);
+}
+
+.an-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.an-edit input {
+  width: 72px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: 4px;
+  text-align: right;
+}
+
+.an-captured {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0 0 10px;
+}
+
+.an-captured dt {
+  font-size: var(--ws-font-size-xs);
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ws-text-3);
+}
+
+.an-captured dd {
+  margin: 0;
+}
+
+.an-run .ws-notice {
+  margin-bottom: 8px;
+}
+
+.an-running {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 4px;
+  color: var(--ws-text-2);
+}
+
+.an-result-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.an-values {
+  margin-bottom: 8px;
+}
+
+.an-values td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.an-chart {
+  width: 100%;
+  max-width: 560px;
+  display: block;
+  font-size: var(--ws-font-size-xs);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.an-track {
+  fill: var(--ws-chart-track);
+  stroke: var(--ws-border);
+}
+
+.an-allowable {
+  fill: var(--ws-chart-band);
+}
+
+.an-load {
+  fill: var(--ws-accent);
+}
+
+.an-load.is-over {
+  fill: var(--ws-danger);
+}
+
+.an-mark {
+  stroke: var(--ws-success);
+  stroke-width: 1.5;
+}
+
+.an-mark.is-critical {
+  stroke: var(--ws-text-3);
+  stroke-dasharray: 3 2;
+}
+
+.an-chart text {
+  fill: var(--ws-text-2);
+}
+
+.an-load-label {
+  fill: var(--ws-accent) !important;
+  font-weight: 600;
+}
+
+.an-tick {
+  stroke: var(--ws-border-strong);
+}
+
+.an-axis {
+  fill: var(--ws-text-3) !important;
+  font-size: 10px;
+}
+}
+
+@layer components {
+  .an-load-input { width: 80px; text-align: right; }
+  .an-inputs .ws-panel-body { overflow-x: auto; }
+
+  @container tool (max-width: 860px) {
+    .an-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  @container tool (max-width: 560px) {
+    .an-root { padding: 8px; }
+    .an-intro { flex-direction: column; gap: 6px; }
+    .an-captured { gap: 4px 12px; }
+    .an-compare .ws-panel-body { overflow-x: auto; }
+  }
+}

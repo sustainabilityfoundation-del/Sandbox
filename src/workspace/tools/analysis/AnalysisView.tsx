@@ -1,3 +1,4 @@
+import './analysis.css'
 import { useState } from 'react'
 import {
   Badge,
@@ -17,6 +18,9 @@ import {
   useSharedContext,
   useToolApi,
   useToolViewState,
+  useUnsavedChanges,
+  Button,
+  TextInput,
   type EngineeringObject,
   type OutputView,
   type Scenario,
@@ -84,6 +88,7 @@ function InputsPanel({ object, scenario }: { object: EngineeringObject; scenario
   const parsed = Number(draft)
   const valid = draft.trim() !== '' && Number.isFinite(parsed) && parsed > 0
   const changed = valid && parsed !== current
+  useUnsavedChanges(changed && !busy)
 
   const apply = async () => {
     setBusy(true)
@@ -133,16 +138,17 @@ function InputsPanel({ object, scenario }: { object: EngineeringObject; scenario
                         if (changed) void apply()
                       }}
                     >
-                      <input
+                      <TextInput
                         aria-label="Operating load in kN"
                         inputMode="decimal"
+                        className="an-load-input"
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                       />
                       <span>kN</span>
-                      <button type="submit" className="ws-button ws-button-small" disabled={!changed || busy}>
+                      <Button type="submit" size="sm" disabled={!changed} busy={busy}>
                         {busy ? 'Saving…' : 'Apply'}
-                      </button>
+                      </Button>
                     </form>
                   ) : (
                     formatValue(holder.properties[input.property])
@@ -187,9 +193,9 @@ function RunPanel({ run }: { run: RunState }) {
       className="an-run"
       actions={
         run.status === 'done' && !run.savedOutputId ? (
-          <button type="button" className="ws-button ws-button-small ws-button-primary" onClick={() => void saveRun(api)}>
+          <Button size="sm" variant="primary" onClick={() => void saveRun(api)}>
             Save result
-          </button>
+          </Button>
         ) : run.savedOutputId ? (
           <Badge tone="success">Saved as {run.savedOutputId}</Badge>
         ) : null
@@ -416,9 +422,9 @@ export default function AnalysisView() {
           }
           actions={
             rod && (
-              <button type="button" className="ws-button ws-button-small" onClick={() => select([rod.id])}>
+              <Button size="sm" onClick={() => select([rod.id])}>
                 Select {rod.name}
-              </button>
+              </Button>
             )
           }
         >

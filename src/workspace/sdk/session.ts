@@ -1,6 +1,12 @@
-import type { ContextState, Layout } from './store'
+import { windowInfo, type DetachedViewDef } from '../session/windowSession'
+import type { ContextState, Layout, LayoutClass } from './store'
+import type { ViewMeta } from './views'
 
-/** Workspace UI session (not engineering data), kept in browser storage. */
+/**
+ * Workspace UI session (not engineering data), kept in browser storage. The
+ * main window stores the shared context, open tools, layouts and remembered
+ * detached windows; each detached window stores only its own view state.
+ */
 export interface SessionState {
   context: ContextState
   activeToolId: string | null
@@ -9,23 +15,38 @@ export interface SessionState {
   recents: string[]
   viewStates: Record<string, unknown>
   scrollStates: Record<string, Record<string, number>>
-  layout: Layout
+  layouts?: Partial<Record<LayoutClass, Partial<Layout>>>
+  /** Pre-responsive sessions stored a single layout. */
+  layout?: Partial<Layout>
+  views?: Record<string, ViewMeta>
+  detachedViews?: DetachedViewDef[]
 }
 
-const KEY = 'ews.session.v1'
+const MAIN_KEY = 'ews.session.v1'
 
-export function loadSession(): SessionState | null {
+export const sessionKey = windowInfo.role === 'main' ? MAIN_KEY : `ews.window.${windowInfo.windowId}.v1`
+
+function read(key: string): SessionState | null {
   try {
-    const raw = window.localStorage.getItem(KEY)
+    const raw = window.localStorage.getItem(key)
     return raw ? (JSON.parse(raw) as SessionState) : null
   } catch {
     return null
   }
 }
 
+export function loadSession(): SessionState | null {
+  return read(sessionKey)
+}
+
+/** The main window's session; detached windows take the shared context from it at start. */
+export function loadMainSession(): SessionState | null {
+  return read(MAIN_KEY)
+}
+
 export function saveSession(session: SessionState): void {
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(session))
+    window.localStorage.setItem(sessionKey, JSON.stringify(session))
   } catch {
     // Storage unavailable: the session simply won't survive a reload.
   }
@@ -33,7 +54,7 @@ export function saveSession(session: SessionState): void {
 
 export function clearSession(): void {
   try {
-    window.localStorage.removeItem(KEY)
+    window.localStorage.removeItem(sessionKey)
   } catch {
     // ignore
   }

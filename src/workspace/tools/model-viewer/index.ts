@@ -15,6 +15,7 @@ export const modelViewerTool = defineTool<ModelViewerViewState>({
   supportedObjectTypes: ['assembly', 'part'],
   view: lazy(() => import('./ModelViewerView')),
   keepMounted: true,
+  singleInstance: true, // the embedded viewer uses one store per window
   initialViewState: { fileName: null, loading: false, displayMode: 'solid', showGrid: true, treeOpen: true },
   toolbar: ({ viewState }) => {
     const hasModel = viewState.fileName !== null

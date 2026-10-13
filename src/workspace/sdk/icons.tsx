@@ -200,6 +200,50 @@ export const Icons = {
       <path d="M4 4v4.5h4.5" />
     </>,
   ),
+  pin: icon(
+    <>
+      <path d="M9 4h6l-1 6 3 3H7l3-3z" />
+      <path d="M12 16v5" />
+    </>,
+  ),
+  external: icon(
+    <>
+      <path d="M14 4h6v6M20 4l-9 9" />
+      <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+    </>,
+  ),
+  split: icon(
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M12 4v16" />
+    </>,
+  ),
+  display: icon(
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </>,
+  ),
+  menu: icon(<path d="M4 6h16M4 12h16M4 18h16" />),
+  windows: icon(
+    <>
+      <rect x="3" y="7" width="13" height="12" rx="1.5" />
+      <path d="M8 7V5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-4" />
+    </>,
+  ),
+  chat: icon(<path d="M4 5h16v11H9l-5 4z" />),
+  zoomIn: icon(
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-4.2-4.2M11 8v6M8 11h6" />
+    </>,
+  ),
+  zoomOut: icon(
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-4.2-4.2M8 11h6" />
+    </>,
+  ),
   wireframe: icon(
     <>
       <path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z" />

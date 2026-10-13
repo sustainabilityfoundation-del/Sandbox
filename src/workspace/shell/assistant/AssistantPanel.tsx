@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { EXAMPLE_PROMPTS } from '../../assistant/DemoAssistantService'
 import { useConversation, type ChatMessage, type ToolStep } from '../../assistant/conversation'
 import type { CapturedMessageContext } from '../../assistant/types'
+import { Button } from '../../sdk/controls'
 import { useWorkspaceStore } from '../../sdk/store'
+import { instanceId, isInstanceAlive } from '../../session/windowSession'
 import { Icons, iconForType } from '../../sdk/icons'
 import { formatTime } from '../../sdk/ui'
 import { ChangeCard } from './ChangeCard'
@@ -138,6 +140,8 @@ function Message({ message, focused }: { message: ChatMessage; focused: boolean 
   }
 
   const busy = message.status === 'thinking' || message.status === 'running-tool'
+  // Replies are executed only by the window that sent them.
+  const foreign = !!message.owner && message.owner !== instanceId
   return (
     <div className={`as-msg as-assistant${focused ? ' is-focused' : ''}`} data-message-id={message.id}>
       <div className="as-msg-head">
@@ -148,7 +152,14 @@ function Message({ message, focused }: { message: ChatMessage; focused: boolean 
         {message.clarification && <span className="as-tag">Needs clarification</span>}
       </div>
       <StepList steps={message.steps} />
-      {busy && (
+      {busy && foreign && (
+        <div className="as-note">
+          {isInstanceAlive(message.owner!)
+            ? 'Running in another workspace window. The result appears here when it finishes.'
+            : 'Interrupted: the window that was running this reply was closed or reloaded. Ask again to continue.'}
+        </div>
+      )}
+      {busy && !foreign && (
         <div className="as-thinking">
           <span className="ws-spinner ws-spinner-small" aria-hidden="true" />
           {message.status === 'thinking' ? 'Working…' : 'Running operation…'}
@@ -184,7 +195,8 @@ export function AssistantPanel() {
   const info = useConversation((s) => s.service?.info)
   const focusId = useConversation((s) => s.focusMessageId)
   const focusMessage = useConversation((s) => s.focusMessage)
-  const [draft, setDraft] = useState('')
+  const draft = useConversation((s) => s.draft)
+  const setDraft = useConversation((s) => s.setDraft)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -255,13 +267,13 @@ export function AssistantPanel() {
         />
         <div className="as-actions">
           {running ? (
-            <button type="button" className="ws-button" onClick={stop}>
+            <Button onClick={stop}>
               <span className="as-stop" aria-hidden="true" /> Stop
-            </button>
+            </Button>
           ) : null}
-          <button type="button" className="ws-button ws-button-primary" onClick={() => submit()} disabled={running || !draft.trim()}>
+          <Button variant="primary" onClick={() => submit()} disabled={running || !draft.trim()}>
             Send
-          </button>
+          </Button>
         </div>
         <div className="as-examples">
           <span className="ws-muted">Try:</span>

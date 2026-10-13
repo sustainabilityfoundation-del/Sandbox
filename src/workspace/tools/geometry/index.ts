@@ -46,6 +46,20 @@ export const geometryTool = defineTool<GeometryViewState>({
     },
     {
       type: 'button',
+      id: 'zoom-in',
+      label: 'Zoom in',
+      icon: Icons.zoomIn,
+      onClick: () => api.updateViewState((vs) => ({ ...vs, camera: { ...vs.camera, zoom: Math.min(8, vs.camera.zoom * 1.25) } })),
+    },
+    {
+      type: 'button',
+      id: 'zoom-out',
+      label: 'Zoom out',
+      icon: Icons.zoomOut,
+      onClick: () => api.updateViewState((vs) => ({ ...vs, camera: { ...vs.camera, zoom: Math.max(0.5, vs.camera.zoom / 1.25) } })),
+    },
+    {
+      type: 'button',
       id: 'fit',
       label: 'Fit',
       icon: Icons.fit,

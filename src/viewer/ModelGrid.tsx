@@ -10,6 +10,15 @@ function niceStep(value: number): number {
   return (fraction < 1.5 ? 1 : fraction < 3.5 ? 2 : fraction < 7.5 ? 5 : 10) * base
 }
 
+/**
+ * Reads a colour token when the page defines one (the workspace does), so the
+ * WebGL grid follows the workspace theme; the standalone viewer uses its defaults.
+ */
+function token(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
+
 /** A floor grid just under the model, scaled to its size. */
 export function ModelGrid({ bounds, dark }: { bounds: Box3; dark: boolean }) {
   const layout = useMemo(() => {
@@ -31,8 +40,8 @@ export function ModelGrid({ bounds, dark }: { bounds: Box3; dark: boolean }) {
       sectionSize={layout.cell * 10}
       cellThickness={0.6}
       sectionThickness={1}
-      cellColor={dark ? '#3a4048' : '#c5cad1'}
-      sectionColor={dark ? '#535b66' : '#9aa2ad'}
+      cellColor={token('--ws-diagram-grid', dark ? '#3a4048' : '#c5cad1')}
+      sectionColor={token('--ws-diagram-leader', dark ? '#535b66' : '#9aa2ad')}
       fadeDistance={layout.fade}
       fadeStrength={1.5}
       infiniteGrid

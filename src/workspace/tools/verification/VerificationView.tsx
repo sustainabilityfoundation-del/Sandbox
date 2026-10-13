@@ -1,3 +1,4 @@
+import './verification.css'
 import { useEffect, useMemo, useState } from 'react'
 import {
   Badge,
@@ -16,6 +17,12 @@ import {
   useSharedContext,
   useToolApi,
   useToolViewState,
+  useUnsavedChanges,
+  Button,
+  Field,
+  SegmentedControl,
+  Select,
+  TextInput,
   type EngineeringObject,
   type ModelIndex,
   type OutputView,
@@ -102,6 +109,7 @@ function RecordResultForm({ procedure, onDone }: { procedure: EngineeringObject;
   const [error, setError] = useState<string | null>(null)
   const value = Number(measured)
   const valid = measured.trim() !== '' && Number.isFinite(value) && unit.trim() !== ''
+  useUnsavedChanges(!busy && (measured.trim() !== '' || notes.trim() !== ''))
 
   const save = async () => {
     const requirements = model.linked(procedure.id, 'verifies', 'out')
@@ -141,25 +149,23 @@ function RecordResultForm({ procedure, onDone }: { procedure: EngineeringObject;
         equipment is involved.
       </p>
       <div className="vp-form-grid">
-        <label className="ws-field">
-          <span>Outcome</span>
-          <select value={outcome} onChange={(e) => setOutcome(e.target.value as 'Pass' | 'Fail')}>
-            <option>Pass</option>
-            <option>Fail</option>
-          </select>
-        </label>
-        <label className="ws-field">
-          <span>Measured value</span>
-          <input inputMode="decimal" value={measured} onChange={(e) => setMeasured(e.target.value)} placeholder="e.g. 12.4" />
-        </label>
-        <label className="ws-field">
-          <span>Unit</span>
-          <input value={unit} onChange={(e) => setUnit(e.target.value)} />
-        </label>
-        <label className="ws-field vp-notes">
-          <span>Notes</span>
-          <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
-        </label>
+        <Field label="Outcome">
+          {(id) => (
+            <Select id={id} value={outcome} onChange={(e) => setOutcome(e.target.value as 'Pass' | 'Fail')}>
+              <option>Pass</option>
+              <option>Fail</option>
+            </Select>
+          )}
+        </Field>
+        <Field label="Measured value">
+          {(id) => (
+            <TextInput id={id} inputMode="decimal" value={measured} onChange={(e) => setMeasured(e.target.value)} placeholder="e.g. 12.4" />
+          )}
+        </Field>
+        <Field label="Unit">{(id) => <TextInput id={id} value={unit} onChange={(e) => setUnit(e.target.value)} />}</Field>
+        <Field label="Notes" className="vp-notes">
+          {(id) => <TextInput id={id} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />}
+        </Field>
       </div>
       {error && (
         <Notice tone="danger" title="Could not save">
@@ -167,12 +173,12 @@ function RecordResultForm({ procedure, onDone }: { procedure: EngineeringObject;
         </Notice>
       )}
       <div className="vp-form-actions">
-        <button type="button" className="ws-button" onClick={onDone} disabled={busy}>
+        <Button onClick={onDone} disabled={busy}>
           Cancel
-        </button>
-        <button type="button" className="ws-button ws-button-primary" onClick={save} disabled={!valid || busy}>
+        </Button>
+        <Button variant="primary" onClick={save} disabled={!valid} busy={busy}>
           {busy ? 'Saving…' : 'Save result'}
-        </button>
+        </Button>
       </div>
     </Panel>
   )
@@ -208,9 +214,9 @@ function LinkEvidencePanel({ procedure, status, onDone }: { procedure: Engineeri
       title="Link evidence"
       className="vp-link"
       actions={
-        <button type="button" className="ws-button ws-button-small" onClick={onDone}>
+        <Button size="sm" onClick={onDone}>
           Done
-        </button>
+        </Button>
       }
     >
       <p className="ws-hint">Saved outputs in this configuration for the components and requirements this procedure covers.</p>
@@ -223,14 +229,9 @@ function LinkEvidencePanel({ procedure, status, onDone }: { procedure: Engineeri
               <div className="ws-output-head">
                 <span className="ws-mono">{o.id}</span>
                 <span>{o.title}</span>
-                <button
-                  type="button"
-                  className="ws-button ws-button-small ws-button-primary"
-                  onClick={() => void link(o)}
-                  disabled={busy !== null}
-                >
+                <Button size="sm" variant="primary" onClick={() => void link(o)} disabled={busy !== null} busy={busy === o.id}>
                   {busy === o.id ? 'Linking…' : 'Link as evidence'}
-                </button>
+                </Button>
               </div>
               <div className="ws-output-meta">
                 <span>{o.summary}</span>
@@ -289,23 +290,23 @@ function EvidenceList({ procedure, status, reviewMode }: { procedure: Engineerin
               <FreshnessBadge freshness={o.freshness} />
               <ReviewBadge status={o.reviewStatus} />
               {status.linkedIds.has(o.id) && (
-                <button type="button" className="ws-link" onClick={() => void unlink(o)}>
+                <Button size="sm" variant="ghost" onClick={() => void unlink(o)}>
                   Unlink
-                </button>
+                </Button>
               )}
             </div>
             {reviewMode && (
               <div className="vp-review-actions">
                 <span className="ws-muted">Review:</span>
-                <button type="button" className="ws-button ws-button-small" onClick={() => void review(o, 'in-review')} disabled={o.reviewStatus === 'in-review'}>
+                <Button size="sm" onClick={() => void review(o, 'in-review')} disabled={o.reviewStatus === 'in-review'}>
                   Submit for review
-                </button>
-                <button type="button" className="ws-button ws-button-small" onClick={() => void review(o, 'approved')} disabled={o.reviewStatus === 'approved'}>
+                </Button>
+                <Button size="sm" onClick={() => void review(o, 'approved')} disabled={o.reviewStatus === 'approved'}>
                   Approve
-                </button>
-                <button type="button" className="ws-button ws-button-small" onClick={() => void review(o, 'rejected')} disabled={o.reviewStatus === 'rejected'}>
+                </Button>
+                <Button size="sm" onClick={() => void review(o, 'rejected')} disabled={o.reviewStatus === 'rejected'}>
                   Reject
-                </button>
+                </Button>
               </div>
             )}
           </li>
@@ -430,14 +431,16 @@ function ProcedureDetail({ procedure, viewState }: { procedure: EngineeringObjec
             {String(procedure.properties.method ?? '')} · rev {procedure.revision}
           </span>
         </div>
-        <div className="ws-segmented" role="tablist">
-          <button type="button" role="tab" aria-selected={viewState.tab === 'details'} onClick={() => api.updateViewState({ tab: 'details' })}>
-            Details
-          </button>
-          <button type="button" role="tab" aria-selected={viewState.tab === 'trace'} onClick={() => api.updateViewState({ tab: 'trace' })}>
-            Traceability
-          </button>
-        </div>
+        <SegmentedControl
+          label="Procedure view"
+          role="tablist"
+          value={viewState.tab}
+          onChange={(tab) => api.updateViewState({ tab })}
+          options={[
+            { value: 'details', label: 'Details' },
+            { value: 'trace', label: 'Traceability' },
+          ]}
+        />
       </header>
 
       <StatusRow procedure={procedure} status={status} />
@@ -490,14 +493,14 @@ function ProcedureRow({ procedure, active, onOpen }: { procedure: EngineeringObj
   const status = useProcedureStatus(procedure)
   return (
     <tr className={active ? 'is-selected' : ''} onClick={onOpen} aria-selected={active}>
-      <td className="ws-mono">{procedure.id}</td>
-      <td>{procedure.name}</td>
-      <td className="ws-mono">{model.linked(procedure.id, 'verifies', 'out').join(', ')}</td>
-      <td className="ws-mono">{model.linked(procedure.id, 'tests', 'out').join(', ')}</td>
-      <td>
+      <td className="ws-mono vp-cell-id" data-label="ID">{procedure.id}</td>
+      <td data-label="Procedure">{procedure.name}</td>
+      <td className="ws-mono" data-label="Verifies">{model.linked(procedure.id, 'verifies', 'out').join(', ')}</td>
+      <td className="ws-mono" data-label="Tests">{model.linked(procedure.id, 'tests', 'out').join(', ')}</td>
+      <td data-label="Latest test result">
         <Badge tone={status.test.tone}>{status.test.label}</Badge>
       </td>
-      <td>{status.evidence.length}</td>
+      <td data-label="Evidence">{status.evidence.length}</td>
     </tr>
   )
 }
@@ -527,9 +530,9 @@ export default function VerificationView() {
           tone="info"
           title="Add Procedure is illustrative"
           actions={
-            <button type="button" className="ws-button ws-button-small" onClick={() => setViewState({ addNoticeShown: false })}>
+            <Button size="sm" onClick={() => setViewState({ addNoticeShown: false })}>
               Dismiss
-            </button>
+            </Button>
           }
         >
           Authoring new procedures is not implemented in this mockup.
@@ -541,17 +544,17 @@ export default function VerificationView() {
           {filtered ? (
             <span>
               Procedures related to {selectedObjects.map((o) => <ObjectRef key={o.id} object={o} />)}
-              <button type="button" className="ws-link" onClick={() => setViewState({ showAll: true })}>
+              <Button size="sm" variant="ghost" onClick={() => setViewState({ showAll: true })}>
                 Show all
-              </button>
+              </Button>
             </span>
           ) : (
             <span>
               All procedures
               {selectedObjects.length > 0 && (
-                <button type="button" className="ws-link" onClick={() => setViewState({ showAll: false })}>
+                <Button size="sm" variant="ghost" onClick={() => setViewState({ showAll: false })}>
                   Only related to selection
-                </button>
+                </Button>
               )}
             </span>
           )}
@@ -560,12 +563,12 @@ export default function VerificationView() {
           <table className="ws-table">
             <thead>
               <tr>
-                <th style={{ width: 80 }}>ID</th>
+                <th className="vp-col-id">ID</th>
                 <th>Procedure</th>
-                <th style={{ width: 110 }}>Verifies</th>
-                <th style={{ width: 160 }}>Tests</th>
-                <th style={{ width: 170 }}>Latest test result</th>
-                <th style={{ width: 80 }}>Evidence</th>
+                <th className="vp-col-verifies">Verifies</th>
+                <th className="vp-col-tests">Tests</th>
+                <th className="vp-col-result">Latest test result</th>
+                <th className="vp-col-evidence">Evidence</th>
               </tr>
             </thead>
             <tbody>
@@ -576,9 +579,9 @@ export default function VerificationView() {
                 <tr>
                   <td colSpan={6} className="ws-empty-row">
                     No verification procedures cover the current selection.{' '}
-                    <button type="button" className="ws-link" onClick={() => setViewState({ showAll: true })}>
+                    <Button size="sm" variant="ghost" onClick={() => setViewState({ showAll: true })}>
                       Show all procedures
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               )}

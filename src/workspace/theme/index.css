@@ -1,0 +1,132 @@
+/*
+ * Workspace stylesheet entry.
+ *
+ * Cascade layers, lowest to highest priority:
+ *   theme      – Tailwind's theme variables
+ *   base       – element defaults (below)
+ *   components – shared component classes (../workspace.css) and each tool's stylesheet
+ *   utilities  – Tailwind utilities, so utility classes can adjust any component
+ *
+ * Tailwind's Preflight reset is deliberately not used; the base layer below
+ * provides the few resets the workspace needs.
+ */
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@import './tokens.css';
+@import '../workspace.css' layer(components);
+@import '../shell/shell.css' layer(components);
+
+/*
+ * Tailwind sees only semantic colours: the default palette is removed, so a
+ * class such as bg-red-500 does not exist and cannot slip into the UI.
+ */
+@theme inline {
+  --color-*: initial;
+  --color-canvas: var(--ws-bg);
+  --color-surface: var(--ws-surface);
+  --color-surface-2: var(--ws-surface-2);
+  --color-surface-3: var(--ws-surface-3);
+  --color-line: var(--ws-border);
+  --color-line-strong: var(--ws-border-strong);
+  --color-scrim: var(--ws-scrim);
+  --color-fg: var(--ws-text);
+  --color-fg-2: var(--ws-text-2);
+  --color-fg-3: var(--ws-text-3);
+  --color-accent: var(--ws-accent);
+  --color-accent-strong: var(--ws-accent-strong);
+  --color-accent-soft: var(--ws-accent-soft);
+  --color-accent-line: var(--ws-accent-border);
+  --color-on-accent: var(--ws-on-accent);
+  --color-selected: var(--ws-selected);
+  --color-selected-fg: var(--ws-selected-text);
+  --color-focus: var(--ws-focus);
+  --color-success: var(--ws-success);
+  --color-success-soft: var(--ws-success-soft);
+  --color-warning: var(--ws-warning);
+  --color-warning-soft: var(--ws-warning-soft);
+  --color-warning-line: var(--ws-warning-border);
+  --color-error: var(--ws-danger);
+  --color-error-soft: var(--ws-danger-soft);
+  --color-error-line: var(--ws-danger-border);
+  --color-info: var(--ws-info);
+  --color-info-soft: var(--ws-info-soft);
+  --color-info-line: var(--ws-info-border);
+  --color-header: var(--ws-header-bg);
+  --color-header-raised: var(--ws-header-raised);
+  --color-header-input: var(--ws-header-input);
+  --color-header-line: var(--ws-header-line);
+  --color-header-fg: var(--ws-header-text);
+  --color-header-fg-2: var(--ws-header-text-2);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --font-sans: var(--ws-font-sans);
+  --font-mono: var(--ws-mono);
+  --text-ui: var(--ws-font-size);
+  --text-ui-sm: var(--ws-font-size-sm);
+  --text-ui-xs: var(--ws-font-size-xs);
+
+  --radius-ctl: var(--ws-radius);
+  --radius-sm: var(--ws-radius-sm);
+  --radius-panel: var(--ws-radius-lg);
+  --shadow-panel: var(--ws-shadow);
+  --shadow-raised: var(--ws-shadow-sm);
+
+  --spacing-ctl: var(--ws-control-h);
+  --spacing-ctl-sm: var(--ws-control-h-sm);
+  --spacing-row: var(--ws-row-h);
+  --spacing-touch: var(--ws-touch-target);
+  --spacing-pad: var(--ws-pad);
+  --spacing-gap: var(--ws-gap);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: var(--ws-bg);
+    color: var(--ws-text);
+    font-family: var(--ws-font-sans);
+    font-size: var(--ws-font-size);
+    line-height: 1.45;
+    overflow: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ws-focus);
+    outline-offset: 1px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

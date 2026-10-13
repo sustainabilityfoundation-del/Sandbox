@@ -244,17 +244,30 @@ export class DemoRepository implements EngineeringRepository {
   /** Read-only call: results are copied so callers can't mutate stored data. */
   private async call<T>(read: (db: DemoDatabase) => T): Promise<T> {
     await this.delay()
+    this.refresh()
     return structuredClone(read(this.db))
   }
 
-  /** Write call: works on a copy and commits only if the whole operation succeeds. */
+  /**
+   * Write call: works on a copy and commits only if the whole operation succeeds.
+   * Other windows share the same storage, so the latest data is reread inside a
+   * cross-window lock first; revision checks then see edits made elsewhere.
+   */
   private async mutate<T>(write: (db: DemoDatabase) => T): Promise<T> {
     await this.delay()
-    const draft = structuredClone(this.db)
-    const result = write(draft)
-    this.db = draft
-    this.write()
-    return structuredClone(result)
+    return withStorageLock(() => {
+      this.refresh()
+      const draft = structuredClone(this.db)
+      const result = write(draft)
+      this.db = draft
+      this.write()
+      return structuredClone(result)
+    })
+  }
+
+  /** Reloads from storage, which other windows may have written to. */
+  private refresh() {
+    if (this.storage) this.db = this.read()
   }
 
   private read(): DemoDatabase {
@@ -277,6 +290,13 @@ export class DemoRepository implements EngineeringRepository {
       // Storage full or blocked; the session keeps working in memory.
     }
   }
+}
+
+/** Serialises writes across windows of the same origin (Web Locks API), where available. */
+async function withStorageLock<T>(fn: () => T): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? (navigator as Navigator & { locks?: LockManager }).locks : undefined
+  if (!locks) return fn()
+  return locks.request('ews-demo-repository', async () => fn())
 }
 
 export function browserStorage(): StorageLike | null {

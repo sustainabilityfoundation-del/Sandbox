@@ -9,13 +9,15 @@ import type {
   ReviewStatus,
 } from '../domain/types'
 import type { EngineeringRepository } from '../repository/EngineeringRepository'
-import { loadSession, saveSession, type SessionState } from './session'
+import { broadcast, windowInfo, type DetachedViewDef } from '../session/windowSession'
+import { loadMainSession, loadSession, saveSession, type SessionState } from './session'
 import type { OutputInput, ViewStateUpdate } from './toolTypes'
+import { toolIdOfView, type ViewMeta, type ViewPin } from './views'
 
 /**
  * Internal workspace state. Tools never import this module; they use the SDK
- * hooks and ToolApi, which keeps private view state per tool and routes all
- * engineering data through the repository interface.
+ * hooks and ToolApi, which keep private view state per view instance and route
+ * all engineering data through the repository interface.
  */
 
 export interface ContextState {
@@ -25,6 +27,9 @@ export interface ContextState {
   selectedIds: string[]
 }
 
+/** Drawer-based layouts (phones, tablets) and panel-based layouts (desktops) keep separate preferences. */
+export type LayoutClass = 'compact' | 'spacious'
+
 export interface Layout {
   treeOpen: boolean
   inspectorOpen: boolean
@@ -33,6 +38,33 @@ export interface Layout {
   dockTab: 'activity' | 'assistant'
   /** Height of the expanded bottom dock body, in pixels. */
   dockHeight: number
+  treeWidth: number
+  inspectorWidth: number
+  /** Optional second tool view beside the main one (spacious layouts only). */
+  split: { toolId: string; ratio: number } | null
+}
+
+export const DEFAULT_LAYOUTS: Record<LayoutClass, Layout> = {
+  spacious: {
+    treeOpen: true,
+    inspectorOpen: true,
+    activityOpen: true,
+    dockTab: 'activity',
+    dockHeight: 280,
+    treeWidth: 248,
+    inspectorWidth: 320,
+    split: null,
+  },
+  compact: {
+    treeOpen: false,
+    inspectorOpen: false,
+    activityOpen: false,
+    dockTab: 'activity',
+    dockHeight: 300,
+    treeWidth: 320,
+    inspectorWidth: 360,
+    split: null,
+  },
 }
 
 /** Optional provenance for writes made on behalf of another part of the workspace. */
@@ -62,9 +94,15 @@ interface WorkspaceState {
   openToolIds: string[]
   favorites: string[]
   recents: string[]
+  /** Private state per view instance (see views.ts). */
   viewStates: Record<string, unknown>
   scrollStates: Record<string, Record<string, number>>
+  views: Record<string, ViewMeta>
+  layoutClass: LayoutClass
+  layouts: Record<LayoutClass, Layout>
+  /** The layout for the current layout class. */
   layout: Layout
+  detachedViews: DetachedViewDef[]
   initialViewStates: Record<string, unknown>
 
   initialize: (options: {
@@ -79,9 +117,18 @@ interface WorkspaceState {
   activateTool: (id: string) => void
   closeTool: (id: string) => void
   toggleFavorite: (id: string) => void
+  setLayoutClass: (layoutClass: LayoutClass) => void
   setLayout: (patch: Partial<Layout>) => void
-  updateViewState: (toolId: string, update: ViewStateUpdate<unknown>) => void
-  setScroll: (toolId: string, key: string, top: number) => void
+  setPin: (viewId: string, pin: ViewPin | null) => void
+  updateViewState: (viewId: string, update: ViewStateUpdate<unknown>) => void
+  setScroll: (viewId: string, key: string, top: number) => void
+  rememberDetached: (def: DetachedViewDef) => void
+  forgetDetached: (windowId: string) => void
+
+  /** Rereads authoritative data after another window committed changes. */
+  refreshFromRepository: (parts: ('model' | 'outputs' | 'activity')[]) => Promise<void>
+  /** Applies a context change made in another window, without echoing it back. */
+  applyRemoteContext: (context: ContextState) => void
 
   submitChanges: (
     toolId: string,
@@ -103,9 +150,18 @@ interface WorkspaceState {
 
 const MAX_RECENTS = 6
 let localSeq = 0
+let applyingRemoteContext = false
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function restoreLayouts(session: SessionState | null): Record<LayoutClass, Layout> {
+  const saved = session?.layouts ?? (session?.layout ? { spacious: session.layout } : {})
+  return {
+    spacious: { ...DEFAULT_LAYOUTS.spacious, ...saved.spacious },
+    compact: { ...DEFAULT_LAYOUTS.compact, ...saved.compact },
+  }
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
@@ -133,13 +189,19 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
       .catch(() => undefined)
   }
 
-  /** Tracks pending writes for the status indicator and records failures. */
-  async function write<T>(toolId: string | undefined, label: string, run: () => Promise<T>): Promise<T> {
+  /** Tracks pending writes for the status indicator, records failures and notifies other windows. */
+  async function write<T>(
+    toolId: string | undefined,
+    label: string,
+    parts: ('model' | 'outputs' | 'activity')[],
+    run: () => Promise<T>,
+  ): Promise<T> {
     set((s) => ({ pendingWrites: s.pendingWrites + 1 }))
     try {
       const result = await run()
       set({ lastWriteError: null })
       refreshActivity()
+      broadcast({ type: 'repository-updated', parts: [...parts, 'activity'] })
       return result
     } catch (error) {
       const message = `${label} failed: ${errorMessage(error)}`
@@ -166,7 +228,11 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
     recents: [],
     viewStates: {},
     scrollStates: {},
-    layout: { treeOpen: true, inspectorOpen: true, activityOpen: true, dockTab: 'activity', dockHeight: 280 },
+    views: {},
+    layoutClass: 'spacious',
+    layouts: DEFAULT_LAYOUTS,
+    layout: DEFAULT_LAYOUTS.spacious,
+    detachedViews: [],
     initialViewStates: {},
 
     initialize: async ({ repository, projectId, tools, defaultOpenToolIds }) => {
@@ -179,27 +245,28 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           repository.listActivity(projectId),
         ])
         const model = buildModelIndex(snapshot)
-        const session = loadSession()
+        const loaded = loadSession()
+        const restored = loaded?.context?.projectId === projectId || windowInfo.role === 'detached' ? loaded : null
+        // Detached windows join the main window's session context.
+        const contextSource = windowInfo.role === 'detached' ? loadMainSession() : restored
         const known = new Set(tools.map((t) => t.id))
-        const restoredSession = session?.context.projectId === projectId ? session : null
 
         // Restore the previous session, discarding anything that no longer exists.
-        const ctx = restoredSession?.context
+        const ctx = contextSource?.context?.projectId === projectId ? contextSource.context : undefined
         const context: ContextState = {
           projectId,
           configurationId: snapshot.configurations.some((c) => c.id === ctx?.configurationId)
             ? ctx!.configurationId
             : snapshot.configurations[0].id,
-          scenarioId: snapshot.scenarios.some((s) => s.id === ctx?.scenarioId)
-            ? ctx!.scenarioId
-            : snapshot.scenarios[0].id,
+          scenarioId: snapshot.scenarios.some((s) => s.id === ctx?.scenarioId) ? ctx!.scenarioId : snapshot.scenarios[0].id,
           selectedIds: (ctx?.selectedIds ?? []).filter((id) => model.get(id)),
         }
-        const openToolIds = (restoredSession?.openToolIds ?? defaultOpenToolIds).filter((id) => known.has(id))
+        const openToolIds = (restored?.openToolIds ?? defaultOpenToolIds).filter((id) => known.has(id))
         const activeToolId =
-          restoredSession?.activeToolId && openToolIds.includes(restoredSession.activeToolId)
-            ? restoredSession.activeToolId
+          restored?.activeToolId && openToolIds.includes(restored.activeToolId)
+            ? restored.activeToolId
             : (openToolIds[0] ?? null)
+        const layouts = restoreLayouts(restored)
 
         set({
           status: 'ready',
@@ -209,13 +276,16 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           context,
           openToolIds,
           activeToolId,
-          favorites: (restoredSession?.favorites ?? []).filter((id) => known.has(id)),
-          recents: (restoredSession?.recents ?? []).filter((id) => known.has(id)),
+          favorites: (restored?.favorites ?? []).filter((id) => known.has(id)),
+          recents: (restored?.recents ?? []).filter((id) => known.has(id)),
           viewStates: Object.fromEntries(
-            Object.entries(restoredSession?.viewStates ?? {}).filter(([id]) => known.has(id)),
+            Object.entries(restored?.viewStates ?? {}).filter(([viewId]) => known.has(toolIdOfView(viewId))),
           ),
-          scrollStates: restoredSession?.scrollStates ?? {},
-          layout: { ...get().layout, ...restoredSession?.layout },
+          scrollStates: restored?.scrollStates ?? {},
+          views: restored?.views ?? {},
+          layouts,
+          layout: layouts[get().layoutClass],
+          detachedViews: restored?.detachedViews ?? [],
         })
       } catch (error) {
         set({ status: 'error', loadError: errorMessage(error) })
@@ -247,23 +317,63 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
         favorites: s.favorites.includes(id) ? s.favorites.filter((f) => f !== id) : [...s.favorites, id],
       })),
 
-    setLayout: (patch) => set((s) => ({ layout: { ...s.layout, ...patch } })),
+    setLayoutClass: (layoutClass) =>
+      set((s) => (s.layoutClass === layoutClass ? {} : { layoutClass, layout: s.layouts[layoutClass] })),
 
-    updateViewState: (toolId, update) =>
+    setLayout: (patch) =>
       set((s) => {
-        const current = s.viewStates[toolId] ?? s.initialViewStates[toolId]
-        const next =
-          typeof update === 'function'
-            ? update(current)
-            : { ...(current as object), ...(update as object) }
-        return { viewStates: { ...s.viewStates, [toolId]: next } }
+        const layout = { ...s.layouts[s.layoutClass], ...patch }
+        return { layout, layouts: { ...s.layouts, [s.layoutClass]: layout } }
       }),
 
-    setScroll: (toolId, key, top) =>
-      set((s) => ({ scrollStates: { ...s.scrollStates, [toolId]: { ...s.scrollStates[toolId], [key]: top } } })),
+    setPin: (viewId, pin) => set((s) => ({ views: { ...s.views, [viewId]: { ...s.views[viewId], pin } } })),
+
+    updateViewState: (viewId, update) =>
+      set((s) => {
+        const current = s.viewStates[viewId] ?? s.initialViewStates[toolIdOfView(viewId)]
+        const next = typeof update === 'function' ? update(current) : { ...(current as object), ...(update as object) }
+        return { viewStates: { ...s.viewStates, [viewId]: next } }
+      }),
+
+    setScroll: (viewId, key, top) =>
+      set((s) => ({ scrollStates: { ...s.scrollStates, [viewId]: { ...s.scrollStates[viewId], [key]: top } } })),
+
+    rememberDetached: (def) =>
+      set((s) => ({ detachedViews: [...s.detachedViews.filter((d) => d.windowId !== def.windowId), def] })),
+
+    forgetDetached: (windowId) => set((s) => ({ detachedViews: s.detachedViews.filter((d) => d.windowId !== windowId) })),
+
+    refreshFromRepository: async (parts) => {
+      const { repository, context, status } = get()
+      if (!repository || status !== 'ready') return
+      try {
+        const [snapshot, outputs, activity] = await Promise.all([
+          parts.includes('model') ? repository.loadModel(context.projectId) : null,
+          parts.includes('outputs') ? repository.listOutputs(context.projectId) : null,
+          parts.includes('activity') ? repository.listActivity(context.projectId) : null,
+        ])
+        set({
+          ...(snapshot ? { model: buildModelIndex(snapshot) } : {}),
+          ...(outputs ? { outputs } : {}),
+          ...(activity ? { activity } : {}),
+        })
+      } catch {
+        // The next notification or local action will retry.
+      }
+    },
+
+    applyRemoteContext: (context) => {
+      applyingRemoteContext = true
+      try {
+        const model = get().model
+        set({ context: { ...context, selectedIds: context.selectedIds.filter((id) => !model || model.get(id)) } })
+      } finally {
+        applyingRemoteContext = false
+      }
+    },
 
     submitChanges: (toolId, changes, summary, options = {}) =>
-      write(toolId, summary, async () => {
+      write(toolId, summary, ['model'], async () => {
         const { context } = get()
         const result = await repo().submitChanges(context.projectId, changes, {
           toolId,
@@ -276,7 +386,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
       }),
 
     saveOutput: (toolId, output, options = {}) =>
-      write(toolId, `Saving ${output.title}`, async () => {
+      write(toolId, `Saving ${output.title}`, ['outputs'], async () => {
         const { context, model } = get()
         const saved = await repo().saveOutput(
           {
@@ -289,12 +399,12 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           },
           { source: options.source },
         )
-        set((s) => ({ outputs: [...s.outputs, saved] }))
+        set((s) => ({ outputs: [...s.outputs.filter((o) => o.id !== saved.id), saved] }))
         return saved
       }),
 
     setReviewStatus: (toolId, outputId, status) =>
-      write(toolId, `Review of ${outputId}`, async () => {
+      write(toolId, `Review of ${outputId}`, ['outputs'], async () => {
         const { context } = get()
         const updated = await repo().setReviewStatus(outputId, status, {
           toolId,
@@ -319,7 +429,10 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           scenarioId: context.scenarioId,
           source,
         })
-        .then(refreshActivity)
+        .then(() => {
+          refreshActivity()
+          broadcast({ type: 'repository-updated', parts: ['activity'] })
+        })
         .catch(() => {
           set((s) => ({
             activity: s.activity.map((a) =>
@@ -333,7 +446,14 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
   }
 })
 
-// Persist the session (context, open tools, per-tool view state) so a reload
+// Share context changes made in this window with the other workspace windows.
+useWorkspaceStore.subscribe((state, previous) => {
+  if (state.status !== 'ready' || state.context === previous.context || applyingRemoteContext) return
+  if (previous.status !== 'ready') return
+  broadcast({ type: 'context', context: state.context })
+})
+
+// Persist the session (context, open tools, per-view state, layouts) so a reload
 // returns to the same place. Engineering data lives in the repository, not here.
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let pendingSession: SessionState | null = null
@@ -354,7 +474,9 @@ useWorkspaceStore.subscribe((state) => {
     recents: state.recents,
     viewStates: state.viewStates,
     scrollStates: state.scrollStates,
-    layout: state.layout,
+    layouts: state.layouts,
+    views: state.views,
+    detachedViews: state.detachedViews,
   }
   clearTimeout(saveTimer)
   saveTimer = setTimeout(flushSession, 150)

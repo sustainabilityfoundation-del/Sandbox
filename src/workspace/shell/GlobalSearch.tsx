@@ -14,7 +14,7 @@ interface Result {
 }
 
 /** Searches model objects, saved outputs and tools by ID or name. */
-export function GlobalSearch() {
+export function GlobalSearch({ autoFocus = false, onDone }: { autoFocus?: boolean; onDone?: () => void } = {}) {
   const model = useWorkspaceStore((s) => s.model)!
   const outputs = useWorkspaceStore((s) => s.outputs)
   const configurationId = useWorkspaceStore((s) => s.context.configurationId)
@@ -81,6 +81,7 @@ export function GlobalSearch() {
     setQuery('')
     setOpen(false)
     inputRef.current?.blur()
+    onDone?.()
   }
 
   return (
@@ -88,6 +89,7 @@ export function GlobalSearch() {
       <Icons.search className="ws-search-icon" width={14} height={14} />
       <input
         ref={inputRef}
+        autoFocus={autoFocus}
         type="search"
         placeholder="Search objects, outputs, tools  ( / )"
         aria-label="Global search"

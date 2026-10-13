@@ -63,8 +63,11 @@ export function ActivityView() {
             <span className="ws-activity-time">{formatTime(a.at)}</span>
             <span className={`ws-activity-kind is-${a.kind}`}>{KIND_LABEL[a.kind]}</span>
             <span className="ws-activity-tool">{sourceName(a.toolId)}</span>
-            <span className="ws-activity-msg">
+            <span className="ws-activity-msg" title={a.message}>
               {a.message}
+            </span>
+            <span className="ws-activity-objs">
+              {/* Kept out of the truncated message so it is always visible and clickable. */}
               {a.source && (
                 <button
                   type="button"
@@ -83,8 +86,6 @@ export function ActivityView() {
                   {a.source.label}
                 </button>
               )}
-            </span>
-            <span className="ws-activity-objs">
               {a.objectIds
                 .filter((id) => model.get(id))
                 .slice(0, 3)

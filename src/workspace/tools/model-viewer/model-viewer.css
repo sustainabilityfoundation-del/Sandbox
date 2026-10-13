@@ -1,0 +1,95 @@
+/* Tool: 3D model viewer: styles use workspace design tokens only (see workspace/README.md, "Styling contract"). */
+@layer components {
+
+.mv-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* Map the viewer's own tokens onto the workspace palette. */
+  --bg: var(--ws-surface-2);
+  --panel: var(--ws-surface);
+  --panel-muted: var(--ws-surface-2);
+  --border: var(--ws-border);
+  --border-strong: var(--ws-border-strong);
+  --text: var(--ws-text);
+  --text-muted: var(--ws-text-3);
+  --accent: var(--ws-accent);
+  --accent-soft: var(--ws-accent-soft);
+  --accent-hover: var(--ws-accent-strong);
+  --accent-text: var(--ws-on-accent);
+  --shadow: var(--ws-shadow);
+  --radius: var(--ws-radius);
+  --sidebar-width: 260px;
+  --viewport-top: var(--ws-viewport-top);
+  --viewport-bottom: var(--ws-viewport-bottom);
+  --overlay: var(--ws-overlay-surface);
+  --danger: var(--ws-danger);
+  --danger-soft: var(--ws-danger-soft);
+  --danger-border: var(--ws-danger-border);
+  color: var(--ws-text);
+}
+
+.mv-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.mv-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 0;
+  flex: none;
+  background: var(--ws-surface-2);
+}
+
+.mv-notices .ws-notice {
+  padding: 6px 10px;
+}
+
+.mv-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 1;
+}
+
+.mv-empty-card {
+  max-width: 460px;
+  padding: 24px 28px;
+  border: 1px solid var(--ws-border);
+  border-radius: 8px;
+  background: var(--ws-surface);
+  box-shadow: var(--ws-shadow-sm);
+  text-align: center;
+  color: var(--ws-text-2);
+}
+
+.mv-empty-card h2 {
+  margin: 8px 0 6px;
+  font-size: 16px;
+  color: var(--ws-text);
+}
+
+.mv-empty-card p {
+  margin: 0 0 14px;
+}
+
+.mv-empty-card code {
+  font-family: var(--ws-mono);
+  font-size: var(--ws-font-size-sm);
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--ws-surface-3);
+}
+
+.mv-empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+}

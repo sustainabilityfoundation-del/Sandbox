@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
-import '../../../styles.css'
+import '../../../viewer-components.css'
+import './model-viewer.css'
 import { HierarchySidebar } from '../../../components/HierarchySidebar'
 import { DropOverlay, ErrorBanner, LoadingOverlay } from '../../../components/Overlays'
 import { StatusBar } from '../../../components/StatusBar'
@@ -9,6 +10,7 @@ import type { LoadedModel } from '../../../loading/types'
 import { useViewerStore } from '../../../state/viewerStore'
 import { Viewport } from '../../../viewer/Viewport'
 import {
+  Button,
   Icons,
   Notice,
   isComponent,
@@ -69,12 +71,10 @@ function EmptyViewer({ onOpen, onActuator }: { onOpen: () => void; onActuator: (
           follows you across tools.
         </p>
         <div className="mv-empty-actions">
-          <button type="button" className="ws-button ws-button-primary" onClick={onActuator}>
+          <Button variant="primary" onClick={onActuator}>
             Load ACT-100 model
-          </button>
-          <button type="button" className="ws-button" onClick={onOpen}>
-            Open GLB…
-          </button>
+          </Button>
+          <Button onClick={onOpen}>Open GLB…</Button>
         </div>
         <p className="ws-muted">Files are processed locally in the browser. Loaded files are not saved to the repository.</p>
       </div>

@@ -1,0 +1,223 @@
+/*
+ * Workspace design tokens.
+ *
+ * Every colour, size and effect in the workspace comes from these semantic
+ * variables. Tailwind utilities (bg-surface, text-fg, border-line, …) and the
+ * component CSS both read them, so switching data-theme / data-density on
+ * <html> restyles the whole workspace, including tool views, SVG diagrams,
+ * charts and the 3D viewer.
+ *
+ * Themes:  html[data-theme="light" | "dark"]   (set from preferences; "system" resolves to one)
+ * Density: html[data-density="comfortable" | "compact"]
+ */
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces and lines */
+  --ws-bg: #eef0f3;
+  --ws-surface: #ffffff;
+  --ws-surface-2: #f7f8fa;
+  --ws-surface-3: #eceff3;
+  --ws-border: #dde1e7;
+  --ws-border-strong: #c3c9d2;
+  --ws-scrim: rgba(20, 27, 36, 0.38);
+  --ws-overlay-surface: rgba(255, 255, 255, 0.88);
+  --ws-tab-hover: rgba(255, 255, 255, 0.55);
+
+  /* Text */
+  --ws-text: #1c232c;
+  --ws-text-2: #4a5563;
+  --ws-text-3: #66717f;
+  --ws-strike: rgba(107, 118, 133, 0.5);
+
+  /* Accent and selection */
+  --ws-accent: #2457c5;
+  --ws-accent-strong: #1b45a0;
+  --ws-accent-soft: #e6edfb;
+  --ws-accent-border: #b9cbef;
+  --ws-accent-surface: #fbfcff;
+  --ws-on-accent: #ffffff;
+  --ws-selected: var(--ws-accent-soft);
+  --ws-selected-text: var(--ws-accent);
+  --ws-focus: var(--ws-accent);
+  --ws-favorite: #c98a00;
+
+  /* Status */
+  --ws-success: #1d7a46;
+  --ws-success-soft: #e3f3e9;
+  --ws-success-border: #b7dcc4;
+  --ws-success-surface: #fafdfb;
+  --ws-warning: #8f5400;
+  --ws-warning-soft: #fff1d6;
+  --ws-warning-border: #f0cf8e;
+  --ws-warning-surface: #fffaf0;
+  --ws-warning-marker: #e4a33a;
+  --ws-danger: #b42318;
+  --ws-danger-soft: #fdecea;
+  --ws-danger-border: #f4c7c3;
+  --ws-info: #245aa8;
+  --ws-info-soft: #e8f0fb;
+  --ws-info-border: #c9daf3;
+  --ws-info-overlay: rgba(232, 240, 251, 0.95);
+
+  /* Header bar */
+  --ws-header-bg: #1f2732;
+  --ws-header-raised: #2f3b4a;
+  --ws-header-input: #2a3442;
+  --ws-header-line: #3a4655;
+  --ws-header-text: #e7ebf0;
+  --ws-header-text-2: #9aa7b6;
+  --ws-header-accent: #8fb3ff;
+  --ws-header-focus: #6f98e8;
+  --ws-status-ok: #4cc38a;
+  --ws-status-busy: #f5b84b;
+  --ws-status-error: #f06b5f;
+
+  /* Diagrams (Geometry SVG) */
+  --ws-diagram-bg: #f9fafb;
+  --ws-diagram-grid: #e7eaee;
+  --ws-diagram-stroke: #5d6876;
+  --ws-diagram-stroke-strong: #2b3440;
+  --ws-diagram-detail: #6e8096;
+  --ws-diagram-leader: #8a95a3;
+  --ws-diagram-hatch: #9aa5b3;
+  --ws-diagram-part-1: #c8d0da;
+  --ws-diagram-part-2: #8d9fb3;
+  --ws-diagram-part-3: #e4e7eb;
+  --ws-diagram-selected: #b7cdf6;
+
+  /* Charts */
+  --ws-chart-track: #f0f2f5;
+  --ws-chart-band: #d6e9dd;
+  --ws-chart-value: var(--ws-accent);
+  --ws-chart-over: var(--ws-danger);
+  --ws-chart-limit: var(--ws-success);
+  --ws-chart-reference: var(--ws-text-3);
+
+  /* 3D viewport background */
+  --ws-viewport-top: #eef0f3;
+  --ws-viewport-bottom: #d5d9df;
+
+  /* Shape and depth */
+  --ws-radius-sm: 4px;
+  --ws-radius: 5px;
+  --ws-radius-lg: 8px;
+  --ws-shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.08);
+  --ws-shadow: 0 2px 4px rgba(16, 24, 40, 0.06), 0 12px 32px rgba(16, 24, 40, 0.14);
+
+  /* Typography */
+  --ws-font-sans: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ws-mono: ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ws-bg: #111418;
+  --ws-surface: #1a1e24;
+  --ws-surface-2: #20252c;
+  --ws-surface-3: #2a3039;
+  --ws-border: #303741;
+  --ws-border-strong: #454e5a;
+  --ws-scrim: rgba(0, 0, 0, 0.55);
+  --ws-overlay-surface: rgba(26, 30, 36, 0.9);
+  --ws-tab-hover: rgba(255, 255, 255, 0.06);
+
+  --ws-text: #e6e9ed;
+  --ws-text-2: #b8c0ca;
+  --ws-text-3: #939dab;
+  --ws-strike: rgba(147, 157, 171, 0.6);
+
+  /* Lighter accent for text on dark surfaces; primary buttons use dark text on it. */
+  --ws-accent: #6d9cf5;
+  --ws-accent-strong: #8db3fa;
+  --ws-accent-soft: #1d2b45;
+  --ws-accent-border: #34507f;
+  --ws-accent-surface: #1b2230;
+  --ws-on-accent: #0b1424;
+  --ws-selected-text: #9dbcff;
+  --ws-focus: #7aa5ff;
+  --ws-favorite: #e8b04a;
+
+  --ws-success: #5fcf96;
+  --ws-success-soft: #173023;
+  --ws-success-border: #2a5a3e;
+  --ws-success-surface: #18231d;
+  --ws-warning: #f0b956;
+  --ws-warning-soft: #33270f;
+  --ws-warning-border: #6a5019;
+  --ws-warning-surface: #241e12;
+  --ws-warning-marker: #e8a33a;
+  --ws-danger: #ff8a7e;
+  --ws-danger-soft: #3a1b18;
+  --ws-danger-border: #6e2e27;
+  --ws-info: #8cb6ff;
+  --ws-info-soft: #18263a;
+  --ws-info-border: #2c4669;
+  --ws-info-overlay: rgba(24, 38, 58, 0.95);
+
+  --ws-header-bg: #0c0f13;
+  --ws-header-raised: #1d232b;
+  --ws-header-input: #161b22;
+  --ws-header-line: #2a313b;
+
+  --ws-diagram-bg: #15191e;
+  --ws-diagram-grid: #232a32;
+  --ws-diagram-stroke: #9aa4b1;
+  --ws-diagram-stroke-strong: #d4dae1;
+  --ws-diagram-detail: #8293a8;
+  --ws-diagram-leader: #6f7a88;
+  --ws-diagram-hatch: #5f6a78;
+  --ws-diagram-part-1: #4a5563;
+  --ws-diagram-part-2: #3c5068;
+  --ws-diagram-part-3: #6b7685;
+  --ws-diagram-selected: #2d4b82;
+
+  --ws-chart-track: #232931;
+  --ws-chart-band: #1d3a2a;
+
+  --ws-viewport-top: #232931;
+  --ws-viewport-bottom: #121519;
+
+  --ws-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --ws-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Density: control heights, row heights, spacing and type size. */
+:root,
+:root[data-density='comfortable'] {
+  --ws-font-size: 13.5px;
+  --ws-font-size-sm: 12.5px;
+  --ws-font-size-xs: 11px;
+  --ws-control-h: 32px;
+  --ws-control-h-sm: 26px;
+  --ws-row-h: 28px;
+  --ws-header-h: 48px;
+  --ws-pad: 12px;
+  --ws-gap: 8px;
+}
+
+:root[data-density='compact'] {
+  --ws-font-size: 12.5px;
+  --ws-font-size-sm: 11.5px;
+  --ws-font-size-xs: 10.5px;
+  --ws-control-h: 26px;
+  --ws-control-h-sm: 22px;
+  --ws-row-h: 23px;
+  --ws-header-h: 42px;
+  --ws-pad: 8px;
+  --ws-gap: 6px;
+}
+
+/* Touch-sized targets wherever the primary pointer is coarse, regardless of density. */
+:root {
+  --ws-touch-target: 0px;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --ws-touch-target: 40px;
+  }
+}

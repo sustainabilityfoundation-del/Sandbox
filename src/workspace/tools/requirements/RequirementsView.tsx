@@ -1,6 +1,15 @@
+import './requirements.css'
 import { useEffect, useMemo, useState } from 'react'
 import {
   Badge,
+  Button,
+  Checkbox,
+  Field,
+  FieldGroup,
+  Select,
+  TextArea,
+  TextInput,
+  useUnsavedChanges,
   COMPLIANCE_LABEL,
   ComplianceBadge,
   Notice,
@@ -87,6 +96,14 @@ function RequirementEditor({
     }
   }
 
+  const dirty =
+    name !== requirement.name ||
+    statement !== String(requirement.properties.statement ?? '') ||
+    compliance !== String(requirement.properties.compliance ?? 'not-assessed') ||
+    methods.join() !== methodsOf(requirement).join() ||
+    allocation.join() !== currentAllocation.join()
+  useUnsavedChanges(dirty && !saving)
+
   return (
     <div className="req-editor" role="dialog" aria-label={`Edit ${requirement.id}`}>
       <header className="req-editor-header">
@@ -96,59 +113,56 @@ function RequirementEditor({
         <span className="ws-muted">Based on rev {baseRevision}</span>
       </header>
       <div className="req-editor-body">
-        <label className="ws-field">
-          <span>Title</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} autoFocus={focus === 'details'} />
-        </label>
-        <label className="ws-field">
-          <span>Statement</span>
-          <textarea rows={4} value={statement} onChange={(e) => setStatement(e.target.value)} />
-        </label>
-        <fieldset className="ws-field">
-          <legend>Verification methods</legend>
+        <Field label="Title">
+          {(id) => <TextInput id={id} value={name} onChange={(e) => setName(e.target.value)} autoFocus={focus === 'details'} />}
+        </Field>
+        <Field label="Statement">
+          {(id) => <TextArea id={id} rows={4} value={statement} onChange={(e) => setStatement(e.target.value)} />}
+        </Field>
+        <FieldGroup legend="Verification methods">
           <div className="ws-checks">
             {METHODS.map((m) => (
-              <label key={m}>
-                <input type="checkbox" checked={methods.includes(m)} onChange={() => setMethods(toggle(methods, m))} /> {m}
-              </label>
+              <Checkbox key={m} label={m} checked={methods.includes(m)} onChange={() => setMethods(toggle(methods, m))} />
             ))}
           </div>
-        </fieldset>
-        <label className="ws-field">
-          <span>Compliance status</span>
-          <select value={compliance} onChange={(e) => setCompliance(e.target.value)}>
-            {Object.entries(COMPLIANCE_LABEL).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <fieldset className={`ws-field${focus === 'allocation' ? ' is-focused' : ''}`}>
-          <legend>Allocated to components</legend>
+        </FieldGroup>
+        <Field label="Compliance status">
+          {(id) => (
+            <Select id={id} value={compliance} onChange={(e) => setCompliance(e.target.value)}>
+              {Object.entries(COMPLIANCE_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <FieldGroup legend="Allocated to components" className={focus === 'allocation' ? 'req-focused' : undefined}>
           <div className="ws-checks ws-checks-column">
             {components.map((c) => (
-              <label key={c.id}>
-                <input
-                  type="checkbox"
-                  checked={allocation.includes(c.id)}
-                  onChange={() => setAllocation(toggle(allocation, c.id))}
-                  autoFocus={focus === 'allocation' && c === components[0]}
-                />{' '}
-                <span className="ws-mono">{c.id}</span> {c.name}
-              </label>
+              <Checkbox
+                key={c.id}
+                checked={allocation.includes(c.id)}
+                onChange={() => setAllocation(toggle(allocation, c.id))}
+                autoFocus={focus === 'allocation' && c === components[0]}
+                label={
+                  <>
+                    <span className="ws-mono">{c.id}</span> {c.name}
+                  </>
+                }
+              />
             ))}
           </div>
-        </fieldset>
+        </FieldGroup>
         {error && <Notice tone="danger" title="Could not save">{error}</Notice>}
       </div>
       <footer className="req-editor-footer">
-        <button type="button" className="ws-button" onClick={onClose} disabled={saving}>
+        <Button onClick={onClose} disabled={saving}>
           Cancel
-        </button>
-        <button type="button" className="ws-button ws-button-primary" onClick={save} disabled={saving}>
+        </Button>
+        <Button variant="primary" onClick={save} busy={saving}>
           {saving ? 'Saving…' : 'Save to repository'}
-        </button>
+        </Button>
       </footer>
     </div>
   )
@@ -180,7 +194,7 @@ function TraceCells({ requirement }: { requirement: EngineeringObject }) {
   const { procedures, linkedOutputs, stale } = useRequirementOutputs(requirement)
   return (
     <>
-      <td>
+      <td data-label="Verified by">
         {procedures.length ? (
           <div className="ws-refs">
             {procedures.map((p) => (
@@ -191,7 +205,7 @@ function TraceCells({ requirement }: { requirement: EngineeringObject }) {
           <span className="ws-muted">None</span>
         )}
       </td>
-      <td>
+      <td data-label="Evidence">
         {linkedOutputs.length ? (
           <span>
             {linkedOutputs.length} output{linkedOutputs.length === 1 ? '' : 's'}
@@ -247,9 +261,9 @@ export default function RequirementsView() {
             <span>
               Allocated to <ObjectRef object={filterComponent} />
               {filterComponent.type === 'assembly' && <span className="ws-muted"> (including sub-components)</span>}
-              <button type="button" className="ws-link" onClick={() => setViewState({ filterMode: 'all' })}>
+              <Button size="sm" variant="ghost" onClick={() => setViewState({ filterMode: 'all' })}>
                 Show all
-              </button>
+              </Button>
             </span>
           ) : viewState.filterMode === 'selection' ? (
             <span className="ws-muted">Select a component to filter by allocation. Showing all requirements.</span>
@@ -258,7 +272,7 @@ export default function RequirementsView() {
           )}
           <label className="req-status-filter">
             Status
-            <select
+            <Select
               value={viewState.complianceFilter}
               onChange={(e) => setViewState({ complianceFilter: e.target.value as RequirementsViewState['complianceFilter'] })}
             >
@@ -268,7 +282,7 @@ export default function RequirementsView() {
                   {label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <span className="ws-muted">
             {visible.length} of {requirements.length}
@@ -279,13 +293,13 @@ export default function RequirementsView() {
           <table className="ws-table req-table">
             <thead>
               <tr>
-                <th style={{ width: 84 }}>ID</th>
+                <th className="req-col-id">ID</th>
                 <th>Statement</th>
-                <th style={{ width: 170 }}>Allocated to</th>
-                <th style={{ width: 130 }}>Verification</th>
-                <th style={{ width: 120 }}>Compliance</th>
-                {viewState.showTrace && <th style={{ width: 120 }}>Verified by</th>}
-                {viewState.showTrace && <th style={{ width: 130 }}>Evidence</th>}
+                <th className="req-col-alloc">Allocated to</th>
+                <th className="req-col-method">Verification</th>
+                <th className="req-col-status">Compliance</th>
+                {viewState.showTrace && <th className="req-col-trace">Verified by</th>}
+                {viewState.showTrace && <th className="req-col-trace">Evidence</th>}
               </tr>
             </thead>
             <tbody>
@@ -300,12 +314,12 @@ export default function RequirementsView() {
                     onDoubleClick={() => api.updateViewState({ editor: { requirementId: r.id, focus: 'details' } })}
                     aria-selected={selected}
                   >
-                    <td className="ws-mono">{r.id}</td>
-                    <td>
+                    <td className="ws-mono req-cell-id" data-label="ID">{r.id}</td>
+                    <td data-label="Statement">
                       <div className="req-title">{r.name}</div>
                       <div className="req-statement">{String(r.properties.statement ?? '')}</div>
                     </td>
-                    <td>
+                    <td data-label="Allocated to">
                       <div className="ws-refs">
                         {allocated.length ? (
                           allocated.map((c) => <ObjectRef key={c.id} object={c} />)
@@ -314,8 +328,8 @@ export default function RequirementsView() {
                         )}
                       </div>
                     </td>
-                    <td>{methodsOf(r).join(', ') || <span className="ws-muted">—</span>}</td>
-                    <td>
+                    <td data-label="Verification">{methodsOf(r).join(', ') || <span className="ws-muted">—</span>}</td>
+                    <td data-label="Compliance">
                       <div className="req-status">
                         <ComplianceBadge value={r.properties.compliance} />
                         <StaleEvidenceBadge requirement={r} />

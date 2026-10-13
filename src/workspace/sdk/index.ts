@@ -6,6 +6,7 @@
  * ToolApi. They never touch browser storage or another tool's state.
  */
 export {
+  hasUnsavedChanges,
   useIsActiveTool,
   useModel,
   useOutput,
@@ -15,6 +16,8 @@ export {
   useSharedContext,
   useToolApi,
   useToolViewState,
+  useUnsavedChanges,
+  useViewId,
   type OutputFilter,
   type OutputView,
 } from './hooks'
@@ -28,6 +31,21 @@ export {
   type ToolCategory,
   type ToolDefinition,
 } from './toolTypes'
+export {
+  Button,
+  Checkbox,
+  Field,
+  FieldGroup,
+  IconButton,
+  SegmentedControl,
+  Select,
+  Spinner,
+  TableContainer,
+  TextArea,
+  TextInput,
+  type ButtonProps,
+  type SegmentOption,
+} from './controls'
 export { Icons, iconForType, type IconComponent } from './icons'
 export {
   Badge,

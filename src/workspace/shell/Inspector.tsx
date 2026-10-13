@@ -2,10 +2,12 @@ import { useMemo } from 'react'
 import { outputFreshness } from '../domain/freshness'
 import type { EngineeringObject } from '../domain/types'
 import { formatValue, propertyLabel } from '../domain/units'
+import { selectInView, sharedContextOf } from '../sdk/api'
 import { useWorkspaceStore } from '../sdk/store'
 import { iconForType } from '../sdk/icons'
 import { Badge, ComplianceBadge, FreshnessBadge, ObjectRef, ReviewBadge, formatTime } from '../sdk/ui'
 import { getTool } from '../tools/registry'
+import { ViewControls } from './WorkArea'
 
 const HIDDEN_PROPS = new Set(['statement', 'compliance', 'steps'])
 
@@ -21,10 +23,9 @@ function Section({ title, count, children }: { title: string; count?: number; ch
   )
 }
 
-function Outputs({ object }: { object: EngineeringObject }) {
+function Outputs({ object, configurationId }: { object: EngineeringObject; configurationId: string }) {
   const model = useWorkspaceStore((s) => s.model)!
   const allOutputs = useWorkspaceStore((s) => s.outputs)
-  const configurationId = useWorkspaceStore((s) => s.context.configurationId)
   const configuration = model.snapshot.configurations.find((c) => c.id === configurationId)
 
   const { outputs, hidden } = useMemo(() => {
@@ -133,7 +134,7 @@ function Links({ object }: { object: EngineeringObject }) {
   return <Section title="Linked requirements" count={requirements.length}>{refs(requirements)}</Section>
 }
 
-function ObjectDetails({ object }: { object: EngineeringObject }) {
+function ObjectDetails({ object, configurationId }: { object: EngineeringObject; configurationId: string }) {
   const model = useWorkspaceStore((s) => s.model)!
   const Icon = iconForType(object.type)
   const parent = object.parentId ? model.get(object.parentId) : undefined
@@ -179,23 +180,34 @@ function ObjectDetails({ object }: { object: EngineeringObject }) {
         </dl>
       </Section>
       <Links object={object} />
-      <Outputs object={object} />
+      <Outputs object={object} configurationId={configurationId} />
     </div>
   )
 }
 
-export function Inspector() {
+/**
+ * Shared inspector. Each inspector (side panel, drawer or detached window) is a
+ * view instance, so it can follow the workspace selection or be pinned.
+ */
+export function Inspector({
+  viewId = 'inspector',
+  detachable = true,
+}: {
+  viewId?: string
+  /** Offer "Open in separate window" (not inside a detached inspector). */
+  detachable?: boolean
+}) {
   const model = useWorkspaceStore((s) => s.model)!
-  const selectedIds = useWorkspaceStore((s) => s.context.selectedIds)
-  const select = useWorkspaceStore((s) => s.select)
+  const selectedIds = useWorkspaceStore((s) => sharedContextOf(s, viewId).selectedIds)
+  const configurationId = useWorkspaceStore((s) => sharedContextOf(s, viewId).configurationId)
   const objects = selectedIds.map((id) => model.get(id)).filter((o): o is EngineeringObject => !!o)
 
   return (
-    <aside className="ws-inspector" aria-label="Inspector">
-      <div className="ws-pane-title">
-        <span>Inspector</span>
+    <div className="ws-inspector" data-view-id={viewId}>
+      <div className="ws-inspector-bar">
+        <ViewControls viewId={viewId} detach={detachable ? { kind: 'inspector' } : undefined} />
         {objects.length > 0 && (
-          <button type="button" className="ws-link" onClick={() => select([])}>
+          <button type="button" className="ws-link" onClick={() => selectInView(viewId, [])}>
             Clear selection
           </button>
         )}
@@ -217,8 +229,8 @@ export function Inspector() {
             </div>
           </div>
         )}
-        {objects.length === 1 && <ObjectDetails object={objects[0]} />}
+        {objects.length === 1 && <ObjectDetails object={objects[0]} configurationId={configurationId} />}
       </div>
-    </aside>
+    </div>
   )
 }

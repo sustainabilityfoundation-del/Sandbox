@@ -22,7 +22,7 @@ npm run dev                 # open http://localhost:5173/workspace/
 | --- | --- |
 | `npm run build` | Type-check and build both pages into `dist/` (workspace at `dist/workspace/`) |
 | `npm run preview` | Serve the build at http://localhost:4173/workspace/ |
-| `npm test` | Unit tests, including repository revisions, conflicts, staleness and persistence |
+| `npm test` | Unit tests: repository revisions and conflicts (also across windows), staleness, persistence, the assistant, view instances and pins, the styling contract and theme contrast |
 
 To start again from the sample data, open the **Demo repository** menu in the
 header and choose **Reset demo data**.
@@ -56,7 +56,10 @@ replaced by this sample on first load.)
 
 | Area | Implemented | Illustrative only |
 | --- | --- | --- |
-| Workspace | Header context (project, configuration, scenario, model revision), repository status, global search (`/`), collapsible product tree, inspector, bottom dock with Activity and ChatGPT tabs (collapsible, resizable), tool tabs, tool launcher with search, categories, favorites and recents (`Ctrl+K`) | — |
+| Workspace | Header context (project, configuration, scenario, model revision), repository status, global search (`/`), product tree, inspector, bottom dock with Activity and ChatGPT tabs, tool tabs, tool launcher with search, categories, favorites and recents (`Ctrl+K`) | — |
+| Design system | Tailwind CSS on semantic tokens, light and dark themes, comfortable and compact density, shared controls, a styling contract enforced by tests | — |
+| Responsive layout | Phone, tablet and desktop layouts chosen from the available space; resizable and collapsible panels with keyboard alternatives; split view; drawers and sheets; container queries in tool views | — |
+| Windows | Tools, inspector and ChatGPT in separate windows; Follow/Pin per view; live updates between windows; restore remembered windows; blocked-popup fallback; optional placement on another screen | Placement on another screen uses an experimental browser API where available |
 | ChatGPT panel | Conversation with a **demo assistant**: context chips, attach selection, Send and Stop, visible tool-call steps, "model information inspected" details, clickable object and output references, change previews with Apply, Reject and Undo, conflict refresh, clarification questions | The assistant is a deterministic mock, not ChatGPT (see below) |
 | Geometry | Select (Shift-click to add), Pan (drag), wheel zoom, Fit, labels, outline of components linked to a selected requirement or procedure | **Section** (draws a cut line only), **Measure** (shows model property values, not measured geometry) |
 | Requirements | Table, Add, Edit (title, statement, methods, compliance, allocation), Filter by selected component, status filter, Link (allocation editor), Trace columns | — |
@@ -73,8 +76,10 @@ Illustrative toolbar controls are shown with a dotted underline.
 src/workspace/
   domain/        Types, model index, units, output freshness (no React)
   repository/    EngineeringRepository interface, DemoRepository, sample digital twin
-  sdk/           What tools import: hooks, ToolApi, defineTool, shared UI, icons
-  shell/         Common workspace: header, tree, tabs, launcher, toolbar host, inspector, bottom dock
+  sdk/           What tools import: hooks, ToolApi, defineTool, shared controls and UI, icons
+  theme/         Design tokens (tokens.css), Tailwind entry (index.css), theme and density preferences
+  session/       Window session: cross-window notifications, open/restore detached windows
+  shell/         Common workspace: responsive shell, panes, header, tree, launcher, inspector, bottom dock
   shell/assistant/  ChatGPT panel UI: conversation, change cards, references
   assistant/     Assistant core: service interface, demo service, tool specs, executor, proposals
   tools/         One folder per tool + index.ts (registrations) + registry.ts
@@ -83,8 +88,9 @@ src/workspace/
 - **Shared context** holds the project ID, configuration ID, model revision, selected object IDs and
   active scenario. It is shared by every tool and survives tool switches and reloads. A selection
   that a tool can't display is kept, and the workspace explains why and suggests tools that can.
-- **Private view state** (camera, filters, open panels, scroll positions) is stored per tool ID and
-  restored when you return. Tools can only reach their own state.
+- **Private view state** (camera, filters, open panels, scroll positions) is stored per *view
+  instance* and restored when you return. The same tool can be open in the main pane, the split pane
+  and separate windows, each with its own state. Tools can only reach their own state.
 - **Data access** goes only through the `EngineeringRepository` interface. Tools use the SDK and never
   touch browser storage or another tool's state.
 - **Revisions.** Every accepted change creates a new model revision. Each object and scenario records
@@ -148,8 +154,8 @@ export default function MassBudgetView() {
   const total = parts.reduce((sum, p) => sum + (isQuantity(p.properties.mass) ? p.properties.mass.value : 0), 0)
 
   return (
-    <div style={{ padding: 12 }}>
-      <h2>
+    <div className="p-3">
+      <h2 className="m-0 mb-2 text-ui font-semibold text-fg">
         {root?.name}: {total.toFixed(2)} kg
       </h2>
       {viewState.showParts && (
@@ -172,8 +178,9 @@ import { massBudgetTool } from './mass-budget'
 registerTool(massBudgetTool)
 ```
 
-The tool then appears in the launcher, search and tabs, gets its own toolbar, and keeps its view
-state.
+The tool then appears in the launcher, search and tabs, gets its own toolbar, keeps its view state,
+and can be shown in the split pane or a separate window. It must also follow the
+[styling contract](#styling-contract-for-tools).
 
 SDK summary (`src/workspace/sdk`):
 
@@ -298,8 +305,10 @@ Anything else is rejected.
 
 - Responses are scripted. Only requests close to the examples are understood; anything else gets a
   help message.
-- The conversation lives in memory and is cleared by a page reload. Applied changes, outputs and
-  activity are in the Demo repository and persist.
+- The conversation is kept in this browser and shared by every workspace window. **New
+  conversation** starts a fresh one everywhere. A reply runs only in the window where it was sent;
+  other windows show it as running there. If that window closes first, the reply is shown as
+  interrupted.
 - Undo applies to changes made from this conversation. They're the only ones whose previous values
   the conversation recorded.
 - Model properties are shared by all configurations in this mockup. The card's configuration
@@ -373,10 +382,123 @@ The model fetches anything else through the tools, never the whole digital twin.
 - Keep the assistant provider separate from the model service. `AssistantService` only produces
   text and tool requests; `EngineeringRepository` stays the only path to engineering data.
 
+## Theme and density
+
+All styling comes from semantic design tokens in `src/workspace/theme/tokens.css`:
+- Surfaces, lines, text, accent and selection, status colours, the header.
+- Diagram and chart colours, and the 3D viewport.
+- Radii, shadows, type sizes, control and row heights.
+
+Tailwind reads the same tokens through `theme/index.css`, so utilities such as `bg-surface`,
+`text-fg-2`, `border-line`, `bg-selected`, `text-warning`, `text-error`, `h-ctl` and
+`min-h-touch` are the only colours and control sizes available. Tailwind's default palette is
+removed.
+
+- **Theme.** Choose *System*, *Light* or *Dark* in the header's **Display** menu (sun icon).
+  *System* follows the operating system. The resolved theme is set as `<html data-theme>`.
+- **Density.** *Comfortable* or *Compact* changes control heights, row heights, spacing and type
+  size (`<html data-density>`).
+- **Touch.** Where the primary pointer is coarse (touch), controls grow to at least 40 px whatever
+  the density.
+- Preferences are stored in the browser (`ews.preferences.v1`) and apply to every open workspace
+  window.
+- **Changing a theme.** Edit the values in `tokens.css`, both the light block and the
+  `[data-theme='dark']` block. Components never need to change, and engineering behaviour is
+  unaffected. `theme/designSystem.test.ts` checks text contrast (WCAG AA, 4.5:1) for the key token
+  pairs in both themes.
+
+## Styling contract for tools
+
+Every registered tool must use the shared design system. `theme/designSystem.test.ts` enforces this
+for everything under `src/workspace/tools`:
+
+- **Controls.** Use the SDK controls (`Button`, `IconButton`, `TextInput`, `TextArea`, `Select`,
+  `Checkbox`, `Field`, `FieldGroup`, `SegmentedControl`, `TableContainer`) and the shared UI
+  (`Panel`, `Notice`, `Badge`, `ObjectRef`). Raw `<button>`, `<select>`, `<textarea>` and `<input>`
+  elements are not allowed. The one exception is a hidden file picker.
+- **Colours.** No hard-coded colours (`#hex`, `rgb()`, `hsl()`). Use `var(--ws-…)` tokens in CSS, or
+  semantic Tailwind classes. SVG diagrams and charts use the diagram and chart tokens.
+- **Inline styles.** None (`style={{…}}`). Put styles in the tool's own stylesheet
+  (`tools/<tool>/<tool>.css`), wrapped in `@layer components { … }` so utilities can still adjust it.
+- **Layout.** Lay out against the tool's container, not the window. Tool views sit in a `tool` size
+  container, so use `@container tool (max-width: …)`. The same view then works full screen, in a
+  narrow split pane and in a small detached window. For example, the Requirements and Verification
+  tables become readable row cards below 620 px.
+- **Engineering logic.** Keep it out of styling. Theme and density changes only switch token values.
+
+## Responsive behaviour
+
+Layout modes come from the space available, never from device names or the user agent
+(`shell/layout/viewport.ts`):
+
+| Mode | When | Layout |
+| --- | --- | --- |
+| Phone | narrower than 640 px, or shorter than 480 px (e.g. a phone in landscape) | One tool view at a time. The header keeps the configuration, active object and revision visible; tap it for configuration and scenario. A bottom bar gives quick access to the tree, tools, inspector, Activity and ChatGPT, each as a full-screen sheet. Tables become row cards. |
+| Tablet | 640–1099 px wide | The active tool gets the space. The product tree and inspector are drawers. The bottom panel is collapsible. Toolbars collapse to icons in narrow containers and scroll if needed. |
+| Desktop | 1100 px and wider | Product tree, tool view, inspector and bottom panel, all resizable and collapsible. Optional side-by-side **split view** (any two tools, or the same tool twice). |
+
+- **Resizing without dragging.** Panels and the split view resize by dragging the separators (mouse,
+  pen or touch). Alternatively, focus a separator and use the arrow keys (Home/End for min/max,
+  Enter to reset), or pick *Narrow / Medium / Wide* presets in **Display › Layout**.
+- **Rearranging views.** The split view has **Swap** and **Close** buttons, and a tool picker.
+- **Nothing is lost on changes.** Resizing, rotating the device or opening the on-screen keyboard
+  never unmounts the workspace. The shell keeps the same elements in every mode and only changes
+  their layout, so selection, the conversation and its draft, unsaved form edits and tool view state
+  all survive.
+- **On-screen keyboard.** On phones the ChatGPT sheet sizes itself to the visible viewport
+  (`interactive-widget=resizes-content`, with a `visualViewport` fallback), so the input and Send
+  stay above the keyboard.
+- **Saved layouts.** Layout preferences are stored separately for compact layouts (phone and
+  tablet) and spacious ones (desktop). Restored sizes are clamped to the current viewport, so a
+  panel can't become unreachable.
+- **Input.** Everything works with mouse, keyboard, touch and pen:
+  - Geometry: tap to select, drag to pan, pinch to zoom, with **Zoom in/out** and **Fit** buttons
+    as alternatives. Only the drawing captures touch gestures, so the page scrolls normally
+    elsewhere.
+  - No essential action needs hover, right-click, dragging or a keyboard shortcut.
+  - Focus is always visible, and motion is reduced when the system asks for it.
+
+## Multiple windows
+
+Use **Open in separate window** (the arrow icon on each tool view, the inspector and the ChatGPT
+tab), or the header's **Windows** menu. Each detached window is a separate workspace window on the
+same repository and project session. Move it to another monitor as you would any window.
+
+- **Same tool, several windows.** Each window is a new view instance with its own ID, so camera,
+  filters and scroll stay private to it.
+- **Follow or Pin.** By default a view follows the workspace selection. **Pin** keeps it on the
+  current objects, and the configuration of that moment, for comparison. Pinned views show a
+  *Pinned* badge, and a warning badge when the workspace has since switched configuration.
+- **Live updates.** After any committed change, the window that made it sends a notification over
+  `BroadcastChannel`. Other windows then *reread* the model, outputs and activity from the
+  repository. The notification carries no data; the repository stays authoritative. Selection,
+  scenario and configuration changes are shared the same way.
+  - Messages from the window itself are ignored, duplicates are dropped, and receivers never
+    rebroadcast. So there are no loops.
+  - Analyses and assistant replies run only in the window where they were started.
+- **Conflicts.** The demo repository rereads browser storage and takes a cross-window lock (Web
+  Locks) before each write. Revision checks therefore catch edits made in another window: a stale
+  edit is rejected and reported, never applied over newer data.
+- **Closing windows.** Closing a detached window never loses saved work; everything is in the
+  repository. Forms with unsaved edits ask for confirmation before the window closes.
+- **Restore.** Opened windows are remembered. **Windows › Restore workspace windows** reopens them
+  with their own view state and pins. Windows only ever open from a user action, never automatically
+  on page load.
+- **Blocked popups.** If the browser blocks a window (some allow only one per click), a message
+  offers a link to open it.
+- **Another screen (optional).** Where the browser supports the Window Management API, **Place on
+  another screen** asks for permission and opens the window on a different monitor. Otherwise, or
+  if permission is refused, the window opens normally. The workspace doesn't discover or control
+  your monitors beyond what the browser explicitly allows.
+- **Not a collaboration backend.** Browser messaging only coordinates windows of one browser on one
+  computer. With a cloud repository, the same notifications would come from server push, and the
+  repository would remain the source of truth.
+
 ## Known limitations
 
 - Single user. The demo detects conflicts but has no live updates from other users.
 - Configurations scope outputs only. Per-configuration property variants are not modelled.
 - Workspace UI session state (selection, open tools, view state) is kept in browser storage, separate
   from engineering data in the repository.
-- Designed for desktop screens (minimum width 1024 px).
+- Window coordination uses browser messaging and browser storage on one computer and one browser
+  profile. It is a local stand-in, not a collaboration backend.

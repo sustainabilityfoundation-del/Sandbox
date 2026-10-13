@@ -1,5 +1,8 @@
+import './geometry.css'
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
+  Button,
+  Icons,
   Notice,
   formatValue,
   useModel,
@@ -8,7 +11,7 @@ import {
   useToolViewState,
   type EngineeringObject,
 } from '../../sdk'
-import type { Camera, GeometryViewState } from './index'
+import { FIT_CAMERA, type Camera, type GeometryViewState } from './index'
 
 const WORLD_W = 1000
 const WORLD_H = 340
@@ -80,7 +83,6 @@ export default function GeometryView() {
   const [viewState, setViewState] = useToolViewState<GeometryViewState>()
   const { camera, mode, section, showLabels } = viewState
   const svgRef = useRef<SVGSVGElement>(null)
-  const drag = useRef<{ x: number; y: number; camera: Camera; moved: boolean } | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
 
   const related = useMemo(() => relatedComponentIds(selectedObjects, model), [selectedObjects, model])
@@ -123,30 +125,93 @@ export default function GeometryView() {
     return () => svg.removeEventListener('wheel', onWheel)
   }, [setViewState])
 
+  /*
+   * Pointer navigation for mouse, pen and touch:
+   *   - tap / click selects (handled by the parts' onClick)
+   *   - drag with one pointer pans (capture starts only once a drag begins, so taps still reach parts)
+   *   - two touch points pinch-zoom and pan
+   * Only the canvas uses touch-action: none, so the page scrolls normally elsewhere.
+   */
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const suppressClick = useRef(false)
+  const gesture = useRef<
+    | { kind: 'drag'; x: number; y: number; camera: Camera; moved: boolean }
+    | { kind: 'pinch'; distance: number; mid: { x: number; y: number }; camera: Camera }
+    | null
+  >(null)
+
+  // Capture is best-effort: it keeps a drag going outside the canvas but is not required.
+  const capture = (el: Element, id: number) => {
+    try {
+      el.setPointerCapture(id)
+    } catch {
+      // pointer no longer active
+    }
+  }
+
+  const pinchState = () => {
+    const [p1, p2] = [...pointers.current.values()]
+    return { distance: Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1, mid: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 } }
+  }
+
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
-    if (mode !== 'pan' && e.button !== 1) return
-    e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { x: e.clientX, y: e.clientY, camera, moved: false }
+    if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    suppressClick.current = false
+    if (pointers.current.size === 1) {
+      gesture.current = { kind: 'drag', x: e.clientX, y: e.clientY, camera, moved: e.button === 1 }
+      if (e.button === 1) capture(e.currentTarget, e.pointerId)
+    } else if (pointers.current.size === 2) {
+      for (const id of pointers.current.keys()) capture(e.currentTarget, id)
+      gesture.current = { kind: 'pinch', ...pinchState(), camera }
+    }
   }
+
   const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
-    const start = drag.current
-    if (!start) return
+    if (!pointers.current.has(e.pointerId)) return
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const g = gesture.current
+    if (!g) return
     const k = worldPerPixel()
-    start.moved = true
-    setViewState({
-      camera: {
-        ...start.camera,
-        cx: start.camera.cx - (e.clientX - start.x) * k,
-        cy: start.camera.cy - (e.clientY - start.y) * k,
-      },
-    })
+    if (g.kind === 'pinch' && pointers.current.size >= 2) {
+      const { distance, mid } = pinchState()
+      const zoom = Math.min(8, Math.max(0.5, g.camera.zoom * (distance / g.distance)))
+      const scale = k * (camera.zoom / zoom)
+      setViewState({
+        camera: {
+          zoom,
+          cx: g.camera.cx - (mid.x - g.mid.x) * scale,
+          cy: g.camera.cy - (mid.y - g.mid.y) * scale,
+        },
+      })
+      suppressClick.current = true
+      return
+    }
+    if (g.kind === 'drag') {
+      const dx = e.clientX - g.x
+      const dy = e.clientY - g.y
+      if (!g.moved && Math.hypot(dx, dy) > 6) {
+        g.moved = true
+        capture(e.currentTarget, e.pointerId)
+      }
+      if (!g.moved) return
+      suppressClick.current = true
+      setViewState({ camera: { ...g.camera, cx: g.camera.cx - dx * k, cy: g.camera.cy - dy * k } })
+    }
   }
-  const onPointerUp = () => {
-    drag.current = null
+
+  const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+    pointers.current.delete(e.pointerId)
+    if (pointers.current.size === 0) gesture.current = null
+    else if (pointers.current.size === 1) {
+      // Lifting one finger of a pinch continues as a pan from where it is.
+      const [[, p]] = [...pointers.current.entries()]
+      gesture.current = { kind: 'drag', x: p.x, y: p.y, camera: api.getViewState().camera, moved: true }
+    }
   }
 
   const choose = (id: string | null, additive: boolean) => {
-    if (mode === 'pan') return
+    if (mode === 'pan' || suppressClick.current) return
     if (id === null) return select([])
     if (additive) {
       select(selectedIds.includes(id) ? selectedIds.filter((s) => s !== id) : [...selectedIds, id])
@@ -262,13 +327,17 @@ export default function GeometryView() {
 
       <div className="geo-status">
         <span>
-          {mode === 'pan' ? 'Pan: drag to move' : mode === 'measure' ? 'Measure (illustrative)' : 'Select: click a component, Shift-click to add'}
+          {mode === 'pan'
+            ? 'Pan: drag to move'
+            : mode === 'measure'
+              ? 'Measure (illustrative)'
+              : 'Tap or click to select (Shift-click adds) · drag to pan · pinch, scroll or Zoom buttons to zoom'}
         </span>
         <span>Zoom {Math.round(camera.zoom * 100)}%</span>
         {related.size > 0 && <span>Dashed outline: components linked to the selected {selectedObjects[0]?.type}</span>}
-        <button type="button" className="ws-link" onClick={() => api.updateViewState({ camera: { cx: 500, cy: 170, zoom: 1 } })}>
+        <Button size="sm" variant="ghost" icon={Icons.fit} onClick={() => api.updateViewState({ camera: FIT_CAMERA })}>
           Fit
-        </button>
+        </Button>
       </div>
     </div>
   )
