@@ -1,0 +1,17 @@
+{
+  "name": "@ews/requirements-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser client for the Requirements API: HTTP and explicit demo adapters of the SDK RequirementsService, plus the module's full typed client.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract-tests": "./src/contractTests.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/platform-sdk": "^1.2.0"
+  }
+}

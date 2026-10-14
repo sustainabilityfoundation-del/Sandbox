@@ -1,0 +1,25 @@
+# Local PostgreSQL for development (primary documented setup).
+#   docker compose up -d db        (or: npm run db:up with EWS_PG=external)
+# Then set EWS_PG=external in .env and run: npm run db:migrate && npm run db:seed && npm run dev:api
+# Machines without Docker: keep EWS_PG=embedded (default); npm starts official PostgreSQL binaries.
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ews
+      # Local development only; override in .env. Never use this for anything shared.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-dev-only}
+      POSTGRES_DB: ews_dev
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ews-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ews -d ews_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  ews-pg:

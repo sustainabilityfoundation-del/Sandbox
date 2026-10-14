@@ -23,7 +23,14 @@
     "preview": "vite preview",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "dev:api": "tsx services/api/src/main.ts",
+    "db:up": "tsx services/api/scripts/db.ts up",
+    "db:migrate": "tsx services/api/scripts/db.ts migrate",
+    "db:seed": "tsx services/api/scripts/db.ts seed",
+    "db:reset": "tsx services/api/scripts/db.ts reset",
+    "db:status": "tsx services/api/scripts/db.ts status",
+    "req:test:db": "vitest run --config services/api/vitest.db.config.ts"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
