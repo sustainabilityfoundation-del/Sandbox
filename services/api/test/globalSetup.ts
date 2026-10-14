@@ -4,11 +4,7 @@ import { join } from 'node:path'
 import type { TestProject } from 'vitest/node'
 import { startEmbedded } from '../src/database'
 
-declare module 'vitest' {
-  export interface ProvidedContext {
-    pgAdminUrl: string
-  }
-}
+import './providedContext'
 
 /** Starts a disposable real PostgreSQL server for the test run (or uses EWS_TEST_PG_ADMIN_URL). */
 export default async function setup(project: TestProject) {

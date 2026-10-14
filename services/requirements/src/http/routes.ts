@@ -63,6 +63,32 @@ export function registerRequirementRoutes(app: FastifyInstance, services: HostSe
   const route = (spec: RouteSpec) => registerRoute(app, services, spec, registry)
 
   // ---- requirements ---------------------------------------------------------------------------------
+  // Project-free lookup by canonical UUID (the SDK's update() carries no project). Same checks as
+  // the project-scoped read once the owning project is known.
+  app.get('/requirements/:requirementId', async (request, reply) => {
+    const id = (request.params as { requirementId: string }).requirementId
+    const principal = await services.authenticate(request)
+    if (!principal.entitlements.includes('tool:requirements') && !principal.entitlements.includes('tool:sysml')) throw forbidden('Your subscription includes neither Requirements nor SysML.')
+    const { rows } = await services.pool.query<{ project_id: string }>('SELECT project_id FROM requirements.requirements WHERE id::text = $1', [id])
+    const projectId = rows[0]?.project_id
+    // Not a member and not existing look the same, so IDs of other projects are not disclosed.
+    if (!projectId || !(await services.roleOf(principal.userId, projectId))) throw notFound(`Requirement ${id} not found.`)
+    const r = await getRequirement(services.pool, projectId, id)
+    reply.header('ETag', `"${r!.revision}"`).send(r)
+  })
+  registry.push({
+    method: 'GET',
+    path: '/requirements/{requirementId}',
+    operationId: 'getRequirementById',
+    tag: 'Requirements',
+    summary: 'Read a requirement by canonical UUID without knowing its project',
+    description: 'Returns 404 both for unknown IDs and for requirements of projects the caller is not a member of.',
+    params: Type.Object({ requirementId: Type.String() }),
+    permission: 'read',
+    crossModule: true,
+    responses: { 200: { description: 'The requirement', schema: S.Requirement }, ...READ_ERRORS },
+    handler: async () => undefined,
+  })
   route({
     method: 'GET',
     path: '/projects/{projectId}/requirements',

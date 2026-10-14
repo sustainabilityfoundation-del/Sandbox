@@ -150,7 +150,7 @@ describe('committed-change notifications (AC-B7)', () => {
 
     const upd = await env.call('eli', 'PATCH', `${BASE}/requirements/${created.body.id}`, { expectedRevision: 1, statement: 'The actuator shall emit twice.' })
     await until(() => stream.events.some((e) => e.data.type === 'requirement.updated' && e.data.entityId === created.body.id))
-    const updates = stream.events.filter((e) => e.data.type === 'requirement.updated')
+    const updates = stream.events.filter((e) => e.data.type === 'requirement.updated' && e.data.entityId === created.body.id)
     expect(updates.map((e) => [e.data.entityId, e.data.committedRevision])).toEqual([[created.body.id, upd.body.revision]])
     stream.close()
 

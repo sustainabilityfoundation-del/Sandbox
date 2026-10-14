@@ -1,3 +1,4 @@
+import './providedContext'
 import { randomBytes } from 'node:crypto'
 import pg from 'pg'
 import { inject } from 'vitest'
