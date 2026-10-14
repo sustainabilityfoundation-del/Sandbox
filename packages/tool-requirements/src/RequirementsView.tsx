@@ -166,7 +166,9 @@ function ApiView() {
         <div className="req-pages-wide">
           <SegmentedControl label="Requirements page" size="sm" value={state.page} onChange={(page) => setState({ page })} options={PAGES} />
         </div>
-        <Select ariaLabel="Requirements page" size="sm" className="req-pages-narrow" value={state.page} onChange={(page) => setState({ page: page as RequirementsPage })} options={PAGES.map((p) => ({ id: p.value, label: p.label }))} />
+        <div className="req-pages-narrow">
+          <Select ariaLabel="Requirements page" size="sm" value={state.page} onChange={(page) => setState({ page: page as RequirementsPage })} options={PAGES.map((p) => ({ id: p.value, label: p.label }))} />
+        </div>
         <span className="flex-1" />
         {permissions && (
           <span className="text-ui-xs text-fg-3" title={permissions.permissions.join(', ')}>
