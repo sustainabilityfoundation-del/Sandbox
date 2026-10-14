@@ -9,7 +9,7 @@ IDs are documentation identifiers until imported into the Requirements module.
 
 | ID | Requirement | Acceptance evidence |
 | --- | --- | --- |
-| AI-001 | Discover all permitted operations with schemas, effects and implementation status | Capability inventory maps UI and backend operations; unauthorized and planned operations cannot execute |
+| AI-001 | Discover all permitted operations with schemas, effects and implementation status | Capability inventory maps UI and backend operations; unauthorized and planned operations cannot execute. Inventory and inspection: [coverage](coverage.md) (sprint 004); authorization-filtered discovery not yet implemented |
 | AI-002 | Execute UI and AI actions through the same semantic domain/view handlers | Equivalent inputs produce equivalent outcomes/errors; no AI-specific validator bypass |
 | AI-003 | Read/write every supported user-editable field and operate every relevant view control | Coverage tests include fields, navigation, selection, camera, filters and dialogs; unsupported controls are listed |
 | AI-004 | Authenticate and enforce ownership, entitlements and revision checks at execution | Forged tool lists, revoked access and stale context are rejected |

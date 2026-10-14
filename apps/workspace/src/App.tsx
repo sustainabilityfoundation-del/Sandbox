@@ -23,6 +23,7 @@ import { workspaceServices } from './platform/services'
 import { LockedToolNotice } from './shell/WorkArea'
 import { BaselineDialog } from './shell/Baselines'
 import { CapabilitiesDialog } from './shell/CapabilitiesDialog'
+import { CoverageDialog } from './shell/CoverageDialog'
 
 let started = false
 
@@ -180,6 +181,7 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
       <CommandPalette isOpen={launcherOpen} onOpenChange={setLauncherOpen} />
       <BaselineDialog />
       <CapabilitiesDialog />
+      <CoverageDialog />
       <Toaster />
     </div>
   )

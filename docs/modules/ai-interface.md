@@ -190,6 +190,8 @@ module assistant contributions. It provides captured context, tool descriptions,
 revision/ownership validation and preview application. `RemoteAssistantService` is an adapter for an
 application backend; that does not establish an implemented provider backend.
 
+Implemented since: a capability inventory and coverage view ([coverage](ai-interface/coverage.md)).
+
 Not implemented by this document: complete capability coverage, research connectors, persistent task
 orchestration, concept generation, real CAD kernel operations, geometric verification or STL export.
 Implementation follows the [short-sprint development plan](ai-interface/development-plan.md).

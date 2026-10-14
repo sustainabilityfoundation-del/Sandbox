@@ -820,4 +820,7 @@
 .ws-baseline-diff { display: flex; flex-direction: column; gap: var(--ws-space-4); margin: 0; }
 .ws-baseline-diff dt { margin-bottom: var(--ws-space-1); color: var(--ws-text-3); font-size: var(--ws-font-size-xs); font-weight: var(--ws-weight-medium); }
 .ws-baseline-diff dd { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--ws-space-3); margin: 0 0 var(--ws-space-2); }
+
+/* AI capability coverage: lay the table out against its own width so it becomes cards on phones. */
+.ws-coverage-table { container: tool / inline-size; }
 }

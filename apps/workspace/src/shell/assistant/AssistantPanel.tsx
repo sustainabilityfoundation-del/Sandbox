@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { EXAMPLE_PROMPTS } from '../../assistant/DemoAssistantService'
+import { useCoverageDialog } from '../CoverageDialog'
 import { useConversation, type ChatMessage, type ToolStep } from '../../assistant/conversation'
 import type { CapturedMessageContext } from '../../assistant/types'
 import { useWorkspaceStore } from '../../platform/store'
@@ -227,7 +228,10 @@ export function AssistantPanel() {
           )}
           <strong>{info?.name ?? 'Assistant'}</strong>
           {info?.kind === 'demo' ? ' (scripted responses, not connected to ChatGPT).' : '.'} Model changes are only made when
-          you choose Apply.
+          you choose Apply.{' '}
+          <Button size="sm" variant="text" onPress={() => useCoverageDialog.getState().setOpen(true)}>
+            What can the assistant do?
+          </Button>
         </div>
         <div className="as-messages" ref={listRef} aria-live="polite">
           {messages.length === 0 && (

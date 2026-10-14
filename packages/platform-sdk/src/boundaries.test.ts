@@ -36,7 +36,7 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/tool-sysml': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
   'packages/tool-cad': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
   // The workspace may use every package, but only a tool's public entry point.
-  'apps/workspace': /^@ews\/(model-service|design-system|platform-sdk|tool-[\w-]+|requirements-client)(\/(react|harness|preferences|icon-names|styles\.css))?$/,
+  'apps/workspace': /^@ews\/(model-service|design-system|platform-sdk|tool-[\w-]+|requirements-client)(\/(react|harness|testing|preferences|icon-names|styles\.css))?$/,
   // Requirements module packages, checked once they exist. Only the client reaches the browser.
   'packages/requirements-client': /^@ews\/platform-sdk$/,
   'packages/reqif': /^$/,
