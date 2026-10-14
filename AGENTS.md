@@ -9,6 +9,25 @@ Direction and decisions live in `docs/`, not here: [architecture vision](docs/ar
 [decisions](docs/decisions/README.md) and [dependencies](docs/dependencies.md). Record a new
 architecture decision as an ADR; record a new dependency with its licence in `docs/dependencies.md`.
 
+## Short sprints and working software
+
+Follow [the development workflow](docs/development-workflow.md) and use
+[the sprint template](docs/sprints/template.md). These rules apply to every package:
+
+- Work in short sprints: one bounded, demonstrable outcome with acceptance criteria agreed before
+  implementation. Prefer a usable end-to-end slice over disconnected layers or placeholder UI.
+- Keep `main` buildable and runnable. Develop unfinished work on task branches or isolated
+  worktrees; integrate small, coherent changes only after `npm run check` and the relevant builds
+  pass. Documentation-only changes follow the lighter verification described in the workflow.
+- Preserve existing workflows and stored data. Fix regressions introduced by the sprint before
+  adding more features; conceal unfinished functionality behind disabled flags when needed.
+- For user-facing changes, exercise the real application workflow as well as automated tests.
+  Distinguish checks actually performed from checks that remain blocked or require owner review.
+- End each sprint with a committed checkpoint, exact revision, startup commands, a short owner
+  walkthrough, verification results and known limitations. Never fabricate owner acceptance.
+- When multiple agents are explicitly requested, the coordinator owns sprint scope, shared
+  contracts and integration; implementation agents own bounded areas and separate files/worktrees.
+
 ## Ownership
 
 | Area | Packages | Owns |
@@ -68,7 +87,7 @@ component APIs or semantic icon names is a **shared contract change**:
 | `npm run dev:requirements` / `dev:sysml` / `dev:cad` | One tool in its standalone harness (ports 5181–5183) |
 | `npm run typecheck` | `tsc` in every workspace |
 | `npm test` | All tests (Vitest) |
-| `npm run check` | Type check and tests: run before finishing any change |
+| `npm run check` | Type check and tests: required for code/configuration changes; see workflow for docs-only checks |
 | `npm run build` | Production build (`dist/`, workspace in `dist/workspace/`) |
 
 On Windows PowerShell use `npm.cmd` if script execution is disabled.
