@@ -181,6 +181,17 @@ const MAX_RECENTS = 6
 let localSeq = 0
 let applyingRemoteContext = false
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+
+/**
+ * A view state saved by an earlier version of a tool may lack fields the tool now expects.
+ * Restore it on top of the tool's current initial view state, so missing fields get their
+ * defaults and saved choices are kept.
+ */
+export function restoreViewState(saved: unknown, initial: unknown): unknown {
+  return isPlainObject(saved) && isPlainObject(initial) ? { ...initial, ...saved } : saved
+}
+
 /** The read model: the stored twin with externally owned objects composed in. */
 function composeModel(twin: ModelSnapshot, projection: ExternalProjection | null): ModelIndex {
   return buildModelIndex(composeSnapshot(twin, projection), projection?.aliases)
@@ -323,7 +334,9 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           favorites: (restored?.favorites ?? []).filter((id) => known.has(id)),
           recents: (restored?.recents ?? []).filter((id) => known.has(id)),
           viewStates: Object.fromEntries(
-            Object.entries(restored?.viewStates ?? {}).filter(([viewId]) => known.has(toolIdOfView(viewId))),
+            Object.entries(restored?.viewStates ?? {})
+              .filter(([viewId]) => known.has(toolIdOfView(viewId)))
+              .map(([viewId, saved]) => [viewId, restoreViewState(saved, initialViewStates[toolIdOfView(viewId)])]),
           ),
           scrollStates: restored?.scrollStates ?? {},
           views: restored?.views ?? {},

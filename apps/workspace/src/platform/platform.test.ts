@@ -7,7 +7,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getToolApi } from './api'
 import { PLANS, canOpenTool, toolAccess, useEntitlements } from './entitlements'
 import { getRejectedTools, getTool, getTools, registerTool, toolName } from './registry'
-import { useWorkspaceStore } from './store'
+import { restoreViewState, useWorkspaceStore } from './store'
 import './tools'
 
 function memoryStorage(): StorageLike {
@@ -244,5 +244,14 @@ describe('end-to-end cross-module workflow (architecture vision phase 1)', () =>
     expect(impact.referencingArtifacts.map((a) => a.id)).toContain(saved.id)
     expect(impact.dependentArtifacts.map((a) => a.id)).toContain(saved.id)
     expect(impact.baselines.map((b) => b.id)).toContain(baseline.id)
+  })
+})
+
+describe('restoring view state saved by an earlier tool version', () => {
+  it('fills fields the tool added since, and keeps the saved choices', () => {
+    const initial = { search: '', statuses: [] as string[], columns: ['key'], page: 'table' }
+    expect(restoreViewState({ search: 'load', showTrace: true }, initial)).toEqual({ search: 'load', statuses: [], columns: ['key'], page: 'table', showTrace: true })
+    expect(restoreViewState(null, initial)).toBe(null)
+    expect(restoreViewState([1], initial)).toEqual([1])
   })
 })
