@@ -12,10 +12,10 @@ Branch: `feature/requirements-management`. Worktree: `C:\Users\kimge.000\Documen
 | 1. Research and acceptance matrix | Done (provisional where sources were inaccessible) | `docs/research/requirements/`: research-note.md, capability-matrix.md, acceptance-and-backlog.md (acceptance IDs AC-*) |
 | 2. Shared domain contracts and schema | Done | SDK 1.2.0 contract unchanged. Schema `requirements`, migration `0001_initial.sql`; platform schema `platform` (`services/api/src/platform/migrations/0001_platform.sql`) |
 | 3. PostgreSQL API | Done | `services/requirements` (Fastify plugin, OpenAPI 3.1, outbox, SSE), `services/api` host, `packages/requirements-client` (HTTP and demo adapters, module client, contract tests) |
-| 4. Core Requirements UI | In progress | API-mode UI in `packages/tool-requirements/src/ui/` (table, collections, detail tabs, matrix, baselines, bulk, saved views, quality, import/export page) |
-| 5. SysML integration | Not started (agent side: SDK examples, mapping doc) | Coordinator implements SysML-side consumer changes |
-| 6. ReqIF exchange | Not started | Client types and UI page for import preview drafted; `packages/reqif` and server routes pending |
-| 7. Quality assistance and refinements | Server checks done (`services/requirements/src/quality/rules.ts`); UI in progress | |
+| 4. Core Requirements UI | Done | `packages/tool-requirements`: table (search, filters, columns, cursor pagination, saved views, bulk edit), collections (headings, ordering without drag), detail tabs (edit with custom attributes, trace incl. allocation and impact, reviews/lifecycle, history with revision compare, comments and external references, quality, verification), matrix, baselines (historical read-only view, compare), quality page with conventions, import/export page, explicit demo mode, harness with API/demo and user selector. Browser-checked (see evidence) |
+| 5. SysML integration | Done (agent side) | `docs/specifications/requirements-sysml-mapping.md` (SysML v2 mapping, unsupported list, SDK examples for SysML and CAD), contract test suite (`@ews/requirements-client/contract-tests`), cross-module API subset for `tool:sysml`. SysML-side UI is coordinator work |
+| 6. ReqIF exchange | Done | `packages/reqif`, `services/requirements/src/exchange`, report `docs/specifications/requirements-reqif.md` (24 external files tested) |
+| 7. Quality assistance and refinements | Done | Server checks with classes validation/heuristic (`quality/rules.ts`, unit tests), dismissals per revision, configurable conventions, quality tab and page; assistant actions `requirements.search`, `requirements.explain_quality`, API-mode proposals with preview/Apply/Reject/Undo |
 
 ## Commits
 
@@ -24,6 +24,11 @@ Branch: `feature/requirements-management`. Worktree: `C:\Users\kimge.000\Documen
 | abb4ead | Stage 1 research note, capability matrix, acceptance criteria and backlog |
 | fbc2783 | Stages 2–3: schema, migrations, seed, HTTP API, host, real-PostgreSQL tests |
 | 3204094 | Requirements client: HTTP and demo SDK adapters, module client, SSE client, contract test suite |
+| 4890c56 | Progress file update |
+| 1d8cd6a | Stage 4 UI |
+| a10b568 | `@ews/reqif` package with schema validation and corpus tests |
+| c33f5be | Stage 6 exchange in the API (import preview/apply, export, JSON) |
+| bc7cdd6 | Quality rule tests; UI fix |
 
 ## How to run
 
@@ -71,11 +76,15 @@ Development identity: `X-Dev-User` (refused when `NODE_ENV=production`, 401).
 | Relationship constraints | Pass | requirements.api.test.ts "relationships" (endpoints, duplicates, self-links, cycles, twin type, DB checks) |
 | Backend entitlement and permission enforcement | Pass | requirements.api.test.ts "permissions and entitlements"; production refusal in infrastructure.test.ts |
 | Requirements and SysML resolve the same canonical data | Partial | Contract suite passes for HTTP adapter as eli and as SysML-only nia (`packages/requirements-client/test/http.contract.test.ts`); SysML tool wiring is coordinator work |
-| Cross-tool and cross-window refresh | Partial | SSE after commit, resume, rollback emits nothing (infrastructure.test.ts); UI refresh on events pending stage 4 browser check; window forwarding is coordinator work |
-| API failures preserve unsaved input | Pending | UI stage 4 |
+| Cross-tool and cross-window refresh | Pass (agent side) | SSE after commit, resume, rollback emits nothing (infrastructure.test.ts); browser: a second window (user rho) shows an edit made through the API without reload (harness flow `refresh`). Detached-window forwarding and SysML refresh are coordinator work |
+| API failures preserve unsaved input | Pass | Browser flow: PATCH aborted (network) → error shown, rationale input kept; conflicting edit → explained, input kept, saved after "Load latest (keep my edits)"; committed changes from elsewhere do not reset an open form |
 | Idempotent retries | Pass | requirements.api.test.ts "idempotency" (replay, reuse refused, parallel duplicates) |
-| ReqIF interoperability and re-import | Pending | Stage 6 |
+| ReqIF interoperability and re-import | Pass (reading external files; no exchange into commercial tools) | `services/api/test/exchange.test.ts`: preview/apply/re-import without duplicates, conflicts, per-source mapping, no deletion on absence, .reqifz attachments, schema-valid export, self round trip; 24 external files (RMF/ReqIF Implementor Forum, DOORS, Polarion, ReqIF Studio, EA) imported and re-imported via the API; see requirements-reqif.md |
 | Search and pagination on a larger generated dataset | Pass | infrastructure.test.ts: 5 000 generated requirements, 26 pages, no gaps/duplicates, natural key order, prefix search |
+
+## Browser checks (harness on :5191 against the real API)
+
+Scripts in the session scratchpad (`pw/req/req-flow.mjs`, `exchange-flow.mjs`), all passing on 14 Oct 2026: table from the API, collections panel, edit with unsaved state and new revision, failed save keeps input, conflict explained and resolved, quality tab, cross-window refresh, reader without editing actions, matrix/baselines/quality/import-export pages, baseline view labelled historical, phone (390 px) and tablet (900 px) without horizontal overflow, explicit demo mode, ReqIF import preview/apply and export download, no console errors.
 
 ## Contract change requests
 
@@ -100,6 +109,8 @@ Development identity: `X-Dev-User` (refused when `NODE_ENV=production`, 401).
 
 ## Integration needs for the coordinator
 
+- **Important**: the Requirements tool now reads canonical requirements only through `services.requirements`. Until the workspace provides it (HTTP adapter, or explicitly the demo adapter), the tool in the workspace shows "The Requirements service is not available here" instead of twin data (by design: no silent substitution). Workspace browser flows that open Requirements (e.g. scratchpad `vision-flow.mjs`) will need the adapter wired. `npm run check` stays green.
+- The tool now declares `sdkVersion: '^1.2.0'` and depends on `@ews/requirements-client` (allowed by boundaries.test.ts).
 - Root `vitest.config.ts` includes only `packages/*` and `apps/*`: please add
   `services/*/src/**/*.test.ts` (unit tests without a database). Real-PostgreSQL tests stay in
   `npm run req:test:db` (`services/api/vitest.db.config.ts`).
@@ -145,6 +156,8 @@ Development identity: `X-Dev-User` (refused when `NODE_ENV=production`, 401).
 - History is append-only through the API (DB triggers); not tamper-proof.
 
 ## Handoff log
+
+- 2026-10-14 (2): stages 4–7 completed and committed (see commits). Docs: requirements-api.md, requirements-sysml-mapping.md, requirements-reqif.md, docs/modules/requirements.md, docs/dependencies.md rows. Migrations: `services/requirements/src/db/migrations/0001_initial.sql`, `services/api/src/platform/migrations/0001_platform.sql` (unchanged since commit fbc2783).
 
 - 2026-10-14: resumed after reboot (stale `.data/pg/postmaster.pid` removed; no postgres running).
   Stages 1–3 committed (above). Stage 4 UI uncommitted at reboot; continuing.

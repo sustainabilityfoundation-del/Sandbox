@@ -1,48 +1,55 @@
 # Module: Requirements Management
 
-Package: `packages/tool-requirements` (version 1.1.0, SDK `^1.1.0`, entitlement `tool:requirements`).
-Status: **Implemented** (Phase 1). Working rules for contributors: [AGENTS.md](../../packages/tool-requirements/AGENTS.md).
+Status: **Implemented** on branch `feature/requirements-management` (pending coordinator
+integration into the workspace). Brief: [requirements-management.md](../specifications/requirements-management.md);
+contracts: [requirements-contracts.md](../specifications/requirements-contracts.md); progress and
+acceptance evidence: [requirements-management-progress.md](../specifications/requirements-management-progress.md).
 
-## Owns
+## Packages
 
-- `requirement` objects: title (`name`), `statement`, `rationale`, `status`, `verificationMethods`.
-- `allocated-to` relationships (requirement → assembly or part).
-- Verification records (artifacts of kind `verification-record`).
-
-It reads, but never writes, components, SysML elements and CAD representations.
-
-## Capabilities
-
-- Table with search, status filter, and filter by the selected component (a selected SysML element
-  or CAD representation resolves to its component through `represents`).
-- Edit, allocate, relationships, history (activity) and verification in a detail panel.
-- Trace columns: SysML references and CAD representations of allocated components.
-- Verification status per requirement: Verified, Stale evidence, Failed, Inconclusive, Not verified.
-
-## Verification record (schema 1)
-
-| Field | Content |
+| Package | Role |
 | --- | --- |
-| `kind`, `schemaVersion` | `verification-record`, `1` |
-| `references` | `{REQ, revision, 'verifies'}` (exact); optional `{BL-…, 'baseline'}`, `{OUT-…, 'evidence'}` |
-| `configurationId` | Configured article (filled by the SDK from the view's context) |
-| `inputs` | The requirement and its allocated components, at their current revisions |
-| `result` | `method`, `outcome` (`pass`/`fail`/`inconclusive`), `procedure` (required) |
+| `packages/tool-requirements` (`@ews/tool-requirements`) | UI: table, collections, detail tabs, matrix, baselines, quality, import/export; assistant actions; standalone harness |
+| `packages/requirements-client` (`@ews/requirements-client`) | Browser client: HTTP and explicit demo adapters of the SDK `RequirementsService`, the module's full typed client, SSE client, adapter contract tests |
+| `packages/reqif` (`@ews/reqif`) | ReqIF 1.2 reading/writing, XHTML sanitising, `.reqifz`, schema validation (no React, no database) |
+| `services/requirements` (`@ews/requirements-service`) | Domain rules, PostgreSQL schema `requirements` (migrations, seed), Fastify plugin with OpenAPI 3.1, outbox and events, quality checks, exchange |
+| `services/api` (`@ews/api`) | API host: development identities, roles and entitlements (schema `platform`), embedded or external PostgreSQL, `db:*` scripts |
 
-Rules:
+## Owns (contracts §2)
 
-- Records are never edited. A new result is a new record; status comes from the newest record.
-- A record is stale when any input revision differs from the working model. A stale pass is shown as
-  "Stale evidence", never as "Verified".
-- A baseline is offered only when it belongs to the same configuration and pins the requirement's
-  current revision, so the record and the baseline describe the same definition.
-- The statement at the verified revision can be shown from revision history (`getObjectRevision`).
+Requirement identity (UUID) and key, revisions, canonical fields (title, statement, rationale,
+type, source, owner, priority, applicability, verification methods, acceptance criteria, custom
+attributes), lifecycle and reviews, comments, external references, collections (headings,
+membership, order), `derives-from` / `decomposes` / `depends-on` / `allocated-to` relationships,
+requirements baselines, change history, quality findings and dismissals, exchange sources and
+mappings, import/export jobs and attachments. It never stores components, SysML elements or CAD
+representations; allocation targets are twin IDs.
 
-## Assistant actions
+## Key rules
 
-`requirements.read_for_component`, `requirements.update` (statement, rationale, status; `allocated-to`
-links). Recording verification is not available to the assistant.
+- Every canonical edit creates an immutable revision; writes need an expected revision (ETag /
+  If-Match) and fail with 409 instead of overwriting; retryable writes take an Idempotency-Key.
+- Lifecycle: draft → in-review (review on an exact revision) → approved (by a reviewer who did not
+  author that revision) → retired; editing an in-review or approved requirement creates a new
+  draft revision. Approval, verification results (twin artifacts), compliance assessment and
+  modelled satisfaction (`satisfies`, SysML) are separate records.
+- Collection hierarchy never implies derivation or decomposition.
+- Baselines pin requirement revisions, relationship revisions and collection structure; they are
+  immutable (database triggers) and separate from platform (twin) baselines.
+- Committed changes emit events through a transactional outbox and SSE.
+- Permissions (reader, editor, reviewer, administrator) and entitlements are enforced by the server;
+  the matrix is in the progress file and in OpenAPI (`x-permissions`, `x-roles`).
 
-## Not in scope yet
+## Documentation
 
-Requirement hierarchy, reviews and approvals, derived requirements, import and export.
+- API, setup and conventions: [requirements-api.md](../specifications/requirements-api.md); live
+  OpenAPI 3.1 at `/api/requirements/v1/openapi.json`.
+- SysML mapping and SDK examples: [requirements-sysml-mapping.md](../specifications/requirements-sysml-mapping.md).
+- ReqIF support and interoperability report: [requirements-reqif.md](../specifications/requirements-reqif.md).
+- Research: [docs/research/requirements/](../research/requirements/research-note.md).
+
+## Not in scope yet (backlog)
+
+Streams/branches and merge, reuse with synchronisation, automatic suspect links, formal change
+requests, electronic signatures, document reports (PDF/Word), OSLC, glossary checks, a real AI
+provider. See [acceptance-and-backlog.md](../research/requirements/acceptance-and-backlog.md) §5.

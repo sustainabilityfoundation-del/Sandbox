@@ -39,3 +39,29 @@ production build bundles react-aria-components.
 - Icons come from Phosphor (MIT) through `@ews/design-system`; no other icon sets or fonts are bundled.
 - The sample actuator data, SysML notation and mock CAD geometry are original to this repository.
   The SysML text view is illustrative and does not reproduce the SysML v2 specification.
+
+## Requirements module (added 14 October 2026, Requirements agent)
+
+Server-side and exchange packages; none reaches the browser except through `@ews/requirements-client`
+(which adds no third-party dependency). Versions chosen were released at least two weeks before
+adoption.
+
+| Package | Version | Licence | Used by | Source |
+| --- | --- | --- | --- | --- |
+| fastify | 5.12.5 | MIT | requirements-service, api | github.com/fastify/fastify |
+| pg | 8.23.0 | MIT | requirements-service, api | github.com/brianc/node-postgres |
+| @types/pg | 8.23.1 | MIT | requirements-service, api (dev) | DefinitelyTyped |
+| @sinclair/typebox | 0.34.52 | MIT | requirements-service (schemas, OpenAPI) | github.com/sinclairzx81/typebox |
+| ajv, ajv-formats | 8.20.0, 3.0.1 | MIT | requirements-service (validation), api tests | github.com/ajv-validator/ajv |
+| embedded-postgres (+ @embedded-postgres/windows-x64 etc.) | 17.10.0-beta.17 | MIT (wrapper); PostgreSQL binaries under the PostgreSQL Licence | api (dev, tests): real PostgreSQL 17.10 started from npm | github.com/leinelissen/embedded-postgres, binaries from zonkyio/embedded-postgres-binaries |
+| tsx | 4.23.15 | MIT | api scripts (dev:api, db:*) | github.com/privatenumber/tsx |
+| @xmldom/xmldom | 0.9.12 | MIT | reqif (XML DOM; no external entity resolution) | github.com/xmldom/xmldom |
+| fflate | 0.8.3 | MIT | reqif (.reqifz), api tests | github.com/101arrowz/fflate |
+| xmllint-wasm | 5.3.0 | MIT (libxml2 compiled to WebAssembly) | reqif (XML Schema validation, Node only) | github.com/noppa/xmllint-wasm |
+
+Downloaded at build/test time, **not committed**: the official OMG ReqIF schemas (reqif.xsd
+dtc/11-04-05, driver.xsd dtc/11-04-06; OMG specification licence forbids reposting) and the W3C
+XHTML Modularization 1.1 and xml.xsd schemas they import (`npm run req:reqif:schemas`, checksums in
+`packages/reqif/schemas.lock.json`); externally produced ReqIF sample files from
+strictdoc-project/reqif (Apache-2.0 repository; files contributed from tool exports) for
+interoperability tests (`npm run req:reqif:samples`, pinned commit).
