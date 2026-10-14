@@ -29,6 +29,12 @@ Not here: persistence (server), subscriptions, navigation, other tools' data.
 
 ## Rules
 
+- Planned navigation/filter work is specified in
+  [requirements-navigation-filtering.md](../../docs/specifications/requirements-navigation-filtering.md).
+  Reuse existing pagination/filters; agree sidebar and SDK work with the coordinator. Filter the
+  full authorized query before paging, keep implementation and verification distinct, and expose
+  manual/AI filtering through the same typed criteria. Do not mark this planned work implemented.
+
 - Every write sends an expected revision (or an idempotency key for creation); conflicts are shown
   with "Load latest (keep my edits)"; failed saves keep all input.
 - Committed-change events (SSE) reload visible data; an open form keeps local edits and warns when a

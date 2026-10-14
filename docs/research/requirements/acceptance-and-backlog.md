@@ -132,6 +132,17 @@ when available:
 
 ## 5. Backlog (researched, not in the first release)
 
+### Requested navigation enhancement
+
+Owner request, 14 October 2026: [Requirements navigation and filtering at scale](../../specifications/requirements-navigation-filtering.md).
+Status: planned. Deliver a configurable bounded left submenu (default 10), scroll/page navigation,
+contextual/structured filters and AI-accessible criteria in small usable increments. Existing table
+cursor pagination and saved views remain the starting point. Platform owns the left navigation;
+Requirements owns query/filter semantics. Acceptance IDs NAV-R01–NAV-R12 and the staged backlog
+are maintained in the specification, not counted as completed AC-U1 or AC-U10 work.
+
+### Other backlog
+
 | Item | Seen in | Notes |
 | --- | --- | --- |
 | Streams/branches of requirements, merge | DOORS Next (DN1), Polarion (PO1) | Configuration applicability only, for now |
