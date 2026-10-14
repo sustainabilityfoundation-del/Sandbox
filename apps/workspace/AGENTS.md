@@ -37,3 +37,10 @@ npm run check
 ```
 
 Design-system, model identity and revision rules: see the root `AGENTS.md`.
+
+## Help system (platform-owned)
+
+`src/help/`: Help Service (`helpService.ts`, `workspaceHelp.ts`), Help menu, Help Centre, F1
+(`contextual.ts`), tours (`tours.ts`, Driver.js), Markdown renderer. Platform and AI Interface help pages
+are in `help/platform/` and `help/ai/`. The toolbar sets `data-help-id` from each tool's manifest. Keep
+`read_help` (assistant) on the same service. Spec: docs/modules/help.md.

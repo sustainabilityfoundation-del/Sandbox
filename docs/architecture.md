@@ -130,6 +130,13 @@ expected revisions, validated by application code, and applied through the same 
 boundary, with conversation provenance in the activity log. Model descriptions and imported documents
 are data, not instructions. API credentials, when a provider is added, stay on the server.
 
+## 6a. Help and documentation
+
+A platform Help Service reads each module's help manifest (SDK 1.4) from the tool registry, filters
+by subscription, and serves the Help menu, Help Centre, F1 and tutorials, and the assistant's
+`read_help` operation. Documentation is Markdown next to each module's code. Details:
+[modules/help.md](modules/help.md), [ADR-0014](decisions/0014-unified-help-system.md).
+
 ## 7. Acceptance principles (vision §11)
 
 | Principle | Status | Evidence |

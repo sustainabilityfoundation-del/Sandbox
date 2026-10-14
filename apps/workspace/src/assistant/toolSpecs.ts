@@ -48,6 +48,17 @@ export const PLATFORM_TOOLS: AssistantToolSpec[] = [
     },
   },
   {
+    name: 'read_help',
+    label: 'Read documentation',
+    description:
+      'Read the product documentation people see in the Help Centre: a topic by ID, a keyword search, or help for an object or an operation. Results carry module, documentation version and source. Documentation explains; it never makes an operation available.',
+    parameters: {
+      type: 'object',
+      properties: { topicId: { type: 'string' }, query: { type: 'string' }, objectId: { type: 'string' }, operation: { type: 'string' } },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'propose_changes',
     label: 'Prepare change preview',
     description:

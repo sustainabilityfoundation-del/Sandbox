@@ -247,3 +247,25 @@ describe('assistant writes go through the same ownership rules as user commands'
     expect(ws().model!.get('ROD-120')!.properties.diameter).toEqual({ value: 27, unit: 'mm' })
   })
 })
+
+describe('assistant reads the same documentation as people (read_help)', () => {
+  it('retrieves a topic by ID, searches with provenance, and finds help for an object', async () => {
+    const ctx = validationContext()
+    const topic = await executeToolCall({ id: 'h1', name: 'read_help', arguments: { topicId: 'requirements.requirement.edit' } }, ctx)
+    expect(topic).toMatchObject({ ok: true, data: { topic: { id: 'requirements.requirement.edit', module: 'requirements', source: expect.stringMatching(/\.md$/) } } })
+    const search = await executeToolCall({ id: 'h2', name: 'read_help', arguments: { query: 'reqif import' } }, ctx)
+    expect((search as { data: { results: { id: string }[] } }).data.results[0].id).toBe('requirements.exchange.reqif')
+    const forObject = await executeToolCall({ id: 'h3', name: 'read_help', arguments: { objectId: 'REQ-001' } }, ctx)
+    expect((forObject as { data: { topics: { id: string }[] } }).data.topics[0].id).toBe('requirements.overview')
+  })
+
+  it('only returns documentation of modules the user may use, and never grants operations', async () => {
+    setPlan('requirements')
+    const ctx = validationContext()
+    expect(await executeToolCall({ id: 'h4', name: 'read_help', arguments: { topicId: 'sysml.block.create' } }, ctx)).toMatchObject({ ok: false, errorCode: 'not-found' })
+    const hits = await executeToolCall({ id: 'h5', name: 'read_help', arguments: { query: 'cad dimension' } }, ctx)
+    expect((hits as { data: { results: { module: string }[]; note: string } }).data.results.every((r) => r.module !== 'cad')).toBe(true)
+    expect((hits as { data: { note: string } }).data.note).toContain('only registered operations')
+    expect(await executeToolCall({ id: 'h6', name: 'read_help', arguments: {} }, ctx)).toMatchObject({ ok: false, errorCode: 'invalid-arguments' })
+  })
+})

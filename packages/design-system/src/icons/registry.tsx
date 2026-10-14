@@ -37,6 +37,10 @@ import { DotsThreeVerticalIcon } from '@phosphor-icons/react/dist/csr/DotsThreeV
 import { EyeIcon } from '@phosphor-icons/react/dist/csr/Eye'
 import { EyeSlashIcon } from '@phosphor-icons/react/dist/csr/EyeSlash'
 import { FileDashedIcon } from '@phosphor-icons/react/dist/csr/FileDashed'
+import { QuestionIcon } from '@phosphor-icons/react/dist/csr/Question'
+import { BookOpenTextIcon } from '@phosphor-icons/react/dist/csr/BookOpenText'
+import { SignpostIcon } from '@phosphor-icons/react/dist/csr/Signpost'
+import { KeyboardIcon } from '@phosphor-icons/react/dist/csr/Keyboard'
 import { FlagBannerIcon } from '@phosphor-icons/react/dist/csr/FlagBanner'
 import { FlaskIcon } from '@phosphor-icons/react/dist/csr/Flask'
 import { FloppyDiskIcon } from '@phosphor-icons/react/dist/csr/FloppyDisk'
@@ -161,6 +165,10 @@ export const ICON_REGISTRY: Record<IconName, IconEntry> = {
   repository: tool(DatabaseIcon),
   workspace: tool(CubeFocusIcon),
   baseline: tool(FlagBannerIcon),
+  help: action(QuestionIcon),
+  book: action(BookOpenTextIcon),
+  tour: action(SignpostIcon),
+  keyboard: action(KeyboardIcon),
   verification: tool(CheckSquareOffsetIcon),
 
   search: action(MagnifyingGlassIcon),

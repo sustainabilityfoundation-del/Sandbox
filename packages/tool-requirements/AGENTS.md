@@ -46,3 +46,13 @@ npm run typecheck -w @ews/tool-requirements
 npx vitest run packages/tool-requirements
 npm run check
 ```
+
+## Help and documentation
+
+Owned by this module (root AGENTS.md "Help and documentation", docs/modules/help.md). Write the
+Requirements Management user documentation in `help/*.md` (front matter: help_id, title, kind, summary, keywords,
+related), export a `HelpManifest` as `help` in the tool definition, map every toolbar item and
+assistant action in `contextMappings`, and mark significant controls with `data-help-id`
+(`requirements.<area>.<item>`). Update the pages with every feature change.
+
+Current manifest: `src/help.ts` (18 topics, one tutorial); controls marked: statement field, save button.

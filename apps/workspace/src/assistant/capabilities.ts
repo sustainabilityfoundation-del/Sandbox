@@ -69,6 +69,8 @@ export const CAPABILITIES: CapabilityEntry[] = [
   e({ id: 'platform.windows', module: 'platform', surface: 'header', label: 'Open views in separate windows, pin views', effect: 'view', status: 'implemented', coverage: 'none' }),
   e({ id: 'platform.display', module: 'platform', surface: 'header', label: 'Theme and density', effect: 'view', status: 'implemented', coverage: 'none' }),
   e({ id: 'platform.favourites', module: 'platform', surface: 'palette', label: 'Favourite tools', effect: 'view', status: 'implemented', coverage: 'none' }),
+  e({ id: 'platform.help', module: 'platform', surface: 'header', label: 'Help Centre, contextual help (F1), module documentation and search', effect: 'query', status: 'implemented', coverage: 'shared', aiOperations: ['read_help'], note: 'Same Help Service and the same pages; filtered by subscription.' }),
+  e({ id: 'platform.tutorials', module: 'platform', surface: 'header', label: 'Guided tutorials (tours)', effect: 'view', status: 'implemented', coverage: 'none', note: 'Tours highlight controls for a person; the assistant reads the written version instead (read_help).' }),
   e({ id: 'platform.about', module: 'platform', surface: 'palette', label: 'About this platform (capability status)', effect: 'query', status: 'implemented', coverage: 'none' }),
   e({ id: 'platform.subscription', module: 'platform', surface: 'header', label: 'Switch demo subscription plan', effect: 'external', status: 'mock', coverage: 'restricted', note: 'Client-side prototype (ADR-0008); entitlement administration is not an assistant operation.' }),
   e({ id: 'platform.services', module: 'platform', surface: 'header', label: 'Requirements service mode and development user', effect: 'external', status: 'experimental', coverage: 'restricted', note: 'Identity selection; development only.' }),
@@ -135,7 +137,7 @@ export const CAPABILITIES: CapabilityEntry[] = [
 ]
 
 /** Assistant operations the platform itself offers (see toolSpecs.ts); listed for completeness checks. */
-export const PLATFORM_OPERATION_ENTRIES = ['read_object', 'search_objects', 'read_relationships', 'read_artifacts', 'propose_changes', 'select_objects', 'open_tool'] as const
+export const PLATFORM_OPERATION_ENTRIES = ['read_object', 'search_objects', 'read_relationships', 'read_artifacts', 'read_help', 'propose_changes', 'select_objects', 'open_tool'] as const
 
 export interface CoverageSummary {
   total: number

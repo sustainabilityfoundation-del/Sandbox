@@ -20,6 +20,7 @@ export const CAPABILITIES: Capability[] = [
   { name: 'Parametric mechanical CAD', status: 'experimental', note: 'Mock geometry driven by a few dimensions; no CAD kernel.' },
   { name: 'Configuration and baselines', status: 'implemented', note: 'Revision history, baselines pinning exact revisions, comparison with the working model.' },
   { name: 'Traceability and change impact', status: 'implemented', note: 'Typed relationships with validated semantics; impact on linked objects, evidence and baselines.' },
+  { name: 'Help and documentation', status: 'implemented', note: 'Help menu, Help Centre with search, F1, guided tutorials and an interactive API reference; Requirements documented, SysML and CAD not yet.' },
   { name: 'Verification records', status: 'implemented', note: 'Results pinned to the requirement revision and configured article; marked stale when inputs change.' },
   { name: 'Module ownership', status: 'implemented', note: 'Each artifact type is changed only by its owning module or a documented delegation.' },
   { name: 'Subscriptions and entitlements', status: 'experimental', note: 'Client-side mock; production enforcement must be server-side.' },

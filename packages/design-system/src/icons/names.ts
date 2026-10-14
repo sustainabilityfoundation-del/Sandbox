@@ -23,6 +23,10 @@ export const ICON_NAMES = [
   'repository',
   'workspace',
   'baseline',
+  'help',
+  'book',
+  'tour',
+  'keyboard',
   'verification',
   // Common actions (regular)
   'search',
