@@ -1,4 +1,5 @@
-import { DemoRepository, PROJECT_ID, type StorageLike } from '@ews/model-service'
+import { DemoRepository, PROJECT_ID, changeImpact, compareWithBaseline, outputFreshness, type StorageLike } from '@ews/model-service'
+import { readVerificationRecord, verificationArtifact, verificationState } from '@ews/tool-requirements'
 import { SDK_VERSION, isSdkCompatible } from '@ews/platform-sdk'
 import { defineTool } from '@ews/platform-sdk/react'
 import { lazy } from 'react'
@@ -175,5 +176,73 @@ describe('shared context across tools', () => {
     })
     expect(saved).toMatchObject({ toolId: 'cad', schemaVersion: 1, inputRevision: api.getModel().revision, configurationId: ws().context.configurationId })
     expect(api.getArtifacts({ objectId: 'ROD-120' }).map((a) => a.id)).toContain(saved.id)
+  })
+})
+
+describe('module ownership through the tool API', () => {
+  it('refuses a Requirements tool edit to CAD-owned dimensions; the CAD tool may make it', async () => {
+    const rod = ws().model!.get('ROD-120')!
+    const change = { kind: 'update-properties' as const, targetId: 'ROD-120', baseRevision: rod.revision, properties: { diameter: { value: 26, unit: 'mm' } } }
+    await expect(getToolApi('requirements').submitChanges([change], 'Rod diameter')).rejects.toMatchObject({ code: 'forbidden' })
+    expect(ws().model!.get('ROD-120')!.revision).toBe(rod.revision)
+    await getToolApi('cad').submitChanges([change], 'Rod diameter')
+    expect(ws().model!.get('ROD-120')!.properties.diameter).toEqual({ value: 26, unit: 'mm' })
+  })
+
+  it('refuses a SysML tool edit to a requirement statement', async () => {
+    const req = ws().model!.get('REQ-002')!
+    await expect(
+      getToolApi('sysml').submitChanges([{ kind: 'update-properties', targetId: 'REQ-002', baseRevision: req.revision, properties: { statement: 'x' } }], 'x'),
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+})
+
+describe('end-to-end cross-module workflow (architecture vision phase 1)', () => {
+  it('CAD change, verification pinned to requirement revision and baseline, requirement change exposes stale evidence', async () => {
+    const model = () => ws().model!
+    // 1. CAD changes a delegated dimension of the rod.
+    const rod = model().get('ROD-120')!
+    await getToolApi('cad').submitChanges(
+      [{ kind: 'update-properties', targetId: 'ROD-120', baseRevision: rod.revision, properties: { effectiveLength: { value: 610, unit: 'mm' } } }],
+      'Lengthened rod',
+    )
+    // 2. Baseline the configured article.
+    const baseline = await ws().createBaseline('Design review 1')
+    const req = model().get('REQ-001')!
+    expect(baseline.objects).toContainEqual({ id: 'REQ-001', revision: req.revision })
+
+    // 3. Requirements records a passing verification against the exact revision and baseline.
+    const api = getToolApi('requirements')
+    const saved = await api.saveArtifact(
+      verificationArtifact({
+        requirement: req,
+        components: model().linkedObjects('REQ-001', 'allocated-to', 'out'),
+        method: 'Test',
+        outcome: 'pass',
+        procedure: 'TP-12 run 1',
+        baselineId: baseline.id,
+      }),
+    )
+    const view = () => readVerificationRecord({ ...ws().outputs.find((o) => o.id === saved.id)!, freshness: outputFreshness(saved, model()) }, 'REQ-001')
+    expect(view()).toMatchObject({ requirementRevision: req.revision, baselineId: baseline.id, procedure: 'TP-12 run 1', configurationId: 'CFG-BASE', stale: false })
+    expect(verificationState([view()])).toBe('verified')
+
+    // 4. The requirement changes; the record is untouched but now stale.
+    await api.submitChanges(
+      [{ kind: 'update-properties', targetId: 'REQ-001', baseRevision: req.revision, properties: { statement: 'The rod shall carry 12 kN.' } }],
+      'Raised load',
+    )
+    expect(verificationState([view()])).toBe('stale')
+    expect(view().staleReasons.join()).toContain('REQ-001')
+    expect(view().requirementRevision).toBe(req.revision)
+    expect((await api.getObjectRevision('REQ-001', req.revision))?.snapshot).toMatchObject({ properties: { statement: req.properties.statement } })
+
+    // 5. The baseline comparison shows the requirement changed; change impact lists the record and baseline.
+    const diff = compareWithBaseline(baseline, model())
+    expect(diff.changed.map((c) => c.id)).toContain('REQ-001')
+    const impact = changeImpact(model(), ws().outputs, ws().baselines, 'REQ-001')
+    expect(impact.referencingArtifacts.map((a) => a.id)).toContain(saved.id)
+    expect(impact.dependentArtifacts.map((a) => a.id)).toContain(saved.id)
+    expect(impact.baselines.map((b) => b.id)).toContain(baseline.id)
   })
 })

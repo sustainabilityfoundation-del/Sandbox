@@ -14,7 +14,7 @@ function sharedStorage(): StorageLike {
   return { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v), removeItem: (k) => void data.delete(k) }
 }
 
-const meta = { toolId: 'test', configurationId: 'CFG-BASE', summary: 'edit' }
+const meta = { toolId: 'cad', configurationId: 'CFG-BASE', summary: 'edit' }
 
 describe('two windows sharing the demo repository', () => {
   it('rereads data written by the other window, so revision checks still catch conflicts', async () => {

@@ -1,4 +1,4 @@
-import type { ActivityEntry, ModelIndex, OutputRecord } from '@ews/model-service'
+import type { ActivityEntry, Baseline, ModelIndex, OutputRecord } from '@ews/model-service'
 import type { SharedContext, ToolApi, ViewStateUpdate } from './tool'
 
 /**
@@ -16,6 +16,8 @@ export interface PlatformHost {
   getModel: () => ModelIndex | null
   getArtifacts: () => OutputRecord[]
   getActivity: () => ActivityEntry[]
+  /** Baselines (SDK 1.1). */
+  getBaselines: () => Baseline[]
   /** Context as a view sees it; pass "" for the workspace context. */
   getContext: (viewId: string) => SharedContext
   /** Selects objects for a view (its pin, if pinned) or for the workspace (""). */

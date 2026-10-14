@@ -366,6 +366,8 @@ export const useConversation = create<ConversationState>()((set, get) => {
       try {
         const { modelRevision, createdIds } = await workspace.submitChanges('assistant', toModelChanges(proposal.changes), summary, {
           configurationId: proposal.configurationId,
+          // The repository checks ownership against exactly these modules.
+          onBehalfOf: (proposal.requiredEntitlements ?? []).map((e) => e.replace(/^tool:/, '')),
           source: sourceFor({ messageId: proposal.messageId, label: `ChatGPT panel, ${id}` }),
         })
         patchProposal(id, { status: 'applied', committedRevision: modelRevision, createdIds: createdIds.length ? createdIds : undefined })

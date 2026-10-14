@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { outputFreshness } from '../domain/freshness'
 import { buildModelIndex } from '../domain/modelIndex'
 import type { OutputDraft } from '../domain/types'
+import { compareWithBaseline } from '../domain/configuration'
 import { DemoRepository, LEGACY_STORAGE_KEY, STORAGE_KEY, type StorageLike } from './DemoRepository'
 import { legacyActivityV2, legacyModelV2, legacyOutputsV2 } from './__fixtures__/legacySeedV2'
 import { PROJECT_ID } from './seed'
@@ -16,7 +17,8 @@ function memoryStorage(): StorageLike & { data: Map<string, string> } {
   }
 }
 
-const meta = { toolId: 'test', configurationId: 'CFG-BASE', summary: 'test change' }
+/** Change metadata for a write made as a given module (writes are checked against artifact ownership). */
+const as = (toolId: string) => ({ toolId, configurationId: 'CFG-BASE', summary: 'test change' })
 
 function repo(storage = memoryStorage()) {
   return new DemoRepository({ storage, latencyMs: [0, 0] })
@@ -56,7 +58,7 @@ describe('DemoRepository', () => {
           properties: { operatingLoad: { value: 13, unit: 'kN' } },
         },
       ],
-      meta,
+      as('platform'),
     )
     expect(result.modelRevision).toBe(7)
     const scenario = result.snapshot.scenarios.find((s) => s.id === 'SCN-MAX')!
@@ -72,8 +74,8 @@ describe('DemoRepository', () => {
       baseRevision: 2,
       properties: { diameter: { value: 26, unit: 'mm' } },
     }
-    await r.submitChanges(PROJECT_ID, [change], meta)
-    await expect(r.submitChanges(PROJECT_ID, [change], meta)).rejects.toMatchObject({ code: 'conflict' })
+    await r.submitChanges(PROJECT_ID, [change], as('cad'))
+    await expect(r.submitChanges(PROJECT_ID, [change], as('cad'))).rejects.toMatchObject({ code: 'conflict' })
   })
 
   it('applies a batch atomically', async () => {
@@ -85,7 +87,7 @@ describe('DemoRepository', () => {
           { kind: 'add-relationship', relationship: { type: 'allocated-to', from: 'REQ-003', to: 'ROD-120' } },
           { kind: 'update-properties', targetId: 'NOPE', baseRevision: 1, properties: {} },
         ],
-        meta,
+        as('requirements'),
       ),
     ).rejects.toMatchObject({ code: 'not-found' })
     const model = await r.loadModel(PROJECT_ID)
@@ -113,7 +115,7 @@ describe('DemoRepository', () => {
     await r.submitChanges(
       PROJECT_ID,
       [{ kind: 'update-properties', targetId: 'SCN-MAX', baseRevision: 3, properties: { operatingLoad: { value: 14, unit: 'kN' } } }],
-      meta,
+      as('platform'),
     )
     model = buildModelIndex(await r.loadModel(PROJECT_ID))
     const outputs = await r.listOutputs(PROJECT_ID)
@@ -131,7 +133,7 @@ describe('DemoRepository', () => {
     await first.submitChanges(
       PROJECT_ID,
       [{ kind: 'add-relationship', relationship: { type: 'allocated-to', from: 'REQ-003', to: 'ROD-120' } }],
-      meta,
+      as('requirements'),
     )
     const second = repo(storage)
     const model = await second.loadModel(PROJECT_ID)
@@ -163,7 +165,7 @@ describe('batches that create objects', () => {
         { kind: 'add-object', idPrefix: 'SYS', ref: '$part', object: { type: 'sysml-element', name: 'seal', parentId: 'SYS-001', properties: { kind: 'part' } } },
         { kind: 'add-relationship', relationship: { type: 'represents', from: '$part', to: 'HSG-110' } },
       ],
-      meta,
+      as('sysml'),
     )
     expect(result.createdIds).toEqual(['SYS-007'])
     const model = buildModelIndex(result.snapshot)
@@ -174,7 +176,7 @@ describe('batches that create objects', () => {
   it('rejects relationships to objects that do not exist, atomically', async () => {
     const r = repo()
     await expect(
-      r.submitChanges(PROJECT_ID, [{ kind: 'add-relationship', relationship: { type: 'represents', from: '$missing', to: 'HSG-110' } }], meta),
+      r.submitChanges(PROJECT_ID, [{ kind: 'add-relationship', relationship: { type: 'represents', from: '$missing', to: 'HSG-110' } }], as('sysml')),
     ).rejects.toMatchObject({ code: 'not-found' })
     expect((await r.loadModel(PROJECT_ID)).modelRevision).toBe(6)
   })
@@ -218,7 +220,7 @@ describe('upgrading data saved by version 0.1', () => {
     const { storage, raw } = legacyStorage()
     repo(storage)
     expect(storage.getItem(LEGACY_STORAGE_KEY)).toBe(raw)
-    expect(JSON.parse(storage.getItem(STORAGE_KEY)!).schema).toBe(2)
+    expect(JSON.parse(storage.getItem(STORAGE_KEY)!).schema).toBe(3)
   })
 
   it('upgrades only once', async () => {
@@ -226,10 +228,95 @@ describe('upgrading data saved by version 0.1', () => {
     await repo(storage).submitChanges(
       PROJECT_ID,
       [{ kind: 'update-properties', targetId: 'CAD-120', baseRevision: 7, properties: { diameter: { value: 28, unit: 'mm' } } }],
-      meta,
+      as('cad'),
     )
     const again = await repo(storage).loadModel(PROJECT_ID)
     expect(again.modelRevision).toBe(8)
     expect(again.objects.find((o) => o.id === 'CAD-120')?.properties.diameter).toEqual({ value: 28, unit: 'mm' })
   })
 })
+
+describe('module ownership and relationship rules', () => {
+  it('lets each module change only what it owns', async () => {
+    const r = repo()
+    const editReq = { kind: 'update-properties' as const, targetId: 'REQ-001', baseRevision: 4, properties: { rationale: 'x' } }
+    await expect(r.submitChanges(PROJECT_ID, [editReq], as('sysml'))).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(r.submitChanges(PROJECT_ID, [editReq], as('requirements'))).resolves.toBeTruthy()
+    const editRep = { kind: 'update-properties' as const, targetId: 'CAD-120', baseRevision: 5, properties: { length: { value: 650, unit: 'mm' } } }
+    await expect(r.submitChanges(PROJECT_ID, [editRep], as('requirements'))).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('allows only the documented delegation from CAD to component geometry', async () => {
+    const r = repo()
+    const geometry = { kind: 'update-properties' as const, targetId: 'ROD-120', baseRevision: 2, properties: { diameter: { value: 26, unit: 'mm' } } }
+    await expect(r.submitChanges(PROJECT_ID, [geometry], as('cad'))).resolves.toBeTruthy()
+    const material = { kind: 'update-properties' as const, targetId: 'ROD-120', baseRevision: 7, properties: { material: 'Ti' } }
+    await expect(r.submitChanges(PROJECT_ID, [material], as('cad'))).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(r.submitChanges(PROJECT_ID, [{ ...geometry, baseRevision: 7 }], as('sysml'))).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('lets the assistant act only on behalf of the modules named in the change', async () => {
+    const r = repo()
+    const edit = { kind: 'update-properties' as const, targetId: 'REQ-001', baseRevision: 4, properties: { status: 'draft' } }
+    await expect(r.submitChanges(PROJECT_ID, [edit], { ...as('assistant'), onBehalfOf: ['cad'] })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(r.submitChanges(PROJECT_ID, [edit], { ...as('assistant'), onBehalfOf: ['requirements'] })).resolves.toBeTruthy()
+  })
+
+  it('validates relationship semantics', async () => {
+    const r = repo()
+    const wrong = { kind: 'add-relationship' as const, relationship: { type: 'allocated-to' as const, from: 'REQ-001', to: 'REQ-002' } }
+    await expect(r.submitChanges(PROJECT_ID, [wrong], as('requirements'))).rejects.toMatchObject({ code: 'invalid' })
+    // Relationships belong to the module owning the `from` end.
+    const link = { kind: 'add-relationship' as const, relationship: { type: 'allocated-to' as const, from: 'REQ-003', to: 'ROD-120' } }
+    await expect(r.submitChanges(PROJECT_ID, [link], as('sysml'))).rejects.toMatchObject({ code: 'forbidden' })
+  })
+})
+
+describe('revision history and baselines', () => {
+  it('keeps every revision, so an exact revision can always be retrieved', async () => {
+    const r = repo()
+    await r.submitChanges(PROJECT_ID, [{ kind: 'update-properties', targetId: 'REQ-001', baseRevision: 4, properties: { statement: 'New text.' } }], as('requirements'))
+    const old = await r.getRevision(PROJECT_ID, 'REQ-001', 4)
+    expect((old.snapshot as { properties: Record<string, unknown> }).properties.statement).toContain('12 kN')
+    const latest = await r.getRevision(PROJECT_ID, 'REQ-001', 7)
+    expect(latest).toMatchObject({ changedBy: 'requirements', summary: 'test change' })
+    expect((await r.listHistory(PROJECT_ID, 'REQ-001')).map((h) => h.revision)).toEqual([7, 4])
+  })
+
+  it('pins exact revisions in a baseline and reports what changed since', async () => {
+    const r = repo()
+    const baseline = await r.createBaseline(PROJECT_ID, { name: 'PDR', configurationId: 'CFG-BASE' }, { toolId: 'platform' })
+    expect(baseline).toMatchObject({ id: 'BL-001', modelRevision: 6 })
+    expect(baseline.objects.find((o) => o.id === 'REQ-001')).toEqual({ id: 'REQ-001', revision: 4 })
+    await r.submitChanges(PROJECT_ID, [{ kind: 'update-properties', targetId: 'REQ-001', baseRevision: 4, properties: { statement: 'Changed.' } }], as('requirements'))
+    const diff = compareWithBaseline(baseline, buildModelIndex(await r.loadModel(PROJECT_ID)))
+    expect(diff.changed).toEqual([{ id: 'REQ-001', pinned: 4, current: 7 }])
+    expect(diff.identical).toBe(false)
+    // The pinned revision is still retrievable.
+    expect(await r.getRevision(PROJECT_ID, 'REQ-001', 4)).toBeTruthy()
+    await expect(r.createBaseline(PROJECT_ID, { name: 'pdr', configurationId: 'CFG-BASE' }, { toolId: 'platform' })).rejects.toMatchObject({ code: 'invalid' })
+  })
+
+  it('validates revision-qualified references on saved artifacts', async () => {
+    const r = repo()
+    await expect(r.saveOutput(artifactDraft({ references: [{ id: 'REQ-001', revision: 4, role: 'verifies' }] }))).resolves.toBeTruthy()
+    await expect(r.saveOutput(artifactDraft({ references: [{ id: 'REQ-001', revision: 99, role: 'verifies' }] }))).rejects.toMatchObject({ code: 'invalid' })
+    await expect(r.saveOutput(artifactDraft({ references: [{ id: 'BL-404', role: 'baseline' }] }))).rejects.toMatchObject({ code: 'invalid' })
+  })
+
+  it('upgrades schema 2 data in place by adding history, without changing stored records', () => {
+    const storage = memoryStorage()
+    const v2 = { schema: 2, model: buildModelIndex(repoSnapshot()).snapshot, outputs: [], activity: [] }
+    storage.setItem(STORAGE_KEY, JSON.stringify(v2))
+    repo(storage)
+    const stored = JSON.parse(storage.getItem(STORAGE_KEY)!)
+    expect(stored.schema).toBe(3)
+    expect(stored.model).toEqual(v2.model)
+    expect(stored.history.length).toBe(v2.model.objects.length + v2.model.scenarios.length)
+    expect(stored.baselines).toEqual([])
+  })
+})
+
+function repoSnapshot() {
+  return JSON.parse(JSON.stringify(new DemoRepository({ latencyMs: [0, 0] })['db'].model))
+}

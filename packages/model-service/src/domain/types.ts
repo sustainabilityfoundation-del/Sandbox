@@ -131,6 +131,23 @@ export interface OutputRecord {
   result: ResultEntry[]
   summary: string
   reviewStatus: ReviewStatus
+  /**
+   * Revision-qualified references, e.g. the requirement revision a verification
+   * record verifies, the baseline of the configured article, or evidence.
+   */
+  references?: ArtifactReference[]
+}
+
+/**
+ * A reference to an artifact (object, saved artifact or baseline). With a
+ * revision it is exact and never follows later edits; without one it is a
+ * deliberate latest-working reference.
+ */
+export interface ArtifactReference {
+  id: string
+  revision?: number
+  /** Meaning of the reference, e.g. 'verifies', 'evidence', 'baseline'. */
+  role: string
 }
 
 export type OutputDraft = Omit<OutputRecord, 'id' | 'createdAt' | 'reviewStatus' | 'schemaVersion'> & { schemaVersion?: number }
@@ -158,7 +175,13 @@ export type ModelChange =
   | { kind: 'remove-relationship'; relationshipId: string }
 
 export interface ChangeMeta {
+  /** The module (tool ID) making the change, or 'assistant' / 'platform'. */
   toolId: string
+  /**
+   * For changes made by the assistant: the modules whose rules allowed them.
+   * Write ownership is checked against these, never widened by the assistant.
+   */
+  onBehalfOf?: string[]
   configurationId: string
   summary: string
   /** Where the change came from, e.g. a conversation message; shown in Activity. */
@@ -180,7 +203,7 @@ export interface ChangeResult {
   createdIds: string[]
 }
 
-export type ActivityKind = 'change' | 'save' | 'run' | 'review' | 'info' | 'error'
+export type ActivityKind = 'change' | 'save' | 'run' | 'review' | 'baseline' | 'info' | 'error'
 
 export interface ActivityEntry {
   id: string
@@ -195,3 +218,44 @@ export interface ActivityEntry {
 }
 
 export type ActivityDraft = Omit<ActivityEntry, 'id' | 'at'>
+
+/**
+ * One immutable revision of an object or scenario: its full state at that
+ * revision, who changed it and why. Revision identity is (id, revision).
+ */
+export interface ObjectRevision {
+  id: string
+  kind: 'object' | 'scenario'
+  revision: number
+  snapshot: EngineeringObject | Scenario
+  changedAt: string
+  /** Module that made the change ('import' for state recorded when history began). */
+  changedBy: string
+  summary: string
+}
+
+/**
+ * A baseline: the exact engineering definition of a configuration at one
+ * moment. It pins every object and scenario revision and copies the
+ * relationships, so it can be compared with the working model and the pinned
+ * revisions can always be retrieved.
+ */
+export interface Baseline {
+  id: string
+  name: string
+  description: string
+  projectId: string
+  configurationId: string
+  modelRevision: number
+  createdAt: string
+  createdBy: string
+  objects: { id: string; revision: number }[]
+  scenarios: { id: string; revision: number }[]
+  relationships: Relationship[]
+}
+
+export interface BaselineDraft {
+  name: string
+  description?: string
+  configurationId: string
+}

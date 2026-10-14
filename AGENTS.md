@@ -3,6 +3,12 @@
 Guidance for people and coding agents working in this repository. Each package has its own
 `AGENTS.md` with the rules for that package; read it before changing the package.
 
+Direction and decisions live in `docs/`, not here: [architecture vision](docs/architecture-vision.md)
+(proposed, long term), [architecture](docs/architecture.md) (approved, current),
+[roadmap](docs/roadmap.md), [module specifications](docs/modules/),
+[decisions](docs/decisions/README.md) and [dependencies](docs/dependencies.md). Record a new
+architecture decision as an ADR; record a new dependency with its licence in `docs/dependencies.md`.
+
 ## Ownership
 
 | Area | Packages | Owns |
@@ -33,8 +39,8 @@ apps/workspace → every package; a tool only through its package entry point
 
 ## SDK and versions
 
-- SDK version **1.0.0** (`packages/platform-sdk/src/contract/version.ts`). Tools declare
-  `sdkVersion: '^1.0.0'`; the registry refuses tools built for another major version.
+- SDK version **1.1.0** (`packages/platform-sdk/src/contract/version.ts`). Tools declare
+  `sdkVersion: '^1.0.0'` or `'^1.1.0'` (needed for revisions and baselines); the registry refuses tools built for another major version.
 - Entry points: `@ews/platform-sdk` (framework-free contract and domain model),
   `@ews/platform-sdk/react` (`defineTool`, hooks, engineering UI helpers),
   `@ews/platform-sdk/harness` (`mountHarness`, mock host), `@ews/platform-sdk/testing` (`sampleModel`).
@@ -98,6 +104,12 @@ On Windows PowerShell use `npm.cmd` if script execution is disabled.
   input revisions). Staleness is derived from input revisions, never by editing artifacts.
 - Shared context (project, configuration, revision, selection, scenario) belongs to the platform.
   View state (camera, filters, scroll, diagram position, visibility) is private to each view instance.
+- Every object type has one owning module (`ARTIFACT_OWNER`, `packages/model-service/src/domain/ownership.ts`);
+  relationships belong to the module owning the `from` end and must satisfy `RELATIONSHIP_RULES`.
+  The repository refuses other writes (`forbidden`, `invalid`). Exceptions are listed in
+  `DELEGATIONS` only; adding one is an ADR.
+- References from artifacts carry an exact `revision` unless they deliberately follow the latest
+  working revision. Verification records pin the requirement revision and configured article.
 - Cross-tool mappings must be explicit and documented (today only CAD dimension → component
   property). Do not add implicit synchronisation.
 - Subscriptions are platform logic. Tools declare `entitlement` and never check plans themselves.
@@ -108,3 +120,5 @@ On Windows PowerShell use `npm.cmd` if script execution is disabled.
 - Launch additional agents for routine work in this repository unless asked.
 - Delete or rewrite user data in migrations.
 - Claim SysML v2 compliance, a CAD kernel or real ChatGPT access in UI or docs.
+- Present a planned capability as working. Keep `apps/workspace/src/platform/capabilities.ts`
+  and `docs/roadmap.md` in step.

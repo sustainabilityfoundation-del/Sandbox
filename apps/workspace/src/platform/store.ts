@@ -4,6 +4,7 @@ import type {
   ActivityEntry,
   ActivityKind,
   ActivitySource,
+  Baseline,
   ModelChange,
   OutputRecord,
   ReviewStatus,
@@ -71,6 +72,8 @@ export const DEFAULT_LAYOUTS: Record<LayoutClass, Layout> = {
 /** Optional provenance for writes made on behalf of another part of the workspace. */
 export interface WriteOptions {
   source?: ActivitySource
+  /** For assistant writes: the modules whose rules allowed the change (checked by the repository). */
+  onBehalfOf?: string[]
   /** Configuration to record against, when it was captured earlier (e.g. at message send). */
   configurationId?: string
 }
@@ -87,6 +90,8 @@ interface WorkspaceState {
   model: ModelIndex | null
   outputs: OutputRecord[]
   activity: ActivityEntry[]
+  /** Baselines pinning exact revisions (configuration control). */
+  baselines: Baseline[]
   pendingWrites: number
   lastWriteError: string | null
 
@@ -133,7 +138,7 @@ interface WorkspaceState {
   forgetDetached: (windowId: string) => void
 
   /** Rereads authoritative data after another window committed changes. */
-  refreshFromRepository: (parts: ('model' | 'outputs' | 'activity')[]) => Promise<void>
+  refreshFromRepository: (parts: ('model' | 'outputs' | 'activity' | 'baselines')[]) => Promise<void>
   /** Applies a context change made in another window, without echoing it back. */
   applyRemoteContext: (context: ContextState) => void
 
@@ -153,6 +158,8 @@ interface WorkspaceState {
     source?: ActivitySource,
   ) => void
   dismissWriteError: () => void
+  /** Pins the current definition of the workspace configuration as a baseline. */
+  createBaseline: (name: string, description?: string) => Promise<Baseline>
 }
 
 const MAX_RECENTS = 6
@@ -200,7 +207,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
   async function write<T>(
     toolId: string | undefined,
     label: string,
-    parts: ('model' | 'outputs' | 'activity')[],
+    parts: ('model' | 'outputs' | 'activity' | 'baselines')[],
     run: () => Promise<T>,
   ): Promise<T> {
     set((s) => ({ pendingWrites: s.pendingWrites + 1 }))
@@ -226,6 +233,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
     model: null,
     outputs: [],
     activity: [],
+    baselines: [],
     pendingWrites: 0,
     lastWriteError: null,
     context: { projectId: '', configurationId: '', scenarioId: '', selectedIds: [] },
@@ -246,10 +254,11 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
       const initialViewStates = Object.fromEntries(tools.map((t) => [t.id, t.initialViewState]))
       set({ repository, status: 'loading', loadError: null, initialViewStates })
       try {
-        const [snapshot, outputs, activity] = await Promise.all([
+        const [snapshot, outputs, activity, baselines] = await Promise.all([
           repository.loadModel(projectId),
           repository.listOutputs(projectId),
           repository.listActivity(projectId),
+          repository.listBaselines(projectId),
         ])
         const model = buildModelIndex(snapshot)
         const loaded = loadSession()
@@ -282,6 +291,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           model,
           outputs,
           activity,
+          baselines,
           context,
           openToolIds,
           activeToolId,
@@ -369,15 +379,17 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
       const { repository, context, status } = get()
       if (!repository || status !== 'ready') return
       try {
-        const [snapshot, outputs, activity] = await Promise.all([
+        const [snapshot, outputs, activity, baselines] = await Promise.all([
           parts.includes('model') ? repository.loadModel(context.projectId) : null,
           parts.includes('outputs') ? repository.listOutputs(context.projectId) : null,
           parts.includes('activity') ? repository.listActivity(context.projectId) : null,
+          parts.includes('baselines') ? repository.listBaselines(context.projectId) : null,
         ])
         set({
           ...(snapshot ? { model: buildModelIndex(snapshot) } : {}),
           ...(outputs ? { outputs } : {}),
           ...(activity ? { activity } : {}),
+          ...(baselines ? { baselines } : {}),
         })
       } catch {
         // The next notification or local action will retry.
@@ -399,6 +411,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
         const { context } = get()
         const result = await repo().submitChanges(context.projectId, changes, {
           toolId,
+          onBehalfOf: options.onBehalfOf,
           configurationId: options.configurationId ?? context.configurationId,
           summary,
           source: options.source,
@@ -465,6 +478,14 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
     },
 
     dismissWriteError: () => set({ lastWriteError: null }),
+
+    createBaseline: (name, description) =>
+      write('platform', `Baseline ${name}`, ['baselines'], async () => {
+        const { context } = get()
+        const baseline = await repo().createBaseline(context.projectId, { name, description, configurationId: context.configurationId }, { toolId: 'platform' })
+        set((s) => ({ baselines: [...s.baselines.filter((b) => b.id !== baseline.id), baseline] }))
+        return baseline
+      }),
   }
 })
 

@@ -1,5 +1,8 @@
 import {
   componentOf,
+  type ArtifactInput,
+  type Baseline,
+  type OutputRecord,
   readRequirement,
   type EngineeringObject,
   type ModelIndex,
@@ -19,7 +22,7 @@ export interface RequirementsViewState {
   search: string
   /** Show trace columns (SysML references and representations). */
   showTrace: boolean
-  editor: { requirementId: string; focus: 'details' | 'allocation'; tab: 'details' | 'relationships' | 'history' } | null
+  editor: { requirementId: string; focus: 'details' | 'allocation'; tab: 'details' | 'relationships' | 'verification' | 'history' } | null
 }
 
 export const INITIAL_VIEW_STATE: RequirementsViewState = {
@@ -86,4 +89,104 @@ export function sysmlTrace(model: ModelIndex, requirementId: string): { referenc
   const references = model.linkedObjects(requirementId, 'references', 'in').filter((o) => o.type === 'sysml-element')
   const satisfiedBy = references.flatMap((ref) => model.linkedObjects(ref.id, 'satisfies', 'in'))
   return { references, satisfiedBy }
+}
+
+// ---- verification records -----------------------------------------------------------------
+
+/**
+ * A verification record is a saved artifact (kind 'verification-record',
+ * schema version 1). It pins the exact requirement revision it verifies and
+ * the configured article (configuration, optionally a baseline), names the
+ * procedure or run, and may reference evidence. Its inputs are the requirement
+ * and its allocated components, so editing either marks the record
+ * potentially stale; the record itself never changes.
+ */
+export const VERIFICATION_RECORD = { kind: 'verification-record', schemaVersion: 1 } as const
+
+export type VerificationOutcome = 'pass' | 'fail' | 'inconclusive'
+
+export interface VerificationDraft {
+  requirement: EngineeringObject
+  components: EngineeringObject[]
+  method: string
+  outcome: VerificationOutcome
+  procedure: string
+  baselineId?: string
+  evidenceId?: string
+}
+
+export function verificationArtifact(d: VerificationDraft): ArtifactInput {
+  return {
+    kind: VERIFICATION_RECORD.kind,
+    schemaVersion: VERIFICATION_RECORD.schemaVersion,
+    title: `${d.requirement.id} verification (${d.method})`,
+    objectIds: [d.requirement.id, ...d.components.map((c) => c.id)],
+    inputs: [{ id: d.requirement.id, revision: d.requirement.revision }, ...d.components.map((c) => ({ id: c.id, revision: c.revision }))],
+    references: [
+      { id: d.requirement.id, revision: d.requirement.revision, role: 'verifies' },
+      ...(d.baselineId ? [{ id: d.baselineId, role: 'baseline' }] : []),
+      ...(d.evidenceId ? [{ id: d.evidenceId, role: 'evidence' }] : []),
+    ],
+    scenarioId: null,
+    completion: 'complete',
+    result: [
+      { key: 'method', label: 'Method', value: d.method },
+      { key: 'outcome', label: 'Outcome', value: d.outcome },
+      { key: 'procedure', label: 'Procedure / run', value: d.procedure.trim() },
+    ],
+    summary: `${d.outcome === 'pass' ? 'Pass' : d.outcome === 'fail' ? 'Fail' : 'Inconclusive'} by ${d.method.toLowerCase()}: ${d.procedure.trim()}`,
+  }
+}
+
+export interface VerificationRecordView {
+  id: string
+  method: string
+  outcome: VerificationOutcome
+  procedure: string
+  requirementRevision: number | undefined
+  baselineId: string | undefined
+  evidenceId: string | undefined
+  configurationId: string
+  createdAt: string
+  stale: boolean
+  staleReasons: string[]
+}
+
+export function readVerificationRecord(a: OutputRecord & { freshness: { stale: boolean; reasons: string[] } }, requirementId: string): VerificationRecordView {
+  const value = (key: string) => String(a.result.find((r) => r.key === key)?.value ?? '')
+  const ref = (role: string) => a.references?.find((r) => r.role === role && (role !== 'verifies' || r.id === requirementId))
+  const outcome = value('outcome')
+  return {
+    id: a.id,
+    method: value('method'),
+    outcome: outcome === 'pass' || outcome === 'fail' ? outcome : 'inconclusive',
+    procedure: value('procedure'),
+    requirementRevision: ref('verifies')?.revision,
+    baselineId: ref('baseline')?.id,
+    evidenceId: ref('evidence')?.id,
+    configurationId: a.configurationId,
+    createdAt: a.createdAt,
+    stale: a.freshness.stale,
+    staleReasons: a.freshness.reasons,
+  }
+}
+
+export type VerificationState = 'not-verified' | 'verified' | 'stale' | 'failed' | 'inconclusive'
+
+/** Status from the newest record: a passing record only counts while its inputs are unchanged. */
+export function verificationState(records: VerificationRecordView[]): VerificationState {
+  const latest = [...records].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+  if (!latest) return 'not-verified'
+  if (latest.stale) return 'stale'
+  return latest.outcome === 'pass' ? 'verified' : latest.outcome === 'fail' ? 'failed' : 'inconclusive'
+}
+
+/** Baselines a record may name: same configuration and pinning the requirement's current revision. */
+export function eligibleBaselines(baselines: Baseline[], requirement: EngineeringObject, configurationId: string): { baseline: Baseline; reason?: string }[] {
+  return baselines.map((baseline) => {
+    if (baseline.configurationId !== configurationId) return { baseline, reason: `for ${baseline.configurationId}` }
+    const pinned = baseline.objects.find((o) => o.id === requirement.id)?.revision
+    if (pinned !== requirement.revision) return { baseline, reason: pinned ? `pins ${requirement.id} rev ${pinned}` : `does not contain ${requirement.id}` }
+    return { baseline }
+  })
 }

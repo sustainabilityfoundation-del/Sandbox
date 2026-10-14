@@ -1,6 +1,6 @@
 {
   "name": "@ews/platform-sdk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Versioned tool contract and SDK for engineering workspace tools, plus a standalone development harness.",

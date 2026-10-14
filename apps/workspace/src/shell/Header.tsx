@@ -7,6 +7,7 @@ import { PLANS, useEntitlements } from '../platform/entitlements'
 import { GlobalSearch } from './GlobalSearch'
 import type { ViewportMode } from './layout/viewport'
 import { DisplaySettings, WindowsMenu } from './ShellParts'
+import { BaselinesMenu } from './Baselines'
 
 /** Repository connection and save state, with demo controls. */
 function RepositoryStatus({ repository, compact = false }: { repository: DemoRepository; compact?: boolean }) {
@@ -200,6 +201,7 @@ export function Header({ repository, mode, onOpenPalette }: { repository: DemoRe
             <kbd className="ws-kbd">Ctrl K</kbd>
           </Button>
         )}
+        {!phone && <BaselinesMenu compact={mode !== 'desktop'} />}
         <SubscriptionMenu compact={phone || mode === 'tablet'} />
         {!phone && <WindowsMenu />}
         <DisplaySettings mode={mode} />

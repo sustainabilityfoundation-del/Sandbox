@@ -22,6 +22,8 @@ export const ICON_NAMES = [
   'analysis',
   'repository',
   'workspace',
+  'baseline',
+  'verification',
   // Common actions (regular)
   'search',
   'save',
@@ -82,6 +84,7 @@ export const ICON_NAMES = [
   'bug',
   'archive',
   'arrow-right',
+  'impact',
   // Status
   'info',
   'warning',

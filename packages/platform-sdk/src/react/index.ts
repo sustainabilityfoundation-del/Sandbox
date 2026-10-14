@@ -8,6 +8,7 @@ export {
   hasUnsavedChanges,
   useActivity,
   useArtifacts,
+  useBaselines,
   useIsActiveTool,
   useModel,
   useResolvedSelection,

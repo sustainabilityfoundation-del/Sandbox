@@ -236,3 +236,14 @@ describe('assistant validation', () => {
     expect(await propose([{ kind: 'set-property', targetId: 'CAD-120', property: 'length', value: 9, unit: 'm' }])).toMatchObject({ ok: false, errorCode: 'range' })
   })
 })
+
+describe('assistant writes go through the same ownership rules as user commands', () => {
+  it('acts only on behalf of the modules a proposal was validated for', async () => {
+    const rod = ws().model!.get('ROD-120')!
+    const change = [{ kind: 'update-properties' as const, targetId: 'ROD-120', baseRevision: rod.revision, properties: { diameter: { value: 27, unit: 'mm' } } }]
+    await expect(ws().submitChanges('assistant', change, 'x', { onBehalfOf: ['requirements'] })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(ws().submitChanges('assistant', change, 'x', { onBehalfOf: [] })).rejects.toMatchObject({ code: 'forbidden' })
+    await ws().submitChanges('assistant', change, 'x', { onBehalfOf: ['cad'] })
+    expect(ws().model!.get('ROD-120')!.properties.diameter).toEqual({ value: 27, unit: 'mm' })
+  })
+})

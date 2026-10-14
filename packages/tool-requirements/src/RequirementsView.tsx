@@ -51,12 +51,14 @@ import {
   selectedRequirementIds,
   sysmlTrace,
   type RequirementsViewState,
+  type VerificationRecordView,
 } from './domain'
+import { Verification, VerificationStateBadge, useVerificationRecords } from './Verification'
 
 const RELATIONSHIP_LABEL: Record<string, string> = {
   'allocated-to': 'Allocated to',
   references: 'Referenced by SysML element',
-  verifies: 'Verified by (retired Verification data)',
+  verifies: 'Verified by (retired Verification data, read-only)',
 }
 
 function RequirementEditor({
@@ -230,7 +232,7 @@ function History({ requirement }: { requirement: EngineeringObject }) {
   )
 }
 
-function DetailPanel({ requirement, state, setState }: { requirement: EngineeringObject; state: NonNullable<RequirementsViewState['editor']>; setState: (u: Partial<RequirementsViewState>) => void }) {
+function DetailPanel({ requirement, records, state, setState }: { requirement: EngineeringObject; records: VerificationRecordView[]; state: NonNullable<RequirementsViewState['editor']>; setState: (u: Partial<RequirementsViewState>) => void }) {
   const r = readRequirement(requirement)
   const close = () => setState({ editor: null })
   return (
@@ -245,6 +247,7 @@ function DetailPanel({ requirement, state, setState }: { requirement: Engineerin
         <TabList aria-label="Requirement detail" className="px-2">
           <Tab id="details">Edit</Tab>
           <Tab id="relationships">Relationships</Tab>
+          <Tab id="verification">Verification</Tab>
           <Tab id="history">History</Tab>
         </TabList>
         <TabPanel id="details" className="req-detail-body">
@@ -252,6 +255,9 @@ function DetailPanel({ requirement, state, setState }: { requirement: Engineerin
         </TabPanel>
         <TabPanel id="relationships" className="req-detail-body">
           <Relationships requirement={requirement} />
+        </TabPanel>
+        <TabPanel id="verification" className="req-detail-body">
+          <Verification requirement={requirement} records={records} />
         </TabPanel>
         <TabPanel id="history" className="req-detail-body">
           <History requirement={requirement} />
@@ -284,6 +290,7 @@ export default function RequirementsView() {
   const { selectedIds, select } = useSelection()
   const [viewState, setViewState] = useToolViewState<RequirementsViewState>()
   const scrollRef = useRestoredScroll<HTMLDivElement>('table')
+  const verification = useVerificationRecords()
 
   const component = selectedComponent(model, selectedIds)
   // Remember the component the filter refers to, so selecting a requirement doesn't empty the list.
@@ -366,6 +373,7 @@ export default function RequirementsView() {
               </Column>
               <Column>Requirement</Column>
               <Column className="req-col-status">Status</Column>
+              <Column className="req-col-verification">Verification</Column>
               <Column className="req-col-alloc">Allocated to</Column>
               {viewState.showTrace && <Column className="req-col-trace">Trace (SysML, CAD)</Column>}
             </TableHeader>
@@ -392,6 +400,9 @@ export default function RequirementsView() {
                     <Cell label="Status">
                       <RequirementStatusBadge status={r.status} unset={!r.statusSet} />
                     </Cell>
+                    <Cell label="Verification">
+                      <VerificationStateBadge records={verification.get(r.id)} />
+                    </Cell>
                     <Cell label="Allocated to">
                       <div className="ws-refs">
                         {allocated.length ? allocated.map((c) => <ObjectRef key={c.id} object={c} />) : <span className="text-fg-3">Unallocated</span>}
@@ -411,7 +422,7 @@ export default function RequirementsView() {
         <p className="ws-hint">Select a row to select the requirement in every tool. Double-click or press Enter to edit.</p>
       </div>
 
-      {editing && viewState.editor && <DetailPanel requirement={editing} state={viewState.editor} setState={setViewState} />}
+      {editing && viewState.editor && <DetailPanel requirement={editing} records={verification.get(editing.id) ?? []} state={viewState.editor} setState={setViewState} />}
     </div>
   )
 }

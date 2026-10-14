@@ -9,9 +9,13 @@ import type {
   OutputDraft,
   OutputRecord,
   ReviewStatus,
+  Baseline,
+  BaselineDraft,
+  ObjectRevision,
 } from '../domain/types'
 
-export type RepositoryErrorCode = 'unavailable' | 'conflict' | 'invalid' | 'not-found'
+/** 'forbidden': the writer's module does not own the artifact (see domain/ownership.ts). */
+export type RepositoryErrorCode = 'unavailable' | 'conflict' | 'invalid' | 'not-found' | 'forbidden'
 
 export class RepositoryError extends Error {
   readonly code: RepositoryErrorCode
@@ -40,4 +44,11 @@ export interface EngineeringRepository {
 
   listActivity(projectId: string, limit?: number): Promise<ActivityEntry[]>
   addActivity(projectId: string, entry: ActivityDraft): Promise<ActivityEntry>
+
+  /** One exact revision of an object or scenario (revision-qualified references, baselines). */
+  getRevision(projectId: string, id: string, revision: number): Promise<ObjectRevision>
+  /** All recorded revisions of an object or scenario, newest first. */
+  listHistory(projectId: string, id: string): Promise<ObjectRevision[]>
+  listBaselines(projectId: string): Promise<Baseline[]>
+  createBaseline(projectId: string, draft: BaselineDraft, meta: { toolId: string }): Promise<Baseline>
 }

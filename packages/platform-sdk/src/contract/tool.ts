@@ -1,6 +1,8 @@
 import type { IconName } from '@ews/design-system/icon-names'
 import type {
   ActivityEntry,
+  Baseline,
+  ObjectRevision,
   ActivityKind,
   ActivitySource,
   EngineeringObject,
@@ -116,6 +118,13 @@ export interface ToolApi<VS = unknown> {
   log: (message: string, options?: { kind?: ActivityKind; objectIds?: string[]; source?: ActivitySource }) => void
   /** Registers a command for this view; returns a function that removes it. */
   registerCommand: (command: ToolCommand) => () => void
+  /**
+   * One exact revision of an object or scenario, e.g. the requirement revision a
+   * verification record pinned. Undefined if that revision was never recorded. (SDK 1.1)
+   */
+  getObjectRevision: (id: string, revision: number) => Promise<ObjectRevision | undefined>
+  /** Baselines of the project, newest last. (SDK 1.1) */
+  getBaselines: () => Baseline[]
   /** Opens another tool through the platform (subject to subscription). Never imports the tool. */
   openTool: (toolId: string) => OpenToolResult
   getViewState: () => VS

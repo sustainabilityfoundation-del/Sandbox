@@ -5,7 +5,7 @@ are developed as independent packages:
 
 | Tool | Package | What it does |
 | --- | --- | --- |
-| Requirements Management | `@ews/tool-requirements` | Requirements table, search and filters; statements, rationale, status and allocation to components; relationships and history |
+| Requirements Management | `@ews/tool-requirements` | Requirements table, search and filters; statements, rationale, status and allocation to components; relationships, history and recorded verification |
 | SysML Modeling | `@ews/tool-sysml` | A small editable diagram of parts, requirement usages, connections and satisfy links, with an illustrative text notation |
 | CAD | `@ews/tool-cad` | A selectable mock actuator assembly with pan, zoom, fit, visibility and a few editable demonstration dimensions |
 
@@ -16,6 +16,21 @@ GLB model viewer (`apps/glb-viewer`) from earlier work.
 > **Prototype.** The repository is simulated in the browser, subscriptions are a client-side
 > mock, the CAD geometry is a mock drawing (no CAD kernel) and the SysML notation is illustrative
 > (not SysML v2 compliant, no parser). See [What is mocked](#what-works-and-what-is-mocked).
+
+## Documentation
+
+| Document | Content |
+| --- | --- |
+| [docs/architecture-vision.md](docs/architecture-vision.md) | Long-term direction (proposed; not a statement of what exists) |
+| [docs/product-vision.md](docs/product-vision.md) | Outcomes and principles |
+| [docs/architecture.md](docs/architecture.md) | Approved current architecture, mapped to the vision with status |
+| [docs/roadmap.md](docs/roadmap.md) | Delivery phases and what is implemented, experimental or planned |
+| [docs/modules/](docs/modules/) | Module specifications (platform, requirements, sysml, cad) |
+| [docs/decisions/](docs/decisions/README.md) | Architecture decision records and open decisions |
+| [docs/dependencies.md](docs/dependencies.md) | Dependency versions, licences and asset provenance |
+
+In the workspace, **About this platform** (command palette) labels every capability as
+implemented, experimental or planned.
 
 ## Quick start
 
@@ -113,12 +128,25 @@ ask the platform to open another tool. The SDK is version 1.0.0; contract change
 | SysML elements | `sysml-element` | Parts (definitions and usages) and requirement usages |
 | CAD representations | `cad-representation` | Mock shape plus demonstration dimensions |
 | Relationships | `allocated-to`, `represents`, `references`, `connects`, `satisfies` | Explicit, typed links |
-| Saved artifacts | `OutputRecord` | Producing tool, objects, configuration, input revision, timestamp, artifact schema version |
+| Saved artifacts | `OutputRecord` | Producing tool, objects, configuration, input revision, timestamp, artifact schema version, revision-qualified references |
+| Revision history | `ObjectRevision` | Immutable snapshot of every object and scenario revision |
+| Baselines | `Baseline` | Exact `{id, revision}` pins for one configuration, plus the relationships at that moment |
+| Verification records | artifact `verification-record` | Requirement revision, configured article (configuration, optional baseline), method, outcome, procedure/run |
 
 - A component may have a SysML representation and a CAD representation; both point at it with
   `represents`, so they never become duplicate components. Tools resolve a selection to "their"
   representation through these relationships (`resolveRepresentation`); when none exists the
   selection is kept and the view explains why.
+- **Every artifact type has an owning module** (`ARTIFACT_OWNER`); the repository refuses writes by
+  any other module (`forbidden`) and relationships that break `RELATIONSHIP_RULES` (`invalid`). The
+  assistant acts only on behalf of the modules whose actions produced a proposal. See
+  [ADR-0006](docs/decisions/0006-module-ownership-and-delegation.md).
+- **Baselines and change impact.** The header's Baselines menu creates a baseline and compares it
+  with the working model; the inspector shows the owning module, change impact (links, dependent and
+  referencing artifacts, pinning baselines) and revision history of the selected object.
+- **Recorded verification.** The Requirements Verification tab records a result pinned to the exact
+  requirement revision and configured article; a later change to the requirement or an allocated
+  component marks it stale, and the table shows Stale evidence instead of Verified.
 - Project, configuration, revision, selection and scenario are shared and survive tool switches.
   Camera, diagram position, filters, scroll and visibility are private to each view instance.
 - **Mapping between tools is explicit and limited.** A CAD dimension edit also updates the mapped
@@ -223,13 +251,16 @@ Example: a *Mass budget* tool.
 
 ## Tests and checks
 
-- **Model service**: revisions and conflicts, atomic batches with placeholders, artifact schema
+- **Model service**: ownership and relationship rules, revision history, baselines and comparison,
+  schema 2 → 3 upgrade, revisions and conflicts, atomic batches with placeholders, artifact schema
   versions, the non-destructive upgrade of 0.1 data, representation resolution.
 - **Platform**: catalogue (no Analysis or Verification), SDK compatibility, entitlement checks on
   every entry point, data kept when access is lost, shared context across tool switches, private
-  view state, artifact provenance.
+  view state, artifact provenance, ownership through the tool API, and the end-to-end cross-module
+  workflow (CAD change → baseline → verification record → requirement change → stale record,
+  baseline difference and change impact).
 - **Assistant**: tool actions across the three tools, captured context, undo, actions offered only
-  for subscribed tools, apply refused after access is lost, validation.
+  for subscribed tools, apply refused after access is lost, validation, ownership on behalf of modules.
 - **Tools**: domain logic of each tool, against the SDK's sample model.
 - **Contracts**: design-system rules for every tool package (shared components, tokens, one icon
   set via the registry) and package boundaries.
@@ -239,7 +270,8 @@ Example: a *Mass budget* tool.
 Works end to end in the browser: the three tools on one twin; shared selection and context with
 explicit representation resolution; requirement editing that every tool sees; SysML element
 creation and linking; CAD dimension edits recorded in Activity and persisted; representation
-artifacts with provenance and staleness; subscription gating on every entry point and across
+artifacts with provenance and staleness; module ownership; revision history; baselines and
+comparison; change impact; verification records with stale-evidence detection; subscription gating on every entry point and across
 windows; contained tool failures (palette › *Simulate a rendering failure*); ChatGPT previews with
 validation, entitlement checks and undo; each tool in its standalone harness; light/dark themes,
 densities and phone/tablet/desktop layouts.

@@ -11,6 +11,7 @@ const KIND_LABEL: Record<ActivityKind, string> = {
   save: 'Save',
   run: 'Run',
   review: 'Review',
+  baseline: 'Baseline',
   info: 'Info',
   error: 'Error',
 }
@@ -18,7 +19,7 @@ const KIND_LABEL: Record<ActivityKind, string> = {
 const FILTERS: { value: 'all' | ActivityKind; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'save', label: 'Saves' },
-  { value: 'run', label: 'Runs' },
+  { value: 'baseline', label: 'Baselines' },
   { value: 'change', label: 'Changes' },
   { value: 'review', label: 'Reviews' },
   { value: 'error', label: 'Errors' },

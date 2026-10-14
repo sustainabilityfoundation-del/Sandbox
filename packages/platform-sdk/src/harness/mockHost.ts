@@ -4,6 +4,7 @@ import {
   buildModelIndex,
   browserStorage,
   type ActivityEntry,
+  type Baseline,
   type ModelIndex,
   type OutputRecord,
 } from '@ews/model-service'
@@ -18,6 +19,7 @@ export interface MockState {
   model: ModelIndex | null
   artifacts: OutputRecord[]
   activity: ActivityEntry[]
+  baselines: Baseline[]
   context: { projectId: string; configurationId: string; scenarioId: string; selectedIds: string[] }
   viewStates: Record<string, unknown>
   scroll: Record<string, number>
@@ -54,6 +56,7 @@ export function createMockHost(tool: AnyToolDefinition, options: { storageKey?: 
     model: null,
     artifacts: [],
     activity: [],
+    baselines: [],
     context: { projectId: PROJECT_ID, configurationId: '', scenarioId: '', selectedIds: [] },
     viewStates: {},
     scroll: {},
@@ -64,15 +67,17 @@ export function createMockHost(tool: AnyToolDefinition, options: { storageKey?: 
   const set = store.setState
 
   async function reload(parts: ('model' | 'artifacts' | 'activity')[] = ['model', 'artifacts', 'activity']) {
-    const [snapshot, artifacts, activity] = await Promise.all([
+    const [snapshot, artifacts, activity, baselines] = await Promise.all([
       parts.includes('model') ? repository.loadModel(PROJECT_ID) : null,
       parts.includes('artifacts') ? repository.listOutputs(PROJECT_ID) : null,
       parts.includes('activity') ? repository.listActivity(PROJECT_ID) : null,
+      parts.includes('model') ? repository.listBaselines(PROJECT_ID) : null,
     ])
     set({
       ...(snapshot ? { model: buildModelIndex(snapshot) } : {}),
       ...(artifacts ? { artifacts } : {}),
       ...(activity ? { activity } : {}),
+      ...(baselines ? { baselines } : {}),
     })
   }
 
@@ -160,6 +165,8 @@ export function createMockHost(tool: AnyToolDefinition, options: { storageKey?: 
           .addActivity(PROJECT_ID, { kind: opts.kind ?? 'info', toolId, message, objectIds: opts.objectIds ?? [], source: opts.source })
           .then(() => reload(['activity']))
       },
+      getObjectRevision: (id, revision) => repository.getRevision(PROJECT_ID, id, revision).catch(() => undefined),
+      getBaselines: () => get().baselines,
       registerCommand: (command) => {
         set((s) => ({ commands: { ...s.commands, [viewId]: [...(s.commands[viewId] ?? []).filter((c) => c.id !== command.id), command] } }))
         return () => set((s) => ({ commands: { ...s.commands, [viewId]: (s.commands[viewId] ?? []).filter((c) => c !== command) } }))
@@ -184,6 +191,7 @@ export function createMockHost(tool: AnyToolDefinition, options: { storageKey?: 
     getModel: () => get().model,
     getArtifacts: () => get().artifacts,
     getActivity: () => get().activity,
+    getBaselines: () => get().baselines,
     getContext,
     select: (ids) => set((s) => ({ context: { ...s.context, selectedIds: [...new Set(ids)] } })),
     getViewState: (viewId) => get().viewStates[viewId] ?? tool.initialViewState,

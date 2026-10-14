@@ -16,6 +16,33 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.1.0 (2026-10-13)
+
+Type: additive
+
+What changed:
+
+- `ToolApi.getObjectRevision(id, revision)` returns the immutable snapshot of an exact revision.
+- `ToolApi.getBaselines()` and the `useBaselines()` hook list the project's baselines.
+- `ArtifactInput.references` (`{ id, revision?, role }[]`): revision-qualified references from an
+  artifact; with `revision` the reference is exact. The repository rejects unknown IDs and revisions.
+- Re-exports `ARTIFACT_OWNER`, `DELEGATIONS`, `RELATIONSHIP_RULES`, `changeImpact` and
+  `compareWithBaseline`, and the `Baseline`, `ObjectRevision`, `ArtifactReference` types.
+- Behaviour: the repository enforces module ownership and relationship semantics. A write to an
+  object the tool's module does not own, outside `DELEGATIONS`, now fails with
+  `RepositoryError` code `forbidden`; an invalid relationship fails with `invalid`.
+- Stored data: repository schema 3 (revision history, baselines). Schema 2 data is upgraded in place
+  additively on load.
+
+Why: architecture vision Phase 1 (baselines, revision-qualified references, ownership, recorded
+verification). See `docs/decisions/` ADR-0004 to ADR-0007.
+
+Migration for tools: none for tools that write only their own objects (all current tools). To use
+revisions or baselines, declare `sdkVersion: '^1.1.0'`. Handle `forbidden` like any other save
+error (keep the user's input, show the message).
+
+Validated with: npm run check; harnesses for requirements, sysml, cad.
+
 ## 1.0.0 (2026-10-13)
 
 Type: initial release of the versioned contract.

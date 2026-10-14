@@ -11,6 +11,9 @@ import type {
   OutputRecord,
   ReviewStatus,
 } from '../domain/types'
+import { pinBaseline } from '../domain/configuration'
+import { actingModules, canCreate, canWriteProperties, relationshipOwner, validateRelationship } from '../domain/ownership'
+import type { Baseline, BaselineDraft, ObjectRevision, ObjectType, Scenario } from '../domain/types'
 import { RepositoryError, type EngineeringRepository } from './EngineeringRepository'
 import { upgradeLegacyDatabase, type LegacyDatabase } from './upgrade'
 import { PROJECT_ID, seedActivity, seedModel, seedOutputs } from './seed'
@@ -22,11 +25,38 @@ export interface StorageLike {
 }
 
 export interface DemoDatabase {
-  /** 2: SysML elements, CAD representations and versioned artifacts. */
-  schema: 2
+  /** 3: adds revision history and baselines to schema 2 (SysML, CAD, versioned artifacts). */
+  schema: 3
   model: ModelSnapshot
   outputs: OutputRecord[]
   activity: ActivityEntry[]
+  /** Every revision of every object and scenario since history began (append-only). */
+  history: ObjectRevision[]
+  baselines: Baseline[]
+}
+
+/** Schema 2 as stored before revision history existed. */
+export type DatabaseV2 = Omit<DemoDatabase, 'schema' | 'history' | 'baselines'> & { schema: 2 }
+
+/** History entries for the current state of every object and scenario. */
+function historyFromCurrentState(model: ModelSnapshot, changedBy: string, summary: string, at: string): ObjectRevision[] {
+  return [
+    ...model.objects.map((o) => ({ id: o.id, kind: 'object' as const, revision: o.revision, snapshot: structuredClone(o), changedAt: at, changedBy, summary })),
+    ...model.scenarios.map((sc) => ({ id: sc.id, kind: 'scenario' as const, revision: sc.revision, snapshot: structuredClone(sc), changedAt: at, changedBy, summary })),
+  ]
+}
+
+/**
+ * Non-destructive upgrade from schema 2: everything stored is kept as it is;
+ * revision history starts with the current state and there are no baselines yet.
+ */
+export function upgradeToSchema3(db: DatabaseV2): DemoDatabase {
+  return {
+    ...db,
+    schema: 3,
+    history: historyFromCurrentState(db.model, 'import', 'State when revision history began', new Date().toISOString()),
+    baselines: [],
+  }
 }
 
 /**
@@ -38,7 +68,15 @@ export const LEGACY_STORAGE_KEY = 'ews.demo-repository.v2'
 const MAX_ACTIVITY = 300
 
 function seedDatabase(): DemoDatabase {
-  return { schema: 2, model: seedModel(), outputs: seedOutputs(), activity: seedActivity() }
+  const model = seedModel()
+  return {
+    schema: 3,
+    model,
+    outputs: seedOutputs(),
+    activity: seedActivity(),
+    history: historyFromCurrentState(model, 'import', 'Sample data', '2026-10-01T09:00:00.000Z'),
+    baselines: [],
+  }
 }
 
 /** Records saved before artifacts were versioned are read as schema version 1. */
@@ -75,6 +113,8 @@ export class DemoRepository implements EngineeringRepository {
   private readonly latency: [number, number]
   private readonly storageKey: string
   private readonly legacyKey: string | null
+  /** Set when stored data was upgraded on read, so the upgrade is persisted at once. */
+  private upgraded = false
 
   constructor(
     options: {
@@ -91,7 +131,7 @@ export class DemoRepository implements EngineeringRepository {
     this.legacyKey = options.legacyStorageKey === undefined ? LEGACY_STORAGE_KEY : options.legacyStorageKey
     this.db = this.read()
     // Persist an upgraded copy right away so every window reads the same IDs.
-    if (this.storage && !this.storage.getItem(this.storageKey)) this.write()
+    if (this.storage && (this.upgraded || !this.storage.getItem(this.storageKey))) this.write()
   }
 
   /** Demo control: discard local data and restore the sample digital twin. */
@@ -117,6 +157,12 @@ export class DemoRepository implements EngineeringRepository {
       /** Placeholders from add-object changes (e.g. "$new1") → assigned IDs. */
       const refs = new Map<string, string>()
       const resolve = (id: string) => refs.get(id) ?? id
+      const modules = actingModules(meta)
+      const forbid = (check: { ok: boolean; message?: string }) => {
+        if (!check.ok) throw new RepositoryError('forbidden', check.message!)
+      }
+      const typeOf = (id: string): ObjectType | 'artifact' | undefined =>
+        model.objects.find((o) => o.id === id)?.type ?? (db.outputs.some((o) => o.id === id) ? 'artifact' : undefined)
 
       for (const change of changes) {
         switch (change.kind) {
@@ -125,6 +171,8 @@ export class DemoRepository implements EngineeringRepository {
               model.objects.find((o) => o.id === change.targetId) ??
               model.scenarios.find((s) => s.id === change.targetId)
             if (!target) throw new RepositoryError('not-found', `${change.targetId} does not exist.`)
+            const object = model.objects.find((o) => o.id === change.targetId)
+            forbid(canWriteProperties(modules, object ? object.type : 'scenario', change.targetId, Object.keys(change.properties), change.name !== undefined))
             if (target.revision !== change.baseRevision) {
               throw new RepositoryError(
                 'conflict',
@@ -139,6 +187,7 @@ export class DemoRepository implements EngineeringRepository {
           }
           case 'add-object': {
             if (!/^[A-Z]{2,4}$/.test(change.idPrefix)) throw new RepositoryError('invalid', `Invalid ID prefix ${change.idPrefix}.`)
+            forbid(canCreate(modules, change.object.type))
             const parentId = change.object.parentId ? resolve(change.object.parentId) : undefined
             if (parentId && !model.objects.some((o) => o.id === parentId)) {
               throw new RepositoryError('not-found', `Parent ${parentId} does not exist.`)
@@ -158,6 +207,10 @@ export class DemoRepository implements EngineeringRepository {
             if (!known(from) || !known(to)) {
               throw new RepositoryError('not-found', `${!known(from) ? from : to} does not exist.`)
             }
+            const fromType = typeOf(from)!
+            const valid = validateRelationship(type, fromType, typeOf(to)!)
+            if (!valid.ok) throw new RepositoryError('invalid', valid.message)
+            forbid(this.canWriteRelationship(db, modules, type, from, fromType))
             if (model.relationships.some((r) => r.type === type && r.from === from && r.to === to)) break
             const id = nextId('REL', model.relationships.map((r) => r.id), 4)
             model.relationships.push({ type, from, to, id, revision })
@@ -167,6 +220,7 @@ export class DemoRepository implements EngineeringRepository {
           case 'remove-relationship': {
             const existing = model.relationships.find((r) => r.id === change.relationshipId)
             if (!existing) break
+            forbid(this.canWriteRelationship(db, modules, existing.type, existing.from, typeOf(existing.from) ?? 'artifact'))
             model.relationships = model.relationships.filter((r) => r.id !== change.relationshipId)
             changedIds.push(existing.from, existing.to)
             break
@@ -175,6 +229,16 @@ export class DemoRepository implements EngineeringRepository {
       }
 
       model.modelRevision = revision
+      // Append the new revision of every changed or created object and scenario (immutable history).
+      const at = new Date().toISOString()
+      for (const id of new Set([...changedIds, ...createdIds])) {
+        const object = model.objects.find((o) => o.id === id && o.revision === revision)
+        const scenario = model.scenarios.find((sc) => sc.id === id && sc.revision === revision)
+        const snapshot: EngineeringObject | Scenario | undefined = object ?? scenario
+        if (snapshot) {
+          db.history.push({ id, kind: object ? 'object' : 'scenario', revision, snapshot: structuredClone(snapshot), changedAt: at, changedBy: meta.toolId === 'assistant' ? `assistant for ${modules.join(', ')}` : meta.toolId, summary: meta.summary })
+        }
+      }
       this.log(db, {
         kind: 'change',
         toolId: meta.toolId,
@@ -207,6 +271,14 @@ export class DemoRepository implements EngineeringRepository {
       const known = new Set(model.objects.map((o) => o.id))
       const missing = draft.objectIds.filter((id) => !known.has(id))
       if (missing.length) throw new RepositoryError('invalid', `Unknown objects: ${missing.join(', ')}.`)
+      for (const ref of draft.references ?? []) {
+        const isObject = known.has(ref.id)
+        const exists = isObject || db.outputs.some((o) => o.id === ref.id) || db.baselines.some((b) => b.id === ref.id)
+        if (!exists) throw new RepositoryError('invalid', `Reference to unknown ${ref.id}.`)
+        if (ref.revision !== undefined && isObject && !db.history.some((h) => h.id === ref.id && h.revision === ref.revision)) {
+          throw new RepositoryError('invalid', `${ref.id} has no revision ${ref.revision}.`)
+        }
+      }
 
       const output: OutputRecord = {
         ...draft,
@@ -261,7 +333,71 @@ export class DemoRepository implements EngineeringRepository {
     })
   }
 
+  // ---- revisions and baselines --------------------------------------------------
+
+  /** One exact revision of an object or scenario (revision-qualified reference). */
+  getRevision(projectId: string, id: string, revision: number) {
+    return this.call((db) => {
+      this.assertProject(projectId)
+      const entry = db.history.find((h) => h.id === id && h.revision === revision)
+      if (!entry) throw new RepositoryError('not-found', `${id} has no recorded revision ${revision}.`)
+      return entry
+    })
+  }
+
+  /** Revision history of an object or scenario, newest first. */
+  listHistory(projectId: string, id: string) {
+    return this.call((db) => {
+      this.assertProject(projectId)
+      return db.history.filter((h) => h.id === id).sort((a, b) => b.revision - a.revision)
+    })
+  }
+
+  listBaselines(projectId: string) {
+    return this.call((db) => db.baselines.filter((b) => b.projectId === projectId))
+  }
+
+  /** Pins the current revision of every object, scenario and relationship. */
+  createBaseline(projectId: string, draft: BaselineDraft, meta: { toolId: string }) {
+    return this.mutate((db) => {
+      this.assertProject(projectId)
+      const name = draft.name.trim()
+      if (!name) throw new RepositoryError('invalid', 'A baseline needs a name.')
+      if (db.baselines.some((b) => b.name.toLowerCase() === name.toLowerCase())) {
+        throw new RepositoryError('invalid', `A baseline named “${name}” already exists.`)
+      }
+      if (!db.model.configurations.some((c) => c.id === draft.configurationId)) {
+        throw new RepositoryError('invalid', `Unknown configuration ${draft.configurationId}.`)
+      }
+      const baseline = pinBaseline(db.model, {
+        id: nextId('BL', db.baselines.map((b) => b.id), 3),
+        name,
+        description: draft.description?.trim() ?? '',
+        configurationId: draft.configurationId,
+        createdAt: new Date().toISOString(),
+        createdBy: meta.toolId,
+      })
+      db.baselines.push(baseline)
+      this.log(db, {
+        kind: 'baseline',
+        toolId: meta.toolId,
+        message: `Baseline ${baseline.id} “${name}” pins model rev ${baseline.modelRevision} (${baseline.objects.length} objects, ${baseline.relationships.length} relationships)`,
+        objectIds: [],
+        configurationId: draft.configurationId,
+      })
+      return baseline
+    })
+  }
+
   // ---- internals -----------------------------------------------------------
+
+  /** Relationships are owned by the module that owns their `from` end. */
+  private canWriteRelationship(db: DemoDatabase, modules: string[], type: string, from: string, fromType: ObjectType | 'artifact') {
+    const producer = fromType === 'artifact' ? db.outputs.find((o) => o.id === from)?.toolId : undefined
+    const owner = relationshipOwner(fromType, producer)
+    if (modules.includes(owner) || (owner === 'product' && modules.includes('platform'))) return { ok: true as const }
+    return { ok: false as const, message: `“${type}” links from ${from} are owned by the ${owner} module; ${modules.join(', ') || 'this writer'} may not change them.` }
+  }
 
   private assertProject(projectId: string) {
     if (projectId !== PROJECT_ID) throw new RepositoryError('not-found', `Project ${projectId} not found.`)
@@ -317,15 +453,19 @@ export class DemoRepository implements EngineeringRepository {
     try {
       const raw = this.storage?.getItem(this.storageKey)
       if (raw) {
-        const parsed = JSON.parse(raw) as DemoDatabase
-        if (parsed.schema === 2 && parsed.model && Array.isArray(parsed.outputs)) return normalize(parsed)
+        const parsed = JSON.parse(raw) as DemoDatabase | DatabaseV2
+        if (parsed.schema === 3 && parsed.model && Array.isArray(parsed.outputs)) return normalize(parsed)
+        if (parsed.schema === 2 && parsed.model && Array.isArray(parsed.outputs)) {
+          this.upgraded = true
+          return normalize(upgradeToSchema3(parsed))
+        }
       }
       // First load after upgrading: copy data saved by version 0.1 and add the new
       // representations. The legacy entry itself is left untouched.
       const legacy = this.legacyKey ? this.storage?.getItem(this.legacyKey) : null
       if (legacy) {
         const parsed = JSON.parse(legacy) as LegacyDatabase
-        if (parsed.schema === 1 && parsed.model && Array.isArray(parsed.outputs)) return upgradeLegacyDatabase(parsed)
+        if (parsed.schema === 1 && parsed.model && Array.isArray(parsed.outputs)) return upgradeToSchema3(upgradeLegacyDatabase(parsed))
       }
     } catch {
       // Corrupt or inaccessible storage: fall back to the sample data.

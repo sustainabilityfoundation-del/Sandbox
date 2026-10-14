@@ -1,14 +1,17 @@
 # AGENTS.md: @ews/tool-requirements
 
 Requirements Management tool. Develop it on its own against the published SDK contract.
+Specification: [docs/modules/requirements.md](../../docs/modules/requirements.md).
 
 ## Responsibilities
 
 - Views: requirements table (search, status filter, filter by selected component or its
-  representation), detail panel with Edit, Relationships and History tabs.
+  representation), Verification status column, detail panel with Edit, Relationships,
+  Verification and History tabs.
 - Toolbar: Add, Edit, Filter, Allocate, Trace. Commands registered with `useToolCommand`.
 - Private view state (`RequirementsViewState`): filters, search, trace columns, open editor.
-- Domain logic (`src/domain.ts`, no React): filtering, selection resolution, SysML trace.
+- Domain logic (`src/domain.ts`, no React): filtering, selection resolution, SysML trace,
+  verification records (`verificationArtifact`, `readVerificationRecord`, `verificationState`).
 - Assistant contribution (`src/assistant.ts`): `requirements.read_for_component`,
   `requirements.update`; editable fields statement, rationale, status; `allocated-to` links.
 
@@ -23,7 +26,7 @@ Not here: subscriptions, navigation, the inspector, persistence, other tools' da
 
 ## SDK
 
-Built for SDK `^1.0.0` (see `src/index.ts`). Read the model and context with hooks
+Built for SDK `^1.1.0` (see `src/index.ts`). Read the model and context with hooks
 (`useModel`, `useSelection`, `useSharedContext`, `useActivity`), write with
 `useToolApi().submitChanges(...)` (atomic, with base revisions). Entitlement: `tool:requirements`
 (declared, never checked here).
@@ -55,3 +58,8 @@ when a save fails.
 - A selected SysML element or CAD representation resolves to its component with `componentOf`;
   a SysML requirement usage resolves to the requirement it references.
 - Never match by name; never write other tools' entities except through explicit relationships.
+  The repository refuses writes to objects this module does not own (`forbidden`).
+- Verification records are immutable artifacts (`verification-record`, schema 1). They pin the
+  requirement revision (`references` role `verifies`), the configuration and optionally a baseline
+  (role `baseline`), and name the procedure or run. Never edit a record; record a new one.
+  Staleness comes from the record's input revisions.

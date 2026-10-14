@@ -20,6 +20,8 @@ import { getTool, getTools } from './platform/registry'
 import { Button, Icon, ResizeHandle, Spinner, Toaster, ToggleIconButton, useToasts } from '@ews/design-system'
 import { useEntitlements } from './platform/entitlements'
 import { LockedToolNotice } from './shell/WorkArea'
+import { BaselineDialog } from './shell/Baselines'
+import { CapabilitiesDialog } from './shell/CapabilitiesDialog'
 
 let started = false
 
@@ -174,6 +176,8 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
       </div>
       {mode === 'phone' && <MobileNav onOpenLauncher={() => setLauncherOpen(true)} />}
       <CommandPalette isOpen={launcherOpen} onOpenChange={setLauncherOpen} />
+      <BaselineDialog />
+      <CapabilitiesDialog />
       <Toaster />
     </div>
   )

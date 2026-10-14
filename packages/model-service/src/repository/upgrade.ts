@@ -1,5 +1,5 @@
 import type { ActivityEntry, ModelSnapshot, OutputRecord } from '../domain/types'
-import type { DemoDatabase } from './DemoRepository'
+import type { DatabaseV2 } from './DemoRepository'
 import { representationSeed } from './seed'
 
 /** Data as saved by version 0.1 (storage key ews.demo-repository.v2). */
@@ -34,7 +34,7 @@ function nextNumber(prefix: string, ids: Iterable<string>): number {
  *
  * The caller stores the result under a new key; the 0.1 entry stays untouched.
  */
-export function upgradeLegacyDatabase(legacy: LegacyDatabase): DemoDatabase {
+export function upgradeLegacyDatabase(legacy: LegacyDatabase): DatabaseV2 {
   const model = structuredClone(legacy.model)
   const outputs: OutputRecord[] = legacy.outputs.map((o) => ({ ...structuredClone(o), schemaVersion: 1 }))
   const activity = structuredClone(legacy.activity)

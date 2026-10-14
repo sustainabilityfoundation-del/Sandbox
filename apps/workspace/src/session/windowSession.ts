@@ -27,7 +27,7 @@ export interface DetachedViewDef {
 }
 
 export type SessionMessage =
-  | { type: 'repository-updated'; parts: ('model' | 'outputs' | 'activity')[] }
+  | { type: 'repository-updated'; parts: ('model' | 'outputs' | 'activity' | 'baselines')[] }
   | { type: 'context'; context: unknown }
   | { type: 'preferences' }
   | { type: 'entitlements' }

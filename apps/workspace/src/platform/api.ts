@@ -79,6 +79,11 @@ export function getToolApi<VS>(toolId: string, viewId: string = toolId): ToolApi
       setReviewStatus: (id, status) => store().setReviewStatus(toolId, id, status),
       getActivity: (objectId) => (objectId ? store().activity.filter((a) => a.objectIds.includes(objectId)) : store().activity),
       log: (message, options) => store().log(toolId, message, options?.kind, options?.objectIds, options?.source),
+      getObjectRevision: async (id, revision) => {
+        const { repository, context } = store()
+        return repository ? repository.getRevision(context.projectId, id, revision).catch(() => undefined) : undefined
+      },
+      getBaselines: () => store().baselines,
       registerCommand: (command) => store().registerCommand(viewId, command),
       openTool: (id) => {
         const access = store().activateTool(id)
@@ -114,6 +119,7 @@ export const workspaceHost: PlatformHost = {
   getModel: () => useWorkspaceStore.getState().model,
   getArtifacts: () => useWorkspaceStore.getState().outputs,
   getActivity: () => useWorkspaceStore.getState().activity,
+  getBaselines: () => useWorkspaceStore.getState().baselines,
   getContext: cachedContext,
   select: (ids, viewId) => selectInView(viewId || undefined, ids),
   getViewState: (viewId, toolId) => {

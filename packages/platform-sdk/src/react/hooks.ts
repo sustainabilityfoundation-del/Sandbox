@@ -2,6 +2,7 @@ import {
   outputFreshness,
   resolveRepresentation,
   type ActivityEntry,
+  type Baseline,
   type EngineeringObject,
   type Freshness,
   type ModelIndex,
@@ -104,6 +105,11 @@ export function useArtifacts(filter: ArtifactFilter = {}): ArtifactView[] {
 export function useActivity(objectId?: string): ActivityEntry[] {
   const activity = useHostValue((h) => h.getActivity())
   return useMemo(() => (objectId ? activity.filter((a) => a.objectIds.includes(objectId)) : activity), [activity, objectId])
+}
+
+/** Baselines of the project (SDK 1.1). */
+export function useBaselines(): Baseline[] {
+  return useHostValue((h) => h.getBaselines())
 }
 
 /** This view instance's private state, restored when the user returns to it. */

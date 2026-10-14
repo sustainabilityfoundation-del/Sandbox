@@ -1,5 +1,7 @@
 import { AppIcon, Badge, Button, EmptyState } from '@ews/design-system'
 import {
+  ARTIFACT_OWNER,
+  changeImpact,
   formatValue,
   outputFreshness,
   propertyLabel,
@@ -8,10 +10,11 @@ import {
   readSysmlElement,
   representationsOf,
   type EngineeringObject,
+  type ObjectRevision,
   type RelationshipType,
 } from '@ews/model-service'
 import { FreshnessBadge, OBJECT_TYPE_LABEL, ObjectRef, RequirementStatusBadge, ReviewBadge, formatTime, iconForType } from '@ews/platform-sdk/react'
-import { useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { selectInView, sharedContextOf } from '../platform/api'
 import { RETIRED_TOOLS, toolName } from '../platform/registry'
 import { useWorkspaceStore } from '../platform/store'
@@ -187,6 +190,85 @@ function Representations({ object }: { object: EngineeringObject }) {
   )
 }
 
+/** What a change to this object would affect (traceability and change impact). */
+function ChangeImpactSection({ object }: { object: EngineeringObject }) {
+  const model = useWorkspaceStore((s) => s.model)!
+  const outputs = useWorkspaceStore((s) => s.outputs)
+  const baselines = useWorkspaceStore((s) => s.baselines)
+  const impact = useMemo(() => changeImpact(model, outputs, baselines, object.id), [model, outputs, baselines, object.id])
+  const nothing = !impact.dependentArtifacts.length && !impact.referencingArtifacts.length && !impact.baselines.length
+  return (
+    <Section title="Change impact">
+      {nothing ? (
+        <p className="text-fg-3">No saved evidence or baseline depends on {object.id}.</p>
+      ) : (
+        <ul className="ws-impact" data-testid="change-impact">
+          {impact.dependentArtifacts.length > 0 && (
+            <li>
+              <AppIcon name="stale" size="sm" />
+              <span>
+                Changing it marks {impact.dependentArtifacts.length} saved artifact{impact.dependentArtifacts.length === 1 ? '' : 's'} potentially stale:{' '}
+                {impact.dependentArtifacts.map((a) => a.id).join(', ')}
+              </span>
+            </li>
+          )}
+          {impact.referencingArtifacts.length > 0 && (
+            <li>
+              <AppIcon name="verification" size="sm" />
+              <span>
+                {impact.referencingArtifacts.map((a) => a.id).join(', ')} reference an exact revision; they keep it and never follow later edits.
+              </span>
+            </li>
+          )}
+          {impact.baselines.length > 0 && (
+            <li>
+              <AppIcon name="baseline" size="sm" />
+              <span>Pinned in {impact.baselines.map((b) => `${b.id} ${b.name} (rev ${b.revision})`).join(', ')}.</span>
+            </li>
+          )}
+        </ul>
+      )}
+    </Section>
+  )
+}
+
+/** Immutable revision history (audit record) of the object. */
+function RevisionHistory({ object }: { object: EngineeringObject }) {
+  const repository = useWorkspaceStore((s) => s.repository)
+  const projectId = useWorkspaceStore((s) => s.context.projectId)
+  const [history, setHistory] = useState<ObjectRevision[] | null>(null)
+  useEffect(() => {
+    let live = true
+    setHistory(null)
+    repository
+      ?.listHistory(projectId, object.id)
+      .then((h) => live && setHistory(h))
+      .catch(() => live && setHistory([]))
+    return () => {
+      live = false
+    }
+  }, [repository, projectId, object.id, object.revision])
+  return (
+    <Section title="Revision history" count={history?.length}>
+      {history === null ? (
+        <p className="text-fg-3">Loading…</p>
+      ) : (
+        <ol className="ws-history" data-testid="revision-history">
+          {history.slice(0, 8).map((h) => (
+            <li key={h.revision}>
+              <span className="font-mono">rev {h.revision}</span>
+              <span className="text-fg-3">
+                {formatTime(h.changedAt)} · {h.changedBy === 'import' ? 'recorded at import' : toolName(h.changedBy)}
+              </span>
+              <span>{h.summary}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Section>
+  )
+}
+
 function TypeSpecific({ object }: { object: EngineeringObject }) {
   if (object.type === 'requirement') {
     const r = readRequirement(object)
@@ -245,7 +327,7 @@ function ObjectDetails({ object, configurationId }: { object: EngineeringObject;
         <div>
           <div className="ws-insp-title">{object.name}</div>
           <div className="ws-insp-sub">
-            <span className="font-mono">{object.id}</span> · {OBJECT_TYPE_LABEL[object.type]} · rev {object.revision}
+            <span className="font-mono">{object.id}</span> · {OBJECT_TYPE_LABEL[object.type]} · rev {object.revision} · owned by {ARTIFACT_OWNER[object.type] === 'product' ? 'product structure' : toolName(ARTIFACT_OWNER[object.type])}
           </div>
         </div>
       </header>
@@ -272,6 +354,8 @@ function ObjectDetails({ object, configurationId }: { object: EngineeringObject;
       <Representations object={object} />
       <Relationships object={object} />
       <Artifacts object={object} configurationId={configurationId} />
+      <ChangeImpactSection object={object} />
+      <RevisionHistory object={object} />
     </div>
   )
 }

@@ -17,6 +17,7 @@ import { ChartBarIcon } from '@phosphor-icons/react/dist/csr/ChartBar'
 import { ChatCircleDotsIcon } from '@phosphor-icons/react/dist/csr/ChatCircleDots'
 import { CheckIcon } from '@phosphor-icons/react/dist/csr/Check'
 import { CheckCircleIcon } from '@phosphor-icons/react/dist/csr/CheckCircle'
+import { CheckSquareOffsetIcon } from '@phosphor-icons/react/dist/csr/CheckSquareOffset'
 import { CircleNotchIcon } from '@phosphor-icons/react/dist/csr/CircleNotch'
 import { ClipboardTextIcon } from '@phosphor-icons/react/dist/csr/ClipboardText'
 import { ClockCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ClockCounterClockwise'
@@ -36,6 +37,7 @@ import { DotsThreeVerticalIcon } from '@phosphor-icons/react/dist/csr/DotsThreeV
 import { EyeIcon } from '@phosphor-icons/react/dist/csr/Eye'
 import { EyeSlashIcon } from '@phosphor-icons/react/dist/csr/EyeSlash'
 import { FileDashedIcon } from '@phosphor-icons/react/dist/csr/FileDashed'
+import { FlagBannerIcon } from '@phosphor-icons/react/dist/csr/FlagBanner'
 import { FlaskIcon } from '@phosphor-icons/react/dist/csr/Flask'
 import { FloppyDiskIcon } from '@phosphor-icons/react/dist/csr/FloppyDisk'
 import { FlowArrowIcon } from '@phosphor-icons/react/dist/csr/FlowArrow'
@@ -48,6 +50,7 @@ import { HandIcon } from '@phosphor-icons/react/dist/csr/Hand'
 import { HourglassMediumIcon } from '@phosphor-icons/react/dist/csr/HourglassMedium'
 import { InfoIcon } from '@phosphor-icons/react/dist/csr/Info'
 import { KeyIcon } from '@phosphor-icons/react/dist/csr/Key'
+import { LightningIcon } from '@phosphor-icons/react/dist/csr/Lightning'
 import { LinkBreakIcon } from '@phosphor-icons/react/dist/csr/LinkBreak'
 import { LinkSimpleIcon } from '@phosphor-icons/react/dist/csr/LinkSimple'
 import { ListChecksIcon } from '@phosphor-icons/react/dist/csr/ListChecks'
@@ -157,6 +160,8 @@ export const ICON_REGISTRY: Record<IconName, IconEntry> = {
   analysis: tool(ChartBarIcon),
   repository: tool(DatabaseIcon),
   workspace: tool(CubeFocusIcon),
+  baseline: tool(FlagBannerIcon),
+  verification: tool(CheckSquareOffsetIcon),
 
   search: action(MagnifyingGlassIcon),
   save: action(FloppyDiskIcon),
@@ -217,6 +222,7 @@ export const ICON_REGISTRY: Record<IconName, IconEntry> = {
   bug: action(BugIcon),
   archive: action(ArchiveIcon),
   'arrow-right': action(ArrowRightIcon),
+  impact: action(LightningIcon),
 
   info: action(InfoIcon),
   warning: action(WarningIcon),

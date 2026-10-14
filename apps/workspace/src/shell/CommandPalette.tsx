@@ -12,6 +12,8 @@ import { useWorkspaceStore } from '../platform/store'
 import { toolIdOfView } from '../platform/views'
 import { openInSeparateWindow, restoreWorkspaceWindows } from '../session/windows'
 import { useSimulatedFailures } from './WorkArea'
+import { useBaselineDialog } from './Baselines'
+import { useCapabilitiesDialog } from './CapabilitiesDialog'
 
 interface Command {
   key: string
@@ -86,6 +88,9 @@ export function CommandPalette({ isOpen, onOpenChange }: { isOpen: boolean; onOp
       },
       { key: 'ws:win-inspector', label: 'Open inspector in separate window', icon: 'open-window', run: () => openInSeparateWindow('inspector') },
       { key: 'ws:win-chat', label: 'Open ChatGPT in separate window', icon: 'open-window', run: () => openInSeparateWindow('assistant') },
+      { key: 'ws:baseline-create', label: 'Create baseline…', icon: 'baseline', description: 'Pin the exact current definition', run: () => useBaselineDialog.getState().open('create') },
+      { key: 'ws:baseline-compare', label: 'Compare with a baseline…', icon: 'baseline', isDisabled: state.baselines.length === 0, run: () => useBaselineDialog.getState().open('compare') },
+      { key: 'ws:about', label: 'About this platform: capabilities and roadmap', icon: 'info', run: () => useCapabilitiesDialog.getState().setOpen(true) },
       { key: 'ws:restore', label: 'Restore workspace windows', icon: 'reset', isDisabled: state.detachedViews.length === 0, run: () => restoreWorkspaceWindows() },
       { key: 'ws:theme', label: theme === 'dark' ? 'Use light theme' : 'Use dark theme', icon: theme === 'dark' ? 'theme-light' : 'theme-dark', run: () => usePreferences.getState().setTheme(theme === 'dark' ? 'light' : 'dark') },
       {

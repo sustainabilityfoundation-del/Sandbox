@@ -13,9 +13,9 @@ export function startWindowSync(): () => void {
   startPresence()
 
   // Coalesce bursts of repository notifications into one reread.
-  let pending = new Set<'model' | 'outputs' | 'activity'>()
+  let pending = new Set<'model' | 'outputs' | 'activity' | 'baselines'>()
   let timer: ReturnType<typeof setTimeout> | undefined
-  const scheduleRefresh = (parts: ('model' | 'outputs' | 'activity')[]) => {
+  const scheduleRefresh = (parts: ('model' | 'outputs' | 'activity' | 'baselines')[]) => {
     parts.forEach((p) => pending.add(p))
     clearTimeout(timer)
     timer = setTimeout(() => {

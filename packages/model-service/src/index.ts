@@ -7,6 +7,19 @@ export * from './domain/types'
 export * from './domain/entities'
 export { buildModelIndex, type ModelIndex } from './domain/modelIndex'
 export { outputFreshness, type Freshness } from './domain/freshness'
+export { changeImpact, compareWithBaseline, pinBaseline, type BaselineComparison, type ChangeImpact } from './domain/configuration'
+export {
+  ARTIFACT_OWNER,
+  DELEGATIONS,
+  RELATIONSHIP_RULES,
+  RETIRED_MODULES,
+  actingModules,
+  canCreate,
+  canWriteProperties,
+  validateRelationship,
+  type Delegation,
+  type ModuleId,
+} from './domain/ownership'
 export { formatNumber, formatQuantity, formatValue, isQuantity, propertyLabel } from './domain/units'
 export { RepositoryError, type EngineeringRepository, type RepositoryErrorCode } from './repository/EngineeringRepository'
 export { DemoRepository, LEGACY_STORAGE_KEY, STORAGE_KEY, browserStorage, type StorageLike } from './repository/DemoRepository'

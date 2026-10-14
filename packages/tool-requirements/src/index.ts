@@ -5,7 +5,9 @@ import { requirementsAssistant } from './assistant'
 import { INITIAL_VIEW_STATE, selectedRequirementIds, type RequirementsViewState } from './domain'
 import pkg from '../package.json'
 
-export type { RequirementsViewState } from './domain'
+export type { RequirementsViewState, VerificationOutcome, VerificationRecordView, VerificationState } from './domain'
+/** Verification record helpers, exported for platform-level workflow tests. */
+export { VERIFICATION_RECORD, readVerificationRecord, verificationArtifact, verificationState } from './domain'
 
 /** Requirements Management: requirement statements, rationale, status and allocation to components. */
 export const requirementsTool = defineTool<RequirementsViewState>({
@@ -15,7 +17,7 @@ export const requirementsTool = defineTool<RequirementsViewState>({
   category: 'Requirements',
   icon: 'requirements',
   version: pkg.version,
-  sdkVersion: '^1.0.0',
+  sdkVersion: '^1.1.0',
   entitlement: 'tool:requirements',
   supportedObjectTypes: ['requirement', 'assembly', 'part', 'sysml-element', 'cad-representation'],
   view: lazy(() => import('./RequirementsView')),
