@@ -18,6 +18,7 @@ Copy this template to `<number>-<short-name>.md`; this template is not an active
 - [ ] <observable action and expected result>
 - [ ] <persistence/failure/cross-tool scenario where applicable>
 - [ ] <existing workflow that must remain functional>
+- [ ] Help pages, help IDs and contextual mappings updated for the changed features (docs/modules/help.md)
 
 ## Verification evidence
 

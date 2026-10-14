@@ -9,6 +9,7 @@ import type { ViewportMode } from './layout/viewport'
 import { DisplaySettings, WindowsMenu } from './ShellParts'
 import { BaselinesMenu } from './Baselines'
 import { ServicesMenu } from './ServicesMenu'
+import { HelpMenu } from '../help/HelpMenu'
 
 /** Repository connection and save state, with demo controls. */
 function RepositoryStatus({ repository, compact = false }: { repository: DemoRepository; compact?: boolean }) {
@@ -208,6 +209,7 @@ export function Header({ repository, mode, onOpenPalette }: { repository: DemoRe
         {!phone && <WindowsMenu />}
         <DisplaySettings mode={mode} />
         <RepositoryStatus repository={repository} compact={phone || mode === 'tablet'} />
+        <HelpMenu />
       </div>
       <Dialog title="Search" isOpen={searchOpen} onOpenChange={setSearchOpen}>
         {(close) => <GlobalSearch autoFocus onDone={close} />}

@@ -823,4 +823,35 @@
 
 /* AI capability coverage: lay the table out against its own width so it becomes cards on phones. */
 .ws-coverage-table { container: tool / inline-size; }
+
+/* ---- Help Centre (apps/workspace/src/help) ---- */
+.ws-help { display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); gap: var(--ws-space-4); min-height: min(60vh, 560px); }
+.ws-help-nav { display: flex; flex-direction: column; gap: var(--ws-space-3); min-width: 0; border-right: 1px solid var(--ws-border); padding-right: var(--ws-space-3); }
+.ws-help-topic { min-width: 0; max-height: 65vh; overflow: auto; padding-right: var(--ws-space-1); }
+.ws-help-modules, .ws-help-results { display: flex; flex-direction: column; gap: var(--ws-space-2); margin: 0; padding: 0; list-style: none; }
+.ws-help-link { color: var(--ws-accent); text-decoration: underline; text-underline-offset: 2px; border-radius: var(--ws-radius-sm); }
+.ws-help-link:focus-visible { outline: 2px solid var(--ws-focus); outline-offset: 2px; }
+.ws-help-link[aria-current="page"] { font-weight: var(--ws-weight-medium); text-decoration: none; }
+.ws-help-md { display: flex; flex-direction: column; gap: var(--ws-space-2); }
+.ws-help-h { margin: var(--ws-space-3) 0 0; font-size: var(--ws-font-size); font-weight: var(--ws-weight-medium); }
+.ws-help-p { margin: 0; line-height: 1.55; }
+.ws-help-list { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column; gap: var(--ws-space-1); line-height: 1.5; }
+.ws-help-code { font-family: var(--ws-mono); font-size: var(--ws-font-size-sm); background: var(--ws-surface-2); padding: 0 4px; border-radius: var(--ws-radius-sm); }
+.ws-help-table-wrap { overflow-x: auto; }
+.ws-help-table { border-collapse: collapse; font-size: var(--ws-font-size-sm); min-width: 100%; }
+.ws-help-table th, .ws-help-table td { text-align: left; vertical-align: top; padding: var(--ws-space-1) var(--ws-space-2); border-bottom: 1px solid var(--ws-border); }
+.ws-help-table th { color: var(--ws-text-2); font-weight: var(--ws-weight-medium); }
+@media (max-width: 640px) {
+  .ws-help { grid-template-columns: minmax(0, 1fr); }
+  .ws-help-nav { border-right: 0; padding-right: 0; border-bottom: 1px solid var(--ws-border); padding-bottom: var(--ws-space-3); }
+  .ws-help-topic { max-height: none; }
+}
+
+/* Guided tours (Driver.js), on design tokens. */
+.driver-popover.ws-tour { background: var(--ws-surface); color: var(--ws-text); border: 1px solid var(--ws-border); border-radius: var(--ws-radius-lg); font-family: var(--ws-font-sans); }
+.driver-popover.ws-tour .driver-popover-title { font-size: var(--ws-font-size); font-weight: var(--ws-weight-medium); }
+.driver-popover.ws-tour .driver-popover-description { color: var(--ws-text-2); }
+.driver-popover.ws-tour .driver-popover-arrow { border-color: var(--ws-surface); }
+.driver-popover.ws-tour button { background: var(--ws-surface-2); color: var(--ws-text); border: 1px solid var(--ws-border); text-shadow: none; border-radius: var(--ws-radius-sm); }
+.driver-popover.ws-tour button:focus-visible { outline: 2px solid var(--ws-focus); }
 }

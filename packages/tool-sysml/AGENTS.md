@@ -70,3 +70,14 @@ dialog, never dragging. Dialogs keep the user's input when a write fails.
   component. One SysML element per component (the UI and actions refuse a second).
 - Resolve selections with `useResolvedSelection('sysml')`; keep unresolved selections and explain.
 - No synchronisation with CAD. Only explicit relationships connect the tools.
+
+## Help and documentation
+
+Owned by this module (root AGENTS.md "Help and documentation", docs/modules/help.md). Write the
+SysML Modelling user documentation in `help/*.md` (front matter: help_id, title, kind, summary, keywords,
+related), export a `HelpManifest` as `help` in the tool definition, map every toolbar item and
+assistant action in `contextMappings`, and mark significant controls with `data-help-id`
+(`sysml.<area>.<item>`). Update the pages with every feature change.
+
+**Not done yet**: SysML ships no help manifest; it is listed in `KNOWN_DOCUMENTATION_GAPS`
+(apps/workspace/src/help/help.test.ts). Removing it from that list is part of the next SysML sprint.

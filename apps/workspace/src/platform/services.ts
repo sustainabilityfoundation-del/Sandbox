@@ -1,6 +1,7 @@
 import type { PlatformServices, RequirementsService } from '@ews/platform-sdk'
 import { createDemoRequirementsService, createHttpRequirementsService } from '@ews/requirements-client'
 import { create } from 'zustand'
+import { workspaceHelp } from '../help/workspaceHelp'
 
 /**
  * Platform services offered to tools (SDK 1.2), see
@@ -61,7 +62,7 @@ function createRequirements(settings: ServiceSettings): RequirementsService {
   })
 }
 
-export const workspaceServices: PlatformServices = { requirements: createRequirements(serviceSettings) }
+export const workspaceServices: PlatformServices = { requirements: createRequirements(serviceSettings), help: workspaceHelp }
 
 /** Saves new settings and reloads; other windows follow through the storage event below. */
 export function saveServiceSettings(next: ServiceSettings): void {

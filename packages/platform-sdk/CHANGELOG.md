@@ -16,6 +16,28 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.4.0 (2026-10-14)
+
+Type: additive
+
+What changed:
+
+- `contract/help.ts`: help and documentation contract — `HelpManifest` (schema version 1),
+  `HelpTopic`, `HelpTutorial`, `HelpShortcut`, `HelpContextMapping`, `HelpApiReference`,
+  `HelpContext`, `HelpService`, `HELP_ID_PATTERN`, `parseHelpMarkdown`, `validateHelpManifest`,
+  `majorVersion`.
+- `ToolDefinition.help?: HelpManifest`; `PlatformServices.help?: HelpService`.
+
+Why: unified help system (docs/modules/help.md, ADR-0014). Every module documents itself through
+one manifest; people and the assistant read the same documentation.
+
+Migration for tools: add `help` built from Markdown in `packages/<tool>/help/` (see
+`packages/tool-requirements/src/help.ts`). Until then the Help Service lists the module with a
+"documentation not available yet" page. Contract requests 5, 7 and 9 (approved for "1.4") move to
+SDK 1.5.
+
+Validated with: npm run check.
+
 ## 1.3.0 (2026-10-14)
 
 Type: additive

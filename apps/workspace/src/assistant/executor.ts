@@ -1,4 +1,5 @@
 import { formatValue, isQuantity, outputFreshness, propertyLabel, type ActivitySource, type EngineeringObject, type ModelIndex, type ObjectType, type OutputRecord, type PropertyValue } from '@ews/model-service'
+import { workspaceHelp } from '../help/workspaceHelp'
 import { ActionError, type ActionParameters, type ChangeInput, type EntitlementId } from '@ews/platform-sdk'
 import type { ToolAccess } from '../platform/entitlements'
 import { affectedOutputs, buildPreview, buildUndo, describeChange } from './proposals'
@@ -239,6 +240,40 @@ const handlers: Record<string, Handler> = {
       data: { configurationId: captured.configurationId, artifacts },
       summary: `Read ${artifacts.length} saved artifact${artifacts.length === 1 ? '' : 's'} in ${captured.configurationId}${staleOnly ? ' (stale only)' : ''}`,
       inspected: artifacts.map((o) => ({ id: o.id, detail: `${o.producedBy}, input rev ${o.inputRevision}${o.stale ? ', potentially stale' : ''}` })),
+    }
+  },
+
+  /**
+   * Documentation from the Help Service: the same pages people read, filtered by the modules the
+   * user may use. Prose explains; executable behaviour comes only from the operation registry.
+   */
+  async read_help(args, { env }) {
+    const topicId = optStr(args, 'topicId')
+    const query = optStr(args, 'query')
+    const objectId = optStr(args, 'objectId')
+    const operation = optStr(args, 'operation')
+    if (!topicId && !query && !objectId && !operation) throw new ToolError('invalid-arguments', 'Give a topicId, query, objectId or operation.')
+    const describe = (r: NonNullable<ReturnType<typeof workspaceHelp.topic>>) => ({
+      id: r.topic.id, module: r.moduleId, docsVersion: r.docsVersion, title: r.topic.title, kind: r.topic.kind,
+      summary: r.topic.summary, body: r.topic.body, related: r.topic.related ?? [], operations: r.topic.operations ?? [], source: r.topic.source,
+    })
+    const note = 'Documentation explains behaviour; only registered operations can be executed.'
+    if (topicId) {
+      const r = workspaceHelp.topic(topicId)
+      if (!r) throw new ToolError('not-found', `Help topic ${topicId} is not available (unknown, or outside the user's subscription).`)
+      return { data: { topic: describe(r), note }, summary: `Read help: ${r.topic.title}`, inspected: [{ id: r.topic.id, detail: `help topic (${r.moduleId} docs ${r.docsVersion})` }] }
+    }
+    if (objectId || operation) {
+      const object = objectId ? env.getModel().get(objectId) : undefined
+      if (objectId && !object) throw new ToolError('not-found', `${objectId} does not exist.`)
+      const topics = workspaceHelp.contextual({ objectType: object?.type, operation }).slice(0, 3)
+      return { data: { topics: topics.map(describe), note }, summary: `Read help for ${objectId ?? operation}`, inspected: topics.map((t) => ({ id: t.topic.id, detail: 'help topic' })) }
+    }
+    const hits = workspaceHelp.search(query!, { limit: 5 })
+    return {
+      data: { query, results: hits.map((h) => ({ id: h.id, module: h.moduleId, docsVersion: h.docsVersion, title: h.title, kind: h.kind, summary: h.summary, snippet: h.snippet, source: h.source })), note },
+      summary: `Searched help for “${query}”: ${hits.length} topic${hits.length === 1 ? '' : 's'}`,
+      inspected: hits.map((h) => ({ id: h.id, detail: `help topic, score ${h.score}` })),
     }
   },
 

@@ -112,6 +112,28 @@ On Windows PowerShell use `npm.cmd` if script execution is disabled.
   action may depend on hover, right-click or dragging.
 - `packages/design-system/src/theme/designSystem.test.ts` enforces the rules it can check.
 
+## Help and documentation (definition of done, every module)
+
+Specification: [docs/modules/help.md](docs/modules/help.md), decision: ADR-0014. The coordinator owns
+the Help Service and the manifest contract; **each module agent owns its module's documentation and
+contextual help mappings**. A feature without its documentation is incomplete.
+
+1. Register the module with the Help Service: export a `HelpManifest` (schema 1) as `help` in the tool
+   definition, built from `packages/<module>/help/*.md` (see `packages/tool-requirements/src/help.ts`).
+2. Provide: overview and getting started; every significant feature; command and tool reference;
+   properties, parameters and configuration; tutorials for major workflows; keyboard shortcuts;
+   troubleshooting and error explanations; API and integration notes; engineering examples. Explain
+   inputs, outputs, constraints, dependencies and expected behaviour.
+3. Use stable namespaced help IDs (`<module>.<area>.<item>`); keep them across redesigns.
+4. Map every toolbar item and assistant operation in `contextMappings`, and mark other significant
+   controls with `data-help-id`. Tutorials reference controls by help ID, never by CSS selector.
+5. Keep user documentation in `help/` and developer documentation in `docs/` and `AGENTS.md`; generate
+   from authoritative definitions (OpenAPI, types) instead of copying where possible.
+6. Update the help pages in the same change as the feature; tests in
+   `apps/workspace/src/help/help.test.ts` must stay green (`KNOWN_DOCUMENTATION_GAPS` may only shrink).
+7. Documentation never defines executable behaviour; the assistant acts only through registered operations.
+8. Modules in separate repositories receive this section and `docs/modules/help.md` with the SDK.
+
 ## AI capability design
 
 Read [AI Interface architecture](docs/modules/ai-interface.md) and

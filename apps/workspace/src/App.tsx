@@ -24,6 +24,8 @@ import { LockedToolNotice } from './shell/WorkArea'
 import { BaselineDialog } from './shell/Baselines'
 import { CapabilitiesDialog } from './shell/CapabilitiesDialog'
 import { CoverageDialog } from './shell/CoverageDialog'
+import { HelpCentre } from './help/HelpCentre'
+import { openContextualHelp } from './help/contextual'
 
 let started = false
 
@@ -82,6 +84,11 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setLauncherOpen((o) => !o)
+      }
+      // F1: help for the focused control, the active tool or the selection (works while typing too).
+      if (e.key === 'F1' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        openContextualHelp(document.activeElement)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -182,6 +189,7 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
       <BaselineDialog />
       <CapabilitiesDialog />
       <CoverageDialog />
+      <HelpCentre />
       <Toaster />
     </div>
   )

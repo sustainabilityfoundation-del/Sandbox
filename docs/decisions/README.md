@@ -18,6 +18,7 @@ editing an accepted one.
 | [0010](0010-ai-through-the-same-command-boundary.md) | The assistant uses the same command boundary | Accepted |
 | [0011](0011-requirements-service-boundary.md) | Requirements as a server-side service with a cross-module SDK contract | Accepted |
 | [0012](0012-read-time-projection-of-external-objects.md) | Read-time projection of externally owned objects into the twin's model | Accepted |
+| [0014](0014-unified-help-system.md) | Unified help system with module-owned documentation | Accepted |
 
 ## Open decisions
 

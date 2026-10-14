@@ -14,6 +14,7 @@ import {
   type TwinDirectory,
 } from '@ews/requirements-service'
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
+import { registerApiDocs } from './apiDocs'
 
 /**
  * Development twin directory: the component IDs of the sample actuator twin
@@ -88,6 +89,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     return { status: 'ok', database: 'reachable', latencyMs: Date.now() - started }
   })
   registerPlatformRoutes(app, options.pool, auth, { production })
+  registerApiDocs(app, { path: `${BASE_PATH}/docs`, openapiUrl: `${BASE_PATH}/openapi.json`, title: 'Requirements Management API' })
   await app.register(requirementsPlugin, {
     prefix: BASE_PATH,
     pool: options.pool,

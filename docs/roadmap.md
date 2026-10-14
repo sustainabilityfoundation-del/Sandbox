@@ -24,6 +24,7 @@ validated commands and recorded verification; one end-to-end cross-module workfl
 | Item | Status |
 | --- | --- |
 | Requirements management (statements, rationale, status, allocation, history) | Implemented |
+| Help system: Help menu, Help Centre, F1, tutorials, API reference, assistant access (Requirements documented; SysML and CAD pending) | Implemented (sprint 005, branch `feature/help-system`) |
 | Requirements service: PostgreSQL API, collections, attributes, reviews, requirement baselines, quality checks, ReqIF exchange | Implemented (sprint 001; see [progress](specifications/requirements-management-progress.md)) |
 | SysML modelling (subset: parts, requirement usages, connections, satisfy; not SysML v2 compliant) | Experimental |
 | Parametric mechanical CAD (mock geometry, no CAD kernel) | Experimental |

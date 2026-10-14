@@ -57,3 +57,14 @@ Enter); every pointer gesture has a button alternative (Zoom, Fit). Always show 
 - Resolve selections with `useResolvedSelection('cad')`; requirements resolve to the
   representations of their allocated components; keep unresolved selections and explain.
 - Edits carry base revisions; never write geometry outside `submitChanges`.
+
+## Help and documentation
+
+Owned by this module (root AGENTS.md "Help and documentation", docs/modules/help.md). Write the
+CAD user documentation in `help/*.md` (front matter: help_id, title, kind, summary, keywords,
+related), export a `HelpManifest` as `help` in the tool definition, map every toolbar item and
+assistant action in `contextMappings`, and mark significant controls with `data-help-id`
+(`cad.<area>.<item>`). Update the pages with every feature change.
+
+**Not done yet**: CAD ships no help manifest; it is listed in `KNOWN_DOCUMENTATION_GAPS`
+(apps/workspace/src/help/help.test.ts). Document the mock-geometry limits explicitly.

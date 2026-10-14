@@ -1,6 +1,7 @@
 import { defineTool } from '@ews/platform-sdk/react'
 import { lazy } from 'react'
 import { requirementsAssistant } from './assistant'
+import { requirementsHelp } from './help'
 import { INITIAL_VIEW_STATE, type RequirementsViewState } from './domain'
 import pkg from '../package.json'
 
@@ -26,6 +27,7 @@ export const requirementsTool = defineTool<RequirementsViewState>({
   view: lazy(() => import('./RequirementsView')),
   initialViewState: INITIAL_VIEW_STATE,
   assistant: requirementsAssistant,
+  help: requirementsHelp,
   toolbar: ({ api, viewState }) => {
     const service = api.services.requirements
     const unavailable = !service ? 'The Requirements service is not available in this host' : undefined

@@ -19,6 +19,9 @@ modules and current baseline commit. Define what the owner will be able to do wi
 Use existing task authorization to choose routine scope; request clarification only when a
 material product or compatibility decision cannot be resolved from it.
 
+A user-facing outcome includes its help documentation and contextual help mappings
+([help system](modules/help.md)); missing required documentation means the outcome is incomplete.
+
 Prefer vertical slices through UI, API/domain rules and persistence where applicable. For
 example, requirement creation is usable when the owner can create, save, reload and edit a
 requirement; a button without persistence is not the completed outcome. Infrastructure work

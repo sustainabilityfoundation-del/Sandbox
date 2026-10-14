@@ -1,3 +1,4 @@
+import type { HelpService } from './help'
 /**
  * Requirements service: the cross-module contract (SDK 1.2).
  *
@@ -178,4 +179,6 @@ export interface RequirementsService {
 /** Platform services a host may provide to tools (SDK 1.2). Absent when unavailable or not entitled. */
 export interface PlatformServices {
   requirements?: RequirementsService
+  /** Platform Help Service (SDK 1.4): documentation for people and the assistant. */
+  help?: HelpService
 }

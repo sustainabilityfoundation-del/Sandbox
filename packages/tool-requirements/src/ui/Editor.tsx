@@ -203,7 +203,9 @@ export function RequirementEditor({
         </div>
       )}
       <TextField label="Title" value={draft.title} onChange={(v) => set('title', v)} isReadOnly={readOnly} autoFocus={!base && !readOnly} errorMessage={dirty || !base ? titleError : undefined} />
-      <TextField label="Statement (normative text)" multiline rows={4} value={draft.statement} onChange={(v) => set('statement', v)} isReadOnly={readOnly} description={base?.statementXhtml && !readOnly ? 'Editing replaces the imported rich text with plain text.' : undefined} />
+      <div data-help-id="requirements.requirement.statement">
+        <TextField label="Statement (normative text)" multiline rows={4} value={draft.statement} onChange={(v) => set('statement', v)} isReadOnly={readOnly} description={base?.statementXhtml && !readOnly ? 'Editing replaces the imported rich text with plain text.' : undefined} />
+      </div>
       <TextField label="Rationale" multiline rows={3} value={draft.rationale} onChange={(v) => set('rationale', v)} isReadOnly={readOnly} description="Why the requirement exists, including assumptions. Kept separate from the statement." />
       <div className="req-form-grid">
         <Select label="Type" value={draft.type} isDisabled={readOnly} onChange={(v) => set('type', v)} options={requirementTypes.map((t) => ({ id: t, label: t }))} />
@@ -264,7 +266,7 @@ export function RequirementEditor({
           <Button variant="text" onPress={onCancel} isDisabled={saving}>
             {dirty ? 'Discard' : 'Close'}
           </Button>
-          <Button variant="filled" icon="save" type="submit" isPending={saving} isDisabled={!!titleError || (!dirty && !!base)}>
+          <Button data-help-id="requirements.requirement.save" variant="filled" icon="save" type="submit" isPending={saving} isDisabled={!!titleError || (!dirty && !!base)}>
             {base ? 'Save revision' : 'Create requirement'}
           </Button>
         </div>

@@ -65,3 +65,12 @@ XHTML Modularization 1.1 and xml.xsd schemas they import (`npm run req:reqif:sch
 `packages/reqif/schemas.lock.json`); externally produced ReqIF sample files from
 strictdoc-project/reqif (Apache-2.0 repository; files contributed from tool exports) for
 interoperability tests (`npm run req:reqif:samples`, pinned commit).
+
+## Help system (added 14 October 2026, coordinator)
+
+| Package | Version | Licence | Used by | Source |
+| --- | --- | --- | --- | --- |
+| driver.js | 1.8.0 | MIT | workspace (guided tutorials; loaded on demand) | github.com/kamranahmedse/driver.js |
+| @scalar/api-reference | 1.72.3 | MIT | api (interactive OpenAPI reference, served from the local package; hosted features off) | github.com/scalar/scalar |
+
+Planned (ADR-0014), not installed: Docusaurus, Storybook, TypeDoc.

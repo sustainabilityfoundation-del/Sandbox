@@ -1,5 +1,6 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
 import type { AssistantContribution } from '../contract/assistant'
+import type { HelpManifest } from '../contract/help'
 import type { ToolManifest, ToolbarContext, ToolbarItem } from '../contract/tool'
 
 /**
@@ -15,6 +16,11 @@ export interface ToolDefinition<VS = unknown> extends ToolManifest {
   toolbar: (ctx: ToolbarContext<VS>) => ToolbarItem[]
   /** Operations ChatGPT may request for this tool; executed and validated by the platform. */
   assistant?: AssistantContribution
+  /**
+   * Help manifest (SDK 1.4): topics, contextual mappings, tutorials, shortcuts and API references,
+   * built from Markdown in the tool's `help/` folder. Required by the definition of done (AGENTS.md).
+   */
+  help?: HelpManifest
   /** Keep the view mounted (hidden) after first use, for views that are expensive to rebuild. */
   keepMounted?: boolean
   /** Only one instance per window (excludes the tool from the split pane). */

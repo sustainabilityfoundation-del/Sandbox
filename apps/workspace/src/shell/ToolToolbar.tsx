@@ -22,7 +22,7 @@ function tooltipFor(item: Extract<Item, { type: 'button' }>) {
   return item.illustrative ? `${base} (illustrative in this mockup)` : base
 }
 
-function Control({ item, measuring }: { item: Item; measuring?: boolean }) {
+function Control({ item, measuring, helpId }: { item: Item; measuring?: boolean; helpId?: string }) {
   switch (item.type) {
     case 'separator':
       return <ToolbarSeparator />
@@ -47,7 +47,8 @@ function Control({ item, measuring }: { item: Item; measuring?: boolean }) {
       const label = (
         <span className={cx('ws-tb-label', item.illustrative && 'underline decoration-dotted underline-offset-4')}>{item.label}</span>
       )
-      const dataProps = measuring ? {} : { 'data-toolbar-id': item.id }
+      // help ID from the tool's help manifest: F1 and guided tours find the control by it.
+      const dataProps = measuring ? {} : { 'data-toolbar-id': item.id, ...(helpId ? { 'data-help-id': helpId } : {}) }
       const control =
         item.active !== undefined && !item.primary ? (
           <ToggleButton
@@ -162,7 +163,7 @@ export function ToolToolbar({
         {items
           .filter((i) => !hidden.has(i.id))
           .map((item) => (
-            <Control key={item.id} item={item} />
+            <Control key={item.id} item={item} helpId={tool.help?.contextMappings.find((c) => c.toolbarItem === item.id)?.helpId} />
           ))}
         {overflow.length > 0 && (
           <MenuButton
