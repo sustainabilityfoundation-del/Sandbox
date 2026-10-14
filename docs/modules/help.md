@@ -1,6 +1,6 @@
 # Help and documentation system
 
-Status: implemented (help schema 1, SDK 1.4.0), branch `feature/help-system`, sprint
+Status: implemented (help schema 1, SDK 1.4.0), sprint
 [005](../sprints/005-help-system.md). Decision: [ADR-0014](../decisions/0014-unified-help-system.md).
 
 The coordinator owns this architecture and its contracts. **Each module agent owns its module's

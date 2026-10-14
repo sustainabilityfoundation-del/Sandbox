@@ -2,7 +2,7 @@
 
 ## Plan
 
-- Status: ready for owner review (on branch `feature/help-system`; not merged into `main`)
+- Status: merged into `main` on owner instruction (14 October 2026); owner acceptance pending
 - Goal: people and the assistant get help from one documentation source: a Help menu with dynamic
   module submenus, a searchable Help Centre, contextual help (F1), guided tutorials and an
   interactive API reference; every module agent is instructed to document its module.
@@ -69,6 +69,6 @@
 
 ## Owner feedback and next increment
 
-- Owner acceptance: pending. Merge into `main` only when authorized.
+- Owner acceptance: pending. Merged into `main` on the owner's instruction.
 - Next increments: SysML and CAD help (module agents); Docusaurus portal from the same sources;
   TypeDoc for the SDK; Storybook for the design system.
