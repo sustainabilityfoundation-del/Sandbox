@@ -2,7 +2,7 @@
 
 ## Plan
 
-- Status: in progress
+- Status: implemented, awaiting coordinator review
 - Goal: in the SysML tool the owner can place an existing requirement in the model, create a new
   requirement from SysML that is stored in the Requirements service, edit its canonical text with the
   same validation as the Requirements tool, and navigate between the requirement and its SysML usage.
@@ -38,30 +38,45 @@
 
 ## Acceptance criteria
 
-- [ ] Place REQ-005 in SysML: a requirement usage referencing its UUID appears; the diagram and text
+- [x] Place REQ-005 in SysML: a requirement usage referencing its UUID appears; the diagram and text
       show the canonical text by key; no statement is stored on the SysML element.
-- [ ] Create a requirement from SysML: it exists in PostgreSQL (visible in the Requirements tool) and
+- [x] Create a requirement from SysML: it exists in PostgreSQL (visible in the Requirements tool) and
       is referenced by a new SysML usage; retrying after a simulated network failure creates no duplicate.
-- [ ] Edit its statement from SysML: the Requirements tool shows the new revision; a stale edit is
+- [x] Edit its statement from SysML: the Requirements tool shows the new revision; a stale edit is
       refused with an explanation and the input is kept.
-- [ ] Navigate both ways between a requirement and its SysML usage; selection is shared.
-- [ ] As `nia` (SysML-only entitlement) the cross-module subset works; as a user without `tool:sysml`
+- [x] Navigate both ways between a requirement and its SysML usage; selection is shared.
+- [x] As `nia` (SysML-only entitlement) the cross-module subset works; as a user without `tool:sysml`
       writes are refused by the server.
-- [ ] Existing SysML features and the SysML harness flow still work; `npm run check`, `npm run build`,
+- [x] Existing SysML features and the SysML harness flow still work; `npm run check`, `npm run build`,
       `npm run build:harnesses`, `npm run req:test:db` pass; workspace `npm run dev` flow passes.
 
 ## Verification evidence
 
 | Check | Result | Evidence or reason |
 | --- | --- | --- |
-| Required automated checks | not run | |
-| Workspace and harness workflow | not run | |
-| Documentation links and diff | not run | |
+| Required automated checks | passed | `npm run check`: 19 files, 327 tests (includes `packages/tool-sysml/src/requirements.test.ts` and `boundaries.test.ts`); `npm run build` exit 0; `npm run build:harnesses` exit 0; `npm run req:test:db`: 7 files, 106 tests, including `services/api/test/sysml.test.ts` (4) |
+| Place REQ-005 | passed | Workspace flow: usage appears with "REQ-005" in the diagram; inspector shows the canonical statement read from the service; text notation `doc /* REQ-005 Motor power: The motor shall deliver …`; every stored `sysml-element` of kind requirement has no title or statement (6 checked); unit test: the usage batch is `{ kind: 'requirement' }` plus `references` |
+| Create from SysML, no duplicate | passed | Workspace flow: first POST reaches the server but the response is dropped (Playwright route); the dialog reports it and keeps the input; the retry yields exactly one row in PostgreSQL (queried through the API) and one usage referencing it (REQ-009). DB test: same with a lost response through the SDK adapter as nia; eli reads it |
+| Edit statement, stale edit | passed | Workspace flow: SysML edit gives revision 2 in the API; after ada changes it, a stale SysML edit shows "Someone else changed this first" and keeps the typed text. DB test: history actor nia, reason "Edited in SysML"; conflict carries `currentRevision` |
+| Navigate both ways | passed | Workspace flow: *Open in Requirements* shows the row selected in Requirements; Requirements Trace tab *Show in SysML* selects the usage in SysML (shared selection) |
+| nia subset / users without tool:sysml | passed | Workspace flow as nia: create from SysML, `createdBy` nia (REQ-010). DB test: nia patching `owner` → 403; zed (CAD only) create and list → forbidden; rho (Requirements reader, no tool:sysml) create → forbidden |
+| Existing SysML features (harness, :5192) | passed | Harness flow: diagram renders, Add Part, place REQ-003, inspector and New requirement explain the missing service, Connect (satisfy), text notation. Only console error: the harness has no favicon (404), pre-existing |
+| Workspace dev flow | passed | Workspace on :5195 with API :8797 and embedded PostgreSQL :54339 (`npm run dev:api` + workspace dev server, i.e. the `npm run dev` pair on other ports); no console errors in the flow |
+| Documentation links and diff | passed | requirements-sysml-mapping.md §3, tool-sysml AGENTS.md, progress file reviewed; links resolve |
+
+Scripts (session scratchpad, not committed): `pw/req/sysml-workspace-flow.mjs` (13 checks), `pw/req/sysml-harness-flow.mjs` (8 checks).
 
 ## Runnable checkpoint and walkthrough
 
-- Candidate commit: to be recorded after handoff and coordinator review.
-- Owner walkthrough: to be written at handoff.
+- Candidate commit: the head of `feature/requirements-management` after this file's commit (code in 4162511).
+- Startup: `npm run dev`, open http://localhost:5173/workspace/?tool=sysml with requirements mode *api*.
+- Owner walkthrough:
+  1. In SysML choose *Add requirement reference* → *Existing requirement*, type "REQ-005", choose it, *Add reference*. The usage appears labelled REQ-005; the inspector shows the statement from Requirements; *Text* shows it as a `doc` comment.
+  2. *Add requirement reference* → *New requirement*, enter title and statement, *Create requirement and add usage*. The new key appears in the diagram and in the Requirements table.
+  3. Select the usage, *Edit text*, change the statement, *Save in Requirements*: the revision increases. Edit the same requirement in Requirements meanwhile, then save in SysML: the conflict is explained and your text stays.
+  4. *Open in Requirements* selects it there; in Requirements, the Trace tab's *Show in SysML* returns to the usage.
+- AI coverage: placing maps to `sysml.add_requirement_reference` (unchanged); create and edit from SysML have no assistant operation because proposals cannot carry service writes (contract request 3, deferred); see the mapping doc §3. Preview policy unchanged.
+- Limitations: rationale not editable from SysML (request 7); no baseline in shared context (request 10); a requirement not in the projection within 10 s is created but not linked until *Add usage*; the harness has no Requirements service, so create and edit are workspace-only.
 
 ## Owner feedback and next increment
 

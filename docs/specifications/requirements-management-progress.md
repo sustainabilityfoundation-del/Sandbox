@@ -95,6 +95,14 @@ See [docs/sprints/002-requirements-sdk13-hardening.md](../sprints/002-requiremen
 - Internal errors: 500, code `unavailable`, `details.reason: internal-error`, `details.errorId`; no internals in messages; mapped database errors use generic messages; OpenAPI lists 500 on every operation.
 - Outbox retention `OUTBOX_RETENTION_HOURS` (default 168 h), hourly purge, migration `0002_outbox_retention.sql` (index only); reset signal forwarded by the HTTP adapter (`onReset`, `onRequirementsReset`); the tool rereads on reset.
 
+## Sprint 003 (requirements in SysML), 14 Oct 2026
+
+See [docs/sprints/003-sysml-requirements-integration.md](../sprints/003-sysml-requirements-integration.md) for acceptance evidence and [requirements-sysml-mapping.md](requirements-sysml-mapping.md) §3 for the behaviour.
+
+- SysML (`packages/tool-sysml/src/requirements.tsx`): place an existing requirement, create one through the service (idempotency key, waits for the projection before linking), inspector with canonical text and edit (expectedRevision), *Open in Requirements*; diagram label and text notation by key; unavailable service explained.
+- Requirements tool: *Show in SysML* in the Trace tab's SysML section.
+- `services/api/test/sysml.test.ts`: the SysML SDK paths against PostgreSQL. No migrations.
+
 ## Contract change requests
 
 1. **`RequirementWriteOptions.projectId` (optional)** — `RequirementsService.update()` carries no
@@ -115,6 +123,11 @@ See [docs/sprints/002-requirements-sdk13-hardening.md](../sprints/002-requiremen
 6. **Separate internal error code** (optional) — internal failures use code `unavailable` with HTTP 500 and `details.reason: internal-error`, because `RequirementsErrorCode` has no `internal`. If the coordinator prefers, add `'internal'` (SDK 1.4) and map it one-to-one.
 
 Decided on 14 Oct 2026 (contracts §13): 1 and 2 approved (SDK 1.3.0, adopted in sprint 002), 3 and 4 deferred, demo-mode scope accepted.
+
+7. **Rationale in `RequirementSummary`** (sprint 003, optional) — the summary has no `rationale`, so SysML edits title and statement only (the sprint allowed rationale as optional). Proposal: add `rationale?: string` to `RequirementSummary` (additive); the HTTP adapter already receives it.
+8. **Keys in `resolveRepresentation` reasons** (model-service, sprint 003) — the "not referenced" reason names the canonical UUID. SysML now builds its own message with `displayId`; other tools would benefit if model-service used `displayId` in reasons.
+9. **Await the projection** (optional, sprint 003) — after `create()` a consumer must poll `getModel()` until the projection contains the UUID (`waitForObject` in tool-sysml, 10 s timeout). Proposal: a host helper such as `ToolApi.whenObject(id, { timeoutMs })`, or let `submitChanges` accept a `references` target that the service knows but the projection has not loaded yet.
+10. **Baseline in `SharedContext`** (optional) — the service supports `baselineId` but views have no shared baseline, so SysML shows the working revision of the view's configuration.
 
 4. **Shared pure-domain package** (optional) — DTO types are mirrored in `@ews/requirements-client`
    because the client may not import the service. Conformance is tested by validating real
@@ -173,6 +186,8 @@ Decided on 14 Oct 2026 (contracts §13): 1 and 2 approved (SDK 1.3.0, adopted in
 - History is append-only through the API (DB triggers); not tamper-proof.
 
 ## Handoff log
+
+- 2026-10-14 (sprint 003): SysML integration committed (see the sprint file). No migrations. Requests 7–10 added.
 
 - 2026-10-14 (sprint 002): see the sprint section above and the sprint file. Migration added: `services/requirements/src/db/migrations/0002_outbox_retention.sql` (index only).
 
