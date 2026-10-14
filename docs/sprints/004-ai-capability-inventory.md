@@ -39,7 +39,7 @@
 
 ## Runnable checkpoint and walkthrough
 
-- Candidate commit: recorded in the following commit.
+- Candidate commit: `5251a25` (merged into `main` at `b88f22f` with sprint 003).
 - Startup: `npm run dev`, open http://localhost:5173/workspace/.
 - Owner walkthrough:
   1. Ctrl+K → "AI capability coverage" (or ChatGPT panel → "What can the assistant do?").
