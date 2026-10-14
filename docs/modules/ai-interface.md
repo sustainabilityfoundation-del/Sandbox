@@ -11,6 +11,13 @@ explore alternatives and produce concrete, inspectable engineering artifacts in 
 Conversation should span tools without requiring the user to translate their intention into menu
 commands. The user can interrupt, correct assumptions, inspect intermediate results and resume later.
 
+The drill-bit holder in the feature document is an illustrative acceptance scenario only. Build
+general capabilities for interface acquisition, constraints, concepts, CAD and export. Do not add
+drill-, brand- or accessory-specific production entities, commands, workflows or UI. Any such
+fixtures belong exclusively in tests or optional demonstrations and must not become default data
+or a dependency of the AI module. The requested ten concepts are a per-task user input, not a
+hard-coded product limit or default.
+
 Every product capability must be discoverable and operable by AI within the current user's
 permissions: buttons, fields, selections, views, domain operations, persistence, analysis, imports,
 exports and jobs. This means functional coverage, not arbitrary access to source code, private

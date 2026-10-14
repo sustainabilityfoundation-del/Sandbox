@@ -11,6 +11,11 @@ working functionality. No independent AI implementations of domain behaviour or 
 Contract additions require versioning, migration notes and consumer verification. Do not extract
 packages or change the current preview policy without a reviewed design decision.
 
+The drill-bit holder is demonstration/test content only. Implement general-purpose interface
+acquisition, constraint management, concept exploration, CAD and export operations. Keep any
+drill-specific fixtures in tests or optional demos, never in production domain schemas, commands,
+UI or default project data. Counts and dimensions are task parameters, not hard-coded constants.
+
 ## Sprint sequence
 
 | Sprint | Usable increment | Exit evidence |
@@ -20,9 +25,9 @@ packages or change the current preview policy without a reviewed design decision
 | 3 | View controls through the same boundary | AI opens a tool, selects an object and changes a filter/camera in an identified view; another view is unaffected |
 | 4 | Backend provider integration | Authenticated server validates permitted operations and invokes a replaceable provider; fake-provider and error paths pass; secrets remain server-side |
 | 5 | Design brief and durable tasks | Conversation creates an inspectable brief; corrections, interruption and stale inputs are handled without losing constraints |
-| 6 | Research-backed physical interface | One fixture drill's mounting definition includes sources, measurements and keep-outs; missing dimensions are surfaced |
-| 7 | Concept gallery and selection | Ten distinct concepts on a bounded fixture; stable IDs, comparisons, provisional labels and selection persistence |
-| 8 | Real CAD operations and geometric checks | Requires actual CAD kernel/engine integration: editable fixture holder, verified mounting/keep-outs and recorded limitations |
+| 6 | Research-backed physical interface | General interface-definition workflow exercised with isolated test fixtures; sources, measurements, keep-outs and missing dimensions are explicit |
+| 7 | Concept gallery and selection | User-specified concept count, stable IDs, comparisons, provisional labels and selection persistence; ten is a demonstration input only |
+| 8 | Real CAD operations and geometric checks | Requires actual CAD kernel/engine integration: editable models, verified interfaces/keep-outs and recorded limitations using domain-independent operations |
 | 9 | STL export and reproducible handoff | Native model plus validated mesh/export manifest; download, unit/scale checks and owner fit-review steps |
 | 10 | Coverage expansion and scoped autonomy | Repeat per module; proposed autonomy policy separately reviewed and tested before replacing mandatory preview application |
 
@@ -40,6 +45,8 @@ inventory, not just whichever operations are already exposed to AI.
 For each new capability, include discovery, validation, unauthorized/stale context, successful
 execution, retries and error tests as relevant. For user-facing sprints, exercise the real workspace
 and standalone harness, save the exact checkpoint and give the owner a walkthrough.
+Include a second unrelated design scenario to expose example-specific assumptions. The application
+must run without loading or installing the drill-holder demonstration.
 
 ## Initial task for Claude
 

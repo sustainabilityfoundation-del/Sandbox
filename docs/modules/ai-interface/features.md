@@ -28,6 +28,15 @@ IDs are documentation identifiers until imported into the Requirements module.
 
 ## Primary scenario: drill-mounted bit holder
 
+### Demonstration boundary
+
+This scenario demonstrates general platform capabilities; it is not a product feature or a
+prescribed internal workflow. Do not add drill/brand-specific entities, commands, UI, default
+project data or production dependencies. Test fixtures and optional demonstrations may contain
+example geometry and measurements, kept separate from production code. Concept counts, item
+capacity, dimensions and export choices come from the current user's task. Validate the reusable
+workflow against another unrelated design scenario before claiming general applicability.
+
 ### User request
 
 “I have a Milwaukee hand drill. Create a drill-bit holder mounted to the supplied accessory bolt
