@@ -57,7 +57,7 @@
 
 ## Runnable checkpoint and walkthrough
 
-- Candidate commit: recorded in the commit that follows this one (see `git log`).
+- Candidate commit: `289c50e` (local `main`, not yet pushed). All checks above were run on this commit's content.
 - Startup: `npm install`, then `npm run dev`; open http://localhost:5173/workspace/. The first start
   initialises PostgreSQL (about a minute).
 - Owner walkthrough:
