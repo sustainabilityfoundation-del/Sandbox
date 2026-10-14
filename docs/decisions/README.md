@@ -21,6 +21,9 @@ editing an accepted one.
 
 ## Open decisions
 
+Proposed for review: [ADR-0011: complete AI coverage through shared semantic operations](0011-ai-semantic-capability-coverage.md).
+This extends ADR-0010 without changing the current proposal-preview policy.
+
 From the [architecture vision §12](../architecture-vision.md#12-documentation-placement). Resolve
 each with a focused ADR; do not infer them from the vision.
 
