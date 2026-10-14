@@ -7,6 +7,11 @@ the [architecture vision](architecture-vision.md). The vision is the long-term d
 records what is approved and built. Decisions are recorded once, in [decisions/](decisions/README.md);
 delivery priorities are in [roadmap.md](roadmap.md).
 
+Development follows [short sprints](development-workflow.md): bounded end-to-end increments,
+compatible module contracts, a runnable main branch and reproducible committed candidates for
+owner review. This is the adopted development policy; it does not imply CI or branch protection
+is implemented. Sprint plans and handoffs use [the sprint template](sprints/template.md).
+
 Status labels used below: **Implemented** (works and is tested), **Experimental** (works, but
 deliberately limited or illustrative), **Prototype only** (stands in for a production mechanism that
 does not exist yet), **Not implemented**.

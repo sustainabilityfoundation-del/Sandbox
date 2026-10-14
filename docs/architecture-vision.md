@@ -143,6 +143,10 @@ The intended direction is independently developable modules, potentially in sepa
 - Give parallel agents bounded tasks, file ownership, acceptance criteria and isolated worktrees where appropriate.
 - Assign an integration owner for shared changes and cross-module verification.
 - Keep AGENTS.md/CLAUDE.md concise. Link to module specifications and decisions rather than copying the full vision into each instruction file.
+- Develop through short sprints with explicit acceptance criteria, runnable committed increments
+  and owner walkthroughs. Preserve existing workflows and data, integrate only verified compatible
+  changes and distinguish technical completion from owner acceptance. The operational rules are
+  maintained in [development-workflow.md](development-workflow.md).
 
 ## 9. Original implementation and dependencies
 
@@ -161,6 +165,10 @@ Use established libraries and external solvers when licensing permits the intend
 | Production and lifecycle | CAM, manufacturing, quality, project-management extensions and sustainment. Demonstrate a controlled design-to-production handoff and feedback loop. |
 
 This sequence is a proposed priority order, not a delivery commitment. External adapters can enable useful workflows before equivalent internal tools exist.
+
+Deliver every phase through small usable sprints rather than implementing an entire discipline
+before integration. Each sprint provides a reproducible checkpoint and feedback opportunity;
+plans and evidence follow [the sprint template](sprints/template.md).
 
 ## 11. Architecture acceptance principles
 
