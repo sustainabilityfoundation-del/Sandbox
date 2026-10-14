@@ -47,6 +47,8 @@ export interface ServerOptions {
   twin?: TwinDirectory
   logger?: boolean
   eventPollMs?: number
+  /** Official ReqIF schemas for validation (npm run req:reqif:schemas). */
+  reqifSchemaDir?: string
 }
 
 export interface ApiServer {
@@ -89,6 +91,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     events,
     authenticate: auth.authenticate,
     roleOf: auth.roleOf,
+    reqifSchemaDir: options.reqifSchemaDir,
   })
   return {
     app,

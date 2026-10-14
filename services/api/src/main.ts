@@ -22,7 +22,7 @@ if (cfg.pgMode === 'embedded') {
 const pool = new pg.Pool({ connectionString: cfg.databaseUrl, max: 20 })
 const prepared = await prepareDatabase(pool, { seed: cfg.seedOnStart })
 console.log(`Migrations: platform ${prepared.platform.applied.length} new, requirements ${prepared.requirements.applied.length} new.${prepared.seed ? ` ${prepared.seed.message}` : ''}`)
-const server = await buildServer({ pool, storage: localObjectStorage(cfg.storageDir), production: cfg.production, logger: true })
+const server = await buildServer({ pool, storage: localObjectStorage(cfg.storageDir), production: cfg.production, logger: true, reqifSchemaDir: cfg.reqifSchemaDir })
 await server.app.listen({ host: cfg.host, port: cfg.port })
 console.log(`Requirements API on http://${cfg.host}:${cfg.port}/api/requirements/v1 (OpenAPI: /api/requirements/v1/openapi.json), database ${cfg.databaseName} (${cfg.pgMode}).`)
 

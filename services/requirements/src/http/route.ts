@@ -20,6 +20,8 @@ export interface HostServices {
   twin: TwinDirectory
   storage: ObjectStorage
   events: EventHub
+  /** Directory with the official ReqIF schemas (npm run req:reqif:schemas); validation is skipped and reported when absent. */
+  reqifSchemaDir?: string
   /** Resolves the caller; throws ServiceError('unauthenticated') when there is none. */
   authenticate: (request: FastifyRequest) => Promise<Principal>
   /** The caller's role in a project, or null when not a member. */

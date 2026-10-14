@@ -1,5 +1,6 @@
 import './providedContext'
 import { randomBytes } from 'node:crypto'
+import { resolve } from 'node:path'
 import pg from 'pg'
 import { inject } from 'vitest'
 import { Ajv } from 'ajv'
@@ -9,6 +10,8 @@ import { dropDatabase, ensureDatabase } from '../src/database'
 import { buildServer, prepareDatabase, type ApiServer } from '../src/server'
 
 export const PROJECT = 'PRJ-ACT100'
+export const REQIF_SCHEMAS = resolve(__dirname, '../../../.data/reqif-schemas')
+export const REQIF_SAMPLES = resolve(__dirname, '../../../.data/reqif-samples')
 export const BASE = `/api/requirements/v1/projects/${PROJECT}`
 export const REQ1 = '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001'
 export const REQ2 = '5b1c7e2a-0002-4e6a-9c1d-6f0a3d2b1002'
@@ -42,7 +45,7 @@ export async function createTestEnv(opts: { seed?: boolean; production?: boolean
   const pool = new pg.Pool({ connectionString: url, max: 15 })
   await prepareDatabase(pool, { seed: opts.seed ?? true })
   const storage = memoryObjectStorage()
-  const server = await buildServer({ pool, storage, production: opts.production ?? false, eventPollMs: 200 })
+  const server = await buildServer({ pool, storage, production: opts.production ?? false, eventPollMs: 200, reqifSchemaDir: REQIF_SCHEMAS })
   let listening = false
   return {
     name,
@@ -56,7 +59,7 @@ export async function createTestEnv(opts: { seed?: boolean; production?: boolean
         method: method as 'GET',
         url: path,
         headers: { ...(user ? { 'x-dev-user': user } : {}), ...(body !== undefined && !isRaw ? { 'content-type': 'application/json' } : {}), ...headers },
-        payload: body === undefined ? undefined : isRaw ? (body as never) : JSON.stringify(body),
+        payload: body === undefined ? undefined : body instanceof Uint8Array ? Buffer.from(body) : isRaw ? (body as string) : JSON.stringify(body),
       })
       let parsed: unknown = res.body
       try {

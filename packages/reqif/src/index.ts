@@ -14,3 +14,5 @@ export { writeReqIF, toNcName } from './write'
 export { sanitizeXhtmlChildren, sanitizeXhtmlString, toReqifXhtml, xhtmlValueFrom, type SanitizeResult } from './xhtml'
 export { readReqifz, writeReqifz, safeArchivePath, resolveReference, ArchiveError, LIMITS as ARCHIVE_LIMITS, type ReqifzContents } from './archive'
 export { ReqIFParseError, parseXmlSecurely, decodeXml, MAX_XML_BYTES } from './xml'
+// Node-only (uses node:fs and WebAssembly libxml2); the browser never imports @ews/reqif.
+export { validateAgainstSchema, schemasAvailable, SCHEMA_ENTRY, SCHEMA_LABEL, type SchemaValidationResult } from './schemaValidation'

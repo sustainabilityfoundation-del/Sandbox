@@ -151,7 +151,7 @@ export function validateAttributeValues(defs: AttributeDefinitionDto[], values: 
         else out[def.id] = value
         break
       case 'date':
-        if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:\d{2}))?$/.test(value) || Number.isNaN(Date.parse(value))) fail('must be a date (YYYY-MM-DD or RFC 3339)')
+        if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:\d{2})?)?$/.test(value) || Number.isNaN(Date.parse(value))) fail('must be a date (YYYY-MM-DD or RFC 3339)')
         else out[def.id] = value
         break
       case 'enumeration': {

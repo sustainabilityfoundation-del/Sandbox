@@ -21,6 +21,7 @@
     "embedded-postgres": "17.10.0-beta.17",
     "tsx": "4.23.15",
     "ajv": "8.20.0",
-    "ajv-formats": "3.0.1"
+    "ajv-formats": "3.0.1",
+    "fflate": "0.8.3"
   }
 }
