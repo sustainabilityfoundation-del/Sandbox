@@ -21,7 +21,8 @@ decides and edits coordinator-owned files. Record any agreed change here and, fo
 | Requirements agent | `docs/specifications/requirements-*.md` (except this file and the brief), `docs/research/requirements/**`, `docs/modules/requirements.md`, `docker-compose.yml`, `.env.example` | |
 | Requirements agent (append only) | `docs/dependencies.md` | Add rows for new dependencies with version and licence |
 | Requirements agent (limited) | Root `package.json` | Only scripts prefixed `db:`, `api:`, `req:`, plus `dev:api`. Lockfile changes on the branch are expected |
-| Coordinator | `apps/workspace/**`, `packages/platform-sdk/**`, `packages/model-service/**`, `packages/design-system/**`, `packages/tool-sysml/**`, `packages/tool-cad/**`, root `AGENTS.md`, `README.md`, `docs/architecture.md`, `docs/roadmap.md`, `docs/decisions/**`, this file, the brief | The agent does not edit these; it files requests |
+| Requirements agent (sprint 003, from 14 October 2026) | `packages/tool-sysml/**` | Requirements in SysML through the service (docs/sprints/003-sysml-requirements-integration.md). Returns to the coordinator after the sprint |
+| Coordinator | `apps/workspace/**`, `packages/platform-sdk/**`, `packages/model-service/**`, `packages/design-system/**`, `packages/tool-cad/**`, root `AGENTS.md`, `README.md`, `docs/architecture.md`, `docs/roadmap.md`, `docs/decisions/**`, this file, the brief | The agent does not edit these; it files requests |
 
 New semantic icons or design-system components: request them; meanwhile build tool-local
 components from existing design-system primitives inside `packages/tool-requirements`.
