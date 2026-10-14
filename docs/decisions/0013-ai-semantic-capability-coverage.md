@@ -1,4 +1,4 @@
-# ADR-0011: Complete AI coverage through shared semantic operations
+# ADR-0013: Complete AI coverage through shared semantic operations
 
 Status: Proposed (2026-10-14)
 
