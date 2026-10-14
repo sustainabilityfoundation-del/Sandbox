@@ -31,3 +31,10 @@ npm run build:harness -w @ews/tool-requirements
 ```
 
 See [AGENTS.md](./AGENTS.md) for responsibilities, dependencies and rules.
+
+## Planned work
+
+[Requirements navigation and filtering at scale](../../docs/specifications/requirements-navigation-filtering.md)
+defines the requested bounded left submenu (default 10 visible requirements), contextual/structured
+filters, AI query operations and staged delivery. It extends existing table capabilities and requires
+coordinated Platform changes; it is not implemented by the documentation update.

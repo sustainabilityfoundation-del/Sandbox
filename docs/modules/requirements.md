@@ -50,6 +50,11 @@ representations; allocation targets are twin IDs.
 
 ## Not in scope yet (backlog)
 
+Requested next: [Requirements navigation and filtering at scale](../specifications/requirements-navigation-filtering.md).
+Adds a bounded left submenu (10 visible by default), contextual/structured filters and AI query
+operations. Reuse existing table pagination/saved views. The sidebar is Platform-owned; Requirements
+owns query semantics and service extensions. Status: planned, not implemented by this specification.
+
 Streams/branches and merge, reuse with synchronisation, automatic suspect links, formal change
 requests, electronic signatures, document reports (PDF/Word), OSLC, glossary checks, a real AI
 provider. See [acceptance-and-backlog.md](../research/requirements/acceptance-and-backlog.md) §5.
