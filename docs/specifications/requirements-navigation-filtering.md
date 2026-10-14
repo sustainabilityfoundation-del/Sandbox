@@ -89,6 +89,25 @@ Begin by inspecting the current table, saved views, cursor API, sidebar and proj
 smallest agreed contract addition before dependent implementation. Existing table functionality
 must remain usable after each increment. Do not add fixtures as production project data.
 
+## Coordinator notes (14 October 2026, on merge)
+
+This specification was written before sprints 003–005. When it is scheduled, these also apply:
+
+1. **Help documentation** is part of each increment's definition of done
+   ([help system](../modules/help.md), root AGENTS.md "Help and documentation"): help pages for the
+   navigator, filters and presets, help IDs on the new controls (for example
+   `requirements.navigator.filter`), and context mappings for new toolbar items and operations.
+2. **AI capability inventory**: add the navigator, filters, window navigation and presets to
+   `apps/workspace/src/assistant/capabilities.ts` with honest coverage, and map new AI filter
+   operations there (its completeness tests enforce this for toolbar items and operations).
+3. **AI view operations (NAV-R11, increment C)** depend on the decision on ADR-0013 (proposed) and on
+   AI development-plan sprint 3 (view controls through the same operation boundary). Increments A and B
+   do not wait for it.
+4. **Visible-row preference (NAV-R01)**: there is no platform preference service yet. Tools may not
+   use localStorage, and per-view view state does not follow the user across views. Increment A needs a
+   small platform decision first: a user-preference service in the SDK, or the setting kept in view
+   state as an interim, explicitly documented choice.
+
 ## Acceptance and evidence
 
 Use synthetic test/demo datasets of at least 5,000 requirements, with allocations, explicit safety
