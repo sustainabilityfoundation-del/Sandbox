@@ -105,6 +105,16 @@ Never convert an assumption into a requirement or a simulation prediction into v
 
 ## 6. AI architecture
 
+The detailed proposed architecture is maintained in [AI Interface](modules/ai-interface.md), with
+[features and acceptance scenarios](modules/ai-interface/features.md) and a
+[short-sprint development plan](modules/ai-interface/development-plan.md).
+
+All product functionality, including frontend controls and backend/data operations, should be
+discoverable and operable by AI through typed semantic interfaces with the same permission,
+validation and revision boundaries as user operations. This means complete functional coverage,
+not unrestricted source-code or database access. Freeform conversations produce explicit briefs,
+source-backed interface definitions, selectable concepts and validated engineering artifacts.
+
 The AI interface maintains derived interpretations of the product: design intent, summaries, candidate architectures, assumptions and exploration history. These interpretations support reasoning but do not override the engineering records.
 
 1. Retrieve authorized, relevant artifacts with their revisions and provenance.

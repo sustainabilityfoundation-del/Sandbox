@@ -28,6 +28,9 @@ GLB model viewer (`apps/glb-viewer`) from earlier work.
 | [docs/development-workflow.md](docs/development-workflow.md) | Short sprints, working commits, integration checks and owner walkthroughs |
 | [docs/sprints/template.md](docs/sprints/template.md) | Sprint plan, acceptance evidence and reproducible checkpoint template |
 | [docs/modules/](docs/modules/) | Module specifications (platform, requirements, sysml, cad) |
+| [docs/modules/ai-interface.md](docs/modules/ai-interface.md) | Proposed AI architecture, full capability coverage and conversation-to-engineering principles |
+| [docs/modules/ai-interface/features.md](docs/modules/ai-interface/features.md) | AI requirements and drill-bit holder acceptance scenario |
+| [docs/modules/ai-interface/development-plan.md](docs/modules/ai-interface/development-plan.md) | Bounded Claude development sprints and implementation dependencies |
 | [docs/decisions/](docs/decisions/README.md) | Architecture decision records and open decisions |
 | [docs/dependencies.md](docs/dependencies.md) | Dependency versions, licences and asset provenance |
 
