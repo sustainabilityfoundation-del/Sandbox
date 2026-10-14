@@ -8,6 +8,8 @@ Direction and decisions live in `docs/`, not here: [architecture vision](docs/ar
 [roadmap](docs/roadmap.md), [module specifications](docs/modules/),
 [decisions](docs/decisions/README.md) and [dependencies](docs/dependencies.md). Record a new
 architecture decision as an ADR; record a new dependency with its licence in `docs/dependencies.md`.
+Specifications for work in progress are in `docs/specifications/` (brief, agreed contracts and a
+progress file per module).
 
 ## Ownership
 
@@ -39,7 +41,7 @@ apps/workspace → every package; a tool only through its package entry point
 
 ## SDK and versions
 
-- SDK version **1.1.0** (`packages/platform-sdk/src/contract/version.ts`). Tools declare
+- SDK version **1.2.0** (`packages/platform-sdk/src/contract/version.ts`). Tools declare
   `sdkVersion: '^1.0.0'` or `'^1.1.0'` (needed for revisions and baselines); the registry refuses tools built for another major version.
 - Entry points: `@ews/platform-sdk` (framework-free contract and domain model),
   `@ews/platform-sdk/react` (`defineTool`, hooks, engineering UI helpers),

@@ -1,8 +1,14 @@
 import type { ModelIndex } from '@ews/model-service'
-import type { PlatformHost, SharedContext, ToolApi } from '@ews/platform-sdk'
+import type { PlatformHost, PlatformServices, SharedContext, ToolApi } from '@ews/platform-sdk'
 import { useToasts } from '@ews/design-system'
 import { useWorkspaceStore } from './store'
 import { toolIdOfView } from './views'
+
+/**
+ * Platform services offered to tools (SDK 1.2). Empty until the Requirements
+ * service adapter is integrated (docs/specifications/requirements-contracts.md).
+ */
+const workspaceServices: PlatformServices = {}
 
 type State = ReturnType<typeof useWorkspaceStore.getState>
 
@@ -49,6 +55,7 @@ export function getToolApi<VS>(toolId: string, viewId: string = toolId): ToolApi
     api = {
       toolId,
       viewId,
+      services: workspaceServices,
       getContext: () => sharedContextOf(store(), viewId),
       getModel: (): ModelIndex => {
         const model = store().model
@@ -120,6 +127,7 @@ export const workspaceHost: PlatformHost = {
   getArtifacts: () => useWorkspaceStore.getState().outputs,
   getActivity: () => useWorkspaceStore.getState().activity,
   getBaselines: () => useWorkspaceStore.getState().baselines,
+  getServices: () => workspaceServices,
   getContext: cachedContext,
   select: (ids, viewId) => selectInView(viewId || undefined, ids),
   getViewState: (viewId, toolId) => {

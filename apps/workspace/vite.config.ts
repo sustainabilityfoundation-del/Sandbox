@@ -6,6 +6,8 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   base: '/workspace/',
   plugins: [react(), tailwindcss()],
+  // The browser talks only to the application backend (services/api); it never reaches PostgreSQL.
+  server: { proxy: { '/api': `http://localhost:${process.env.API_PORT ?? 8787}` } },
   build: {
     outDir: '../../dist/workspace',
     emptyOutDir: true,

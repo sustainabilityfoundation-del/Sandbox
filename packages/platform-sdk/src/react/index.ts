@@ -9,6 +9,7 @@ export {
   useActivity,
   useArtifacts,
   useBaselines,
+  usePlatformServices,
   useIsActiveTool,
   useModel,
   useResolvedSelection,

@@ -16,6 +16,27 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.2.0 (2026-10-13)
+
+Type: additive
+
+What changed:
+
+- `contract/requirements.ts`: the cross-module Requirements service contract —
+  `RequirementsService` (`get`, `resolve`, `list`, `create`, `update`, `traceLinks`,
+  `subscribe`), `RequirementSummary`, `RequirementRef`, `RequirementsQuery`, `Page`,
+  `RequirementTraceLink`, `RequirementsEvent`, `RequirementsServiceError`, `PlatformServices`.
+- `ToolApi.services` and `PlatformHost.getServices()`; hook `usePlatformServices()`.
+- Harness: `mountHarness(tool, element, { services })` and `createMockHost(tool, { services })`.
+
+Why: the Requirements module moves to a PostgreSQL-backed API; SysML and CAD consume requirements
+through this contract only. See `docs/specifications/requirements-contracts.md` and ADR-0011.
+
+Migration for tools: none. `services` is empty in hosts that provide no services; treat an absent
+service as unavailable and say so (never substitute other data).
+
+Validated with: npm run check.
+
 ## 1.1.0 (2026-10-13)
 
 Type: additive

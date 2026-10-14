@@ -23,9 +23,9 @@ import { SDK_VERSION, isSdkCompatible } from '../contract/version'
 import type { AnyToolDefinition } from '../react/defineTool'
 import { PlatformHostProvider, ToolScope } from '../react/host'
 import { formatTime, iconForType } from '../react/ui'
-import { createMockHost, type MockHost } from './mockHost'
+import { createMockHost, type MockHost, type MockHostOptions } from './mockHost'
 
-export { createMockHost, type MockHost } from './mockHost'
+export { createMockHost, type MockHost, type MockHostOptions } from './mockHost'
 
 const VIEW_ID = 'harness'
 
@@ -226,9 +226,9 @@ function Harness({ tool, host }: { tool: AnyToolDefinition; host: MockHost }) {
 }
 
 /** Renders a tool in the standalone development harness. Call from the harness entry (harness/main.tsx). */
-export function mountHarness(tool: AnyToolDefinition, element: HTMLElement = document.getElementById('root')!): MockHost {
+export function mountHarness(tool: AnyToolDefinition, element: HTMLElement = document.getElementById('root')!, options: MockHostOptions = {}): MockHost {
   initPreferences()
-  const host = createMockHost(tool)
+  const host = createMockHost(tool, options)
   createRoot(element).render(
     <StrictMode>
       <PlatformHostProvider host={host}>

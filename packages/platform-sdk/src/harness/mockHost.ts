@@ -1,3 +1,4 @@
+import type { PlatformServices } from '../contract/requirements'
 import {
   DemoRepository,
   PROJECT_ID,
@@ -43,7 +44,15 @@ export interface MockHost extends PlatformHost {
  * storage key, with no shell, subscriptions or windows. Everything a tool can
  * do through the SDK works here the same way.
  */
-export function createMockHost(tool: AnyToolDefinition, options: { storageKey?: string; latencyMs?: [number, number] } = {}): MockHost {
+export interface MockHostOptions {
+  storageKey?: string
+  latencyMs?: [number, number]
+  /** Platform services the harness provides (SDK 1.2), e.g. a Requirements service adapter. */
+  services?: PlatformServices
+}
+
+export function createMockHost(tool: AnyToolDefinition, options: MockHostOptions = {}): MockHost {
+  const services: PlatformServices = options.services ?? {}
   const repository = new DemoRepository({
     storage: browserStorage(),
     storageKey: options.storageKey ?? `ews.harness.${tool.id}.v1`,
@@ -109,6 +118,7 @@ export function createMockHost(tool: AnyToolDefinition, options: { storageKey?: 
     api = {
       toolId,
       viewId,
+      services,
       getContext: () => getContext(viewId),
       getModel: model,
       select: (ids) => host.select(ids, viewId),
@@ -190,6 +200,7 @@ export function createMockHost(tool: AnyToolDefinition, options: { storageKey?: 
     subscribe: (listener) => store.subscribe(listener),
     getModel: () => get().model,
     getArtifacts: () => get().artifacts,
+    getServices: () => services,
     getActivity: () => get().activity,
     getBaselines: () => get().baselines,
     getContext,

@@ -1,4 +1,5 @@
 import type { ActivityEntry, Baseline, ModelIndex, OutputRecord } from '@ews/model-service'
+import type { PlatformServices } from './requirements'
 import type { SharedContext, ToolApi, ViewStateUpdate } from './tool'
 
 /**
@@ -16,6 +17,8 @@ export interface PlatformHost {
   getModel: () => ModelIndex | null
   getArtifacts: () => OutputRecord[]
   getActivity: () => ActivityEntry[]
+  /** Platform services (SDK 1.2); the same object while nothing changed. */
+  getServices: () => PlatformServices
   /** Baselines (SDK 1.1). */
   getBaselines: () => Baseline[]
   /** Context as a view sees it; pass "" for the workspace context. */

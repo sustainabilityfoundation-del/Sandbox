@@ -16,6 +16,7 @@ editing an accepted one.
 | [0008](0008-client-side-entitlements-prototype.md) | Client-side entitlements are a prototype | Accepted |
 | [0009](0009-non-destructive-migrations.md) | Non-destructive, additive data migrations | Accepted |
 | [0010](0010-ai-through-the-same-command-boundary.md) | The assistant uses the same command boundary | Accepted |
+| [0011](0011-requirements-service-boundary.md) | Requirements as a server-side service with a cross-module SDK contract | Accepted |
 
 ## Open decisions
 

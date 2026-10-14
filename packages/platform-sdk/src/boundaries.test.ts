@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -31,16 +31,23 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/model-service': /^$/,
   'packages/design-system': /^$/,
   'packages/platform-sdk': /^@ews\/(model-service|design-system)(\/[\w-]+(\.css)?)?$/,
-  'packages/tool-requirements': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
+  // The Requirements tool may also use its own module's client (docs/specifications/requirements-contracts.md).
+  'packages/tool-requirements': /^@ews\/(platform-sdk|design-system|requirements-client)(\/[\w.-]+)?$/,
   'packages/tool-sysml': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
   'packages/tool-cad': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
   // The workspace may use every package, but only a tool's public entry point.
-  'apps/workspace': /^@ews\/(model-service|design-system|platform-sdk|tool-[\w-]+)(\/(react|harness|preferences|icon-names|styles\.css))?$/,
+  'apps/workspace': /^@ews\/(model-service|design-system|platform-sdk|tool-[\w-]+|requirements-client)(\/(react|harness|preferences|icon-names|styles\.css))?$/,
+  // Requirements module packages, checked once they exist. Only the client reaches the browser.
+  'packages/requirements-client': /^@ews\/platform-sdk$/,
+  'packages/reqif': /^$/,
+  'services/requirements': /^@ews\/(platform-sdk|reqif)$/,
+  'services/api': /^@ews\/(platform-sdk|requirements-service)$/,
 }
 
 describe('package boundaries', () => {
   for (const [pkg, allowed] of Object.entries(ALLOWED)) {
     const root = join(repo, pkg)
+    if (!existsSync(join(root, 'package.json'))) continue
     const sources = [...files(join(root, 'src')), ...(pkg.startsWith('packages/tool-') ? files(join(root, 'harness')) : [])]
 
     it(`${pkg}: imports only the packages it may depend on`, () => {

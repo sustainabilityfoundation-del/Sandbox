@@ -1,3 +1,4 @@
+import type { PlatformServices } from './requirements'
 import type { IconName } from '@ews/design-system/icon-names'
 import type {
   ActivityEntry,
@@ -125,6 +126,12 @@ export interface ToolApi<VS = unknown> {
   getObjectRevision: (id: string, revision: number) => Promise<ObjectRevision | undefined>
   /** Baselines of the project, newest last. (SDK 1.1) */
   getBaselines: () => Baseline[]
+  /**
+   * Platform services available to this view (SDK 1.2), for example the Requirements
+   * service. A service is absent when the host does not provide it or the user is
+   * not entitled; never fall back to another data source silently.
+   */
+  readonly services: PlatformServices
   /** Opens another tool through the platform (subject to subscription). Never imports the tool. */
   openTool: (toolId: string) => OpenToolResult
   getViewState: () => VS

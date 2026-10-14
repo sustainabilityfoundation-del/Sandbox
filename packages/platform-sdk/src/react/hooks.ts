@@ -1,3 +1,4 @@
+import type { PlatformServices } from '../contract/requirements'
 import {
   outputFreshness,
   resolveRepresentation,
@@ -105,6 +106,11 @@ export function useArtifacts(filter: ArtifactFilter = {}): ArtifactView[] {
 export function useActivity(objectId?: string): ActivityEntry[] {
   const activity = useHostValue((h) => h.getActivity())
   return useMemo(() => (objectId ? activity.filter((a) => a.objectIds.includes(objectId)) : activity), [activity, objectId])
+}
+
+/** Platform services for tools (SDK 1.2). Absent services are undefined; show why instead of substituting data. */
+export function usePlatformServices(): PlatformServices {
+  return useHostValue((h) => h.getServices())
 }
 
 /** Baselines of the project (SDK 1.1). */

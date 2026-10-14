@@ -11,6 +11,7 @@
 export { SDK_VERSION, isSdkCompatible } from './contract/version'
 export * from './contract/tool'
 export * from './contract/assistant'
+export * from './contract/requirements'
 export type { PlatformHost } from './contract/host'
 // Domain model only. Tools never get the repository itself: every read and write goes through the host.
 export type * from '@ews/model-service'
