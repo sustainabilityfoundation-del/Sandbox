@@ -112,6 +112,8 @@ export interface RequirementPatch {
 }
 
 export interface RequirementWriteOptions {
+  /** The requirement's project, when the caller knows it; saves the adapter a lookup (SDK 1.3). */
+  projectId?: string
   /** Optimistic concurrency: the write fails with `conflict` unless the current revision equals this. */
   expectedRevision: number
   /** Why the change was made; recorded in the change history. */
@@ -128,6 +130,8 @@ export type RequirementsEventType =
   | 'requirement.relationships-changed'
   | 'requirements.baseline-created'
   | 'requirements.import-completed'
+  /** Collection structure (headings, membership, order) changed; entityId = collection, committedRevision = structure revision (SDK 1.3). */
+  | 'requirements.collection-changed'
 
 /** Emitted only after the change is committed (transactional outbox). Delivery may repeat; dedupe by `eventId`. */
 export interface RequirementsEvent {

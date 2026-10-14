@@ -16,6 +16,26 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.3.0 (2026-10-14)
+
+Type: additive
+
+What changed:
+
+- `RequirementWriteOptions.projectId?`: lets `RequirementsService.update()` callers name the project,
+  so adapters need not look it up (Requirements agent contract request 1).
+- `RequirementsEventType` gains `'requirements.collection-changed'` (entityId = collection ID,
+  committedRevision = structure revision), so other windows refresh collection trees
+  (contract request 2).
+
+Why: requested by the Requirements module; see
+`docs/specifications/requirements-contracts.md` §13.
+
+Migration for tools: none. Event consumers that switch over event types should treat unknown types
+as "reread what you show".
+
+Validated with: npm run check.
+
 ## 1.2.0 (2026-10-13)
 
 Type: additive

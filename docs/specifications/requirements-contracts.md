@@ -178,6 +178,16 @@ Not to be implemented by the agent; listed so the agent can prepare for it. Stat
 5. Final cross-module acceptance: Requirements ↔ SysML identity, revision, baseline and
    notification behaviour.
 
+## 13. Contract change decisions (14 October 2026)
+
+| Request (progress file) | Decision |
+| --- | --- |
+| 1. Optional `projectId` in `RequirementWriteOptions` | Approved; SDK 1.3.0 |
+| 2. Event type `requirements.collection-changed` | Approved; SDK 1.3.0 |
+| 3. Services in `AssistantActionContext` and a `service-proposal` result | Deferred: the AI interface design (docs/modules/ai-interface.md, proposed ADR-0013) is under review, and the current proposal-preview policy stays until then. Keep the in-tool workaround |
+| 4. Shared `@ews/requirements-types` package | Deferred: optional; conformance is tested against the OpenAPI document |
+| Proposed scope change: demo mode limited to the SDK contract | Accepted, as long as the tool says so in demo mode |
+
 ## 11. Handoff format
 
 Each handoff (in the progress file and the final report) lists: completed functionality, changed or
