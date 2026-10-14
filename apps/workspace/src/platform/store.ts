@@ -14,6 +14,7 @@ import type { EngineeringRepository } from '@ews/model-service'
 import { broadcast, windowInfo, type DetachedViewDef } from '../session/windowSession'
 import { loadMainSession, loadSession, saveSession, type SessionState } from './session'
 import type { ArtifactInput, RequirementsService, ToolCommand, ViewStateUpdate } from '@ews/platform-sdk'
+import { onRequirementsReset } from '@ews/requirements-client'
 import { loadRequirementsProjection, requirementObject } from './requirementsProjection'
 import { canOpenTool, toolAccess, type ToolAccess } from './entitlements'
 import { toolIdOfView, type ViewMeta, type ViewPin } from './views'
@@ -352,10 +353,14 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
         await get().refreshRequirements()
         // Committed changes in the Requirements service (any window, any user) refresh the projection.
         let timer: ReturnType<typeof setTimeout> | undefined
-        requirements.subscribe(projectId, () => {
+        const refresh = () => {
           clearTimeout(timer)
           timer = setTimeout(() => void get().refreshRequirements(), 150)
-        })
+        }
+        requirements.subscribe(projectId, refresh)
+        // After reconnecting from an event the server no longer keeps, nothing was missed only if we
+        // reread everything (contract request 5; adapter hook until the SDK carries the signal).
+        onRequirementsReset(requirements, projectId, refresh)
       }
     },
 

@@ -2,7 +2,7 @@
 
 ## Plan
 
-- Status: ready for coordinator review (implementation complete on `feature/requirements-management`; owner acceptance pending)
+- Status: ready for owner review (coordinator review done 14 October 2026: ownership, error-handling review, checks rerun on `main`; integrated into `main`)
 - Goal: collection edits made in one window appear in other windows and tools without reload;
   backend errors and event retention behave as documented, so the owner can rely on the service
   over long sessions.
@@ -65,6 +65,15 @@
      rereads everything when it reconnects (no missed changes, no error).
 - Migration: `0002_outbox_retention.sql` adds one index; no data is changed. Recovery: none needed;
   dropping the index is safe.
+
+## Coordinator review (14 October 2026)
+
+- Files changed only in the Requirements agent's area; internal-error responses checked for leaks.
+- Rerun on `main` after merge: `npm run check` 320 passed, `npm run build` passed, `npm run req:test:db` 102 passed.
+- Follow-ups done by the coordinator: the workspace rereads its requirements projection on reset
+  (`onRequirementsReset`); generic message for an unreachable platform database at authentication.
+- Contract requests 5 and 6 decided: contracts §13.
+- The running `npm run dev` must be restarted to apply migration `0002_outbox_retention.sql`.
 
 ## Owner feedback and next increment
 

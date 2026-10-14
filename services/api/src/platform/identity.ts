@@ -60,7 +60,9 @@ export function identity(pool: Pool, options: IdentityOptions) {
         [dev.trim()],
       )
       .catch((e) => {
-        throw new ServiceError('unavailable', `The platform database is not reachable: ${e instanceof Error ? e.message : String(e)}`)
+        // The driver message stays in the server log; clients get a generic message.
+        request.log.error({ err: e }, 'platform database not reachable during authentication')
+        throw new ServiceError('unavailable', 'The platform database is not reachable. Try again shortly.')
       })
     const user = rows[0]
     if (!user || !user.active) throw new ServiceError('unauthenticated', `Unknown development user “${dev}”.`)

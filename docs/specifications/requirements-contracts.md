@@ -187,6 +187,9 @@ Not to be implemented by the agent; listed so the agent can prepare for it. Stat
 | 3. Services in `AssistantActionContext` and a `service-proposal` result | Deferred: the AI interface design (docs/modules/ai-interface.md, proposed ADR-0013) is under review, and the current proposal-preview policy stays until then. Keep the in-tool workaround |
 | 4. Shared `@ews/requirements-types` package | Deferred: optional; conformance is tested against the OpenAPI document |
 | Proposed scope change: demo mode limited to the SDK contract | Accepted, as long as the tool says so in demo mode |
+| 5. Reset signal in the SDK (`subscribe(projectId, listener, { onReset })`) | Approved in principle for SDK 1.4, together with the next contract change. Until then the workspace registers `onRequirementsReset` and rereads its projection (14 October 2026) |
+| 6. Separate `internal` error code | Declined: HTTP 500 with code `unavailable`, `details.reason: "internal-error"` and `details.errorId` is sufficient and keeps the SDK code set stable |
+| Generic message when the platform database is unreachable during authentication | Done by the coordinator (`services/api/src/platform/identity.ts`); the driver message is logged server-side only |
 
 ## 11. Handoff format
 
