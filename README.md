@@ -25,6 +25,8 @@ GLB model viewer (`apps/glb-viewer`) from earlier work.
 | [docs/product-vision.md](docs/product-vision.md) | Outcomes and principles |
 | [docs/architecture.md](docs/architecture.md) | Approved current architecture, mapped to the vision with status |
 | [docs/roadmap.md](docs/roadmap.md) | Delivery phases and what is implemented, experimental or planned |
+| [docs/development-workflow.md](docs/development-workflow.md) | Short sprints, working commits, integration checks and owner walkthroughs |
+| [docs/sprints/template.md](docs/sprints/template.md) | Sprint plan, acceptance evidence and reproducible checkpoint template |
 | [docs/modules/](docs/modules/) | Module specifications (platform, requirements, sysml, cad) |
 | [docs/decisions/](docs/decisions/README.md) | Architecture decision records and open decisions |
 | [docs/dependencies.md](docs/dependencies.md) | Dependency versions, licences and asset provenance |
@@ -97,6 +99,9 @@ workspace ──► all of the above (a tool only through its public entry point
 
 Each package has its own `AGENTS.md` describing its responsibilities, rules and commands; the root
 [AGENTS.md](./AGENTS.md) describes ownership and how contract changes are made.
+Claude Code loads the shared root instructions through [CLAUDE.md](./CLAUDE.md).
+Development follows [short sprints](docs/development-workflow.md): each ends with a runnable
+committed candidate, verification evidence and a walkthrough for owner review.
 
 ## The tool contract
 

@@ -7,6 +7,15 @@ Delivery priorities, following the proposed sequence in the
 order, not a delivery commitment. The in-app "About this platform" dialog
 (`apps/workspace/src/platform/capabilities.ts`) shows the same status and must be kept in step.
 
+## Delivery through short sprints
+
+Each phase is delivered through small usable increments, following the
+[development workflow](development-workflow.md). Plan each sprint with explicit acceptance
+criteria using the [sprint template](sprints/template.md). Keep `main` runnable and provide an
+exact committed checkpoint, verification results and an owner walkthrough at sprint end.
+Owner feedback informs subsequent priorities; pending review is not recorded as acceptance.
+This is a development policy, not a claim that automated CI enforcement is already configured.
+
 ## Phase 1: Foundation and initial modules (current)
 
 Exit condition: Requirements, SysML and CAD; shared identities, minimal baselines and traceability,
