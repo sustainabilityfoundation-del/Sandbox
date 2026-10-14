@@ -9,7 +9,7 @@ Branch: `feature/requirements-management`. Worktree: `C:\Users\kimge.000\Documen
 
 | Stage | Status | Notes |
 | --- | --- | --- |
-| 1. Research and acceptance matrix | Not started | |
+| 1. Research and acceptance matrix | Done (provisional where sources were inaccessible) | docs/research/requirements/: research-note.md, capability-matrix.md, acceptance-and-backlog.md |
 | 2. Shared domain contracts and schema | Contracts agreed (SDK 1.2.0); schema not started | |
 | 3. PostgreSQL API | Not started | |
 | 4. Core Requirements UI | Not started | Existing tool: table, editor, allocation, verification records (Phase 1) |
