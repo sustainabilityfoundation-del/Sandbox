@@ -85,7 +85,9 @@ component APIs or semantic icon names is a **shared contract change**:
 | Command | Use |
 | --- | --- |
 | `npm install` | Install and link all workspaces |
-| `npm run dev` | Workspace (http://localhost:5173/workspace/) |
+| `npm run dev` | Workspace (http://localhost:5173/workspace/) plus backend (Requirements API :8787, embedded PostgreSQL) |
+| `npm run dev:workspace` / `dev:api` | Workspace alone / backend alone |
+| `npm run req:test:db` | Requirements tests on a real, disposable PostgreSQL |
 | `npm run dev:requirements` / `dev:sysml` / `dev:cad` | One tool in its standalone harness (ports 5181–5183) |
 | `npm run typecheck` | `tsc` in every workspace |
 | `npm test` | All tests (Vitest) |

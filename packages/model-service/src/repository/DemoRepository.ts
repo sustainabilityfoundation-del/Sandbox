@@ -115,6 +115,12 @@ export class DemoRepository implements EngineeringRepository {
   private readonly legacyKey: string | null
   /** Set when stored data was upgraded on read, so the upgrade is persisted at once. */
   private upgraded = false
+  /**
+   * Objects owned by another service (today: requirements from the Requirements API), registered
+   * by the host. Twin relationships and artifacts may reference them; they are never stored or
+   * edited here (contracts §2–3, docs/specifications/requirements-contracts.md).
+   */
+  private external = new Map<string, { type: ObjectType; revision: number }>()
 
   constructor(
     options: {
@@ -162,7 +168,7 @@ export class DemoRepository implements EngineeringRepository {
         if (!check.ok) throw new RepositoryError('forbidden', check.message!)
       }
       const typeOf = (id: string): ObjectType | 'artifact' | undefined =>
-        model.objects.find((o) => o.id === id)?.type ?? (db.outputs.some((o) => o.id === id) ? 'artifact' : undefined)
+        model.objects.find((o) => o.id === id)?.type ?? this.external.get(id)?.type ?? (db.outputs.some((o) => o.id === id) ? 'artifact' : undefined)
 
       for (const change of changes) {
         switch (change.kind) {
@@ -203,7 +209,7 @@ export class DemoRepository implements EngineeringRepository {
             const to = resolve(change.relationship.to)
             const type = change.relationship.type
             const known = (id: string) =>
-              model.objects.some((o) => o.id === id) || db.outputs.some((o) => o.id === id)
+              model.objects.some((o) => o.id === id) || this.external.has(id) || db.outputs.some((o) => o.id === id)
             if (!known(from) || !known(to)) {
               throw new RepositoryError('not-found', `${!known(from) ? from : to} does not exist.`)
             }
@@ -255,6 +261,11 @@ export class DemoRepository implements EngineeringRepository {
     return this.call((db) => db.outputs.filter((o) => o.projectId === projectId))
   }
 
+  /** Replaces the set of externally owned objects twin data may reference (host-registered, not persisted). */
+  registerExternalObjects(objects: { id: string; type: ObjectType; revision: number }[]): void {
+    this.external = new Map(objects.map((o) => [o.id, { type: o.type, revision: o.revision }]))
+  }
+
   saveOutput(draft: OutputDraft, options: { source?: ActivitySource } = {}) {
     return this.mutate((db) => {
       this.assertProject(draft.projectId)
@@ -268,14 +279,15 @@ export class DemoRepository implements EngineeringRepository {
       if (draft.inputRevision > model.modelRevision) {
         throw new RepositoryError('invalid', 'Output refers to a model revision that does not exist.')
       }
-      const known = new Set(model.objects.map((o) => o.id))
+      const known = new Set([...model.objects.map((o) => o.id), ...this.external.keys()])
       const missing = draft.objectIds.filter((id) => !known.has(id))
       if (missing.length) throw new RepositoryError('invalid', `Unknown objects: ${missing.join(', ')}.`)
       for (const ref of draft.references ?? []) {
         const isObject = known.has(ref.id)
         const exists = isObject || db.outputs.some((o) => o.id === ref.id) || db.baselines.some((b) => b.id === ref.id)
         if (!exists) throw new RepositoryError('invalid', `Reference to unknown ${ref.id}.`)
-        if (ref.revision !== undefined && isObject && !db.history.some((h) => h.id === ref.id && h.revision === ref.revision)) {
+        // External objects keep their history in their own service, which validated the revision.
+        if (ref.revision !== undefined && isObject && !this.external.has(ref.id) && !db.history.some((h) => h.id === ref.id && h.revision === ref.revision)) {
           throw new RepositoryError('invalid', `${ref.id} has no revision ${ref.revision}.`)
         }
       }
@@ -369,7 +381,20 @@ export class DemoRepository implements EngineeringRepository {
       if (!db.model.configurations.some((c) => c.id === draft.configurationId)) {
         throw new RepositoryError('invalid', `Unknown configuration ${draft.configurationId}.`)
       }
-      const baseline = pinBaseline(db.model, {
+      const external = draft.external
+      const unknown = external?.objects.filter((o) => !this.external.has(o.id)) ?? []
+      if (unknown.length) throw new RepositoryError('invalid', `Unknown external objects: ${unknown.map((o) => o.id).join(', ')}.`)
+      const pinned: ModelSnapshot = external
+        ? {
+            ...db.model,
+            objects: [
+              ...db.model.objects.filter((o) => !external.replaces.includes(o.id)),
+              ...external.objects.map((o) => ({ id: o.id, type: this.external.get(o.id)!.type, name: '', properties: {}, revision: o.revision })),
+            ],
+            relationships: external.relationships,
+          }
+        : db.model
+      const baseline = pinBaseline(pinned, {
         id: nextId('BL', db.baselines.map((b) => b.id), 3),
         name,
         description: draft.description?.trim() ?? '',

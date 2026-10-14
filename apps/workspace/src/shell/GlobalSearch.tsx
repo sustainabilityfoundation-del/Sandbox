@@ -6,6 +6,7 @@ import { canOpenTool } from '../platform/entitlements'
 import { openToolOrExplain } from '../platform/api'
 import { ComboBox, type ComboOption } from '@ews/design-system'
 import { OBJECT_TYPE_LABEL, iconForType } from '@ews/platform-sdk/react'
+import { displayId } from '@ews/model-service'
 
 /**
  * Searchable combobox over model objects, saved outputs and tools. Choosing an
@@ -38,7 +39,7 @@ export function GlobalSearch({ autoFocus = false, onDone }: { autoFocus?: boolea
     const match = (...texts: string[]) => texts.some((t) => t.toLowerCase().includes(q))
     const objects = model.objects
       .filter((o) => match(o.id, o.name, String(o.properties.statement ?? '')))
-      .map((o) => ({ id: `obj:${o.id}`, label: `${o.id} ${o.name}`, description: OBJECT_TYPE_LABEL[o.type], icon: iconForType(o.type), run: () => select([o.id]) }))
+      .map((o) => ({ id: `obj:${o.id}`, label: `${displayId(o)} ${o.name}`, description: OBJECT_TYPE_LABEL[o.type], icon: iconForType(o.type), run: () => select([o.id]) }))
     const outs = outputs
       .filter((o) => o.configurationId === configurationId && match(o.id, o.title, o.summary))
       .map((o) => ({

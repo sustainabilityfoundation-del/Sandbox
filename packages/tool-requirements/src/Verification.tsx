@@ -1,5 +1,5 @@
 import { Badge, Button, Notice, Select, TextField, type Tone } from '@ews/design-system'
-import { readRequirement, type EngineeringObject } from '@ews/platform-sdk'
+import { displayId, readRequirement, type EngineeringObject } from '@ews/platform-sdk'
 import { formatTime, useArtifacts, useBaselines, useModel, useSharedContext, useToolApi, useUnsavedChanges } from '@ews/platform-sdk/react'
 import { useMemo, useState } from 'react'
 import {
@@ -25,16 +25,19 @@ export const STATE_LABEL: Record<VerificationState, { label: string; tone: Tone 
 /** Verification records per requirement ID, newest first. */
 export function useVerificationRecords(): Map<string, VerificationRecordView[]> {
   const artifacts = useArtifacts({ kind: VERIFICATION_RECORD.kind })
+  const model = useModel()
   return useMemo(() => {
     const byRequirement = new Map<string, VerificationRecordView[]>()
     for (const a of artifacts) {
       for (const ref of a.references ?? []) {
         if (ref.role !== 'verifies') continue
-        byRequirement.set(ref.id, [...(byRequirement.get(ref.id) ?? []), readVerificationRecord(a, ref.id)])
+        // Records saved before a requirement moved to the Requirements service name its legacy ID.
+        const key = model.canonical(ref.id)
+        byRequirement.set(key, [...(byRequirement.get(key) ?? []), readVerificationRecord(a, ref.id)])
       }
     }
     return byRequirement
-  }, [artifacts])
+  }, [artifacts, model])
 }
 
 export function VerificationStateBadge({ records }: { records: VerificationRecordView[] | undefined }) {
@@ -104,7 +107,7 @@ function RecordForm({ requirement, onDone }: { requirement: EngineeringObject; o
   return (
     <div className="req-form" aria-label="Record verification result">
       <p className="ws-hint m-0">
-        Records a result against {requirement.id} rev {requirement.revision} in {configurationId}. Records are never edited; a later change to the
+        Records a result against {displayId(requirement)} rev {requirement.revision} in {configurationId}. Records are never edited; a later change to the
         requirement or an allocated component marks the record stale.
       </p>
       <Select
@@ -191,12 +194,12 @@ export function Verification({ requirement, records }: { requirement: Engineerin
           Record result
         </Button>
       </div>
-      {!records.length && <p className="m-0 text-fg-3">No recorded results for {requirement.id}.</p>}
+      {!records.length && <p className="m-0 text-fg-3">No recorded results for {displayId(requirement)}.</p>}
       {!model.linked(requirement.id, 'allocated-to', 'out').length && (
         <p className="ws-hint m-0">Not allocated to a component: a record pins only the requirement revision.</p>
       )}
       {records.length > 0 && (
-        <ol className="req-verification" aria-label={`Verification records for ${requirement.id}`}>
+        <ol className="req-verification" aria-label={`Verification records for ${displayId(requirement)}`}>
           {records.map((r) => (
             <li key={r.id} data-record-id={r.id} data-stale={r.stale || undefined}>
               <div className="flex flex-wrap items-center gap-1.5">
@@ -206,7 +209,7 @@ export function Verification({ requirement, records }: { requirement: Engineerin
                 {r.stale && <Badge tone="warning">Stale</Badge>}
               </div>
               <div className="text-ui-xs text-fg-3">
-                {r.id} · {formatTime(r.createdAt)} · verified {requirement.id} rev {r.requirementRevision ?? '?'} · {r.configurationId}
+                {r.id} · {formatTime(r.createdAt)} · verified {displayId(requirement)} rev {r.requirementRevision ?? '?'} · {r.configurationId}
                 {r.baselineId ? ` · baseline ${r.baselineId}` : ''}
                 {r.evidenceId ? ` · evidence ${r.evidenceId}` : ''}
               </div>

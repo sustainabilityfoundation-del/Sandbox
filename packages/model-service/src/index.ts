@@ -6,6 +6,7 @@
 export * from './domain/types'
 export * from './domain/entities'
 export { buildModelIndex, type ModelIndex } from './domain/modelIndex'
+export { composeSnapshot, type ExternalProjection } from './domain/projection'
 export { outputFreshness, type Freshness } from './domain/freshness'
 export { changeImpact, compareWithBaseline, pinBaseline, type BaselineComparison, type ChangeImpact } from './domain/configuration'
 export {

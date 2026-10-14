@@ -19,6 +19,7 @@ import { DEFAULT_OPEN_TOOLS } from './platform/tools'
 import { getTool, getTools } from './platform/registry'
 import { Button, Icon, ResizeHandle, Spinner, Toaster, ToggleIconButton, useToasts } from '@ews/design-system'
 import { useEntitlements } from './platform/entitlements'
+import { workspaceServices } from './platform/services'
 import { LockedToolNotice } from './shell/WorkArea'
 import { BaselineDialog } from './shell/Baselines'
 import { CapabilitiesDialog } from './shell/CapabilitiesDialog'
@@ -31,6 +32,7 @@ function start(repository: DemoRepository) {
     projectId: PROJECT_ID,
     tools: getTools().map((t) => ({ id: t.id, initialViewState: t.initialViewState })),
     defaultOpenToolIds: DEFAULT_OPEN_TOOLS,
+    requirements: workspaceServices.requirements,
   })
 }
 

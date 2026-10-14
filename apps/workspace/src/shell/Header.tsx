@@ -8,6 +8,7 @@ import { GlobalSearch } from './GlobalSearch'
 import type { ViewportMode } from './layout/viewport'
 import { DisplaySettings, WindowsMenu } from './ShellParts'
 import { BaselinesMenu } from './Baselines'
+import { ServicesMenu } from './ServicesMenu'
 
 /** Repository connection and save state, with demo controls. */
 function RepositoryStatus({ repository, compact = false }: { repository: DemoRepository; compact?: boolean }) {
@@ -203,6 +204,7 @@ export function Header({ repository, mode, onOpenPalette }: { repository: DemoRe
         )}
         {!phone && <BaselinesMenu compact={mode !== 'desktop'} />}
         <SubscriptionMenu compact={phone || mode === 'tablet'} />
+        <ServicesMenu compact={phone || mode !== 'desktop'} />
         {!phone && <WindowsMenu />}
         <DisplaySettings mode={mode} />
         <RepositoryStatus repository={repository} compact={phone || mode === 'tablet'} />

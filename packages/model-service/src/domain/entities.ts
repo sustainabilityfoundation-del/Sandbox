@@ -71,6 +71,14 @@ export function isOfType(object: EngineeringObject | undefined, type: ObjectType
   return object?.type === type
 }
 
+/**
+ * The identifier to show people. Objects owned by another service carry a human-readable key
+ * (a requirement's "REQ-001") separate from their canonical ID (a UUID); never show the UUID.
+ */
+export function displayId(o: EngineeringObject): string {
+  return typeof o.properties.key === 'string' && o.properties.key ? o.properties.key : o.id
+}
+
 export function readRequirement(o: EngineeringObject): Requirement {
   const status = o.properties.status
   const statusSet = typeof status === 'string' && REQUIREMENT_STATUSES.some((s) => s.id === status)

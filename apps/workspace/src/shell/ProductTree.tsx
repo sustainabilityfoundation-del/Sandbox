@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Button as AriaButton, Tree, TreeItem, TreeItemContent, type Key, type Selection } from 'react-aria-components'
-import { outputFreshness } from '@ews/model-service'
+import { displayId, outputFreshness } from '@ews/model-service'
 import type { EngineeringObject } from '@ews/model-service'
 import { iconForType } from '@ews/platform-sdk/react'
 import { useWorkspaceStore } from '../platform/store'
@@ -83,14 +83,14 @@ export function ProductTree() {
       <TreeItem
         key={object.id}
         id={object.id}
-        textValue={`${object.id} ${object.name}`}
+        textValue={`${displayId(object)} ${object.name}`}
         className="ws-tree-item"
         data-object-id={object.id}
       >
         <Content hasChildren={children.length > 0}>
           <AppIcon name={iconForType(object.type)} size={18} className="ws-tree-icon" />
-          <span className="ws-tree-id font-mono">{object.id}</span>
-          <span className="ws-tree-name" title={`${object.id} ${object.name} (rev ${object.revision})`}>
+          <span className="ws-tree-id font-mono">{displayId(object)}</span>
+          <span className="ws-tree-name" title={`${displayId(object)} ${object.name} (rev ${object.revision})`}>
             {object.name}
           </span>
           {stale.has(object.id) && <Icon name="history" size={16} className="ws-tree-stale" label="Has potentially stale outputs" />}

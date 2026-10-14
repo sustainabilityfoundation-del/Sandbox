@@ -12,6 +12,7 @@ import {
   type EngineeringObject,
   type ObjectRevision,
   type RelationshipType,
+  displayId,
 } from '@ews/model-service'
 import { FreshnessBadge, OBJECT_TYPE_LABEL, ObjectRef, RequirementStatusBadge, ReviewBadge, formatTime, iconForType } from '@ews/platform-sdk/react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
@@ -200,7 +201,7 @@ function ChangeImpactSection({ object }: { object: EngineeringObject }) {
   return (
     <Section title="Change impact">
       {nothing ? (
-        <p className="text-fg-3">No saved evidence or baseline depends on {object.id}.</p>
+        <p className="text-fg-3">No saved evidence or baseline depends on {displayId(object)}.</p>
       ) : (
         <ul className="ws-impact" data-testid="change-impact">
           {impact.dependentArtifacts.length > 0 && (
@@ -234,6 +235,21 @@ function ChangeImpactSection({ object }: { object: EngineeringObject }) {
 
 /** Immutable revision history (audit record) of the object. */
 function RevisionHistory({ object }: { object: EngineeringObject }) {
+  const external = useWorkspaceStore((s) => s.projection?.objects.some((o) => o.id === object.id) ?? false)
+  if (external) {
+    return (
+      <Section title="Revision history">
+        <p className="text-fg-3" data-testid="revision-history">
+          Rev {object.revision}. The Requirements service keeps this requirement's revisions, with actor, time and reason. Open it in Requirements
+          (History tab) to compare revisions.
+        </p>
+      </Section>
+    )
+  }
+  return <TwinRevisionHistory object={object} />
+}
+
+function TwinRevisionHistory({ object }: { object: EngineeringObject }) {
   const repository = useWorkspaceStore((s) => s.repository)
   const projectId = useWorkspaceStore((s) => s.context.projectId)
   const [history, setHistory] = useState<ObjectRevision[] | null>(null)
@@ -327,7 +343,7 @@ function ObjectDetails({ object, configurationId }: { object: EngineeringObject;
         <div>
           <div className="ws-insp-title">{object.name}</div>
           <div className="ws-insp-sub">
-            <span className="font-mono">{object.id}</span> · {OBJECT_TYPE_LABEL[object.type]} · rev {object.revision} · owned by {ARTIFACT_OWNER[object.type] === 'product' ? 'product structure' : toolName(ARTIFACT_OWNER[object.type])}
+            <span className="font-mono">{displayId(object)}</span> · {OBJECT_TYPE_LABEL[object.type]} · rev {object.revision} · owned by {ARTIFACT_OWNER[object.type] === 'product' ? 'product structure' : toolName(ARTIFACT_OWNER[object.type])}
           </div>
         </div>
       </header>

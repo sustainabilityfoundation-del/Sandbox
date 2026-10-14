@@ -13,7 +13,8 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @ews/workspace",
+    "dev": "node scripts/dev.mjs",
+    "dev:workspace": "npm run dev -w @ews/workspace",
     "dev:viewer": "npm run dev -w @ews/glb-viewer",
     "dev:requirements": "npm run dev -w @ews/tool-requirements",
     "dev:sysml": "npm run dev -w @ews/tool-sysml",

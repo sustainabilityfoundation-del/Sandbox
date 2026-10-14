@@ -14,7 +14,8 @@ export interface Capability {
 }
 
 export const CAPABILITIES: Capability[] = [
-  { name: 'Requirements management', status: 'implemented', note: 'Statements, rationale, status, allocation, relationships, history and recorded verification.' },
+  { name: 'Requirements management', status: 'implemented', note: 'PostgreSQL-backed API: collections, custom attributes, lifecycle and reviews, revisions and baselines, traceability matrix, quality checks, recorded verification.' },
+  { name: 'ReqIF exchange', status: 'implemented', note: 'ReqIF 1.2 import with preview and export; tested with externally produced files, not yet with exchanges into commercial tools.' },
   { name: 'SysML modelling', status: 'experimental', note: 'A small subset (parts, requirement usages, connections, satisfy) with illustrative notation; not SysML v2 compliant.' },
   { name: 'Parametric mechanical CAD', status: 'experimental', note: 'Mock geometry driven by a few dimensions; no CAD kernel.' },
   { name: 'Configuration and baselines', status: 'implemented', note: 'Revision history, baselines pinning exact revisions, comparison with the working model.' },

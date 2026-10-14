@@ -114,7 +114,9 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5173/workspace/. On Windows PowerShell, use `npm.cmd` if execution policy
+`npm run dev` starts the workspace and its backend (Requirements API on port 8787 with an embedded
+PostgreSQL; the first start initialises and seeds the database). Open http://localhost:5173/workspace/.
+On Windows PowerShell, use `npm.cmd` if execution policy
 blocks `npm`. Standalone tools use `npm run dev:requirements`, `npm run dev:sysml` and
 `npm run dev:cad` on ports 5181, 5182 and 5183 respectively. The GLB viewer uses
 `npm run dev:viewer` on port 5174. See [README.md](../README.md#quick-start) for production preview.

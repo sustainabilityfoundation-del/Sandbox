@@ -1,5 +1,5 @@
 import { AppIcon, StatusBadge, cx, type IconName, type StatusKind } from '@ews/design-system'
-import type { EngineeringObject, Freshness, ObjectType, RequirementStatus, ReviewStatus } from '@ews/model-service'
+import { displayId, type EngineeringObject, type Freshness, type ObjectType, type RequirementStatus, type ReviewStatus } from '@ews/model-service'
 import type { ReactNode } from 'react'
 import { Button as AriaButton } from 'react-aria-components'
 import { shallowEqual, useHostValue, useOptionalToolScope, usePlatformHost } from './host'
@@ -80,9 +80,9 @@ export function ObjectRef({ object, showName = true }: { object: EngineeringObje
   const viewId = useOptionalToolScope()?.viewId ?? ''
   const selected = useHostValue((h) => h.getContext(viewId).selectedIds.includes(object.id), shallowEqual)
   return (
-    <RefChip label={`Select ${object.id} ${object.name}`} selected={selected} onPress={() => host.select([object.id], viewId)}>
+    <RefChip label={`Select ${displayId(object)} ${object.name}`} selected={selected} onPress={() => host.select([object.id], viewId)}>
       <AppIcon name={iconForType(object.type)} size="xs" />
-      <span className="font-mono">{object.id}</span>
+      <span className="font-mono">{displayId(object)}</span>
       {showName && <span className="truncate">{object.name}</span>}
     </RefChip>
   )

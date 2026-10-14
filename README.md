@@ -38,14 +38,28 @@ implemented, experimental or planned.
 
 ```bash
 npm install
-npm run dev            # workspace: http://localhost:5173/workspace/
+npm run dev            # workspace http://localhost:5173/workspace/ plus its backend
 ```
+
+`npm run dev` also starts the backend: the Requirements API on port 8787 with a real PostgreSQL
+(official binaries from the `embedded-postgres` package, data in `.data/pg`). The first start
+initialises the database and seeds sample data, which can take a minute. If an API is already
+running (for example `npm run dev:api`, or Docker Compose with `EWS_PG=external`), it is reused.
+Ctrl+C stops both. A PostgreSQL lock left by a crash or reboot is cleared automatically when its
+process is no longer running.
 
 On Windows PowerShell, use `npm.cmd run dev` if script execution is disabled.
 
+The header's **Requirements service** menu chooses API (default) or explicit demo data and the
+development user (`ada`, `rui`, `eli`, `rho`, `nia`). If the API is down, the workspace says so and does
+not switch to demo data on its own. Setup details: [docs/specifications/requirements-api.md](docs/specifications/requirements-api.md).
+
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | The workspace with all tools (port 5173) |
+| `npm run dev` | The workspace with all tools (port 5173) and its backend (Requirements API on 8787, PostgreSQL) |
+| `npm run dev:workspace` | The workspace alone (Requirements then needs a running API, or demo mode) |
+| `npm run dev:api` | The Requirements API and PostgreSQL alone |
+| `npm run req:test:db` | Requirements tests against a real, disposable PostgreSQL |
 | `npm run dev:requirements` | Requirements in its standalone harness (port 5181) |
 | `npm run dev:sysml` | SysML in its standalone harness (port 5182) |
 | `npm run dev:cad` | CAD in its standalone harness (port 5183) |
@@ -55,7 +69,7 @@ On Windows PowerShell, use `npm.cmd run dev` if script execution is disabled.
 | `npm run check` | Type check and tests |
 | `npm run build` | Type check, then build the GLB viewer into `dist/` and the workspace into `dist/workspace/` |
 | `npm run build:harnesses` | Build each tool's standalone harness (`packages/tool-*/dist-harness`) |
-| `npm run preview` | Serve `dist/` (workspace at http://localhost:4173/workspace/) |
+| `npm run preview` | Serve `dist/` (workspace at http://localhost:4173/workspace/). Static only: no `/api` proxy, so use demo mode for Requirements |
 
 ## Package architecture
 

@@ -1,18 +1,20 @@
 import { create } from 'zustand'
-import { buildModelIndex, type ModelIndex } from '@ews/model-service'
+import { buildModelIndex, composeSnapshot, type ExternalProjection, type ModelIndex, type ModelSnapshot } from '@ews/model-service'
 import type {
   ActivityEntry,
   ActivityKind,
   ActivitySource,
   Baseline,
   ModelChange,
+  ObjectRevision,
   OutputRecord,
   ReviewStatus,
 } from '@ews/model-service'
 import type { EngineeringRepository } from '@ews/model-service'
 import { broadcast, windowInfo, type DetachedViewDef } from '../session/windowSession'
 import { loadMainSession, loadSession, saveSession, type SessionState } from './session'
-import type { ArtifactInput, ToolCommand, ViewStateUpdate } from '@ews/platform-sdk'
+import type { ArtifactInput, RequirementsService, ToolCommand, ViewStateUpdate } from '@ews/platform-sdk'
+import { loadRequirementsProjection, requirementObject } from './requirementsProjection'
 import { canOpenTool, toolAccess, type ToolAccess } from './entitlements'
 import { toolIdOfView, type ViewMeta, type ViewPin } from './views'
 
@@ -88,6 +90,13 @@ interface WorkspaceState {
   status: 'loading' | 'ready' | 'error'
   loadError: string | null
   model: ModelIndex | null
+  /** The twin as stored; `model` is this plus the projection of externally owned objects. */
+  twinSnapshot: ModelSnapshot | null
+  /** Requirements from the Requirements service, composed into `model` (contracts §10.2). */
+  projection: ExternalProjection | null
+  /** Why the Requirements service could not be read; nothing is substituted. */
+  projectionError: string | null
+  requirementsService: RequirementsService | null
   outputs: OutputRecord[]
   activity: ActivityEntry[]
   /** Baselines pinning exact revisions (configuration control). */
@@ -116,7 +125,11 @@ interface WorkspaceState {
     projectId: string
     tools: ToolSeed[]
     defaultOpenToolIds: string[]
+    /** When given, requirements are read from this service and projected into the model. */
+    requirements?: RequirementsService
   }) => Promise<void>
+  /** Rereads the requirements projection (after a committed change in the Requirements service). */
+  refreshRequirements: () => Promise<void>
   select: (ids: string[]) => void
   setConfiguration: (id: string) => void
   setScenario: (id: string) => void
@@ -158,6 +171,8 @@ interface WorkspaceState {
     source?: ActivitySource,
   ) => void
   dismissWriteError: () => void
+  /** One exact revision: from the Requirements service for requirements it owns, else from the twin. */
+  readRevision: (id: string, revision: number) => Promise<ObjectRevision | undefined>
   /** Pins the current definition of the workspace configuration as a baseline. */
   createBaseline: (name: string, description?: string) => Promise<Baseline>
 }
@@ -165,6 +180,11 @@ interface WorkspaceState {
 const MAX_RECENTS = 6
 let localSeq = 0
 let applyingRemoteContext = false
+
+/** The read model: the stored twin with externally owned objects composed in. */
+function composeModel(twin: ModelSnapshot, projection: ExternalProjection | null): ModelIndex {
+  return buildModelIndex(composeSnapshot(twin, projection), projection?.aliases)
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -231,6 +251,10 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
     status: 'loading',
     loadError: null,
     model: null,
+    twinSnapshot: null,
+    projection: null,
+    projectionError: null,
+    requirementsService: null,
     outputs: [],
     activity: [],
     baselines: [],
@@ -250,9 +274,9 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
     detachedViews: [],
     initialViewStates: {},
 
-    initialize: async ({ repository, projectId, tools, defaultOpenToolIds }) => {
+    initialize: async ({ repository, projectId, tools, defaultOpenToolIds, requirements }) => {
       const initialViewStates = Object.fromEntries(tools.map((t) => [t.id, t.initialViewState]))
-      set({ repository, status: 'loading', loadError: null, initialViewStates })
+      set({ repository, status: 'loading', loadError: null, initialViewStates, requirementsService: requirements ?? null })
       try {
         const [snapshot, outputs, activity, baselines] = await Promise.all([
           repository.loadModel(projectId),
@@ -260,7 +284,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           repository.listActivity(projectId),
           repository.listBaselines(projectId),
         ])
-        const model = buildModelIndex(snapshot)
+        const model = composeModel(snapshot, null)
         const loaded = loadSession()
         const restored = loaded?.context?.projectId === projectId || windowInfo.role === 'detached' ? loaded : null
         // Detached windows join the main window's session context.
@@ -289,6 +313,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
         set({
           status: 'ready',
           model,
+          twinSnapshot: snapshot,
           outputs,
           activity,
           baselines,
@@ -308,10 +333,40 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
         })
       } catch (error) {
         set({ status: 'error', loadError: errorMessage(error) })
+        return
+      }
+      if (requirements) {
+        await get().refreshRequirements()
+        // Committed changes in the Requirements service (any window, any user) refresh the projection.
+        let timer: ReturnType<typeof setTimeout> | undefined
+        requirements.subscribe(projectId, () => {
+          clearTimeout(timer)
+          timer = setTimeout(() => void get().refreshRequirements(), 150)
+        })
       }
     },
 
-    select: (ids) => set((s) => ({ context: { ...s.context, selectedIds: [...new Set(ids)] } })),
+    refreshRequirements: async () => {
+      const { requirementsService: service, twinSnapshot, context, repository } = get()
+      if (!service || !twinSnapshot) return
+      try {
+        const legacyIds = twinSnapshot.objects.filter((o) => o.type === 'requirement').map((o) => o.id)
+        const projection = await loadRequirementsProjection(service, context.projectId, context.configurationId, legacyIds)
+        repository?.registerExternalObjects?.(projection.objects.map((o) => ({ id: o.id, type: o.type, revision: o.revision })))
+        const model = composeModel(get().twinSnapshot!, projection)
+        set((s) => ({
+          projection,
+          projectionError: null,
+          model,
+          // Selections made with a legacy ID now name the canonical object.
+          context: { ...s.context, selectedIds: [...new Set(s.context.selectedIds.map(model.canonical))] },
+        }))
+      } catch (error) {
+        set({ projectionError: errorMessage(error) })
+      }
+    },
+
+    select: (ids) => set((s) => ({ context: { ...s.context, selectedIds: [...new Set(s.model ? ids.map(s.model.canonical) : ids)] } })),
     setConfiguration: (configurationId) => set((s) => ({ context: { ...s.context, configurationId } })),
     setScenario: (scenarioId) => set((s) => ({ context: { ...s.context, scenarioId } })),
 
@@ -386,7 +441,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           parts.includes('baselines') ? repository.listBaselines(context.projectId) : null,
         ])
         set({
-          ...(snapshot ? { model: buildModelIndex(snapshot) } : {}),
+          ...(snapshot ? { twinSnapshot: snapshot, model: composeModel(snapshot, get().projection) } : {}),
           ...(outputs ? { outputs } : {}),
           ...(activity ? { activity } : {}),
           ...(baselines ? { baselines } : {}),
@@ -416,7 +471,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           summary,
           source: options.source,
         })
-        set({ model: buildModelIndex(result.snapshot) })
+        set({ twinSnapshot: result.snapshot, model: composeModel(result.snapshot, get().projection) })
         return { createdIds: result.createdIds, modelRevision: result.modelRevision }
       }),
 
@@ -479,10 +534,24 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
 
     dismissWriteError: () => set({ lastWriteError: null }),
 
+    readRevision: async (id, revision) => {
+      const { repository, context, projection, requirementsService } = get()
+      if (requirementsService && projection?.objects.some((o) => o.id === id)) {
+        const r = await requirementsService.get(id, { projectId: context.projectId, revision }).catch(() => undefined)
+        return r && { id, kind: 'object', revision: r.revision, snapshot: requirementObject(r), changedAt: r.updatedAt, changedBy: 'requirements', summary: '' }
+      }
+      return repository ? repository.getRevision(context.projectId, id, revision).catch(() => undefined) : undefined
+    },
+
     createBaseline: (name, description) =>
       write('platform', `Baseline ${name}`, ['baselines'], async () => {
         const { context } = get()
-        const baseline = await repo().createBaseline(context.projectId, { name, description, configurationId: context.configurationId }, { toolId: 'platform' })
+        const { projection, model } = get()
+        // Requirements live in the Requirements service: pin their exact revisions too.
+        const external = projection && model
+          ? { objects: projection.objects.map((o) => ({ id: o.id, revision: o.revision })), replaces: [...projection.aliases.keys()], relationships: [...model.relationships] }
+          : undefined
+        const baseline = await repo().createBaseline(context.projectId, { name, description, configurationId: context.configurationId, external }, { toolId: 'platform' })
         set((s) => ({ baselines: [...s.baselines.filter((b) => b.id !== baseline.id), baseline] }))
         return baseline
       }),

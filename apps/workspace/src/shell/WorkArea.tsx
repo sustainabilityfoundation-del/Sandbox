@@ -1,5 +1,5 @@
 import { Badge, Button, EmptyState, IconButton, LoadingState, Notice, ToggleButton } from '@ews/design-system'
-import type { EngineeringObject } from '@ews/model-service'
+import { displayId, type EngineeringObject } from '@ews/model-service'
 import { OBJECT_TYPE_LABEL } from '@ews/platform-sdk/react'
 import { ToolScope, type AnyToolDefinition } from '@ews/platform-sdk/react'
 import { Component, Suspense, type ErrorInfo, type ReactNode } from 'react'
@@ -104,7 +104,7 @@ export function UnsupportedSelectionNotice({ tool, viewId = tool.id }: { tool: A
     <div className="ws-unsupported">
       <Notice
         tone="info"
-        title={`${tool.name} can't display ${unsupported.map((o) => `${o.id} ${o.name}`).join(', ')}`}
+        title={`${tool.name} can't display ${unsupported.map((o) => `${displayId(o)} ${o.name}`).join(', ')}`}
         actions={
           windowInfo.role === 'main'
             ? alternatives.slice(0, 3).map((t) => (

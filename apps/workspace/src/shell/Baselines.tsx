@@ -62,20 +62,18 @@ type Holder = { name: string; properties: Record<string, PropertyValue> }
 
 /** Property-level differences between the pinned revision and the current one. */
 function PropertyDiff({ id, pinned, current }: { id: string; pinned: number; current: number }) {
-  const repository = useWorkspaceStore((s) => s.repository)
-  const projectId = useWorkspaceStore((s) => s.context.projectId)
+  const readRevision = useWorkspaceStore((s) => s.readRevision)
   const model = useWorkspaceStore((s) => s.model)!
   const [before, setBefore] = useState<Holder | null | undefined>(undefined)
   useEffect(() => {
     let live = true
-    repository
-      ?.getRevision(projectId, id, pinned)
-      .then((r) => live && setBefore(r.snapshot as EngineeringObject | Scenario))
+    readRevision(id, pinned)
+      .then((r) => live && setBefore(r ? (r.snapshot as EngineeringObject | Scenario) : null))
       .catch(() => live && setBefore(null))
     return () => {
       live = false
     }
-  }, [repository, projectId, id, pinned])
+  }, [readRevision, id, pinned])
   const after: Holder | undefined = model.get(id) ?? model.scenario(id)
   if (before === undefined) return <span className="text-fg-3">Reading rev {pinned}…</span>
   if (!before || !after) return <span className="text-fg-3">rev {pinned} → {current}</span>

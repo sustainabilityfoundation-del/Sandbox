@@ -25,6 +25,7 @@ export {
   changeImpact,
   compareWithBaseline,
   componentOf,
+  displayId,
   formatNumber,
   formatQuantity,
   formatValue,

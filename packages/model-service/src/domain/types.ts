@@ -258,4 +258,10 @@ export interface BaselineDraft {
   name: string
   description?: string
   configurationId: string
+  /**
+   * Objects owned by another service (registered with the repository) to pin at their current
+   * revision, the twin objects they replace (legacy IDs), and the relationships as the host composes
+   * them. Lets one baseline pin the whole definition while requirements live in their own service.
+   */
+  external?: { objects: { id: string; revision: number }[]; replaces: string[]; relationships: Relationship[] }
 }

@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import pg from 'pg'
 import type { ApiConfig } from './config'
@@ -40,9 +41,51 @@ export async function startEmbedded(cfg: { port: number; dataDir: string; user: 
     log(`Initialising PostgreSQL data directory ${cfg.dataDir}`)
     await server.initialise()
   }
-  await server.start()
+  removeStaleLock(cfg.dataDir, log)
+  await server.start().catch((e: unknown) => {
+    // embedded-postgres rejects without a reason; say what to check.
+    throw new Error(`PostgreSQL did not start (data: ${cfg.dataDir}, port ${cfg.port}). Another PostgreSQL may be using the data directory or port.${e ? ` ${String(e)}` : ''}`)
+  })
   log(`Embedded PostgreSQL started on port ${cfg.port} (data: ${cfg.dataDir}).`)
   return { adminUrl, stop: () => server.stop() }
+}
+
+/**
+ * After a reboot or a killed process PostgreSQL leaves postmaster.pid behind and refuses to start.
+ * Remove it only when the process it names is no longer running; a live process is left alone.
+ */
+function removeStaleLock(dataDir: string, log: (m: string) => void) {
+  const lock = join(dataDir, 'postmaster.pid')
+  if (!existsSync(lock)) return
+  const pid = Number(readFileSync(lock, 'utf8').split(/\r?\n/)[0])
+  if (!Number.isInteger(pid) || pid <= 0) return
+  try {
+    process.kill(pid, 0)
+    return // still running (or the PID was reused): let PostgreSQL report it
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ESRCH') return
+  }
+  endOrphanedChildren(pid, log)
+  rmSync(lock)
+  log(`Removed stale PostgreSQL lock (process ${pid} is not running).`)
+}
+
+/**
+ * On Windows, children of a killed postmaster can outlive it and keep the cluster's shared memory,
+ * so a new server refuses to start. End only processes that run the embedded PostgreSQL binary AND
+ * whose parent is the dead postmaster named in the stale lock.
+ */
+function endOrphanedChildren(deadPostmaster: number, log: (m: string) => void) {
+  if (process.platform !== 'win32') return
+  const query = `Get-CimInstance Win32_Process -Filter "ParentProcessId=${deadPostmaster} AND Name='postgres.exe'" | ForEach-Object { "$($_.ProcessId)|$($_.ExecutablePath)" }`
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', query], { encoding: 'utf8', timeout: 15_000 })
+  for (const line of (result.stdout ?? '').split(/\r?\n/)) {
+    const [pidText, path] = line.trim().split('|')
+    const pid = Number(pidText)
+    if (!pid || !path || !/[\\/]@embedded-postgres[\\/]/i.test(path)) continue
+    spawnSync('taskkill', ['/PID', String(pid), '/F'], { stdio: 'ignore' })
+    log(`Ended orphaned PostgreSQL process ${pid} left by stopped server ${deadPostmaster}.`)
+  }
 }
 
 export async function canConnect(url: string): Promise<boolean> {

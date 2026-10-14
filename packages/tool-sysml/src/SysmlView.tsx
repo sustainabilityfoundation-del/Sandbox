@@ -1,6 +1,6 @@
 import './sysml.css'
 import { AppIcon, Button, Dialog, EmptyState, IconButton, Notice, Select, StatusBadge, TextField } from '@ews/design-system'
-import { isComponent, type EngineeringObject, type ModelChange, type SysmlElement } from '@ews/platform-sdk'
+import { displayId, isComponent, type EngineeringObject, type ModelChange, type SysmlElement } from '@ews/platform-sdk'
 import {
   MockTag,
   ObjectRef,
@@ -104,7 +104,7 @@ function AddPartDialog({ representsId, onClose }: { representsId?: string; onClo
           options={[
             { id: '', label: 'None' },
             ...(component && !candidates.includes(component) ? [{ id: component.id, label: `${component.id} ${component.name}`, isDisabled: true }] : []),
-            ...candidates.map((c) => ({ id: c.id, label: `${c.id} ${c.name}` })),
+            ...candidates.map((c) => ({ id: c.id, label: `${displayId(c)} ${c.name}` })),
           ]}
         />
         {error && <Notice tone="danger" title="Not added">{error}</Notice>}
@@ -291,7 +291,7 @@ function PropertyInspector({ element }: { element: SysmlElement }) {
                   value={null}
                   placeholder="Link to a component…"
                   onChange={(id) => void run([{ kind: 'add-relationship', relationship: { type: 'represents', from: element.id, to: id } }], `Linked ${element.id} to ${id}`)}
-                  options={candidates.map((c) => ({ id: c.id, label: `${c.id} ${c.name}` }))}
+                  options={candidates.map((c) => ({ id: c.id, label: `${displayId(c)} ${c.name}` }))}
                 />
               ) : (
                 <span className="text-fg-3">No unrepresented components</span>

@@ -1,14 +1,10 @@
 import type { ModelIndex } from '@ews/model-service'
-import type { PlatformHost, PlatformServices, SharedContext, ToolApi } from '@ews/platform-sdk'
+import type { PlatformHost, SharedContext, ToolApi } from '@ews/platform-sdk'
 import { useToasts } from '@ews/design-system'
 import { useWorkspaceStore } from './store'
+import { workspaceServices } from './services'
 import { toolIdOfView } from './views'
 
-/**
- * Platform services offered to tools (SDK 1.2). Empty until the Requirements
- * service adapter is integrated (docs/specifications/requirements-contracts.md).
- */
-const workspaceServices: PlatformServices = {}
 
 type State = ReturnType<typeof useWorkspaceStore.getState>
 
@@ -86,10 +82,7 @@ export function getToolApi<VS>(toolId: string, viewId: string = toolId): ToolApi
       setReviewStatus: (id, status) => store().setReviewStatus(toolId, id, status),
       getActivity: (objectId) => (objectId ? store().activity.filter((a) => a.objectIds.includes(objectId)) : store().activity),
       log: (message, options) => store().log(toolId, message, options?.kind, options?.objectIds, options?.source),
-      getObjectRevision: async (id, revision) => {
-        const { repository, context } = store()
-        return repository ? repository.getRevision(context.projectId, id, revision).catch(() => undefined) : undefined
-      },
+      getObjectRevision: (id, revision) => store().readRevision(id, revision),
       getBaselines: () => store().baselines,
       registerCommand: (command) => store().registerCommand(viewId, command),
       openTool: (id) => {

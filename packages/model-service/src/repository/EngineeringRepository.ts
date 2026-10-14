@@ -12,6 +12,7 @@ import type {
   Baseline,
   BaselineDraft,
   ObjectRevision,
+  ObjectType,
 } from '../domain/types'
 
 /** 'forbidden': the writer's module does not own the artifact (see domain/ownership.ts). */
@@ -50,5 +51,10 @@ export interface EngineeringRepository {
   /** All recorded revisions of an object or scenario, newest first. */
   listHistory(projectId: string, id: string): Promise<ObjectRevision[]>
   listBaselines(projectId: string): Promise<Baseline[]>
+  /**
+   * Objects owned by another service (e.g. requirements in the Requirements API) that twin
+   * relationships and artifacts may reference. Optional; hosts without external services skip it.
+   */
+  registerExternalObjects?(objects: { id: string; type: ObjectType; revision: number }[]): void
   createBaseline(projectId: string, draft: BaselineDraft, meta: { toolId: string }): Promise<Baseline>
 }

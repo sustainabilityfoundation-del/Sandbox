@@ -162,15 +162,19 @@ not entitled, and consumers show why instead of substituting data.
 
 ## 10. Integration the coordinator performs
 
-Not to be implemented by the agent; listed so the agent can prepare for it:
+Not to be implemented by the agent; listed so the agent can prepare for it. Status as of 14 October
+2026 (sprint [001](../sprints/001-requirements-integration.md)) in brackets.
 
 1. Construct the HTTP adapter in the workspace, the `/api` proxy, demo-mode setting, development
-   user selector.
-2. Project requirements into the model index; twin migration from legacy IDs to UUIDs.
+   user selector. [Done: `apps/workspace/src/platform/services.ts`, header Requirements service menu.]
+2. Project requirements into the model index; twin migration from legacy IDs to UUIDs. [Done as a read-time
+   projection with aliases instead of rewriting stored twin data: ADR-0012.]
 3. SysML tool: place an existing requirement, create a requirement through the API, navigate,
    refresh on events. The agent supplies SDK usage examples and a contract test suite that any
-   `RequirementsService` adapter must pass.
-4. Forward requirements events to detached windows.
+   `RequirementsService` adapter must pass. [Partly: SysML shows canonical text and links to UUIDs
+   through the projection; creating a requirement from SysML through the API is open.]
+4. Forward requirements events to detached windows. [Each window subscribes to the event stream
+   itself instead; not yet browser-tested for detached windows.]
 5. Final cross-module acceptance: Requirements ↔ SysML identity, revision, baseline and
    notification behaviour.
 

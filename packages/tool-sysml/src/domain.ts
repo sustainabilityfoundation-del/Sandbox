@@ -1,4 +1,4 @@
-import { isComponent, readSysmlElement, type EngineeringObject, type ModelChange, type ModelIndex, type SysmlElement } from '@ews/platform-sdk'
+import { displayId, isComponent, readSysmlElement, type EngineeringObject, type ModelChange, type ModelIndex, type SysmlElement } from '@ews/platform-sdk'
 
 /**
  * SysML tool domain logic (no React).
@@ -155,7 +155,8 @@ export function textNotation(model: ModelIndex, d: DiagramModel): string {
   for (const r of d.requirements) {
     const ref = model.linked(r.id, 'references', 'out')[0]
     const statement = ref ? model.get(ref)?.properties.statement : undefined
-    lines.push(`requirement ${r.name} {  // ${r.id}${ref ? ` references ${ref}` : ''}`)
+    const refObject = ref ? model.get(ref) : undefined
+    lines.push(`requirement ${r.name} {  // ${r.id}${ref ? ` references ${refObject ? displayId(refObject) : ref}` : ''}`)
     if (typeof statement === 'string') lines.push(`  doc /* ${statement} */`)
     lines.push('}')
   }

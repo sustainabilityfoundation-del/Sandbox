@@ -320,3 +320,38 @@ describe('revision history and baselines', () => {
 function repoSnapshot() {
   return JSON.parse(JSON.stringify(new DemoRepository({ latencyMs: [0, 0] })['db'].model))
 }
+
+describe('externally owned objects', () => {
+  it('lets twin links and artifacts reference registered external objects without storing them', async () => {
+    const repo = new DemoRepository({ storage: memoryStorage(), latencyMs: [0, 0] })
+    const uuid = '5b1c7e2a-0004-4e6a-9c1d-6f0a3d2b1004'
+    await expect(
+      repo.submitChanges(PROJECT_ID, [{ kind: 'add-relationship', relationship: { type: 'references', from: 'SYS-006', to: uuid } }], { toolId: 'sysml', configurationId: 'CFG-BASE', summary: 'x' }),
+    ).rejects.toMatchObject({ code: 'not-found' })
+    repo.registerExternalObjects([{ id: uuid, type: 'requirement', revision: 2 }])
+    await repo.submitChanges(PROJECT_ID, [{ kind: 'add-relationship', relationship: { type: 'references', from: 'SYS-006', to: uuid } }], { toolId: 'sysml', configurationId: 'CFG-BASE', summary: 'x' })
+    const model = await repo.loadModel(PROJECT_ID)
+    expect(model.relationships.some((r) => r.to === uuid)).toBe(true)
+    expect(model.objects.some((o) => o.id === uuid)).toBe(false)
+    const out = await repo.saveOutput({
+      kind: 'verification-record', title: 't', toolId: 'requirements', projectId: PROJECT_ID, configurationId: 'CFG-BASE', scenarioId: null,
+      inputRevision: model.modelRevision, objectIds: [uuid], inputs: [{ id: uuid, revision: 2 }], references: [{ id: uuid, revision: 2, role: 'verifies' }],
+      completion: 'complete', result: [], summary: 's',
+    })
+    expect(out.objectIds).toEqual([uuid])
+  })
+})
+
+describe('baselines with externally owned objects', () => {
+  it('pins external revisions in place of the legacy twin objects they replace', async () => {
+    const repo = new DemoRepository({ storage: memoryStorage(), latencyMs: [0, 0] })
+    const uuid = '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001'
+    const model = await repo.loadModel(PROJECT_ID)
+    const draft = { name: 'With requirements', configurationId: 'CFG-BASE', external: { objects: [{ id: uuid, revision: 7 }], replaces: ['REQ-001'], relationships: model.relationships } }
+    await expect(repo.createBaseline(PROJECT_ID, draft, { toolId: 'platform' })).rejects.toMatchObject({ code: 'invalid' })
+    repo.registerExternalObjects([{ id: uuid, type: 'requirement', revision: 7 }])
+    const baseline = await repo.createBaseline(PROJECT_ID, draft, { toolId: 'platform' })
+    expect(baseline.objects).toContainEqual({ id: uuid, revision: 7 })
+    expect(baseline.objects.some((o) => o.id === 'REQ-001')).toBe(false)
+  })
+})
