@@ -30,7 +30,9 @@
     "db:seed": "tsx services/api/scripts/db.ts seed",
     "db:reset": "tsx services/api/scripts/db.ts reset",
     "db:status": "tsx services/api/scripts/db.ts status",
-    "req:test:db": "vitest run --config services/api/vitest.db.config.ts"
+    "req:test:db": "vitest run --config services/api/vitest.db.config.ts",
+    "req:reqif:schemas": "tsx packages/reqif/scripts/fetch-schemas.ts",
+    "req:reqif:samples": "tsx packages/reqif/scripts/fetch-samples.ts"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
