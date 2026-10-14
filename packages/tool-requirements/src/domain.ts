@@ -13,17 +13,39 @@ import {
 
 export const VERIFICATION_METHODS = ['Analysis', 'Test', 'Inspection', 'Demonstration']
 
+export type RequirementsPage = 'table' | 'matrix' | 'baselines' | 'exchange' | 'quality'
+export type DetailTab = 'details' | 'relationships' | 'reviews' | 'history' | 'comments' | 'quality' | 'verification'
+export const TABLE_COLUMNS = ['key', 'title', 'status', 'type', 'priority', 'owner', 'allocation', 'verification', 'updated', 'trace'] as const
+export type TableColumn = (typeof TABLE_COLUMNS)[number]
+
 export interface RequirementsViewState {
   /** 'selection': only requirements allocated to the selected (or last selected) component. */
   filterMode: 'all' | 'selection'
   /** Component the filter refers to, kept when a requirement itself is selected. */
   filterComponentId: string | null
+  /** Twin status filter (demo mode and legacy twin data). */
   statusFilter: 'all' | RequirementStatus
   search: string
   /** Show trace columns (SysML references and representations). */
   showTrace: boolean
-  editor: { requirementId: string; focus: 'details' | 'allocation'; tab: 'details' | 'relationships' | 'verification' | 'history' } | null
+  /** Open detail panel: a requirement ID (canonical UUID in API mode) or 'new'. */
+  editor: { requirementId: string; focus: 'details' | 'allocation'; tab: DetailTab } | null
+  /** API mode: which page of the tool is shown. */
+  page: RequirementsPage
+  statuses: string[]
+  types: string[]
+  collectionId: string | null
+  includeArchived: boolean
+  columns: TableColumn[]
+  sort: 'key' | '-updated'
+  /** Read-only historical view of a requirements baseline. */
+  baselineId: string | null
+  /** Multi-select for bulk operations. */
+  bulk: boolean
+  savedViewId: string | null
 }
+
+export const DEFAULT_COLUMNS: TableColumn[] = ['key', 'title', 'status', 'type', 'allocation', 'verification']
 
 export const INITIAL_VIEW_STATE: RequirementsViewState = {
   filterMode: 'selection',
@@ -32,6 +54,16 @@ export const INITIAL_VIEW_STATE: RequirementsViewState = {
   search: '',
   showTrace: false,
   editor: null,
+  page: 'table',
+  statuses: [],
+  types: [],
+  collectionId: null,
+  includeArchived: false,
+  columns: DEFAULT_COLUMNS,
+  sort: 'key',
+  baselineId: null,
+  bulk: false,
+  savedViewId: null,
 }
 
 /** The component a selection refers to: a component, or what a SysML/CAD representation represents. */

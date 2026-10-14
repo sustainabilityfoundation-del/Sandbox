@@ -212,8 +212,8 @@ export async function listRequirements(db: Queryable, projectId: string, q: Requ
       baseline
         ? `EXISTS (SELECT 1 FROM requirements.baseline_relationships br JOIN requirements.relationship_revisions rr ON rr.relationship_id = br.relationship_id AND rr.revision = br.revision
                    JOIN requirements.relationships rel ON rel.id = br.relationship_id
-                   WHERE br.baseline_id = b.baseline_id AND rel.from_requirement_id = r.id AND rel.type = 'allocated-to' AND NOT rr.deleted AND rel.to_twin_id = ${p(q.allocatedTo)})`
-        : `EXISTS (SELECT 1 FROM requirements.relationships rel WHERE rel.from_requirement_id = r.id AND rel.type = 'allocated-to' AND NOT rel.deleted AND rel.to_twin_id = ${p(q.allocatedTo)})`,
+                   WHERE br.baseline_id = b.baseline_id AND rel.from_requirement_id = r.id AND rel.type = 'allocated-to' AND NOT rr.deleted AND rel.to_twin_id = ANY(${p(csv(q.allocatedTo))}))`
+        : `EXISTS (SELECT 1 FROM requirements.relationships rel WHERE rel.from_requirement_id = r.id AND rel.type = 'allocated-to' AND NOT rel.deleted AND rel.to_twin_id = ANY(${p(csv(q.allocatedTo))}))`,
     )
   }
   if (q.text?.trim()) {

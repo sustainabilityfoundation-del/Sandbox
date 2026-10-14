@@ -1,73 +1,47 @@
-import { isComponent } from '@ews/platform-sdk'
 import { defineTool } from '@ews/platform-sdk/react'
 import { lazy } from 'react'
 import { requirementsAssistant } from './assistant'
-import { INITIAL_VIEW_STATE, selectedRequirementIds, type RequirementsViewState } from './domain'
+import { INITIAL_VIEW_STATE, type RequirementsViewState } from './domain'
 import pkg from '../package.json'
 
 export type { RequirementsViewState, VerificationOutcome, VerificationRecordView, VerificationState } from './domain'
 /** Verification record helpers, exported for platform-level workflow tests. */
 export { VERIFICATION_RECORD, readVerificationRecord, verificationArtifact, verificationState } from './domain'
 
-/** Requirements Management: requirement statements, rationale, status and allocation to components. */
+/**
+ * Requirements Management. Canonical requirements live in the Requirements service
+ * (`ToolApi.services.requirements`, PostgreSQL-backed API, or an explicitly chosen demo adapter);
+ * the shared twin provides components, SysML references and verification records.
+ */
 export const requirementsTool = defineTool<RequirementsViewState>({
   id: 'requirements',
   name: 'Requirements',
-  description: 'Requirements table, search and filters; statements, rationale, status and allocation to components.',
+  description: 'Requirements collections, search and filters, lifecycle and reviews, traceability, baselines, quality assistance and ReqIF exchange.',
   category: 'Requirements',
   icon: 'requirements',
   version: pkg.version,
-  sdkVersion: '^1.1.0',
+  sdkVersion: '^1.2.0',
   entitlement: 'tool:requirements',
   supportedObjectTypes: ['requirement', 'assembly', 'part', 'sysml-element', 'cad-representation'],
   view: lazy(() => import('./RequirementsView')),
   initialViewState: INITIAL_VIEW_STATE,
   assistant: requirementsAssistant,
-  toolbar: ({ api, viewState, model, selection }) => {
-    const requirementId = selectedRequirementIds(model, selection.map((o) => o.id))[0]
-    const component = selection.find(isComponent)
-    const edit = (focus: 'details' | 'allocation') =>
-      requirementId && api.updateViewState({ editor: { requirementId, focus, tab: 'details' } })
+  toolbar: ({ api, viewState }) => {
+    const service = api.services.requirements
+    const unavailable = !service ? 'The Requirements service is not available in this host' : undefined
+    const demo = service?.mode === 'demo'
+    const open = viewState.editor && viewState.editor.requirementId !== 'new' ? viewState.editor.requirementId : null
     return [
       {
         type: 'button',
         id: 'add',
         label: 'Add',
         icon: 'add',
+        primary: true,
         priority: 'primary',
-        title: component ? `Add a requirement allocated to ${component.name}` : 'Add a requirement',
-        onClick: async () => {
-          const { createdIds } = await api.submitChanges(
-            [
-              {
-                kind: 'add-object',
-                idPrefix: 'REQ',
-                ref: '$req',
-                object: {
-                  type: 'requirement',
-                  name: 'New requirement',
-                  properties: { statement: 'The actuator shall …', rationale: '', status: 'draft', verificationMethods: [] },
-                },
-              },
-              ...(component ? [{ kind: 'add-relationship' as const, relationship: { type: 'allocated-to' as const, from: '$req', to: component.id } }] : []),
-            ],
-            component ? `Added requirement allocated to ${component.id}` : 'Added requirement',
-          )
-          const id = createdIds[0]
-          if (!id) return
-          api.select([id])
-          api.updateViewState({ editor: { requirementId: id, focus: 'details', tab: 'details' } })
-        },
-      },
-      {
-        type: 'button',
-        id: 'edit',
-        label: 'Edit',
-        icon: 'edit',
-        priority: 'primary',
-        disabled: !requirementId,
-        title: requirementId ? `Edit ${requirementId}` : 'Select a requirement to edit it',
-        onClick: () => edit('details'),
+        disabled: !service || demo || !!viewState.baselineId,
+        title: unavailable ?? (demo ? 'Creating requirements needs API mode' : viewState.baselineId ? 'Leave the baseline view to add requirements' : 'Add a requirement'),
+        onClick: () => api.updateViewState({ page: 'table', editor: { requirementId: 'new', focus: 'details', tab: 'details' } }),
       },
       {
         type: 'button',
@@ -75,26 +49,28 @@ export const requirementsTool = defineTool<RequirementsViewState>({
         label: 'Filter',
         icon: 'filter',
         active: viewState.filterMode === 'selection',
-        title: 'Show only requirements allocated to the selected component',
+        disabled: !service || demo,
+        title: unavailable ?? 'Show only requirements allocated to the selected component',
         onClick: () => api.updateViewState((vs) => ({ ...vs, filterMode: vs.filterMode === 'selection' ? 'all' : 'selection' })),
       },
       {
         type: 'button',
         id: 'allocate',
-        label: 'Allocate',
+        label: 'Trace',
         icon: 'allocate',
-        disabled: !requirementId,
-        title: requirementId ? `Change the components ${requirementId} is allocated to` : 'Select a requirement to allocate it',
-        onClick: () => edit('allocation'),
+        disabled: !open,
+        title: open ? 'Relationships and allocation of the open requirement' : 'Open a requirement to edit its relationships',
+        onClick: () => open && api.updateViewState({ page: 'table', editor: { requirementId: open, focus: 'allocation', tab: 'relationships' } }),
       },
       {
         type: 'button',
         id: 'trace',
-        label: 'Trace',
+        label: 'SysML column',
         icon: 'trace',
         active: viewState.showTrace,
-        title: 'Show SysML references and the representations of allocated components',
-        onClick: () => api.updateViewState((vs) => ({ ...vs, showTrace: !vs.showTrace })),
+        disabled: !service || demo,
+        title: 'Show the SysML requirement usages that reference each requirement',
+        onClick: () => api.updateViewState((vs) => ({ ...vs, showTrace: !vs.showTrace, columns: vs.columns.includes('trace') ? vs.columns : [...vs.columns, 'trace'] })),
       },
     ]
   },

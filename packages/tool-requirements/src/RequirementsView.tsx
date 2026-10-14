@@ -1,428 +1,397 @@
 import './requirements.css'
-import {
-  Badge,
-  Button,
-  Cell,
-  Checkbox,
-  CheckboxGroup,
-  Column,
-  EmptyState,
-  Notice,
-  Row,
-  SearchField,
-  Select,
-  StatusBadge,
-  Tab,
-  TabList,
-  TabPanel,
-  Table,
-  TableBody,
-  TableHeader,
-  Tabs,
-  TextField,
-} from '@ews/design-system'
-import {
-  REQUIREMENT_STATUSES,
-  isComponent,
-  readRequirement,
-  representationsOf,
-  type EngineeringObject,
-  type ModelChange,
-  type RequirementStatus,
-} from '@ews/platform-sdk'
+import { Badge, Button, EmptyState, Notice, SegmentedControl, Select, Table, TableBody, TableHeader, Column, Row, Cell, SearchField, TextField, LoadingState } from '@ews/design-system'
+import type { RequirementSummary, RequirementsService } from '@ews/platform-sdk'
 import {
   ObjectRef,
-  RequirementStatusBadge,
-  formatTime,
-  useActivity,
+  usePlatformServices,
   useModel,
-  useRestoredScroll,
   useSelection,
+  useSharedContext,
   useToolApi,
   useToolCommand,
   useToolViewState,
   useUnsavedChanges,
 } from '@ews/platform-sdk/react'
-import { useEffect, useMemo, useState } from 'react'
-import {
-  VERIFICATION_METHODS,
-  filterRequirements,
-  selectedComponent,
-  selectedRequirementIds,
-  sysmlTrace,
-  type RequirementsViewState,
-  type VerificationRecordView,
-} from './domain'
-import { Verification, VerificationStateBadge, useVerificationRecords } from './Verification'
+import { getModuleClient, type Requirement } from '@ews/requirements-client'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { selectedComponent, selectedRequirementIds, type RequirementsPage, type RequirementsViewState } from './domain'
+import { ModuleDataProvider, useModuleData, useResource } from './data'
+import { setAssistantConnection, updateProposal, useProposals, type AssistantProposal } from './proposals'
+import { useVerificationRecords } from './Verification'
+import { CollectionsPanel } from './ui/Collections'
+import { ApiErrorNotice, LifecycleBadge, formatDate } from './ui/common'
+import { DetailPanel } from './ui/DetailPanel'
+import { ExchangeView } from './ui/Exchange'
+import { BaselinesView, BulkBar, MatrixView, SavedViews } from './ui/Pages'
+import { QualityTab, QualityView } from './ui/Quality'
+import { RequirementTable } from './ui/RequirementTable'
 
-const RELATIONSHIP_LABEL: Record<string, string> = {
-  'allocated-to': 'Allocated to',
-  references: 'Referenced by SysML element',
-  verifies: 'Verified by (retired Verification data, read-only)',
-}
+// ---- assistant proposals (API mode) -------------------------------------------------------------
 
-function RequirementEditor({
-  requirement,
-  focus,
-  onClose,
-}: {
-  requirement: EngineeringObject
-  focus: 'details' | 'allocation'
-  onClose: () => void
-}) {
+function ProposalCard({ p }: { p: AssistantProposal }) {
+  const { client, invalidate } = useModuleData()
   const api = useToolApi()
-  const model = useModel()
-  const components = model.objects.filter(isComponent)
-  const current = readRequirement(requirement)
-  const currentAllocation = model.linked(requirement.id, 'allocated-to', 'out')
-
-  const [title, setTitle] = useState(current.title)
-  const [statement, setStatement] = useState(current.statement)
-  const [rationale, setRationale] = useState(current.rationale)
-  const [status, setStatus] = useState<RequirementStatus>(current.status)
-  const [methods, setMethods] = useState<string[]>(current.verificationMethods)
-  const [allocation, setAllocation] = useState<string[]>(currentAllocation)
-  const [baseRevision] = useState(requirement.revision)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const dirty =
-    title !== current.title ||
-    statement !== current.statement ||
-    rationale !== current.rationale ||
-    status !== current.status ||
-    !current.statusSet ||
-    methods.join() !== current.verificationMethods.join() ||
-    [...allocation].sort().join() !== [...currentAllocation].sort().join()
-  useUnsavedChanges(dirty && !saving)
-
-  const save = async () => {
-    const changes: ModelChange[] = [
-      {
-        kind: 'update-properties',
-        targetId: requirement.id,
-        baseRevision,
-        name: title.trim() || requirement.name,
-        properties: { statement: statement.trim(), rationale: rationale.trim(), status, verificationMethods: methods },
-      },
-    ]
-    for (const id of allocation.filter((a) => !currentAllocation.includes(a))) {
-      changes.push({ kind: 'add-relationship', relationship: { type: 'allocated-to', from: requirement.id, to: id } })
-    }
-    for (const id of currentAllocation.filter((a) => !allocation.includes(a))) {
-      const rel = model.findRelationship('allocated-to', requirement.id, id)
-      if (rel) changes.push({ kind: 'remove-relationship', relationshipId: rel.id })
-    }
-    setSaving(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const apply = async () => {
+    setBusy(true)
     setError(null)
     try {
-      await api.submitChanges(changes, `Edited ${requirement.id} ${title.trim() || requirement.name}`)
-      onClose()
+      const patch = Object.fromEntries(p.changes.map((c) => [c.field, c.proposed]))
+      const r = await client.update(p.requirementId, patch, { expectedRevision: p.expectedRevision, reason: `Assistant proposal ${p.id}` })
+      updateProposal(p.id, { status: 'applied', appliedRevision: r.revision })
+      api.log(`Applied assistant proposal ${p.id} to ${p.key} (rev ${p.expectedRevision} → ${r.revision})`, { kind: 'change', source: { kind: 'conversation', conversationId: p.id } as never })
+      invalidate()
     } catch (e) {
-      // Everything the user typed stays in the form.
-      setError(e instanceof Error ? e.message : String(e))
+      setError(e)
+      updateProposal(p.id, { status: 'failed', error: e instanceof Error ? e.message : String(e) })
     } finally {
-      setSaving(false)
+      setBusy(false)
     }
   }
-
-  return (
-    <div className="req-form">
-      <TextField label="Title" value={title} onChange={setTitle} autoFocus={focus === 'details'} />
-      <TextField label="Statement" multiline rows={4} value={statement} onChange={setStatement} />
-      <TextField label="Rationale" multiline rows={3} value={rationale} onChange={setRationale} description="Why the requirement exists; kept with the requirement for review." />
-      <Select
-        label="Status"
-        value={status}
-        onChange={(v) => setStatus(v as RequirementStatus)}
-        options={REQUIREMENT_STATUSES.map((s) => ({ id: s.id, label: s.label }))}
-      />
-      {!current.statusSet && (
-        <p className="ws-hint m-0">This requirement was saved before status existed. Saving records the status shown.</p>
-      )}
-      <CheckboxGroup label="Verification methods" value={methods} onChange={setMethods}>
-        {VERIFICATION_METHODS.map((m) => (
-          <Checkbox key={m} value={m}>
-            {m}
-          </Checkbox>
-        ))}
-      </CheckboxGroup>
-      <CheckboxGroup
-        label="Allocated to components"
-        orientation="vertical"
-        value={allocation}
-        onChange={setAllocation}
-        className={focus === 'allocation' ? 'req-focused' : undefined}
-      >
-        {components.map((c, i) => (
-          <Checkbox key={c.id} value={c.id} autoFocus={focus === 'allocation' && i === 0}>
-            <span className="font-mono">{c.id}</span> {c.name}
-          </Checkbox>
-        ))}
-      </CheckboxGroup>
-      {error && (
-        <Notice
-          tone="danger"
-          title="Could not save"
-          actions={
-            <Button size="sm" variant="outlined" icon="reset" onPress={() => void save()}>
-              Try again
-            </Button>
-          }
-        >
-          {error} Your edits are kept.
-        </Notice>
-      )}
-      <div className="req-form-actions">
-        {saving ? <StatusBadge status="saving" /> : dirty ? <StatusBadge status="unsaved" /> : <span className="text-ui-xs text-fg-3">Based on rev {baseRevision}</span>}
-        <span className="flex-1" />
-        <Button variant="text" onPress={onClose} isDisabled={saving}>
-          Cancel
-        </Button>
-        <Button variant="filled" icon="save" onPress={() => void save()} isPending={saving}>
-          {saving ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function Relationships({ requirement }: { requirement: EngineeringObject }) {
-  const model = useModel()
-  const rels = model.relationshipsOf(requirement.id)
-  const groups = new Map<string, EngineeringObject[]>()
-  for (const r of rels) {
-    const otherId = r.from === requirement.id ? r.to : r.from
-    const other = model.get(otherId)
-    if (!other) continue
-    const label = RELATIONSHIP_LABEL[r.type] ?? r.type
-    groups.set(label, [...(groups.get(label) ?? []), other])
+  const undo = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const patch = Object.fromEntries(p.changes.map((c) => [c.field, c.current]))
+      const r = await client.update(p.requirementId, patch, { expectedRevision: p.appliedRevision!, reason: `Undo assistant proposal ${p.id}` })
+      updateProposal(p.id, { status: 'undone' })
+      api.log(`Undid assistant proposal ${p.id} on ${p.key} (new rev ${r.revision})`, { kind: 'change' })
+      invalidate()
+    } catch (e) {
+      setError(e)
+    } finally {
+      setBusy(false)
+    }
   }
-  const { satisfiedBy } = sysmlTrace(model, requirement.id)
-  if (satisfiedBy.length) groups.set('Satisfied by (SysML)', satisfiedBy)
-  if (!groups.size) return <p className="text-fg-3">No relationships yet. Use Allocate to link components.</p>
   return (
-    <dl className="req-rels">
-      {[...groups].map(([label, objects]) => (
-        <div key={label}>
-          <dt>{label}</dt>
-          <dd className="ws-refs">
-            {objects.map((o) => (
-              <ObjectRef key={o.id} object={o} />
-            ))}
-          </dd>
+    <section className="req-proposal" aria-label={`Assistant proposal for ${p.key}`}>
+      <div className="req-finding-head">
+        <Badge tone="info" icon="assistant">
+          Assistant proposal
+        </Badge>
+        <strong>
+          {p.key}, based on revision {p.expectedRevision}
+        </strong>
+        <Badge tone={p.status === 'applied' ? 'success' : p.status === 'failed' ? 'danger' : 'neutral'}>{p.status}</Badge>
+      </div>
+      {p.changes.map((c) => (
+        <div key={c.field} className="req-proposal-change">
+          <span className="text-fg-3">{c.field}</span>
+          <del>{c.current || '(empty)'}</del>
+          <ins>{c.proposed}</ins>
         </div>
       ))}
-    </dl>
-  )
-}
-
-function History({ requirement }: { requirement: EngineeringObject }) {
-  const activity = useActivity(requirement.id)
-  if (!activity.length) return <p className="text-fg-3">No recorded activity for {requirement.id}.</p>
-  return (
-    <ol className="req-history" aria-label={`Activity for ${requirement.id}`}>
-      {activity.map((a) => (
-        <li key={a.id}>
-          <span className="text-ui-xs text-fg-3">{formatTime(a.at)}</span>
-          <span>{a.message}</span>
-        </li>
-      ))}
-    </ol>
-  )
-}
-
-function DetailPanel({ requirement, records, state, setState }: { requirement: EngineeringObject; records: VerificationRecordView[]; state: NonNullable<RequirementsViewState['editor']>; setState: (u: Partial<RequirementsViewState>) => void }) {
-  const r = readRequirement(requirement)
-  const close = () => setState({ editor: null })
-  return (
-    <section className="req-detail" aria-label={`${requirement.id} details`}>
-      <header className="req-detail-header">
-        <h3>
-          <span className="font-mono">{requirement.id}</span> {r.title}
-        </h3>
-        <RequirementStatusBadge status={r.status} unset={!r.statusSet} />
-      </header>
-      <Tabs selectedKey={state.tab} onSelectionChange={(tab) => setState({ editor: { ...state, tab: tab as typeof state.tab } })} className="flex min-h-0 flex-1 flex-col">
-        <TabList aria-label="Requirement detail" className="px-2">
-          <Tab id="details">Edit</Tab>
-          <Tab id="relationships">Relationships</Tab>
-          <Tab id="verification">Verification</Tab>
-          <Tab id="history">History</Tab>
-        </TabList>
-        <TabPanel id="details" className="req-detail-body">
-          <RequirementEditor key={`${requirement.id}-${state.focus}`} requirement={requirement} focus={state.focus} onClose={close} />
-        </TabPanel>
-        <TabPanel id="relationships" className="req-detail-body">
-          <Relationships requirement={requirement} />
-        </TabPanel>
-        <TabPanel id="verification" className="req-detail-body">
-          <Verification requirement={requirement} records={records} />
-        </TabPanel>
-        <TabPanel id="history" className="req-detail-body">
-          <History requirement={requirement} />
-        </TabPanel>
-      </Tabs>
+      <div className="req-actions-row">
+        {(p.status === 'pending' || p.status === 'failed') && (
+          <>
+            <Button size="sm" variant="filled" isPending={busy} onPress={() => void apply()}>
+              Apply
+            </Button>
+            <Button size="sm" variant="text" onPress={() => updateProposal(p.id, { status: 'rejected' })}>
+              Reject
+            </Button>
+          </>
+        )}
+        {p.status === 'applied' && (
+          <Button size="sm" variant="outlined" icon="undo" isPending={busy} onPress={() => void undo()}>
+            Undo
+          </Button>
+        )}
+      </div>
+      {error ? <ApiErrorNotice error={error} title="The proposal was not applied" /> : null}
     </section>
   )
 }
 
-function TraceCell({ requirement }: { requirement: EngineeringObject }) {
+// ---- API mode ------------------------------------------------------------------------------------
+
+const PAGES: { value: RequirementsPage; label: string }[] = [
+  { value: 'table', label: 'Requirements' },
+  { value: 'matrix', label: 'Matrix' },
+  { value: 'baselines', label: 'Baselines' },
+  { value: 'quality', label: 'Quality' },
+  { value: 'exchange', label: 'Import / export' },
+]
+
+function ApiView() {
+  const { client, projectId, permissions, permissionsError, lastEvent, can } = useModuleData()
   const model = useModel()
-  const { references } = sysmlTrace(model, requirement.id)
-  const cad = model.linked(requirement.id, 'allocated-to', 'out').flatMap((c) => representationsOf(model, c, 'cad'))
-  if (!references.length && !cad.length) return <span className="text-fg-3">None</span>
+  const { selectedIds, select } = useSelection()
+  const [state, setState] = useToolViewState<RequirementsViewState>()
+  const verification = useVerificationRecords()
+  const proposals = useProposals().filter((p) => p.status !== 'rejected' && p.status !== 'undone')
+  const [bulkSelection, setBulkSelection] = useState<Set<string>>(new Set())
+  const [rows, setRows] = useState<Requirement[]>([])
+  const definitions = useResource(() => client.attributeDefinitions(), [client])
+  const conventions = useResource(() => client.conventions(), [client])
+  const baseline = useResource(state.baselineId ? () => client.baselines().then((bs) => bs.find((b) => b.id === state.baselineId)) : null, [client, state.baselineId])
+  const requirementTypes = (conventions.data?.settings.requirementTypes as string[] | undefined) ?? ['functional']
+
+  useEffect(() => {
+    setAssistantConnection({ client, projectId })
+    return () => setAssistantConnection(null)
+  }, [client, projectId])
+
+  // Selection made in other tools: a component (or its representation) filters by allocation.
+  const component = selectedComponent(model, selectedIds)
+  useEffect(() => {
+    if (component && component.id !== state.filterComponentId) setState({ filterComponentId: component.id })
+  }, [component, state.filterComponentId, setState])
+  const filterComponent = component ?? (state.filterComponentId ? model.get(state.filterComponentId) : undefined)
+  const allocatedTo = useMemo(
+    () => (state.filterMode === 'selection' && filterComponent ? [filterComponent.id, ...model.childrenOf(filterComponent.id).map((c) => c.id)] : null),
+    [state.filterMode, filterComponent, model],
+  )
+  // A selected requirement (legacy twin ID or UUID) or SysML usage highlights its row.
+  const legacy = selectedRequirementIds(model, selectedIds)[0] ?? selectedIds.find((id) => /^[0-9a-f-]{36}$/i.test(id))
+  const highlighted = useResource(legacy ? () => (/^[0-9a-f-]{36}$/i.test(legacy) ? Promise.resolve(legacy) : client.resolve(legacy).then((r) => r.id, () => null)) : null, [client, legacy])
+
+  const open = useCallback((id: string) => setState({ editor: { requirementId: id, focus: 'details', tab: state.editor?.tab ?? 'details' } }), [setState, state.editor?.tab])
+  const selectRequirement = useCallback(
+    (r: Requirement | null) => {
+      if (!r) return select([])
+      // Select the twin object other tools know: the canonical ID once projected, else the legacy twin ID.
+      const twinId = model.get(r.id) ? r.id : (r.legacyIds.find((l) => model.get(l)) ?? r.id)
+      select([twinId])
+    },
+    [model, select],
+  )
+  useToolCommand({ id: 'requirements.new', label: 'Requirements: new requirement', icon: 'add', disabled: !can('author'), run: () => setState({ editor: { requirementId: 'new', focus: 'details', tab: 'details' } }) })
+
+  const editing = state.editor?.requirementId ?? null
   return (
-    <div className="ws-refs">
-      {references.map((o) => (
-        <ObjectRef key={o.id} object={o} showName={false} />
+    <div className="req-shell">
+      <div className="req-topbar">
+        <div className="req-pages-wide">
+          <SegmentedControl label="Requirements page" size="sm" value={state.page} onChange={(page) => setState({ page })} options={PAGES} />
+        </div>
+        <Select ariaLabel="Requirements page" size="sm" className="req-pages-narrow" value={state.page} onChange={(page) => setState({ page: page as RequirementsPage })} options={PAGES.map((p) => ({ id: p.value, label: p.label }))} />
+        <span className="flex-1" />
+        {permissions && (
+          <span className="text-ui-xs text-fg-3" title={permissions.permissions.join(', ')}>
+            {permissions.userId} · {permissions.role ?? 'no role'}
+            {!permissions.fullModule && ' · SysML entitlement only'}
+          </span>
+        )}
+        {lastEvent && <span className="text-ui-xs text-fg-3">Last change {formatDate(lastEvent.occurredAt)} by {lastEvent.actor}</span>}
+      </div>
+      {permissionsError && <ApiErrorNotice error={new Error(permissionsError)} title="The Requirements service refused the request" />}
+      {state.baselineId && (
+        <Notice tone="warning" title={`Historical view: baseline “${baseline.data?.name ?? '…'}”`} actions={<Button size="sm" variant="outlined" onPress={() => setState({ baselineId: null })}>Back to working state</Button>}>
+          Read-only. Shows the revisions, relationships and structure pinned on {formatDate(baseline.data?.createdAt)}; later changes are not shown.
+        </Notice>
+      )}
+      {proposals.map((p) => (
+        <ProposalCard key={p.id} p={p} />
       ))}
-      {cad.map((o) => (
-        <ObjectRef key={o.id} object={o} showName={false} />
-      ))}
+      {state.page === 'table' && (
+        <div className={`req-root${editing ? ' has-detail' : ''}`}>
+          <CollectionsPanel
+            collectionId={state.collectionId}
+            setCollectionId={(collectionId) => setState({ collectionId })}
+            baselineId={state.baselineId}
+            openRequirementId={editing}
+            onOpen={open}
+            selectedRequirementId={editing && editing !== 'new' ? editing : null}
+          />
+          <div className="req-main">
+            <div className="req-scope">
+              {state.filterMode === 'selection' && filterComponent ? (
+                <span className="inline-flex flex-wrap items-center gap-1.5">
+                  Allocated to <ObjectRef object={filterComponent} />
+                  {filterComponent.type === 'assembly' && <span className="text-fg-3">(including sub-components)</span>}
+                  <Button size="sm" variant="text" onPress={() => setState({ filterMode: 'all' })}>
+                    Show all
+                  </Button>
+                </span>
+              ) : (
+                <span className="text-fg-3">{state.filterMode === 'selection' ? 'Select a component (or its SysML or CAD representation) to filter by allocation.' : 'All requirements'}</span>
+              )}
+              <span className="flex-1" />
+              <SavedViews state={state} setState={setState} />
+              {can('author') && !state.baselineId && (
+                <Button size="sm" variant={state.bulk ? 'filled' : 'text'} onPress={() => (setState({ bulk: !state.bulk }), setBulkSelection(new Set()))}>
+                  {state.bulk ? 'Exit bulk edit' : 'Bulk edit'}
+                </Button>
+              )}
+            </div>
+            {state.bulk && <BulkBar selected={bulkSelection} rows={rows} requirementTypes={requirementTypes} onDone={() => (setState({ bulk: false }), setBulkSelection(new Set()))} />}
+            <RequirementTable
+              state={state}
+              setState={setState}
+              allocatedTo={allocatedTo}
+              highlightedId={highlighted.data ?? (editing !== 'new' ? editing : null)}
+              onOpen={(r) => open(r.id)}
+              onSelect={(r) => {
+                selectRequirement(r)
+                if (r && state.editor) open(r.id)
+              }}
+              bulkSelection={bulkSelection}
+              setBulkSelection={setBulkSelection}
+              verification={verification}
+              requirementTypes={requirementTypes}
+              onRows={setRows}
+            />
+            <p className="ws-hint">Select a row to select the requirement in every tool; press Enter or double-click to open it.</p>
+          </div>
+          {editing && state.editor && (
+            <DetailPanel
+              requirementId={editing}
+              tab={state.editor.tab}
+              setTab={(tab) => setState({ editor: { ...state.editor!, tab } })}
+              onClose={() => setState({ editor: null })}
+              onSaved={(r) => (setState({ editor: { requirementId: r.id, focus: 'details', tab: 'details' } }), selectRequirement(r))}
+              definitions={definitions.data ?? []}
+              requirementTypes={requirementTypes}
+              baselineId={state.baselineId}
+              collectionId={state.collectionId}
+              verification={verification}
+              quality={(r, readOnly) => <QualityTab r={r} readOnly={readOnly} />}
+            />
+          )}
+        </div>
+      )}
+      {state.page === 'matrix' && <MatrixView collectionId={state.collectionId} baselineId={state.baselineId} onOpen={(id) => setState({ page: 'table', editor: { requirementId: id, focus: 'details', tab: 'relationships' } })} />}
+      {state.page === 'baselines' && <BaselinesView current={state.baselineId} collectionId={state.collectionId} onOpenBaseline={(baselineId) => setState({ baselineId, page: baselineId ? 'table' : 'baselines', editor: null })} />}
+      {state.page === 'quality' && <QualityView collectionId={state.collectionId} onOpen={(id) => setState({ page: 'table', editor: { requirementId: id, focus: 'details', tab: 'quality' } })} />}
+      {state.page === 'exchange' && <ExchangeView collectionId={state.collectionId} baselineId={state.baselineId} />}
     </div>
   )
 }
 
-export default function RequirementsView() {
-  const api = useToolApi<RequirementsViewState>()
-  const model = useModel()
-  const { selectedIds, select } = useSelection()
-  const [viewState, setViewState] = useToolViewState<RequirementsViewState>()
-  const scrollRef = useRestoredScroll<HTMLDivElement>('table')
-  const verification = useVerificationRecords()
+// ---- demo mode (SDK contract only) ---------------------------------------------------------------
 
-  const component = selectedComponent(model, selectedIds)
-  // Remember the component the filter refers to, so selecting a requirement doesn't empty the list.
-  useEffect(() => {
-    if (component && component.id !== viewState.filterComponentId) setViewState({ filterComponentId: component.id })
-  }, [component, viewState.filterComponentId, setViewState])
-
-  const { visible, total, component: filterComponent } = useMemo(
-    () => filterRequirements(model, viewState, selectedIds),
-    [model, viewState, selectedIds],
-  )
-  const highlighted = selectedRequirementIds(model, selectedIds)
-  const editing = viewState.editor ? model.get(viewState.editor.requirementId) : undefined
-  const filtersActive = viewState.search !== '' || viewState.statusFilter !== 'all' || viewState.filterMode === 'selection'
-
-  useToolCommand(
-    filtersActive
-      ? { id: 'requirements.clear-filters', label: 'Requirements: clear search and filters', icon: 'filter', run: () => setViewState({ search: '', statusFilter: 'all', filterMode: 'all' }) }
-      : null,
-  )
-
+function DemoEditor({ service, r, onDone }: { service: RequirementsService; r: RequirementSummary; onDone: () => void }) {
+  const [title, setTitle] = useState(r.title)
+  const [statement, setStatement] = useState(r.statement)
+  const [error, setError] = useState<unknown>(null)
+  const [saving, setSaving] = useState(false)
+  const dirty = title !== r.title || statement !== r.statement
+  useUnsavedChanges(dirty && !saving)
   return (
-    <div className={`req-root${editing ? ' has-detail' : ''}`}>
-      <div className="req-main">
-        <div className="req-filterbar">
-          <SearchField
-            label="Search requirements"
-            placeholder="Search ID, title, statement, rationale"
-            value={viewState.search}
-            onChange={(search) => setViewState({ search })}
-            className="req-search"
-          />
-          <div className="req-status-filter">
-            <Select
-              label="Status"
-              size="sm"
-              value={viewState.statusFilter}
-              onChange={(v) => setViewState({ statusFilter: v as RequirementsViewState['statusFilter'] })}
-              options={[{ id: 'all', label: 'All' }, ...REQUIREMENT_STATUSES.map((s) => ({ id: s.id, label: s.label }))]}
-            />
-            <span className="text-fg-3" aria-live="polite">
-              {visible.length} of {total}
-            </span>
+    <div className="req-form">
+      <TextField label="Title" value={title} onChange={setTitle} />
+      <TextField label="Statement" multiline rows={4} value={statement} onChange={setStatement} />
+      {error ? <ApiErrorNotice error={error} onRetry={() => undefined} /> : null}
+      <div className="req-form-actions">
+        <span className="flex-1" />
+        <Button variant="text" onPress={onDone}>
+          Close
+        </Button>
+        <Button
+          variant="filled"
+          icon="save"
+          isPending={saving}
+          isDisabled={!dirty}
+          onPress={async () => {
+            setSaving(true)
+            setError(null)
+            try {
+              await service.update(r.id, { title, statement }, { expectedRevision: r.revision })
+              onDone()
+            } catch (e) {
+              setError(e)
+            } finally {
+              setSaving(false)
+            }
+          }}
+        >
+          Save revision
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function DemoView({ service }: { service: RequirementsService }) {
+  const { projectId } = useSharedContext()
+  const [text, setText] = useState('')
+  const [items, setItems] = useState<RequirementSummary[] | null>(null)
+  const [error, setError] = useState<unknown>(null)
+  const [open, setOpen] = useState<RequirementSummary | null>(null)
+  const [version, setVersion] = useState(0)
+  useEffect(() => service.subscribe(projectId, () => setVersion((v) => v + 1)), [service, projectId])
+  useEffect(() => {
+    service.list({ projectId, text: text || undefined, limit: 200 }).then((p) => (setItems(p.items), setError(null)), setError)
+  }, [service, projectId, text, version])
+  return (
+    <div className="req-shell">
+      <Notice tone="warning" title="Demo mode (explicitly chosen)">
+        In-browser demo data through the SDK contract only. Collections, reviews, baselines, quality checks and ReqIF exchange need API mode. Nothing here is saved to PostgreSQL.
+      </Notice>
+      <div className={`req-root${open ? ' has-detail' : ''}`}>
+        <div className="req-main">
+          <div className="req-filterbar">
+            <SearchField label="Search requirements" placeholder="Search key, title, statement" value={text} onChange={setText} className="req-search" />
           </div>
-        </div>
-        <div className="req-scope">
-          {viewState.filterMode === 'selection' && filterComponent ? (
-            <span className="inline-flex flex-wrap items-center gap-1.5">
-              Allocated to <ObjectRef object={filterComponent} />
-              {filterComponent.type === 'assembly' && <span className="text-fg-3">(including sub-components)</span>}
-              {selectedIds.some((id) => model.get(id) && model.get(id)!.type !== filterComponent.type && model.get(id)!.type !== 'requirement') && (
-                <Badge tone="info" icon="relationship">via its representation</Badge>
-              )}
-              <Button size="sm" variant="text" onPress={() => setViewState({ filterMode: 'all' })}>
-                Show all
-              </Button>
-            </span>
-          ) : viewState.filterMode === 'selection' ? (
-            <span className="text-fg-3">Select a component (or its SysML or CAD representation) to filter by allocation. Showing all requirements.</span>
-          ) : (
-            <span>All requirements</span>
+          {error ? <ApiErrorNotice error={error} title="Could not load requirements" /> : null}
+          {!items && !error && <LoadingState label="Loading…" />}
+          {items && (
+            <div className="ws-table-wrap">
+              <Table aria-label="Requirements (demo)" cards className="req-table" selectionMode="single" onRowAction={(k) => setOpen(items.find((i) => i.id === k) ?? null)}>
+                <TableHeader>
+                  <Column isRowHeader className="req-col-id">
+                    ID
+                  </Column>
+                  <Column>Requirement</Column>
+                  <Column className="req-col-status">Lifecycle</Column>
+                </TableHeader>
+                <TableBody renderEmptyState={() => <EmptyState icon="search" title="No requirements match" />}>
+                  {items.map((r) => (
+                    <Row key={r.id} id={r.id} textValue={`${r.key} ${r.title}`}>
+                      <Cell title className="font-mono">
+                        {r.key}
+                      </Cell>
+                      <Cell label="Requirement" wide>
+                        <div className="req-title">{r.title}</div>
+                        <div className="req-statement">{r.statement}</div>
+                      </Cell>
+                      <Cell label="Lifecycle">
+                        <LifecycleBadge status={r.status} archived={r.archived} />
+                      </Cell>
+                    </Row>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
-
-        <div className="ws-table-wrap" ref={scrollRef}>
-          <Table
-            aria-label="Requirements"
-            cards
-            className="req-table"
-            selectionMode="single"
-            selectionBehavior="replace"
-            escapeKeyBehavior="none"
-            selectedKeys={highlighted.filter((id) => visible.some((r) => r.id === id))}
-            onSelectionChange={(keys) => select(keys === 'all' ? [] : [...keys].map(String))}
-            onRowAction={(key) => api.updateViewState({ editor: { requirementId: String(key), focus: 'details', tab: 'details' } })}
-          >
-            <TableHeader>
-              <Column isRowHeader className="req-col-id">
-                ID
-              </Column>
-              <Column>Requirement</Column>
-              <Column className="req-col-status">Status</Column>
-              <Column className="req-col-verification">Verification</Column>
-              <Column className="req-col-alloc">Allocated to</Column>
-              {viewState.showTrace && <Column className="req-col-trace">Trace (SysML, CAD)</Column>}
-            </TableHeader>
-            <TableBody
-              renderEmptyState={() => (
-                <EmptyState icon="search" title="No requirements match">
-                  Change the search or filters, or choose Show all.
-                </EmptyState>
-              )}
-            >
-              {visible.map((o) => {
-                const r = readRequirement(o)
-                const allocated = model.linkedObjects(r.id, 'allocated-to', 'out')
-                return (
-                  <Row key={r.id} id={r.id} textValue={`${r.id} ${r.title}`} data-object-id={r.id}>
-                    <Cell title className="font-mono req-cell-id">
-                      {r.id}
-                    </Cell>
-                    <Cell label="Requirement" wide>
-                      <div className="req-title">{r.title}</div>
-                      <div className="req-statement">{r.statement}</div>
-                      {r.rationale && <div className="req-rationale">Rationale: {r.rationale}</div>}
-                    </Cell>
-                    <Cell label="Status">
-                      <RequirementStatusBadge status={r.status} unset={!r.statusSet} />
-                    </Cell>
-                    <Cell label="Verification">
-                      <VerificationStateBadge records={verification.get(r.id)} />
-                    </Cell>
-                    <Cell label="Allocated to">
-                      <div className="ws-refs">
-                        {allocated.length ? allocated.map((c) => <ObjectRef key={c.id} object={c} />) : <span className="text-fg-3">Unallocated</span>}
-                      </div>
-                    </Cell>
-                    {viewState.showTrace && (
-                      <Cell label="Trace">
-                        <TraceCell requirement={o} />
-                      </Cell>
-                    )}
-                  </Row>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
-        <p className="ws-hint">Select a row to select the requirement in every tool. Double-click or press Enter to edit.</p>
+        {open && (
+          <section className="req-detail" aria-label={`${open.key} details`}>
+            <header className="req-detail-header">
+              <h3>
+                <span className="font-mono">{open.key}</span> {open.title}
+              </h3>
+              <span className="text-ui-xs text-fg-3">rev {open.revision}</span>
+            </header>
+            <div className="req-detail-body">
+              <DemoEditor key={`${open.id}-${open.revision}`} service={service} r={open} onDone={() => setOpen(null)} />
+            </div>
+          </section>
+        )}
       </div>
-
-      {editing && viewState.editor && <DetailPanel requirement={editing} records={verification.get(editing.id) ?? []} state={viewState.editor} setState={setViewState} />}
     </div>
+  )
+}
+
+// ---- root -----------------------------------------------------------------------------------------
+
+export default function RequirementsView() {
+  const { requirements } = usePlatformServices()
+  const { projectId } = useSharedContext()
+  const client = useMemo(() => getModuleClient(requirements, projectId), [requirements, projectId])
+  if (!requirements) {
+    return (
+      <EmptyState icon="requirements" title="The Requirements service is not available here">
+        This host provides no Requirements service, or your subscription does not include it. Requirements are stored by the Requirements API; nothing is shown in its place.
+      </EmptyState>
+    )
+  }
+  if (!client) return <DemoView service={requirements} />
+  return (
+    <ModuleDataProvider client={client} service={requirements} projectId={projectId}>
+      <ApiView />
+    </ModuleDataProvider>
   )
 }
