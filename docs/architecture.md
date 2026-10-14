@@ -120,6 +120,11 @@ verified.
 
 ## 6. AI (vision §6)
 
+The proposed expansion is specified in [AI Interface architecture](modules/ai-interface.md),
+[features](modules/ai-interface/features.md) and [development plan](modules/ai-interface/development-plan.md).
+It targets complete semantic UI/backend capability coverage and evidence-backed design workflows.
+These documents do not add those capabilities to the current implementation.
+
 The assistant panel uses a scripted demo service (no model provider). Proposals are previewed with
 expected revisions, validated by application code, and applied through the same repository command
 boundary, with conversation provenance in the activity log. Model descriptions and imported documents

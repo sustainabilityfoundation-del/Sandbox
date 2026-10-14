@@ -39,6 +39,11 @@ validated commands and recorded verification; one end-to-end cross-module workfl
 
 Remaining in Phase 1:
 
+- AI capability inventory and shared operation coverage for initial tools, followed by authenticated
+  provider integration and durable design briefs/tasks. See the proposed
+  [AI development plan](modules/ai-interface/development-plan.md). Research, concept galleries and
+  real CAD/STL workflows depend on later implementations; the current assistant stays experimental.
+
 - Server-side repository and authorization (see open decisions).
 - Requirement hierarchy and reviews; baselines cannot be released or locked yet.
 

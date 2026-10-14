@@ -108,6 +108,16 @@ On Windows PowerShell use `npm.cmd` if script execution is disabled.
   action may depend on hover, right-click or dragging.
 - `packages/design-system/src/theme/designSystem.test.ts` enforces the rules it can check.
 
+## AI capability design
+
+Read [AI Interface architecture](docs/modules/ai-interface.md) and
+[feature requirements](docs/modules/ai-interface/features.md) for AI-related work.
+New UI and backend capabilities must include a typed, discoverable operation or a documented
+mapping to an existing operation, with coverage evidence. User and AI paths share validation;
+view operations target a view instance and domain writes retain ownership/revision checks.
+This is a design policy: complete coverage and autonomous execution are not implemented yet.
+Preserve the current proposal-preview policy until its replacement is explicitly reviewed.
+
 ## Model identity and revision rules
 
 - Objects are identified by stable IDs (`ROD-120`, `REQ-001`, `SYS-003`, `CAD-120`). Names are for
