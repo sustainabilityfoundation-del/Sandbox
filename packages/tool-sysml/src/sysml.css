@@ -67,4 +67,7 @@
     .sysml-side { grid-row: 2; grid-column: 1; border-left: 0; border-top: 1px solid var(--ws-border); max-height: 45vh; }
     .sysml-text { grid-row: 3; }
   }
+  .sysml-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); }
+  .sysml-canonical { display: flex; flex-direction: column; gap: var(--ws-space-2); margin-top: var(--ws-space-2); padding: var(--ws-space-2); border: 1px solid var(--ws-border); border-radius: var(--ws-radius); }
+  .sysml-canonical-text { color: var(--ws-text-2); white-space: pre-wrap; }
 }

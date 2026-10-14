@@ -14,7 +14,7 @@ export const sysmlTool = defineTool<SysmlViewState>({
   category: 'Systems engineering',
   icon: 'sysml',
   version: pkg.version,
-  sdkVersion: '^1.0.0',
+  sdkVersion: '^1.3.0',
   entitlement: 'tool:sysml',
   supportedObjectTypes: ['sysml-element', 'assembly', 'part', 'requirement'],
   view: lazy(() => import('./SysmlView')),

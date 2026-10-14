@@ -7,7 +7,11 @@ contract.
 
 - Views: diagram (part definitions with nested part usages, requirement usages, connections,
   satisfy links), property panel, illustrative text notation, dialogs for Add Part, Add Requirement
-  Reference and Connect.
+  Reference (existing or new requirement) and Connect.
+- Requirements integration (`src/requirements.tsx`): place an existing requirement, create one
+  through `services.requirements.create`, show and edit its canonical text through
+  `services.requirements.get`/`update`, open it in Requirements. See
+  [requirements-sysml-mapping.md](../../docs/specifications/requirements-sysml-mapping.md) §3.
 - Toolbar: Select, Add Part, Add Requirement Reference, Connect, Fit, Text.
 - Private view state (`SysmlViewState`): diagram position (pan/zoom), text panel, open dialog.
 - Domain logic (`src/domain.ts`, no React): diagram model, layout, connection rules, change
@@ -32,9 +36,16 @@ constraints, packages, imports, multiplicities. The text view is generated and r
 
 ## SDK
 
-Built for SDK `^1.0.0`. Entitlement: `tool:sysml` (declared, never checked here). Writes go through
-`submitChanges`; new elements use placeholders (`ref: '$part'`) so the element and its links are
-one atomic batch.
+Built for SDK `^1.3.0` (`RequirementsService` with `projectId` in write options). Entitlement:
+`tool:sysml` (declared, never checked here). Twin writes go through `submitChanges`; new elements
+use placeholders (`ref: '$part'`) so the element and its links are one atomic batch.
+
+Requirement text belongs to the Requirements service. Use only `usePlatformServices().requirements`
+(never `@ews/requirements-client`), show keys with `displayId`, and never store a title or
+statement on a `sysml-element`. When the service is missing, explain it and show no copy.
+A requirement created through the service appears in the model only after the platform projection
+refreshes: wait with `waitForObject` before linking to it, and reuse the idempotency key on retry.
+The standalone harness has no Requirements service, so test create and edit in the workspace.
 
 ## Commands
 

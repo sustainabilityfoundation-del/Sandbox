@@ -1,6 +1,6 @@
 import { Badge, Button, ComboBox, IconButton, LoadingState, Notice, Select, Tab, TabList, TabPanel, Tabs, TextField } from '@ews/design-system'
 import { isComponent } from '@ews/platform-sdk'
-import { ObjectRef, useModel } from '@ews/platform-sdk/react'
+import { ObjectRef, useModel, useToolApi } from '@ews/platform-sdk/react'
 import type { AttributeDefinition, Relationship, RelationshipType, Requirement } from '@ews/requirements-client'
 import { useState } from 'react'
 import type { DetailTab, VerificationRecordView } from '../domain'
@@ -108,6 +108,7 @@ function LifecycleActions({ r, readOnly, onChanged }: { r: Requirement; readOnly
 
 function Relationships({ r, readOnly, baselineId }: { r: Requirement; readOnly: boolean; baselineId: string | null }) {
   const { client, can, invalidate } = useModuleData()
+  const toolApi = useToolApi()
   const model = useModel()
   const rels = useResource(() => client.relationshipsOf(r.id, baselineId ?? undefined), [client, r.id, baselineId])
   const types = useResource(() => client.relationshipTypes(), [client])
@@ -194,6 +195,20 @@ function Relationships({ r, readOnly, baselineId }: { r: Requirement; readOnly: 
               {references.map((o) => (
                 <ObjectRef key={o.id} object={o} />
               ))}
+              {references.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="text"
+                  icon="sysml"
+                  onPress={() => {
+                    toolApi.select(references.map((o) => o.id))
+                    const res = toolApi.openTool('sysml')
+                    if (!res.ok) setError(new Error(res.reason))
+                  }}
+                >
+                  Show in SysML
+                </Button>
+              )}
               {satisfiedBy.length > 0 && <span className="text-fg-3">satisfied (modelled claim) by</span>}
               {satisfiedBy.map((o) => (
                 <ObjectRef key={o.id} object={o} />
