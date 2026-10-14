@@ -157,7 +157,8 @@ export function textNotation(model: ModelIndex, d: DiagramModel): string {
     const statement = ref ? model.get(ref)?.properties.statement : undefined
     const refObject = ref ? model.get(ref) : undefined
     lines.push(`requirement ${r.name} {  // ${r.id}${ref ? ` references ${refObject ? displayId(refObject) : ref}` : ''}`)
-    if (typeof statement === 'string') lines.push(`  doc /* ${statement} */`)
+    // Canonical text from the Requirements service (via the platform's projection); never stored on the usage.
+    if (typeof statement === 'string') lines.push(`  doc /* ${refObject ? `${displayId(refObject)} ${refObject.name}: ` : ''}${statement} */`)
     lines.push('}')
   }
   const rest = [

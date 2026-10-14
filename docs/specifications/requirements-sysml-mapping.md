@@ -1,8 +1,8 @@
 # Requirements ↔ SysML: supported mappings and SDK usage
 
 Maintained by the Requirements agent. Contracts: [requirements-contracts.md](requirements-contracts.md).
-SysML-side UI changes are coordinator work (contracts §10.3); this document defines what the
-Requirements side provides and how consumers use it.
+It defines what the Requirements side provides, how consumers use it, and (since sprint 003) how the
+SysML tool uses it: `packages/tool-sysml/src/requirements.tsx`.
 
 Reference read in full: OMG *Systems Modeling Language (SysML) v2.0, Part 1: Language*,
 formal/26-03-02 (§7.15 Allocations, §7.21 Requirements, §7.24 Verification Cases, §9.6 Requirement
@@ -49,15 +49,42 @@ satisfaction stay four different records; nothing in the mapping turns one into 
 
 ## 3. What the Requirements side provides for SysML (brief §6)
 
-| Brief §6 item | Provided by Requirements | Coordinator work |
+| Brief §6 item | Provided by Requirements | SysML tool (sprint 003) |
 | --- | --- | --- |
-| Place an existing requirement in a SysML view | `list` / `resolve` / `get` by UUID; contract test suite | SysML view stores `references` to the UUID |
-| Create requirements from SysML through the API | `create()` with `tool:sysml` entitlement (canonical fields only, server-enforced) | SysML create dialog |
-| Edit canonical fields from either tool, same validation | `update()` with `expectedRevision`; identical server validation; 409 on conflict | SysML edit form |
-| Link requirements to supported SysML elements | `references` / `satisfies` in the twin (SysML-owned); allocation via Requirements | SysML linking UI |
-| Navigate between requirements and representations | Requirements tool selects the twin object (legacy ID until migration, then UUID); SysML usage selection resolves to the requirement | `openTool` wiring |
-| Configuration- and baseline-aware retrieval | `scope.configurationId`, `scope.baselineId` on `get`/`list`/`resolve`/`traceLinks` | Pass the view's context |
-| Refresh affected views after committed changes | `subscribe(projectId)`: SSE events after commit (outbox), dedupe by `eventId` | Forward to detached windows |
+| Place an existing requirement in a SysML view | `list` / `resolve` / `get` by UUID; contract test suite | Add Requirement Reference → *Existing requirement*: searchable list of projected requirements not yet used (shown by `displayId`, i.e. the key, and title); creates a usage with `references` to the canonical UUID |
+| Create requirements from SysML through the API | `create()` with `tool:sysml` entitlement (canonical fields only, server-enforced) | *New requirement*: title and statement, `create()` with one idempotency key per dialog (a retry reuses it), then the usage and `references` once the projection contains the UUID |
+| Edit canonical fields from either tool, same validation | `update()` with `expectedRevision`; identical server validation; 409 on conflict | Inspector *Edit text* (title, statement) with `expectedRevision` and `projectId`; conflict explained with the current revision, input kept, *Load latest (keep my edits)* |
+| Link requirements to supported SysML elements | `references` / `satisfies` in the twin (SysML-owned); allocation via Requirements | Unchanged: Connect adds `satisfies` (part → usage) |
+| Navigate between requirements and representations | Requirements tool *Show in SysML* (Trace tab, SysML section) selects the usages and opens SysML | Inspector *Open in Requirements*: `select([uuid])` + `openTool('requirements')`; the selection is shared |
+| Configuration- and baseline-aware retrieval | `scope.configurationId`, `scope.baselineId` on `get`/`list`/`resolve`/`traceLinks` | Reads pass the view's `projectId` and `configurationId`; `SharedContext` has no baseline, so SysML shows the working revision |
+| Refresh affected views after committed changes | `subscribe(projectId)`: SSE events after commit (outbox), dedupe by `eventId` | Not duplicated: the workspace projection refreshes the model; the inspector rereads when the projected revision changes |
+
+### Rules the SysML tool follows
+
+- The usage stores only `{ kind: 'requirement' }` and the `references` link. Title and statement
+  are read from the projection (diagram label, text notation `doc` comment) or from
+  `requirements.get` (inspector), never written to the SysML element.
+- SysML imports only `@ews/platform-sdk` (`usePlatformServices`), never `@ews/requirements-client`
+  (enforced by `boundaries.test.ts`). Keys come from `displayId`, never from the UUID.
+- **Projection timing.** A new requirement becomes a twin object only after the workspace projection
+  refreshes (change event, about 150 ms). Until then the twin refuses links to it. The tool waits for
+  `api.getModel().get(uuid)` (`waitForObject`, 100 ms polling, 10 s timeout). On timeout it says
+  that the requirement exists in Requirements and offers *Add usage*, which retries the link without
+  creating the requirement again.
+- **Lost responses.** If `create()` fails after the request reached the server, the input stays and
+  the retry sends the same idempotency key: the server returns the first result, so no duplicate.
+- **Unavailable service** (no service in the host, not entitled, API down): the dialog and the
+  inspector explain this and show no stored copy; nothing is created locally.
+- **Permissions** are the server's: `tool:sysml` allows the canonical subset (title, statement,
+  rationale, type on create); users with neither `tool:sysml` nor `tool:requirements` get
+  `forbidden`. Tested in `services/api/test/sysml.test.ts`.
+- Rationale is not edited from SysML: `RequirementSummary` carries no rationale (contract request 7).
+- **AI coverage** (AGENTS.md, AI capability design). Placing maps to the existing
+  `sysml.add_requirement_reference` (the same usage and `references` batch as the dialog; action unchanged).
+  Creating and editing canonical text from SysML have no assistant operation yet: assistant
+  proposals can contain only twin changes, so an API write cannot be previewed and applied
+  (contract request 3, deferred). Navigation maps to the platform's selection and `openTool`.
+  The proposal-preview policy is unchanged.
 
 ## 4. SDK usage examples (SysML and CAD consumers)
 

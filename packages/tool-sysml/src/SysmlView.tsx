@@ -1,5 +1,5 @@
 import './sysml.css'
-import { AppIcon, Button, Dialog, EmptyState, IconButton, Notice, Select, StatusBadge, TextField } from '@ews/design-system'
+import { AppIcon, Button, Dialog, EmptyState, IconButton, Notice, SegmentedControl, Select, StatusBadge, TextField } from '@ews/design-system'
 import { displayId, isComponent, type EngineeringObject, type ModelChange, type SysmlElement } from '@ews/platform-sdk'
 import {
   MockTag,
@@ -17,7 +17,6 @@ import {
   UNSUPPORTED_CONSTRUCTS,
   connectionKind,
   createPartChanges,
-  createRequirementChanges,
   diagramModel,
   identifier,
   layoutDiagram,
@@ -26,6 +25,7 @@ import {
   type Box,
   type SysmlViewState,
 } from './domain'
+import { CreateNew, PlaceExisting, RequirementUsagePanel } from './requirements'
 
 function useWrite() {
   const api = useToolApi()
@@ -115,43 +115,25 @@ function AddPartDialog({ representsId, onClose }: { representsId?: string; onClo
 
 function AddRequirementDialog({ requirementId, onClose }: { requirementId?: string; onClose: () => void }) {
   const api = useToolApi()
-  const model = useModel()
-  const available = model.objects.filter((o) => o.type === 'requirement' && !model.linkedObjects(o.id, 'references', 'in').some((e) => e.type === 'sysml-element'))
-  const [choice, setChoice] = useState(requirementId && available.some((r) => r.id === requirementId) ? requirementId : (available[0]?.id ?? ''))
-  const { busy, error, run } = useWrite()
-  const submit = async () => {
-    const requirement = model.get(choice)
-    if (!requirement) return
-    const created = await run(createRequirementChanges(requirement), `Referenced ${requirement.id} in the SysML model`)
-    if (created) {
-      api.select([created[0]])
-      onClose()
-    }
+  const [mode, setMode] = useState<'existing' | 'new'>('existing')
+  const done = (usageId: string) => {
+    api.select([usageId])
+    onClose()
   }
   return (
-    <Dialog
-      title="Add requirement reference"
-      isOpen
-      onOpenChange={(open) => !open && onClose()}
-      footer={
-        <>
-          <Button variant="text" onPress={onClose} isDisabled={busy}>
-            Cancel
-          </Button>
-          <Button variant="filled" icon="link" onPress={() => void submit()} isPending={busy} isDisabled={!choice}>
-            Add reference
-          </Button>
-        </>
-      }
-    >
+    <Dialog title="Add requirement reference" isOpen onOpenChange={(open) => !open && onClose()} footer={<Button variant="text" onPress={onClose}>Close</Button>}>
       <div className="sysml-form">
-        {available.length ? (
-          <Select label="Requirement" value={choice} onChange={setChoice} options={available.map((r) => ({ id: r.id, label: `${r.id} ${r.name}` }))} />
-        ) : (
-          <p className="m-0">Every requirement is already referenced in the SysML model.</p>
-        )}
-        <p className="ws-hint m-0">The requirement usage references the shared requirement; its text is maintained in Requirements.</p>
-        {error && <Notice tone="danger" title="Not added">{error}</Notice>}
+        <SegmentedControl
+          label="Requirement"
+          size="sm"
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: 'existing', label: 'Existing requirement' },
+            { value: 'new', label: 'New requirement' },
+          ]}
+        />
+        {mode === 'existing' ? <PlaceExisting preselect={requirementId} onDone={done} /> : <CreateNew onDone={done} />}
       </div>
     </Dialog>
   )
@@ -302,7 +284,10 @@ function PropertyInspector({ element }: { element: SysmlElement }) {
         {element.kind === 'requirement' && (
           <div>
             <dt>References</dt>
-            <dd>{references ? <ObjectRef object={references} /> : <span className="text-fg-3">No requirement</span>}</dd>
+            <dd>
+              {references ? <ObjectRef object={references} /> : <span className="text-fg-3">No requirement</span>}
+              <RequirementUsagePanel usage={model.get(element.id)!} />
+            </dd>
           </div>
         )}
         <div>
@@ -354,6 +339,7 @@ export default function SysmlView() {
   const highlighted = new Set(resolution?.status === 'resolved' ? resolution.ids : [])
   const focusId = resolution?.status === 'resolved' ? resolution.ids[0] : undefined
   const focused = focusId ? d.elements.find((e) => e.id === focusId) : undefined
+  const selectedRequirement = selectedIds.map((id) => model.get(id)).find((o): o is EngineeringObject => o?.type === 'requirement')
   const selectedComponent = selectedIds.map((id) => model.get(id)).find((o): o is EngineeringObject => !!o && isComponent(o))
   const { camera } = viewState
   const b = layout.bounds
@@ -385,7 +371,8 @@ export default function SysmlView() {
     if (!box) return null
     const isDef = e.kind === 'part' && !e.ownerId
     const represents = model.linked(e.id, 'represents', 'out')[0]
-    const references = model.linked(e.id, 'references', 'out')[0]
+    const referenced = model.linkedObjects(e.id, 'references', 'out')[0]
+    const references = referenced ? `${displayId(referenced)} ${referenced.name}`.slice(0, 26) : model.linked(e.id, 'references', 'out')[0]
     const stereotype = e.kind === 'requirement' ? '«requirement»' : isDef ? '«part def»' : '«part»'
     return (
       <g
@@ -461,7 +448,7 @@ export default function SysmlView() {
                 ) : undefined
               }
             >
-              {resolution.reason} The selection is kept.
+              {selectedRequirement ? `${displayId(selectedRequirement)} is not referenced in the SysML model.` : resolution.reason} The selection is kept.
             </Notice>
           )}
         </div>
