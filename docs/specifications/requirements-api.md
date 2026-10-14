@@ -28,7 +28,14 @@ filesystem adapter, content-addressed).
 - Base path `/api/requirements/v1`, versioned by path; port 8787.
 - Errors `{ "error": { "code", "message", "details" } }`: `invalid` 400 (malformed) / 422 (semantic,
   `details.fields`), `unauthenticated` 401, `forbidden` 403, `not-found` 404, `conflict` 409
-  (`details.currentRevision`), `unavailable` 503 (500 for unexpected internal errors).
+  (`details.currentRevision`), `unavailable` 503 (database not reachable; nothing changed).
+- Unexpected internal errors: HTTP **500**, code `unavailable`, `details.reason: "internal-error"`,
+  `details.errorId` (UUID, also in the message and in the server log). The message never contains
+  stack traces, SQL, table/constraint names or driver text; a write was rolled back. Database rule
+  violations that are mapped (unique, foreign key, check, immutable record) use generic messages too.
+  The SDK has no separate internal code, so clients see `RequirementsServiceError` with code
+  `unavailable` (status 500 in `RequirementsApiError.status`). Every operation documents the 500
+  response in OpenAPI.
 - Concurrency: `ETag: "<revision>"` (collections: structure revision); writes need `If-Match` or
   `expectedRevision`; no last-write-wins.
 - Idempotency: `Idempotency-Key` on POST/PATCH (required for creation and import upload), replayed
@@ -65,6 +72,7 @@ filesystem adapter, content-addressed).
 | Quality | `GET …/quality`, `POST …/quality/dismissals`, `GET /quality`, `GET/PUT /quality/conventions` |
 | Exchange | `POST /imports` (raw file, preview), `GET /imports`, `GET /imports/{id}`, `POST /imports/{id}/apply`, `POST /imports/{id}/discard`, `POST /exports`, `GET /exports/{id}`, `GET /exports/{id}/content`, `GET /exchange-sources`, `GET /attachments/{id}/content` |
 | Events | `GET /events` (SSE; `after` / `Last-Event-ID`; `reset` when the resume point is unknown) |
+| Events (SDK 1.3) | `requirements.collection-changed` for every committed collection change (entityId = collection, committedRevision = structure revision; metadata edits carry the current structure revision) |
 | Meta | `GET /permissions`, `GET /openapi.json` (no project); host: `GET /api/health`, `GET /api/platform/v1/me`, `GET /api/platform/v1/dev-users` (development only) |
 
 ## 5. Events (contracts §7)
@@ -73,5 +81,17 @@ The outbox row is written in the same transaction as the change. One publisher a
 lock) assigns `delivery_seq` in commit order; every API process tails published rows and fans them
 out to its SSE clients, so a transaction that commits late is never skipped. Events:
 `requirement.created|updated|archived|restored|relationships-changed`,
-`requirements.baseline-created`, `requirements.import-completed`. Delivery is at-least-once;
-consumers dedupe by `eventId` and reread.
+`requirements.baseline-created`, `requirements.import-completed`, `requirements.collection-changed`
+(SDK 1.3). Delivery is at-least-once; consumers dedupe by `eventId` and reread.
+
+**Retention** (sprint 002): delivered events are kept for `OUTBOX_RETENTION_HOURS` (default 168 =
+7 days) and purged hourly (and at start). Unpublished events are never purged. Publication time is
+assigned under the single publisher's lock (`clock_timestamp()`), so every event after a retained
+event is retained too: resuming from an event inside the window loses nothing. Resuming from a
+purged or unknown event yields `event: reset`; the HTTP adapter then calls `config.onReset(projectId)`
+and listeners registered with `onRequirementsReset(service, projectId, cb)` (the SDK `subscribe()`
+has no reset signal; contract change request 5), and the Requirements tool rereads everything.
+Idempotency records older than 24 hours are purged at the same time.
+
+**SDK 1.3 writes**: the HTTP adapter uses `RequirementWriteOptions.projectId` when given and makes no
+project lookup; otherwise it uses the project it has seen the ID in, or `GET /requirements/{id}`.

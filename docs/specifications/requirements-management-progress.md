@@ -86,6 +86,15 @@ Development identity: `X-Dev-User` (refused when `NODE_ENV=production`, 401).
 
 Scripts in the session scratchpad (`pw/req/req-flow.mjs`, `exchange-flow.mjs`), all passing on 14 Oct 2026: table from the API, collections panel, edit with unsaved state and new revision, failed save keeps input, conflict explained and resolved, quality tab, cross-window refresh, reader without editing actions, matrix/baselines/quality/import-export pages, baseline view labelled historical, phone (390 px) and tablet (900 px) without horizontal overflow, explicit demo mode, ReqIF import preview/apply and export download, no console errors.
 
+## Sprint 002 (SDK 1.3 and hardening), 14 Oct 2026
+
+See [docs/sprints/002-requirements-sdk13-hardening.md](../sprints/002-requirements-sdk13-hardening.md) for acceptance evidence.
+
+- `requirements.collection-changed` emitted from the outbox for every committed collection change (create, metadata, node add/move/rename/remove, including nodes added by imports and by creating a requirement in a collection); the tool rereads collection trees on any event.
+- HTTP adapter uses `RequirementWriteOptions.projectId` (no lookup).
+- Internal errors: 500, code `unavailable`, `details.reason: internal-error`, `details.errorId`; no internals in messages; mapped database errors use generic messages; OpenAPI lists 500 on every operation.
+- Outbox retention `OUTBOX_RETENTION_HOURS` (default 168 h), hourly purge, migration `0002_outbox_retention.sql` (index only); reset signal forwarded by the HTTP adapter (`onReset`, `onRequirementsReset`); the tool rereads on reset.
+
 ## Contract change requests
 
 1. **`RequirementWriteOptions.projectId` (optional)** — `RequirementsService.update()` carries no
@@ -102,6 +111,11 @@ Scripts in the session scratchpad (`pw/req/req-flow.mjs`, `exchange-flow.mjs`), 
    `{ kind: 'service-proposal', title, explanation, preview: { targetId, field, current, proposed }[], expectedRevision, apply(): Promise<void>, undo?(): Promise<void> }`
    that the platform shows with Apply/Reject and logs like other proposals. Workaround: see
    integration needs.
+5. **Reset signal in the SDK** (new, sprint 002) — `RequirementsService.subscribe()` cannot tell a consumer that the server could not resume the stream (events were purged after the retention window). Proposal: `subscribe(projectId, listener, options?: { onReset?: () => void })` (additive, SDK 1.4). Workaround: `HttpServiceConfig.onReset` and `onRequirementsReset(service, projectId, cb)` from `@ews/requirements-client`; the workspace (coordinator) should register one to reread its requirement projection.
+6. **Separate internal error code** (optional) — internal failures use code `unavailable` with HTTP 500 and `details.reason: internal-error`, because `RequirementsErrorCode` has no `internal`. If the coordinator prefers, add `'internal'` (SDK 1.4) and map it one-to-one.
+
+Decided on 14 Oct 2026 (contracts §13): 1 and 2 approved (SDK 1.3.0, adopted in sprint 002), 3 and 4 deferred, demo-mode scope accepted.
+
 4. **Shared pure-domain package** (optional) — DTO types are mirrored in `@ews/requirements-client`
    because the client may not import the service. Conformance is tested by validating real
    responses against the published OpenAPI. A `@ews/requirements-types` package allowed for both
@@ -130,6 +144,8 @@ Scripts in the session scratchpad (`pw/req/req-flow.mjs`, `exchange-flow.mjs`), 
 
 ## Unresolved decisions
 
+- **Lifecycle and revisions** (options only; needs an owner decision): (a) keep today's rule: status changes are lifecycle events against the current content revision, so approval does not make verification evidence stale; (b) every status change creates a content revision (simpler history, but verification records pinned to the approved text become stale on approval); (c) a separate record version for status, exposed alongside the content revision (most precise, an SDK change).
+
 - **Inaccessible research sources** (findings depending on them are provisional; see
   docs/research/requirements/acceptance-and-backlog.md §4). PDFs may be supplied in
   `docs/research/requirements/sources/` (gitignored; still empty): INCOSE GtWR v4 (403 bot
@@ -151,11 +167,14 @@ Scripts in the session scratchpad (`pw/req/req-flow.mjs`, `exchange-flow.mjs`), 
 
 - Lifecycle status changes do not create content revisions (they are lifecycle events against the
   current revision), so approval does not make verification evidence stale.
-- Unexpected internal errors return HTTP 500 with code `unavailable` (the contract lists 503 only).
-- Outbox rows are not purged (kept for resume).
+- Unexpected internal errors return HTTP 500 with code `unavailable` and `details.reason: internal-error` (documented; the SDK has no separate internal code, see request 6).
+- Delivered outbox rows are purged after the retention window (default 7 days); clients that resume later get a reset.
+- `services/api/src/platform/identity.ts` (coordinator-owned since integration) still includes the driver message when the platform database is unreachable; I did not change it. Suggest the same generic message as the Requirements service.
 - History is append-only through the API (DB triggers); not tamper-proof.
 
 ## Handoff log
+
+- 2026-10-14 (sprint 002): see the sprint section above and the sprint file. Migration added: `services/requirements/src/db/migrations/0002_outbox_retention.sql` (index only).
 
 - 2026-10-14 (2): stages 4–7 completed and committed (see commits). Docs: requirements-api.md, requirements-sysml-mapping.md, requirements-reqif.md, docs/modules/requirements.md, docs/dependencies.md rows. Migrations: `services/requirements/src/db/migrations/0001_initial.sql`, `services/api/src/platform/migrations/0001_platform.sql` (unchanged since commit fbc2783).
 

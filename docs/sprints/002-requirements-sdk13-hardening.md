@@ -2,7 +2,7 @@
 
 ## Plan
 
-- Status: in progress
+- Status: ready for coordinator review (implementation complete on `feature/requirements-management`; owner acceptance pending)
 - Goal: collection edits made in one window appear in other windows and tools without reload;
   backend errors and event retention behave as documented, so the owner can rely on the service
   over long sessions.
@@ -29,29 +29,42 @@
 
 ## Acceptance criteria
 
-- [ ] Reordering or adding a heading in a collection in window A refreshes the collection tree in
+- [x] Reordering or adding a heading in a collection in window A refreshes the collection tree in
       window B (same or different user) without reload; the event is emitted only after commit.
-- [ ] `update()` with `projectId` makes no extra project lookup request (asserted in a client test).
-- [ ] A forced internal error returns the documented code/status, a safe message, and the client
+- [x] `update()` with `projectId` makes no extra project lookup request (asserted in a client test).
+- [x] A forced internal error returns the documented code/status, a safe message, and the client
       raises `RequirementsServiceError` with that code; OpenAPI lists it.
-- [ ] Events older than the retention window are purged; resuming from a purged event triggers
+- [x] Events older than the retention window are purged; resuming from a purged event triggers
       `onReset` and a full reread; resuming inside the window loses no events (real-PostgreSQL test).
-- [ ] `npm run check`, `npm run build`, `npm run req:test:db` pass; the harness flow passes; the
+- [x] `npm run check`, `npm run build`, `npm run req:test:db` pass; the harness flow passes; the
       workspace integration still works (`npm run dev`, Requirements tab loads).
 
 ## Verification evidence
 
 | Check | Result | Evidence or reason |
 | --- | --- | --- |
-| Required automated checks | not run | |
-| Harness and workspace workflow | not run | |
-| Documentation links and diff | not run | |
+| Required automated checks | pass | 14 Oct 2026 on code commit 581ee89: `npm run check` 320 tests passed; `npm run build` passed; `npm run build:harnesses` passed (4 harness builds); `npm run req:test:db` 6 files / 102 tests passed (temporary PostgreSQL on a random port 55000–58999, no collision with 54329) |
+| Collection change refreshes another window (AC 1) | pass | Real-PostgreSQL: `services/api/test/sprint002.test.ts` "requirements.collection-changed": four structure changes give four events with structure revisions 1–4 after commit; a stale (409) change emits nothing; SDK subscribers of the HTTP adapter receive it. Browser: `collection-flow.mjs` (scratchpad) on the harness (:5191 → API :8797), eli adds a heading and moves it up, rui's window shows the heading and the new order without reload; no console errors |
+| `update()` with projectId (AC 2) | pass | `packages/requirements-client/src/adapters.test.ts`: exactly one request (PATCH) with projectId; without it GET `/requirements/{id}` then PATCH |
+| Internal error (AC 3) | pass | `sprint002.test.ts` "internal errors": a renamed table forces an unmapped database error → HTTP 500, code `unavailable`, `details.reason: internal-error`, `details.errorId`; no SQL/table names/stack in the body; nothing written; HTTP adapter raises `RequirementsServiceError` code `unavailable` with the message; OpenAPI lists 500 on every operation. Unit: adapters.test.ts maps the body keeping code, message and details |
+| Retention, purge and reset (AC 4) | pass | `sprint002.test.ts` "outbox retention": events older than 168 h purged, newer and unpublished kept; resume inside the window delivers the following event with no reset; resume from a purged event yields reset; the HTTP adapter forwards it to `config.onReset` and `onRequirementsReset` listeners after a forced reconnect. The tool rereads on reset (data.tsx) |
+| Harness and workspace workflow (AC 5) | pass | Harness flows `req-flow.mjs` (20 checks: edit, failed save keeps input, conflict, quality, cross-window refresh, pages, baseline view, phone/tablet, demo) and `exchange-flow.mjs` (ReqIF preview/apply/export) all passed against the sprint API. Workspace from this worktree (`API_PORT=8797 npm run dev -w @ews/workspace -- --port 5195`): Requirements tab lists REQ-001 from the API, no console errors. Your `npm run dev` (5173/8787/54329) was not touched |
+| Documentation links and diff | pass | requirements-api.md (errors, retention, collection-changed, projectId), OpenAPI info, progress file (sprint section, requests 5–6, lifecycle options), .env.example (`OUTBOX_RETENTION_HOURS`); links checked by hand; `git diff --check` clean |
 
 ## Runnable checkpoint and walkthrough
 
-- Candidate commit or tag: to be recorded after the agent's handoff and coordinator review.
+- Candidate commit or tag: code checkpoint 581ee89 (docs and evidence in the following commit on `feature/requirements-management`).
 - Startup: `npm run dev`; harness `npm run dev:requirements`.
-- Owner walkthrough: to be written at handoff.
+- Owner walkthrough:
+  1. `npm run dev`, open http://localhost:5173/workspace/ and Requirements in two windows (or the
+     workspace and `npm run dev:requirements`). Choose the collection "ACT-100 System Requirements
+     Specification" in both.
+  2. In window A add a heading (Collections panel → Heading) and use its menu → Move up. Window B
+     shows the heading and the new order within about a second, without reload.
+  3. Optional: `OUTBOX_RETENTION_HOURS=1` for the API; a window that was offline longer than that
+     rereads everything when it reconnects (no missed changes, no error).
+- Migration: `0002_outbox_retention.sql` adds one index; no data is changed. Recovery: none needed;
+  dropping the index is safe.
 
 ## Owner feedback and next increment
 
