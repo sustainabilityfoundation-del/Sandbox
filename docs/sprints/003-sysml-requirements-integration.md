@@ -2,7 +2,7 @@
 
 ## Plan
 
-- Status: implemented, awaiting coordinator review
+- Status: ready for owner review (coordinator review done 14 October 2026)
 - Goal: in the SysML tool the owner can place an existing requirement in the model, create a new
   requirement from SysML that is stored in the Requirements service, edit its canonical text with the
   same validation as the Requirements tool, and navigate between the requirement and its SysML usage.
@@ -77,6 +77,17 @@ Scripts (session scratchpad, not committed): `pw/req/sysml-workspace-flow.mjs` (
   4. *Open in Requirements* selects it there; in Requirements, the Trace tab's *Show in SysML* returns to the usage.
 - AI coverage: placing maps to `sysml.add_requirement_reference` (unchanged); create and edit from SysML have no assistant operation because proposals cannot carry service writes (contract request 3, deferred); see the mapping doc §3. Preview policy unchanged.
 - Limitations: rationale not editable from SysML (request 7); no baseline in shared context (request 10); a requirement not in the projection within 10 s is created but not linked until *Add usage*; the harness has no Requirements service, so create and edit are workspace-only.
+
+## Coordinator review (14 October 2026)
+
+- Files changed only in the assigned area (`packages/tool-sysml`, Requirements packages, services, own docs).
+- Merged into `main` with sprint 004; rerun on the merge: `npm run check` 333 passed, `npm run build`,
+  `npm run build:harnesses` (3 harnesses), `npm run req:test:db` 106 passed; the agent's SysML workspace
+  flow 13/13 on the coordinator's `npm run dev` (5173/8787); platform, vision, integration and coverage
+  flows 0 failures (the platform flow needed a 500 ms pause after switching the subscription plan: a
+  test-timing fix, not an application change).
+- AI inventory updated with the three new SysML capabilities.
+- Contract requests 7–10 decided: contracts §13.
 
 ## Owner feedback and next increment
 

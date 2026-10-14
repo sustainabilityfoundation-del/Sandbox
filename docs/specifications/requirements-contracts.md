@@ -21,8 +21,7 @@ decides and edits coordinator-owned files. Record any agreed change here and, fo
 | Requirements agent | `docs/specifications/requirements-*.md` (except this file and the brief), `docs/research/requirements/**`, `docs/modules/requirements.md`, `docker-compose.yml`, `.env.example` | |
 | Requirements agent (append only) | `docs/dependencies.md` | Add rows for new dependencies with version and licence |
 | Requirements agent (limited) | Root `package.json` | Only scripts prefixed `db:`, `api:`, `req:`, plus `dev:api`. Lockfile changes on the branch are expected |
-| Requirements agent (sprint 003, from 14 October 2026) | `packages/tool-sysml/**` | Requirements in SysML through the service (docs/sprints/003-sysml-requirements-integration.md). Returns to the coordinator after the sprint |
-| Coordinator | `apps/workspace/**`, `packages/platform-sdk/**`, `packages/model-service/**`, `packages/design-system/**`, `packages/tool-cad/**`, root `AGENTS.md`, `README.md`, `docs/architecture.md`, `docs/roadmap.md`, `docs/decisions/**`, this file, the brief | The agent does not edit these; it files requests |
+| Coordinator | `apps/workspace/**`, `packages/platform-sdk/**`, `packages/model-service/**`, `packages/design-system/**`, `packages/tool-sysml/**`, `packages/tool-cad/**`, root `AGENTS.md`, `README.md`, `docs/architecture.md`, `docs/roadmap.md`, `docs/decisions/**`, this file, the brief | The agent does not edit these; it files requests |
 
 New semantic icons or design-system components: request them; meanwhile build tool-local
 components from existing design-system primitives inside `packages/tool-requirements`.
@@ -190,6 +189,11 @@ Not to be implemented by the agent; listed so the agent can prepare for it. Stat
 | Proposed scope change: demo mode limited to the SDK contract | Accepted, as long as the tool says so in demo mode |
 | 5. Reset signal in the SDK (`subscribe(projectId, listener, { onReset })`) | Approved in principle for SDK 1.4, together with the next contract change. Until then the workspace registers `onRequirementsReset` and rereads its projection (14 October 2026) |
 | 6. Separate `internal` error code | Declined: HTTP 500 with code `unavailable`, `details.reason: "internal-error"` and `details.errorId` is sufficient and keeps the SDK code set stable |
+| 7. `rationale?` in `RequirementSummary` | Approved for SDK 1.4 (with 5 and 9) |
+| 8. `displayId` in `resolveRepresentation` reasons | Accepted as a coordinator fix in `@ews/model-service` (no contract change); SysML's workaround stays until then |
+| 9. Host helper to wait for a new object (`ToolApi.whenObject`) | Approved for SDK 1.4; replaces polling `getModel()` |
+| 10. Baseline in `SharedContext` | Deferred: platform and requirements baselines are separate (ADR-0005, contracts §8); needs a design decision |
+| Ownership of `packages/tool-sysml` | Returned to the coordinator after sprint 003 (14 October 2026) |
 | Generic message when the platform database is unreachable during authentication | Done by the coordinator (`services/api/src/platform/identity.ts`); the driver message is logged server-side only |
 
 ## 11. Handoff format
