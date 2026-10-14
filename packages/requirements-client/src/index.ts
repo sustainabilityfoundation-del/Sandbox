@@ -9,7 +9,7 @@
  *
  * Depends only on '@ews/platform-sdk' types and errors; never holds database credentials.
  */
-export { createHttpRequirementsService, getModuleClient, toSummary, RequirementsApiError, newIdempotencyKey, type HttpServiceConfig } from './adapters'
+export { createHttpRequirementsService, getModuleClient, onRequirementsReset, toSummary, RequirementsApiError, newIdempotencyKey, type HttpServiceConfig } from './adapters'
 export { createDemoRequirementsService, type DemoOptions } from './demo'
 export { RequirementsModuleClient, type WriteOpts } from './module'
 export { HttpTransport, openEventStream, type HttpConfig, type RequestOptions, type StreamHandle } from './transport'

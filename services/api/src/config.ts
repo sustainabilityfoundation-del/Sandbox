@@ -17,6 +17,7 @@ export interface ApiConfig {
   storageDir: string
   seedOnStart: boolean
   reqifSchemaDir: string
+  outboxRetentionHours: number
 }
 
 /** Loads `.env` from the repository root if present (Node ≥ 20.12). Existing variables win. */
@@ -48,6 +49,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     databaseName: new URL(databaseUrl).pathname.replace(/^\//, '') || databaseName,
     embedded,
     storageDir: resolve(REPO_ROOT, env.STORAGE_DIR ?? '.data/objects'),
+    outboxRetentionHours: Number(env.OUTBOX_RETENTION_HOURS ?? 168),
     reqifSchemaDir: resolve(REPO_ROOT, env.REQIF_SCHEMA_DIR ?? '.data/reqif-schemas'),
     seedOnStart: (env.SEED_ON_START ?? (production ? 'false' : 'true')) === 'true',
   }

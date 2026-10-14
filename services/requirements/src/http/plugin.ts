@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Ajv } from 'ajv'
 import addFormatsModule from 'ajv-formats'
 import { Type } from '@sinclair/typebox'
@@ -29,8 +30,9 @@ export const requirementsPlugin: FastifyPluginAsync<RequirementsPluginOptions> =
   const registry: RouteSpec[] = []
   app.setValidatorCompiler(compilers() as never)
   app.setErrorHandler((error, request, reply) => {
-    const { status, body } = errorBody(error)
-    if (status >= 500) request.log.error({ err: error }, 'requirements request failed')
+    const errorId = randomUUID()
+    const { status, body } = errorBody(error, errorId)
+    if (status >= 500) request.log.error({ err: error, errorId }, 'requirements request failed')
     reply.code(status).type('application/json; charset=utf-8').send(JSON.stringify(body))
   })
   app.setNotFoundHandler((request, reply) => {

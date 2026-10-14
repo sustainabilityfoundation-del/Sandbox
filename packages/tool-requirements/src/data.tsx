@@ -1,5 +1,5 @@
 import type { RequirementsEvent, RequirementsService } from '@ews/platform-sdk'
-import type { MyPermissions, RequirementsModuleClient } from '@ews/requirements-client'
+import { onRequirementsReset, type MyPermissions, type RequirementsModuleClient } from '@ews/requirements-client'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 /**
@@ -48,9 +48,12 @@ export function ModuleDataProvider({ client, service, projectId, children }: { c
       clearTimeout(timer)
       timer = setTimeout(() => setVersion((v) => v + 1), 120)
     })
+    // The server could not resume the stream (events purged after the retention window): reread everything.
+    const offReset = onRequirementsReset(service, projectId, () => setVersion((v) => v + 1))
     return () => {
       clearTimeout(timer)
       off()
+      offReset()
     }
   }, [service, projectId])
 

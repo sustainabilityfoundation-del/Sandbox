@@ -47,6 +47,12 @@ export function buildOpenApi(routes: RouteSpec[]) {
         ...(status.startsWith('2') && ['GET', 'PATCH', 'POST'].includes(r.method) ? { headers: { ETag: { schema: { type: 'string' }, description: 'Revision of the returned entity, where applicable' } } } : {}),
       }
     }
+    if (!responses['500']) {
+      responses['500'] = {
+        description: 'Unexpected internal error: code `unavailable`, `details.reason` = `internal-error`, `details.errorId` (logged server-side). No stack traces, SQL or driver messages; a write was rolled back.',
+        content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+      }
+    }
     const roles = ROLES.filter((role) => PERMISSIONS[r.permission].roles.includes(role))
     const op: Record<string, unknown> = {
       operationId: r.operationId,
@@ -84,8 +90,8 @@ export function buildOpenApi(routes: RouteSpec[]) {
         '**Idempotency**: `Idempotency-Key` on POST/PATCH replays the first outcome for 24 hours.',
         '**Timestamps**: RFC 3339 UTC with milliseconds, set by the server.',
         '**Pagination**: opaque `cursor`, `limit` 1–200 (default 50), stable ordering; a cursor is bound to its query.',
-        '**Errors**: `{ "error": { "code", "message", "details" } }` with codes invalid (400/422), unauthenticated (401), forbidden (403), not-found (404), conflict (409), unavailable (503; 500 for unexpected internal errors).',
-        '**Events**: committed changes only (transactional outbox), Server-Sent Events at `/projects/{projectId}/events`; dedupe by `eventId`.',
+        '**Errors**: `{ "error": { "code", "message", "details" } }` with codes invalid (400/422), unauthenticated (401), forbidden (403), not-found (404), conflict (409), unavailable (503: database not reachable; 500 with `details.reason: "internal-error"` and `details.errorId` for unexpected internal errors, without internals in the message).',
+        '**Events**: committed changes only (transactional outbox), Server-Sent Events at `/projects/{projectId}/events`; dedupe by `eventId`. Delivered events are retained for the retention window (default 7 days, `OUTBOX_RETENTION_HOURS`); resuming from an older or unknown event yields `event: reset` (reread everything).',
         '**Authorization**: entitlement `tool:requirements` (or `tool:sysml` for the cross-module subset) and project role; see `x-permissions` per operation and `x-roles` below. Development identities use `X-Dev-User` (refused in production).',
         '**Semantics kept distinct**: approval (reviews), verification results (twin artifacts), compliance assessment and modelled satisfaction (SysML `satisfies`). Collection hierarchy never implies derivation or decomposition.',
       ].join('\n'),

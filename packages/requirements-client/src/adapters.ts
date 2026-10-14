@@ -48,6 +48,27 @@ export interface HttpServiceConfig extends HttpConfig {
   /** Delay before reconnecting the event stream (ms). */
   retryMs?: number
   onStreamStatus?: (projectId: string, status: 'connecting' | 'open' | 'retrying', error?: string) => void
+  /**
+   * Called when the server cannot resume the event stream (the last seen event was purged after the
+   * retention window, or is unknown): events may have been missed, so reread everything.
+   */
+  onReset?: (projectId: string) => void
+}
+
+const resetListeners = new WeakMap<RequirementsService, Map<string, Set<() => void>>>()
+
+/**
+ * Registers a callback for stream resets of an HTTP service created by this package (the SDK
+ * `subscribe()` has no reset signal; contract change request 5). Returns an unsubscribe function;
+ * a no-op for other adapters.
+ */
+export function onRequirementsReset(service: RequirementsService | undefined, projectId: string, callback: () => void): () => void {
+  const byProject = service ? resetListeners.get(service) : undefined
+  if (!byProject) return () => undefined
+  const set = byProject.get(projectId) ?? new Set()
+  set.add(callback)
+  byProject.set(projectId, set)
+  return () => set.delete(callback)
 }
 
 /** SDK `RequirementsService` over the PostgreSQL-backed HTTP API (mode 'api'). Failures are thrown, never replaced by demo data. */
@@ -106,8 +127,9 @@ export function createHttpRequirementsService(config: HttpServiceConfig): Requir
       return remember(await client(projectId).create({ ...body, reason: options.reason }, options.idempotencyKey))
     },
     async update(id, patch: RequirementPatch, options: RequirementWriteOptions) {
-      // The SDK update carries no project: use the project this adapter has seen the ID in, or look it up.
-      const projectId = projectOf.get(id) ?? (await root.request<Requirement>('GET', `/requirements/${encodeURIComponent(id)}`)).data.projectId
+      // SDK 1.3: use options.projectId when given (no lookup); else the project this adapter has seen
+      // the ID in; else look it up.
+      const projectId = options.projectId ?? projectOf.get(id) ?? (await root.request<Requirement>('GET', `/requirements/${encodeURIComponent(id)}`)).data.projectId
       return remember(await client(projectId).update(id, patch, { expectedRevision: options.expectedRevision, reason: options.reason, idempotencyKey: options.idempotencyKey }))
     },
     async traceLinks(id, scope: RequirementsReadScope): Promise<RequirementTraceLink[]> {
@@ -119,6 +141,10 @@ export function createHttpRequirementsService(config: HttpServiceConfig): Requir
         const listeners = new Set<(e: RequirementsEvent) => void>()
         const handle = client(projectId).events({
           onEvent: (e) => listeners.forEach((l) => l(e)),
+          onReset: () => {
+            config.onReset?.(projectId)
+            resetListeners.get(service)?.get(projectId)?.forEach((cb) => cb())
+          },
           onStatus: (s, err) => config.onStreamStatus?.(projectId, s, err),
         })
         entry = { listeners, close: handle.close }
@@ -135,6 +161,7 @@ export function createHttpRequirementsService(config: HttpServiceConfig): Requir
     },
   }
   modules.set(service, client)
+  resetListeners.set(service, new Map())
   return service
 }
 

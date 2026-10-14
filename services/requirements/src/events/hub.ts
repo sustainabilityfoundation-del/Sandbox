@@ -41,12 +41,22 @@ export interface EventHub {
   readAfter(projectId: string, afterEventId: string | null, limit?: number): Promise<RequirementsEvent[] | undefined>
   /** Publish and deliver pending events now (tests and shutdown). */
   flush(): Promise<void>
+  /**
+   * Deletes delivered events older than the retention window (and expired idempotency records).
+   * Never deletes unpublished events. Returns the number of events deleted.
+   */
+  purge(): Promise<number>
+  readonly retentionHours: number
   close(): Promise<void>
 }
 
 const PUBLISH_LOCK = 0x5245_5131 // "REQ1"
 
-export async function createEventHub(pool: Pool, options: { pollMs?: number; onError?: (error: unknown) => void } = {}): Promise<EventHub> {
+export const DEFAULT_RETENTION_HOURS = 168
+
+export async function createEventHub(pool: Pool, options: { pollMs?: number; onError?: (error: unknown) => void; retentionHours?: number; purgeIntervalMs?: number } = {}): Promise<EventHub> {
+  const retentionHours = options.retentionHours ?? DEFAULT_RETENTION_HOURS
+  if (!(retentionHours > 0)) throw new Error('The outbox retention must be a positive number of hours.')
   const listeners = new Map<string, Set<(e: RequirementsEvent) => void>>()
   const onError = options.onError ?? ((e) => console.error('[requirements events]', e))
   let lastDelivered = Number((await pool.query<{ m: string | null }>('SELECT max(delivery_seq) AS m FROM requirements.outbox')).rows[0].m ?? 0)
@@ -64,7 +74,7 @@ export async function createEventHub(pool: Pool, options: { pollMs?: number; onE
         return
       }
       const res = await client.query(
-        `UPDATE requirements.outbox o SET published_at = now(), delivery_seq = nextval('requirements.outbox_delivery_seq')
+        `UPDATE requirements.outbox o SET published_at = clock_timestamp(), delivery_seq = nextval('requirements.outbox_delivery_seq')
          FROM (SELECT seq FROM requirements.outbox WHERE published_at IS NULL ORDER BY seq LIMIT 1000 FOR UPDATE) p WHERE o.seq = p.seq`,
       )
       if (res.rowCount) await client.query(`SELECT pg_notify('requirements_published', '')`)
@@ -127,6 +137,17 @@ export async function createEventHub(pool: Pool, options: { pollMs?: number; onE
   // Polling covers missed notifications (e.g. after a reconnect).
   const timer = setInterval(() => void cycle(), options.pollMs ?? 1000)
   timer.unref?.()
+  async function purge(): Promise<number> {
+    const res = await pool.query(
+      `DELETE FROM requirements.outbox WHERE published_at IS NOT NULL AND published_at < now() - make_interval(secs => $1)`,
+      [retentionHours * 3600],
+    )
+    await pool.query(`DELETE FROM requirements.idempotency_keys WHERE created_at < now() - interval '24 hours'`)
+    return res.rowCount ?? 0
+  }
+  const purgeTimer = setInterval(() => void purge().catch((e) => !closed && onError(e)), options.purgeIntervalMs ?? 3600_000)
+  purgeTimer.unref?.()
+  void purge().catch((e) => onError(e))
 
   return {
     subscribe(projectId, l) {
@@ -149,9 +170,12 @@ export async function createEventHub(pool: Pool, options: { pollMs?: number; onE
       await cycle()
       await cycle()
     },
+    purge,
+    retentionHours,
     async close() {
       closed = true
       clearInterval(timer)
+      clearInterval(purgeTimer)
       await running
       if (listener) {
         await listener.query('UNLISTEN *').catch(() => undefined)

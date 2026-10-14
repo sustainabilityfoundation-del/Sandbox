@@ -26,7 +26,7 @@ export async function withTransaction<T>(pool: Pool, base: Omit<Ctx, 'db' | 'now
     try {
       client = await pool.connect()
     } catch (error) {
-      throw new ServiceError('unavailable', `The requirements database is not reachable: ${error instanceof Error ? error.message : String(error)}`)
+      throw new ServiceError('unavailable', 'The requirements database is not reachable. Nothing was changed; try again later.')
     }
     try {
       await client.query('BEGIN')
@@ -51,7 +51,7 @@ export async function withReadTransaction<T>(pool: Pool, base: Omit<Ctx, 'db' | 
   try {
     client = await pool.connect()
   } catch (error) {
-    throw new ServiceError('unavailable', `The requirements database is not reachable: ${error instanceof Error ? error.message : String(error)}`)
+    throw new ServiceError('unavailable', 'The requirements database is not reachable. Nothing was changed; try again later.')
   }
   try {
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
@@ -72,15 +72,15 @@ export function mapDatabaseError(error: unknown): unknown {
   const e = error as { code?: string; message?: string; constraint?: string; detail?: string }
   switch (e.code) {
     case '23505':
-      return new ServiceError('conflict', `A record with the same unique value already exists (${e.constraint ?? 'unique constraint'}).`, { constraint: e.constraint })
+      return new ServiceError('conflict', 'A record with the same unique value already exists.')
     case '23503':
-      return new ServiceError('invalid', `A referenced record does not exist (${e.constraint ?? 'foreign key'}).`, { constraint: e.constraint })
+      return new ServiceError('invalid', 'A referenced record does not exist.')
     case '23514':
     case '22P02':
     case '22001':
-      return new ServiceError('invalid', `The value is not allowed (${e.constraint ?? e.message ?? 'check constraint'}).`, { constraint: e.constraint })
+      return new ServiceError('invalid', 'A value is not allowed (it violates a database rule).')
     case '23001':
-      return new ServiceError('invalid', e.message ?? 'The change is not permitted.')
+      return new ServiceError('invalid', 'The change is not permitted: the record is immutable.')
     case 'ECONNREFUSED':
     case '57P01':
     case '57P03':

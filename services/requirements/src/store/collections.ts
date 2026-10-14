@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { conflict, invalid, notFound } from '../errors'
 import type { LifecycleStatus } from '../domain/rules'
-import { audit, isUuid, isoRequired, type Ctx, type Queryable } from './context'
+import { audit, emit, isUuid, isoRequired, type Ctx, type Queryable } from './context'
 
 /**
  * Collections are structured documents: ordered trees of headings and requirement references.
@@ -94,6 +94,7 @@ export async function createCollection(ctx: Ctx, input: { name: string; descript
     [id, ctx.projectId, name, input.description ?? '', input.kind ?? 'document', ctx.now, ctx.actor],
   )
   await audit(ctx, { entityType: 'collection', entityId: id, action: 'created', revision: 1, details: { name } })
+  await emit(ctx, 'requirements.collection-changed', id, 1)
   return (await getCollection(ctx.db, ctx.projectId, id))!
 }
 
@@ -116,6 +117,7 @@ export async function updateCollection(ctx: Ctx, id: string, patch: { name?: str
     [id, ctx.projectId, patch.name?.trim() ?? null, patch.description ?? null, patch.archived ?? null, ctx.now, ctx.actor],
   )
   await audit(ctx, { entityType: 'collection', entityId: id, action: patch.archived === true ? 'archived' : patch.archived === false ? 'restored' : 'updated', revision: c.revision + 1, details: patch })
+  await emit(ctx, 'requirements.collection-changed', id, c.structureRevision)
   return (await getCollection(ctx.db, ctx.projectId, id))!
 }
 
@@ -187,8 +189,10 @@ async function checkStructure(ctx: Ctx, collectionId: string, expected: number |
   return c
 }
 
+/** Bumps the structure revision and emits requirements.collection-changed (SDK 1.3) in the same transaction. */
 async function bumpStructure(ctx: Ctx, collectionId: string) {
-  await ctx.db.query('UPDATE requirements.collections SET structure_revision = structure_revision + 1, updated_at = $2, updated_by = $3 WHERE id = $1', [collectionId, ctx.now, ctx.actor])
+  const { rows } = await ctx.db.query<{ r: number }>('UPDATE requirements.collections SET structure_revision = structure_revision + 1, updated_at = $2, updated_by = $3 WHERE id = $1 RETURNING structure_revision AS r', [collectionId, ctx.now, ctx.actor])
+  await emit(ctx, 'requirements.collection-changed', collectionId, rows[0].r)
 }
 
 async function siblingCount(ctx: Ctx, collectionId: string, parentId: string | null): Promise<number> {

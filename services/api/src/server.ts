@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import Fastify, { type FastifyInstance } from 'fastify'
 import type { Pool } from 'pg'
 import {
@@ -49,6 +50,8 @@ export interface ServerOptions {
   eventPollMs?: number
   /** Official ReqIF schemas for validation (npm run req:reqif:schemas). */
   reqifSchemaDir?: string
+  /** Retention of delivered events (hours, default 168). */
+  outboxRetentionHours?: number
 }
 
 export interface ApiServer {
@@ -71,10 +74,12 @@ export async function prepareDatabase(pool: Pool, opts: { seed: boolean; twin?: 
 export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   const production = options.production ?? process.env.NODE_ENV === 'production'
   const app = Fastify({ logger: options.logger ?? false, bodyLimit: 2 * 1024 * 1024, forceCloseConnections: true })
-  const events = await createEventHub(options.pool, { pollMs: options.eventPollMs, onError: (e) => app.log.error(e) })
+  const events = await createEventHub(options.pool, { pollMs: options.eventPollMs, retentionHours: options.outboxRetentionHours, onError: (e) => app.log.error(e) })
   const auth = identity(options.pool, { production })
-  app.setErrorHandler((error, _request, reply) => {
-    const { status, body } = errorBody(error)
+  app.setErrorHandler((error, request, reply) => {
+    const errorId = randomUUID()
+    const { status, body } = errorBody(error, errorId)
+    if (status >= 500) request.log.error({ err: error, errorId }, 'request failed')
     reply.code(status).send(body)
   })
   app.get('/api/health', async () => {

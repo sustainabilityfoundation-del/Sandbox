@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { TSchema } from '@sinclair/typebox'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Pool } from 'pg'
@@ -195,7 +195,12 @@ export function registerRoute(app: FastifyInstance, services: HostServices, spec
 }
 
 /** Maps errors to `{ error: { code, message, details } }` (contracts §5). */
-export function errorBody(error: unknown): { status: number; body: { error: { code: string; message: string; details?: unknown } } } {
+/**
+ * Maps errors to the error body. Unexpected internal failures become HTTP 500 with code
+ * `unavailable` and `details: { reason: 'internal-error', errorId }`; the message never contains
+ * stack traces, SQL or driver text (the full error is logged server-side under `errorId`).
+ */
+export function errorBody(error: unknown, errorId: string = randomUUID()): { status: number; body: { error: { code: string; message: string; details?: unknown } } } {
   if (error instanceof ServiceError) return { status: error.status, body: { error: { code: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) } } }
   const e = error as { validation?: { instancePath?: string; message?: string; params?: Record<string, unknown> }[]; statusCode?: number; code?: string; message?: string; validationContext?: string }
   if (e.validation) {
@@ -210,5 +215,8 @@ export function errorBody(error: unknown): { status: number; body: { error: { co
   if (e.statusCode === 415 || e.code === 'FST_ERR_CTP_INVALID_MEDIA_TYPE') return { status: 415, body: { error: { code: 'invalid', message: e.message ?? 'Unsupported content type.' } } }
   if (e.statusCode === 413 || e.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return { status: 413, body: { error: { code: 'invalid', message: 'The request body is too large.' } } }
   if (e.statusCode && e.statusCode >= 400 && e.statusCode < 500) return { status: e.statusCode, body: { error: { code: e.statusCode === 404 ? 'not-found' : 'invalid', message: e.message ?? 'Bad request' } } }
-  return { status: 500, body: { error: { code: 'unavailable', message: 'Internal error. The change was not applied.' } } }
+  return {
+    status: 500,
+    body: { error: { code: 'unavailable', message: `Internal error (reference ${errorId}). The request was not completed; a write was rolled back. Retrying may succeed; report the reference if it persists.`, details: { reason: 'internal-error', errorId } } },
+  }
 }
