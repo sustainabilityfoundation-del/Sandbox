@@ -82,7 +82,7 @@ export function createSysmlModelerTool(options: SysmlModelerOptions = {}): ToolD
         { type: 'button', id: 'matrix', label: 'Matrix', icon: 'trace', active: viewState.tab === 'matrix', title: 'Relationship matrices: satisfy, allocate, connect', onClick: () => api.updateViewState({ tab: 'matrix', pane: 'view' }) },
         { type: 'button', id: 'coverage', label: 'Coverage', icon: 'requirement', active: viewState.tab === 'coverage', title: 'Requirement coverage: satisfied and verified requirements, gaps', onClick: () => api.updateViewState({ tab: 'coverage', pane: 'view' }) },
         { type: 'separator', id: 'sep-2' },
-        { type: 'button', id: 'validate', label: 'Validate', icon: 'check', active: viewState.tab === 'validation', title: 'Validation results of the current model', onClick: () => api.updateViewState({ tab: 'validation', pane: 'view' }) },
+        { type: 'button', id: 'validate', label: 'Validate', icon: 'check', priority: 'primary', active: viewState.tab === 'validation', title: 'Validation results of the current model', onClick: () => api.updateViewState({ tab: 'validation', pane: 'view' }) },
         { type: 'button', id: 'history', label: 'History', icon: 'history', active: viewState.tab === 'history', title: 'Commits with provenance; undo', onClick: () => api.updateViewState({ tab: 'history', pane: 'view' }) },
         {
           type: 'button',

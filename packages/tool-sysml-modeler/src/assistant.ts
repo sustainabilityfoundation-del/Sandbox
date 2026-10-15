@@ -337,7 +337,15 @@ const behaviourAction: AssistantActionDefinition = {
     const name = (id: string) => nodes.find((n) => n.id === id)?.name ?? (id.startsWith('initial:') ? '(initial)' : (g.nodes[0]?.ports.find((p) => p.id === id)?.name ?? nodes.flatMap((n) => n.ports).find((p) => p.id === id)?.name ?? id))
     return {
       kind: 'data',
-      summary: `${s.qualifiedName(contextId) ?? s.label(contextId)}: ${nodes.filter((n) => n.shape !== 'initial').length} ${view === 'action-flow' ? 'actions' : 'states'}, ${g.edges.length} ${view === 'action-flow' ? 'successions and flows' : 'transitions'}`,
+      summary: (() => {
+        const count = (k: string) => g.edges.filter((e) => e.kind === k).length
+        const real = nodes.filter((n) => !n.shape)
+        if (view === 'state-transition') {
+          const initial = g.edges.find((e) => e.source.startsWith('initial:'))
+          return `${s.qualifiedName(contextId) ?? s.label(contextId)}: ${real.length} states (${real.map((n) => n.name).join(', ')}), ${count('transition')} transitions${initial ? `, initial state ${name(initial.target)}` : ''}; triggers: ${[...new Set(g.edges.filter((e) => e.kind === 'transition' && e.label).map((e) => e.label!.split(' (')[0]))].join(', ') || 'none'}`
+        }
+        return `${s.qualifiedName(contextId) ?? s.label(contextId)}: ${real.length} actions (${real.map((n) => n.name).join(', ')}), ${count('succession')} successions, ${count('flow')} flows`
+      })(),
       data: {
         view,
         context: s.qualifiedName(contextId),
