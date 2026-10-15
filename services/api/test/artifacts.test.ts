@@ -173,7 +173,7 @@ describe('Requirements ArtifactSource (CR-PM-REG-1)', () => {
 
     // A write refused inside its transaction (stale revision) commits nothing and emits nothing.
     const other = (await createIn(NEW_PROJECT, 'Frame colour')).body
-    await changeFor((c) => c.refs?.some((r) => r.id === other.id))
+    await changeFor((c) => c.kind !== 'reconcile' && c.refs.some((r) => r.id === other.id))
     const before = changes.length
     expect((await env.call('eli', 'PATCH', `/api/requirements/v1/projects/${NEW_PROJECT}/requirements/${other.id}`, { expectedRevision: 7, statement: 'Stale.' })).status).toBe(409)
     await env.server.events.flush()
