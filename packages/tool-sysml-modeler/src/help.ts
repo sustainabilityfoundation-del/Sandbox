@@ -66,6 +66,8 @@ export const sysmlModelerHelp: HelpManifest = {
     { operation: 'sysml-modeler.propose_commands', helpId: 'sysml-modeler.commands' },
     { operation: 'sysml-modeler.propose_text', helpId: 'sysml-modeler.text' },
     { operation: 'sysml-modeler.link_requirement', helpId: 'sysml-modeler.requirements' },
+    { operation: 'sysml-modeler.link_product_element', helpId: 'sysml-modeler.represents' },
+    { operation: 'sysml-modeler.create_project', helpId: 'sysml-modeler.getting-started' },
     { control: 'sysml-modeler.requirements', helpId: 'sysml-modeler.requirements' },
     { control: 'sysml-modeler.represents', helpId: 'sysml-modeler.represents' },
   ],

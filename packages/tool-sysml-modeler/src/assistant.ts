@@ -1,6 +1,6 @@
 import { ActionError, argOptionalString, argString, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { SysmlClientError, type SysmlClient, type TransactionOutcome } from '@ews/sysml-client'
-import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, checkCommandShape, findElements, relationshipMatrix, requirementCoverage, impact, incomingReferences, isTextEditableNamespace, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
+import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, checkCommandShape, findElements, loadText, relationshipMatrix, requirementCoverage, impact, incomingReferences, isTextEditableNamespace, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
 import { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from './projection/behavior'
 import type { Graph } from './projection/graph'
 import { existingSession, getClient } from './session'
@@ -37,7 +37,7 @@ async function target(ctx: AssistantActionContext, projectId?: string): Promise<
       const st = session?.getState()
       pid = st?.project?.id ?? (await client.listProjects(ctx.captured.projectId))[0]?.id
     }
-    if (!pid) throw new ActionError('not-found', `There is no SysML project for ${ctx.captured.projectId}. Create one in the SysML Modeler first.`)
+    if (!pid) throw new ActionError('not-found', `There is no SysML project for ${ctx.captured.projectId}. Create one first (the SysML Modeler's Start modelling, or the assistant operation sysml-modeler.create_project).`)
     const project = await client.getProject(pid)
     // C13: the assistant acts only in the platform project of the conversation.
     if (project.platformProjectId !== ctx.captured.projectId) throw new ActionError('not-allowed', `SysML project ${pid} belongs to platform project ${project.platformProjectId}, not ${ctx.captured.projectId}. Switch projects to work on it.`)
@@ -268,6 +268,75 @@ const proposeText: AssistantActionDefinition = {
   },
 }
 
+const createProject: AssistantActionDefinition = {
+  name: 'sysml-modeler.create_project',
+  label: 'Create a SysML project',
+  description: 'Propose creating a SysML project (versioned model) in the current platform project, optionally with initial SysML v2 text (validated first). A new platform project has no SysML model until one is created. Nothing is created until the user applies the proposal.',
+  parameters: { type: 'object', properties: { name: { type: 'string' }, initialText: { type: 'string', description: 'Optional SysML v2 text for the root namespace, e.g. "package SystemModel;"' }, explanation: { type: 'string' } }, required: ['name'], additionalProperties: false },
+  run: async (args, ctx) => {
+    const client = getClient()
+    if (!client) throw new ActionError('not-allowed', 'The SysML Modeler is not configured in this host.')
+    const name = argString(args, 'name').trim()
+    if (!name) throw new ActionError('invalid-arguments', '“name” must not be empty.')
+    const initialText = argOptionalString(args, 'initialText')
+    if (initialText?.trim()) {
+      const loaded = loadText(initialText)
+      const errors = loaded.diagnostics.filter((d) => d.severity === 'error')
+      if (errors.length) throw new ActionError('invalid-arguments', `The initial text is not valid: ${errors.slice(0, 5).map((d) => `${d.ruleId} ${d.range ? `${d.range.start.line}:${d.range.start.column} ` : ''}${d.message}`).join(' | ')} Nothing was proposed.`)
+    }
+    const existing = await client.listProjects(ctx.captured.projectId).catch((e: unknown) => {
+      if (e instanceof SysmlClientError) throw new ActionError(e.code === 'forbidden' ? 'not-allowed' : 'unavailable', e.message)
+      throw e
+    })
+    const explanation = argOptionalString(args, 'explanation') ?? `Start the SysML model of ${ctx.captured.projectId}.`
+    return {
+      kind: 'service-proposal',
+      module: MODULE,
+      title: `Create SysML project “${name}”`,
+      explanation,
+      preview: [
+        { label: 'Create SysML project', proposed: `${name} (platform project ${ctx.captured.projectId})`, basis: 'ai-hypothesis' },
+        ...(initialText?.trim() ? [{ label: 'Initial model', proposed: initialText.trim().slice(0, 400), basis: 'ai-hypothesis' as const }] : []),
+      ],
+      assumptions: [
+        ...(existing.length ? [`The platform project already has ${existing.length} SysML project(s): ${existing.map((p) => p.name).join(', ')}. This adds another.`] : []),
+        'A SysML project cannot be deleted from the assistant; its history is kept.',
+      ],
+      apply: async (provenance) => {
+        const p = await client.createProject({ name, platformProjectId: ctx.captured.projectId, ...(initialText?.trim() ? { initialText } : {}) }, { idempotencyKey: `sysml-create-project:${provenance.conversationId}:${provenance.proposalId}` })
+        void existingSession(ctx.captured.projectId)?.open(ctx.captured.projectId, p.id)
+        return { summary: `Created SysML project ${p.name} (${p.id})`, createdIds: [p.id] }
+      },
+    }
+  },
+}
+
+const linkProductElement: AssistantActionDefinition = {
+  name: 'sysml-modeler.link_product_element',
+  label: 'Link a SysML element to the product element it represents',
+  description: 'Propose that a SysML part or item (definition or usage) represents a product element of Project Management (CR-PM-SYS-1), by product element UUID, pinned to its current revision when Project Management knows it. Stored as SysML-owned metadata; no product data is copied.',
+  parameters: { type: 'object', properties: { element: { type: 'string', description: 'Qualified name or ID of the SysML element' }, productElement: { type: 'string', description: 'Product element UUID' }, revision: { type: 'number' }, ...projectArg }, required: ['element', 'productElement'], additionalProperties: false },
+  run: async (args, ctx) => {
+    const t = await target(ctx, argOptionalString(args, 'projectId'))
+    const el = element(t.model, argString(args, 'element'))
+    if (!/^(Part|Item)(Definition|Usage)$/.test(el['@type'])) throw new ActionError('invalid-arguments', `${semanticsOf(t.model).label(el['@id'])} is a ${el['@type']}; only parts and items represent product elements.`)
+    const id = argString(args, 'productElement')
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new ActionError('invalid-arguments', 'productElement must be the product element UUID (keys and names are display text).')
+    let revision = typeof args.revision === 'number' ? args.revision : undefined
+    let label = id
+    const assumptions: string[] = []
+    const projects = ctx.services?.projects
+    if (projects) {
+      const [found] = await projects.resolve(ctx.captured.projectId, [{ module: 'product', kind: 'product-element', id }])
+      if (!found) throw new ActionError('not-found', `Project Management does not know product element ${id} in ${ctx.captured.projectId}.`)
+      label = `${found.key} ${found.title}`
+      if (revision === undefined && typeof found.version.value === 'number') revision = found.version.value
+    } else assumptions.push('Project Management is not available here: the product element could not be checked; the link is stored as given.')
+    const name = semanticsOf(t.model).qualifiedName(el['@id']) ?? el['@id']
+    return propose(ctx, { ...args, assumptions }, [{ op: 'setMetadata', elementId: el['@id'], metadata: 'ProductElement', values: { productElementId: id, ...(revision !== undefined ? { revision } : {}) } }], `${name} represents ${label}`, `${name} represents the product element ${label}${revision !== undefined ? ` (revision ${revision})` : ' (follows the latest revision)'}.`)
+  },
+}
+
 const linkRequirement: AssistantActionDefinition = {
   name: 'sysml-modeler.link_requirement',
   label: 'Link a SysML requirement to a managed requirement',
@@ -418,6 +487,6 @@ export const sysmlModelerDemo: AssistantContribution['demo'] = (text) => {
 }
 
 export const sysmlModelerAssistant: AssistantContribution = {
-  actions: [describeCommands, findElementsAction, readElement, validateAction, impactAction, explainCommit, matrixAction, coverageAction, behaviourAction, proposeCommands, proposeText, linkRequirement],
+  actions: [describeCommands, findElementsAction, readElement, validateAction, impactAction, explainCommit, matrixAction, coverageAction, behaviourAction, createProject, proposeCommands, proposeText, linkRequirement, linkProductElement],
   demo: sysmlModelerDemo,
 }
