@@ -355,3 +355,55 @@ describe('baselines with externally owned objects', () => {
     expect(baseline.objects.some((o) => o.id === 'REQ-001')).toBe(false)
   })
 })
+
+describe('projects other than the example (CR-PM-MS-1)', () => {
+  const NEW = '8b1e4c2a-9f00-4d1e-8a77-2f6d9c1b0001'
+  const OTHER = '8b1e4c2a-9f00-4d1e-8a77-2f6d9c1b0002'
+
+  it('creates a genuinely empty twin for a new project and leaves PRJ-ACT100 unchanged', async () => {
+    const storage = memoryStorage()
+    const r = repo(storage)
+    const before = storage.data.get(STORAGE_KEY)
+    await expect(r.loadModel(NEW)).rejects.toMatchObject({ code: 'not-found' })
+    await r.ensureProject({ id: NEW, name: 'Example Engineering Product' })
+    await r.ensureProject({ id: NEW, name: 'Example Engineering Product' })
+    const model = await r.loadModel(NEW)
+    expect(model).toMatchObject({ project: { id: NEW, name: 'Example Engineering Product' }, objects: [], relationships: [], scenarios: [], modelRevision: 0 })
+    expect(model.configurations.map((c) => c.id)).toEqual(['CFG-BASE'])
+    expect(await r.listOutputs(NEW)).toEqual([])
+    expect(await r.listBaselines(NEW)).toEqual([])
+    expect(storage.data.get(STORAGE_KEY)).toBe(before)
+    expect((await r.loadModel(PROJECT_ID)).objects.length).toBeGreaterThan(0)
+    expect(await r.listProjects()).toEqual([
+      { id: PROJECT_ID, name: 'ACT-100 Linear actuator' },
+      { id: NEW, name: 'Example Engineering Product' },
+    ])
+  })
+
+  it('keeps projects apart: writes stay in their project, cross-project references are refused, data survives reloads', async () => {
+    const storage = memoryStorage()
+    const r = repo(storage)
+    await r.ensureProject({ id: NEW, name: 'A' })
+    await r.ensureProject({ id: OTHER, name: 'B' })
+    const created = await r.submitChanges(NEW, [{ kind: 'add-object', idPrefix: 'BRK', object: { type: 'part', name: 'Bracket', properties: {} } }], as('platform'))
+    expect(created.createdIds).toEqual(['BRK-001'])
+    expect((await r.loadModel(OTHER)).objects).toEqual([])
+    expect((await r.loadModel(PROJECT_ID)).objects.some((o) => o.id === 'BRK-001')).toBe(false)
+    // A relationship in B to A's part is refused (unknown in B).
+    await expect(r.submitChanges(OTHER, [{ kind: 'add-object', idPrefix: 'SYS', object: { type: 'sysml-element', name: 'x', properties: {} }, ref: '$s' }, { kind: 'add-relationship', relationship: { type: 'represents', from: '$s', to: 'BRK-001' } }], as('sysml'))).rejects.toMatchObject({ code: 'not-found' })
+    // Editing A's part through B fails.
+    await expect(r.submitChanges(OTHER, [{ kind: 'update-properties', targetId: 'BRK-001', baseRevision: 1, properties: { mass: 1 } }], as('platform'))).rejects.toMatchObject({ code: 'not-found' })
+    const reloaded = repo(storage)
+    expect((await reloaded.loadModel(NEW)).objects.map((o) => o.id)).toEqual(['BRK-001'])
+    expect((await reloaded.listHistory(NEW, 'BRK-001')).map((h) => h.revision)).toEqual([1])
+    expect((await reloaded.listProjects()).map((p) => p.id)).toEqual([PROJECT_ID, NEW, OTHER])
+  })
+
+  it('reads data stored by the previous version (only the example key) unchanged', async () => {
+    const storage = memoryStorage()
+    storage.setItem(LEGACY_STORAGE_KEY, JSON.stringify({ schema: 1, model: legacyModelV2(), outputs: legacyOutputsV2(), activity: legacyActivityV2() }))
+    const r = repo(storage)
+    expect((await r.loadModel(PROJECT_ID)).objects.length).toBeGreaterThan(0)
+    expect(await r.listProjects()).toEqual([{ id: PROJECT_ID, name: 'ACT-100 Linear actuator' }])
+  })
+})
