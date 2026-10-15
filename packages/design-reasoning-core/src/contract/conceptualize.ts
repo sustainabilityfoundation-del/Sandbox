@@ -177,7 +177,8 @@ export interface AssumptionRecord extends RecordBase, Revisioned {
 export interface AssumptionInput {
   statement: string
   quantity?: Quantity
-  scope?: { subjects?: DesignRef[]; applicability?: string }
+  /** When given, subjects is required (may be empty), as in the service. */
+  scope?: { subjects: DesignRef[]; applicability?: string }
   basis: Basis
   dependsOn?: AnyRef[]
 }
@@ -204,6 +205,11 @@ export interface EvidenceRecord extends RecordBase {
    * Stored and displayed unchanged: result kinds, bound quality, proven statuses and the manifest limits.
    */
   qualifications?: CalculationQualifications
+  /**
+   * Interim, real service only (CR-C8 pending): a manifest stored without a model reference or re-verification.
+   * Its qualifications are derived by the client for display; it is not verified calculated evidence.
+   */
+  interimManifest?: CalculationManifest
   source?: ArtifactRefX
   supersedesId?: string
   version: number
@@ -219,6 +225,8 @@ export interface EvidenceInput {
   basis: Basis
   applicability?: string
   calculation?: EvidenceRecord['calculation']
+  /** Interim, real service only (CR-C8 pending): the manifest without a model reference; not re-verified. */
+  manifest?: CalculationManifest
   source?: ArtifactRefX
   supersedesId?: string
 }
@@ -545,9 +553,32 @@ export interface RecordByType {
  * The operations of the proposed contract the reasoning core uses. Every method maps one-to-one to an
  * HTTP operation of `/api/concepts/v1/projects/{projectId}/…` (integration.md §3).
  */
+/**
+ * Parts of the contract an implementation provides. The in-memory test adapter provides all of them; the HTTP
+ * binding declares what the Conceptualize service on main implements (conceptualizeHttpAdapter.ts). Callers adapt
+ * and label steps instead of assuming.
+ */
+export interface KnowledgeCapabilities {
+  /** CR-C7: alternative sets attached to a Function (otherwise they need a parent Concept). */
+  functionAlternativeSets: boolean
+  /** CR-C8: calculation model records. */
+  calculationModels: boolean
+  /** CR-C8: evidence with a calculation reference, re-verified by the service. */
+  calculatedEvidenceVerification: boolean
+  /** CR-C11: implementations record the realized Concept revision. */
+  realizedConceptRevision: boolean
+  /** CR-C13: source kind 'reasoning' with run and step IDs in provenance. */
+  reasoningSourceKind: boolean
+  /** C11 storage contract: trade scores with evidenceOutput and qualification. */
+  scoreQualifications: boolean
+  /** Event list (the test adapter); the service publishes events over SSE instead. */
+  events: boolean
+}
+
 export interface ConceptualizeKnowledgeApi {
   /** 'api' for the real service, 'test-adapter' for the in-memory contract adapter. */
   readonly mode: 'api' | 'test-adapter'
+  readonly capabilities: KnowledgeCapabilities
   get<T extends keyof RecordByType>(type: T, id: string, ctx: RequestContext, revision?: number): Promise<RecordByType[T] | undefined>
   list<T extends keyof RecordByType>(type: T, ctx: RequestContext): Promise<RecordByType[T][]>
   batch(request: BatchRequest, ctx: RequestContext): Promise<BatchResponse>

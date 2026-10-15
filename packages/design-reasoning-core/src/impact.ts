@@ -2,9 +2,9 @@ import { evaluateModel, qualifyManifest, type CalculationQualifications, type Ca
 import { toDefinition } from './adapters/conceptualizeContractAdapter'
 import { BindingError, resolveInputs } from './bindings'
 import type { ConceptualizeKnowledgeApi, DecisionRecord, Quantity, RequestContext } from './contract/conceptualize'
-import { propagationOf } from './linkTypes'
+import { BUILT_IN_LINK_TYPES, propagationOf } from './linkTypes'
 import { isDesignRef, refKey, type AnyRef } from './refs'
-import type { TwinSnapshot } from './sources'
+import type { RequirementsReader, TwinSnapshot } from './sources'
 
 /**
  * Change impact analysis (ADR-0046; reasoning-orchestration.md §6). Traverses typed links and derived
@@ -63,10 +63,12 @@ const MECHANISM: Record<string, string> = {
 
 export async function assessChangeImpact(
   change: ImpactChange,
-  deps: { knowledge: ConceptualizeKnowledgeApi; ctx: RequestContext; twin?: TwinSnapshot },
+  deps: { knowledge: ConceptualizeKnowledgeApi; ctx: RequestContext; twin?: TwinSnapshot; requirements?: RequirementsReader },
   options: { maxDepth?: number } = {},
 ): Promise<ImpactReport> {
   const maxDepth = Math.min(options.maxDepth ?? 6, 6)
+  // Propagation comes from the knowledge service's own link registry (incl. its derived edges), built-ins as fallback.
+  const registry = [...(await deps.knowledge.linkTypes(deps.ctx)), ...BUILT_IN_LINK_TYPES]
   const graph = await deps.knowledge.traverse({ start: [change.ref], maxDepth: 6, limit: 500 }, deps.ctx)
   const labels = new Map(graph.nodes.map((n) => [refKey(n.ref), n.key ? `${n.key} ${n.label}` : n.label]))
   const startKey = refKey(change.ref)
@@ -80,7 +82,7 @@ export async function assessChangeImpact(
     for (const key of frontier) {
       const pathHere = reached.get(key)?.path ?? []
       for (const e of graph.edges) {
-        const dir = propagationOf(e.type)
+        const dir = propagationOf(e.type, registry)
         if (dir === 'none') continue
         const targets: AnyRef[] = []
         if ((dir === 'to-from' || dir === 'both') && refKey(e.to) === key) targets.push(e.from)
@@ -90,7 +92,9 @@ export async function assessChangeImpact(
           if (visited.has(k)) continue
           visited.add(k)
           reached.set(k, { ref: t, via: e.type, path: [...pathHere, { type: e.type, from: refKey(e.from), to: refKey(e.to) }] })
-          next.push(k)
+          // Artifacts of other modules are terminal: a design change may require reviewing them, but it does not
+          // change them, so impact does not travel on through them (e.g. from a requirement to other designs).
+          if (isDesignRef(t)) next.push(k)
         }
       }
     }
@@ -148,12 +152,47 @@ export async function assessChangeImpact(
     })
   }
 
+  // 2b. Formalized requirements: a constraint pinned to an older requirement revision is demonstrably out of date.
+  const requirementRevision = new Map<string, number | undefined>()
+  const currentRequirement = async (id: string) => {
+    if (!deps.requirements) return undefined
+    if (!requirementRevision.has(id)) requirementRevision.set(id, (await deps.requirements.get(id, { projectId: deps.ctx.projectId }))?.revision)
+    return requirementRevision.get(id)
+  }
+  for (const [key, r] of reached) {
+    if (!isDesignRef(r.ref) || r.ref.type !== 'constraint') continue
+    const c = await deps.knowledge.get('constraint', r.ref.id, deps.ctx)
+    if (c?.source.kind !== 'requirement' || c.source.ref.revision === undefined) continue
+    const now = await currentRequirement(c.source.ref.id)
+    if (now === undefined) continue
+    const stale = now > c.source.ref.revision
+    items.push({
+      ref: r.ref,
+      label: labels.get(key) ?? key,
+      classification: stale ? 'demonstrated' : 'checked-unaffected',
+      path: r.path,
+      mechanism: 'the constraint formalizes a pinned requirement revision',
+      evidence: { summary: stale ? `${c.key} formalizes the requirement at revision ${c.source.ref.revision}; the requirement is now at revision ${now}. The formalization must be reviewed.` : `${c.key} formalizes the current requirement revision ${now}.` },
+    })
+  }
+
+  /** Descriptions of the decision's requirement-revised conditions whose pinned requirement revision is no longer current. */
+  const requirementConditions = async (d: DecisionRecord) => {
+    const fired: string[] = []
+    for (const c of d.invalidationConditions) {
+      if (c.kind !== 'requirement-revised' || isDesignRef(c.subject) || c.subject.module !== 'requirements' || c.subject.revision === undefined) continue
+      const now = await currentRequirement(c.subject.id)
+      if (now !== undefined && now > c.subject.revision) fired.push(c.description)
+    }
+    return fired
+  }
+
   // 3. Decisions: supporting evidence outcome and invalidation conditions.
   for (const [key, r] of reached) {
     if (!isDesignRef(r.ref) || r.ref.type !== 'decision') continue
     const d = await deps.knowledge.get('decision', r.ref.id, deps.ctx)
     if (!d) continue
-    const verdict = classifyDecision(d, change, evidenceOutcome, reevaluations)
+    const verdict = classifyDecision(d, change, evidenceOutcome, reevaluations, await requirementConditions(d))
     items.push({ ref: r.ref, label: labels.get(key) ?? key, classification: verdict.classification, path: r.path, mechanism: MECHANISM[r.via] ?? r.via, evidence: { summary: verdict.summary } })
   }
 
@@ -180,6 +219,7 @@ function classifyDecision(
   change: ImpactChange,
   evidenceOutcome: Map<string, ImpactItem['classification']>,
   reevaluations: Map<string, { result?: CalculationResult; error?: string }>,
+  requirementFired: string[] = [],
 ): { classification: ImpactItem['classification']; summary: string } {
   const reasons: string[] = []
   const possibleReasons: string[] = []
@@ -193,6 +233,11 @@ function classifyDecision(
         checked = true
         if (check.status === 'violated') reasons.push(`invalidation condition fired: ${c.description} (${check.text}, margin ${fmt(check.margin)} ${check.unit})`)
       }
+    } else if (c.kind === 'requirement-revised' && requirementFired.includes(c.description)) {
+      checked = true
+      reasons.push(`invalidation condition fired: ${c.description}`)
+    } else if (c.kind === 'requirement-revised') {
+      checked = true
     } else if (c.kind === 'constraint-changed' && refKey(c.subject) === refKey(change.ref)) {
       checked = true
       reasons.push(`invalidation condition fired: ${c.description}`)
