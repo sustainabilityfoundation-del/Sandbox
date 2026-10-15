@@ -31,7 +31,7 @@ validated commands and recorded verification; one end-to-end cross-module workfl
 | SysML modelling, illustrative tool (subset: parts, requirement usages, connections, satisfy; not SysML v2 compliant) | Experimental |
 | CAD Modeler: Open CASCADE kernel, sketches with constraints, extrude, revolve, regeneration, STEP export | Experimental (Phase 1; [CAD roadmap](modules/cad/roadmap.md)) |
 | Mechanical CAD, mock tool (mock geometry kept for existing workflows) | Experimental |
-| Design reasoning layer: architecture and proposed ADRs 0039–0046 | Proposed; libraries integrated: validation prototype (R1) and calculation engine (R3) in `packages/design-reasoning-core`, `packages/engineering-calc`; no service or UI yet |
+| Design reasoning layer: architecture and proposed ADRs 0039–0046 | Proposed; libraries integrated: validation prototype (R1) and calculation engine (R3) in `packages/design-reasoning-core`, `packages/engineering-calc`; actuator and new-project scenarios tested against the real Conceptualize and Requirements APIs (`npm run reasoning:test:db`), calculation storage steps adapter-backed until CR-C8; no service or UI yet |
 | AI connection: provider-neutral backend, own OpenAI account (API key, or Sign in with ChatGPT when run locally), Settings centre with server-enforced AI access policy | Integrated and tested against a fake provider; live provider not verified ([brief](specifications/ai-connection.md)) |
 | Shared identities, `represents` links, explicit cross-tool mapping | Implemented |
 | Module ownership and delegation, enforced in the repository | Implemented |

@@ -172,6 +172,8 @@ export function createReasoningEngine(deps: EngineDeps) {
       const fnRef = args.function as DesignRef
       const fn = await deps.knowledge.get('function', fnRef.id, ctx)
       if (!fn) throw new ToolCallError('not-found', `Function ${fnRef.id} does not exist.`)
+      const parent = args.parentConcept as DesignRef | undefined
+      if (!deps.knowledge.capabilities.functionAlternativeSets && !parent) throw new ToolCallError('not-implemented', 'This knowledge service cannot attach alternative sets to a Function yet (CR-C7); give parentConcept.')
       const performers = (await deps.knowledge.links(ctx, { to: designRef('function', fn.id), type: 'performs' })).map((l) => l.from.id)
       const existing = (await Promise.all(performers.map((id) => deps.knowledge.get('concept', id, ctx)))).filter(Boolean).map((c) => normalize(c!.name))
       const warnings: string[] = []
@@ -202,7 +204,7 @@ export function createReasoningEngine(deps: EngineDeps) {
           ],
         },
       }))
-      items.push({ op: 'createAlternativeSet', as: '$set', body: { name: args.setName as string, question: args.question as string, functionId: fn.id, memberIds: candidates.map((_, i) => `$c${i}`) } })
+      items.push({ op: 'createAlternativeSet', as: '$set', body: { name: args.setName as string, question: args.question as string, ...(deps.knowledge.capabilities.functionAlternativeSets ? { functionId: fn.id } : {}), ...(parent ? { parentConceptId: parent.id } : {}), memberIds: candidates.map((_, i) => `$c${i}`) } })
       const draft = newDraft(run, stepId, {
         title: `${candidates.length} candidate concepts for ${fn.key} ${fn.name}`,
         action: `Create ${candidates.length} alternative Concepts that perform ${fn.key}, grouped in one alternative set.`,
@@ -343,7 +345,7 @@ export function createReasoningEngine(deps: EngineDeps) {
 
     async 'reasoning.assess_change_impact'(args, ctx, run, stepId) {
       const change = args.change as ImpactChange
-      const report = await assessChangeImpact(change, { knowledge: deps.knowledge, ctx, twin: deps.twin?.() }, { maxDepth: args.maxDepth as number | undefined })
+      const report = await assessChangeImpact(change, { knowledge: deps.knowledge, ctx, twin: deps.twin?.(), requirements: deps.requirements }, { maxDepth: args.maxDepth as number | undefined })
       for (const item of report.items) {
         if (isDesignRef(item.ref)) continue
         if (item.ref.module === 'requirements' && deps.requirements) {
