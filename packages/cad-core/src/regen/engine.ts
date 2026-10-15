@@ -1,7 +1,7 @@
 import { CadError, toErrorInfo, type CadErrorInfo } from '../errors'
 import { evaluateIn, evaluateParameters, type EvaluatedParameter, type ParameterScope } from '../expr/parameters'
-import { toModel, v3, type FaceProbe, type GeometryKernel, type KernelPlane, type ShapeAnalysis, type ShapeHandle, type Vec3 } from '../kernel'
-import { isDimensional, SKETCH_X_AXIS, SKETCH_Y_AXIS, type CadDocument, type ExtrudeFeature, type Feature, type Part, type RevolveFeature, type SketchFeature } from '../model/types'
+import { KernelError, toModel, v3, type FaceProbe, type GeometryKernel, type KernelPlane, type ShapeAnalysis, type ShapeHandle, type Vec3 } from '../kernel'
+import { isDimensional, SKETCH_X_AXIS, SKETCH_Y_AXIS, type CadDocument, type ExtrudeFeature, type Feature, type Part, type PlaneRef, type RevolveFeature, type SketchFeature } from '../model/types'
 import { extractProfile, type Profile } from '../sketch/profile'
 import { solveSketch, type SketchSolution } from '../sketch/solver'
 import { hashOf, now } from '../util'
@@ -40,6 +40,8 @@ export interface FeatureResult {
   sketch?: SketchResult
   /** Solid features: the body this feature created or modified. */
   bodyId?: string
+  /** Sketches and datum planes: the resolved plane. */
+  plane?: KernelPlane
 }
 
 export interface BodyResult {
@@ -69,6 +71,8 @@ export interface RegenerationResult {
   /** True when every feature is ok or suppressed. */
   ok: boolean
   kernel: GeometryKernel['info']
+  /** Where this regeneration ran (set by the regenerator). */
+  location?: 'in-process' | 'worker'
 }
 
 interface CachedShape {
@@ -84,6 +88,7 @@ export class RegenerationCache {
   private readonly sketches = new Map<string, { result: SketchResult; lastUsed: number }>()
   private readonly shapes = new Map<string, CachedShape>()
   private readonly analyses = new Map<string, { analysis: ShapeAnalysis; lastUsed: number }>()
+  private readonly meta = new Map<string, { value: unknown; lastUsed: number }>()
   private generation = 0
   constructor(readonly retainGenerations = 2) {}
 
@@ -114,6 +119,14 @@ export class RegenerationCache {
   putAnalysis(key: string, analysis: ShapeAnalysis, gen: number) {
     this.analyses.set(key, { analysis, lastUsed: gen })
   }
+  getMeta<T>(key: string, gen: number): T | undefined {
+    const e = this.meta.get(key)
+    if (e) e.lastUsed = gen
+    return e?.value as T | undefined
+  }
+  putMeta(key: string, value: unknown, gen: number) {
+    this.meta.set(key, { value, lastUsed: gen })
+  }
   /** Releases kernel shapes not used recently. */
   async evict(kernel: GeometryKernel, current: number): Promise<number> {
     const old = (m: Map<string, { lastUsed: number }>) => [...m].filter(([, e]) => current - e.lastUsed > this.retainGenerations).map(([k]) => k)
@@ -122,6 +135,7 @@ export class RegenerationCache {
     shapeKeys.forEach((k) => this.shapes.delete(k))
     old(this.sketches).forEach((k) => this.sketches.delete(k))
     old(this.analyses).forEach((k) => this.analyses.delete(k))
+    old(this.meta).forEach((k) => this.meta.delete(k))
     if (handles.length) await kernel.release(handles)
     return handles.length
   }
@@ -130,6 +144,7 @@ export class RegenerationCache {
     this.shapes.clear()
     this.sketches.clear()
     this.analyses.clear()
+    this.meta.clear()
     if (handles.length) await kernel.release(handles)
   }
   stats() {
@@ -167,12 +182,14 @@ interface BodyState {
   lastFeatureId: string
 }
 
-/** Evaluated plane, sketch values and solution for one sketch feature (no kernel needed). */
-export function solveSketchFeature(sketch: SketchFeature, scope: ParameterScope): { result?: SketchResult; key: string; error?: CadErrorInfo } {
+/** Evaluated sketch values and solution on a resolved plane (no kernel needed). */
+export function solveSketchFeature(sketch: SketchFeature, scope: ParameterScope, resolvedPlane?: KernelPlane): { result?: SketchResult; key: string; error?: CadErrorInfo } {
   const values: Record<string, number> = {}
   let plane: KernelPlane
   try {
-    plane = planeOf(sketch.plane, scope)
+    if (resolvedPlane) plane = resolvedPlane
+    else if (sketch.plane.kind === 'standard') plane = planeOf(sketch.plane, scope)
+    else throw new CadError('precondition-failed', `Sketch ${sketch.id} lies on a ${sketch.plane.kind}; its plane is resolved during regeneration.`)
     for (const c of sketch.constraints) if (isDimensional(c.type) && c.driving !== false && c.value !== undefined) values[c.id] = evaluateIn(scope, c.value)
   } catch (e) {
     return { key: '', error: toErrorInfo(e) }
@@ -185,27 +202,111 @@ export function solveSketchFeature(sketch: SketchFeature, scope: ParameterScope)
   return { key, result: { plane, solution, profile, values, lines } }
 }
 
+/**
+ * The sketch frame on a planar face: normal = outward face normal; origin = projection of the model
+ * origin onto the face plane; x = horizontal direction (Z × n), or the model x axis for faces whose
+ * normal is (anti)parallel to Z. Deterministic, so sketches on faces regenerate identically.
+ */
+export function faceFrame(center: Vec3, normal: Vec3): KernelPlane {
+  const n = v3.normalize(normal)
+  const origin = v3.scale(n, v3.dot(center, n))
+  const xDir: Vec3 = Math.abs(n[2]) > 0.99 ? v3.normalize(v3.sub([1, 0, 0], v3.scale(n, n[0]))) : v3.normalize(v3.cross([0, 0, 1], n))
+  const clean = (v: Vec3): Vec3 => v.map((x) => (Math.abs(x) < 1e-12 ? 0 : Math.round(x * 1e12) / 1e12)) as Vec3
+  return { origin: clean(origin), xDir: clean(xDir), normal: clean(n) }
+}
+
+const offsetPlane = (p: KernelPlane, offset: number): KernelPlane => (offset ? { ...p, origin: v3.add(p.origin, v3.scale(p.normal, offset)) } : p)
+
+/** Errors whose cause is an upstream feature make the feature "blocked" rather than "failed". */
+const blockedReason = (e: CadErrorInfo | undefined) => typeof e?.details?.reason === 'string' && (e.details.reason as string).startsWith('upstream-')
+
+async function analysisOf(b: BodyState, kernel: GeometryKernel, cache: RegenerationCache, gen: number): Promise<ShapeAnalysis> {
+  const key = hashOf({ shape: b.key, probes: b.probes })
+  let analysis = cache.getAnalysis(key, gen)
+  if (!analysis) {
+    analysis = await kernel.analyze(b.shape, b.probes)
+    cache.putAnalysis(key, analysis, gen)
+  }
+  return analysis
+}
+
 async function regeneratePart(part: Part, kernel: GeometryKernel, cache: RegenerationCache, gen: number): Promise<PartResult> {
   const scope = evaluateParameters(part)
   const results: FeatureResult[] = []
-  const sketches = new Map<string, FeatureResult>()
+  const byId = new Map<string, FeatureResult>()
   const bodies = new Map<string, BodyState>()
   let latestBody: string | undefined
+
+  const upstream = (id: string, what: string): never => {
+    const r = byId.get(id)
+    if (!r) throw new CadError('not-found', `${what} ${id} does not exist earlier in the history.`, { reason: 'missing-reference', reference: id })
+    throw new CadError('precondition-failed', r.status === 'suppressed' ? `${what} ${id} is suppressed.` : `${what} ${id} failed to regenerate.`, { reason: r.status === 'suppressed' ? 'upstream-suppressed' : 'upstream-failed', upstream: id })
+  }
+
+  /** Resolves a plane reference at this point of the history (datums and faces of the current bodies). */
+  async function resolvePlane(ref: PlaneRef): Promise<KernelPlane> {
+    const offset = ref.offset === undefined ? 0 : evaluateIn(scope, ref.offset)
+    if (ref.kind === 'standard') return planeOf(ref, scope)
+    if (ref.kind === 'datum') {
+      const d = byId.get(ref.datum)
+      if (!d || d.status !== 'ok' || !d.plane) return upstream(ref.datum, 'Datum plane')
+      return offsetPlane(d.plane, offset)
+    }
+    const owner = ref.face.split('/')[0]
+    const ownerResult = byId.get(owner)
+    if (ownerResult && ownerResult.status !== 'ok') return upstream(owner, 'Feature')
+    const planar: string[] = []
+    for (const b of bodies.values()) {
+      const a = await analysisOf(b, kernel, cache, gen)
+      const face = a.faces.find((f) => f.name === ref.face || f.aliases.includes(ref.face))
+      for (const f of a.faces) if (f.surfaceType === 'PLANE' && f.stable) planar.push(f.name)
+      if (!face) continue
+      if (face.surfaceType !== 'PLANE' || !face.normal) throw new CadError('regeneration-failed', `Face ${ref.face} is not planar (${face.surfaceType}); sketches need a planar face.`, { reason: 'face-not-planar', face: ref.face })
+      return offsetPlane(faceFrame(face.center, face.normal), offset)
+    }
+    throw new CadError('regeneration-failed', `Face ${ref.face} no longer exists at this point of the history. Choose another face. Planar faces: ${planar.slice(0, 12).join(', ') || 'none'}.`, { reason: 'reference-lost', face: ref.face, available: planar.slice(0, 50) })
+  }
 
   for (const feature of part.features) {
     const t0 = now()
     const base = { featureId: feature.id, type: feature.type, name: feature.name, warnings: [] as CadErrorInfo[], rebuilt: false, key: '' }
-    if (feature.suppressed) {
-      const r: FeatureResult = { ...base, status: 'suppressed', durationMs: 0 }
+    const finish = (r: FeatureResult) => {
+      r.durationMs = now() - t0
       results.push(r)
-      if (feature.type === 'sketch') sketches.set(feature.id, r)
+      byId.set(feature.id, r)
+    }
+    if (feature.suppressed) {
+      finish({ ...base, status: 'suppressed', durationMs: 0 })
       continue
     }
+
+    if (feature.type === 'datum-plane') {
+      const r: FeatureResult = { ...base, status: 'ok', durationMs: 0 }
+      try {
+        r.plane = await resolvePlane(feature.plane)
+        r.key = hashOf(r.plane)
+      } catch (e) {
+        r.error = toErrorInfo(e)
+        r.status = blockedReason(r.error) ? 'blocked' : 'failed'
+      }
+      finish(r)
+      continue
+    }
+
     if (feature.type === 'sketch') {
-      const solved = solveSketchFeature(feature, scope)
+      let plane: KernelPlane | undefined
+      let planeError: CadErrorInfo | undefined
+      if (feature.plane.kind !== 'standard') {
+        try {
+          plane = await resolvePlane(feature.plane)
+        } catch (e) {
+          planeError = toErrorInfo(e)
+        }
+      }
+      const solved = planeError ? { key: '', error: planeError } : solveSketchFeature(feature, scope, plane)
       let r: FeatureResult
       if (!solved.result) {
-        r = { ...base, status: 'failed', error: solved.error, durationMs: now() - t0 }
+        r = { ...base, status: blockedReason(solved.error) ? 'blocked' : 'failed', error: solved.error, durationMs: 0 }
       } else {
         const cached = cache.getSketch(solved.key, gen)
         const result = cached ?? solved.result
@@ -225,39 +326,57 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
             : undefined,
           warnings,
           sketch: result,
-          durationMs: now() - t0,
+          plane: result.plane,
+          durationMs: 0,
         }
       }
-      results.push(r)
-      sketches.set(feature.id, r)
+      finish(r)
       continue
     }
 
-    // ---- solid features ---------------------------------------------------------------------
     const r: FeatureResult = { ...base, status: 'ok', durationMs: 0 }
     try {
-      const sketch = sketches.get(feature.sketch)
-      if (!sketch) throw new CadError('not-found', `Sketch ${feature.sketch} does not exist before ${feature.id}.`, { reason: 'missing-sketch' })
-      if (sketch.status === 'suppressed') {
-        r.status = 'blocked'
-        r.error = { code: 'precondition-failed', message: `Sketch ${feature.sketch} is suppressed.`, details: { reason: 'upstream-suppressed', upstream: feature.sketch } }
-      } else if (sketch.status !== 'ok' || !sketch.sketch) {
-        r.status = 'blocked'
-        r.error = { code: 'precondition-failed', message: `Sketch ${feature.sketch} failed to regenerate.`, details: { reason: 'upstream-failed', upstream: feature.sketch } }
+      if (feature.type === 'fillet' || feature.type === 'chamfer') {
+        // ---- edge treatments on an existing body --------------------------------------------
+        const targetId = feature.target ?? latestBody
+        const target = targetId ? bodies.get(targetId) : undefined
+        if (!target) throw new CadError('precondition-failed', `A ${feature.type} needs an existing body${feature.target ? ` (${feature.target} does not exist at this point)` : ''}.`, { reason: 'no-target-body' })
+        const size = evaluateIn(scope, feature.type === 'fillet' ? feature.radius : feature.distance)
+        if (!(size > 0)) throw new CadError('invalid-input', `The ${feature.type === 'fillet' ? 'radius' : 'distance'} must be greater than zero (got ${size}).`, { reason: 'invalid-value', field: feature.type === 'fillet' ? 'radius' : 'distance' })
+        const unstable = feature.edges.filter((e) => e.includes('face#'))
+        if (unstable.length) r.warnings.push({ code: 'precondition-failed', message: `Edge names ${unstable.join(', ')} refer to faces without stable names; they may not survive changes upstream.`, details: { reason: 'unstable-reference', edges: unstable } })
+        const key = hashOf({ op: feature.type, target: target.key, probes: hashOf(target.probes), edges: feature.edges, size, id: feature.id })
+        let shape = cache.getShape(key, gen)
+        let probes = cache.getMeta<FaceProbe[]>(key, gen)
+        if (!shape || !probes) {
+          const out = await kernel.blendEdges({ kind: feature.type, target: target.shape, edges: feature.edges, size, probes: target.probes, featureId: feature.id })
+          shape = out.shape
+          probes = out.probes
+          cache.putShape(key, shape, gen)
+          cache.putMeta(key, probes, gen)
+          r.rebuilt = true
+        }
+        bodies.set(target.bodyId, { ...target, key, shape, probes: [...target.probes, ...probes], lastFeatureId: feature.id })
+        latestBody = target.bodyId
+        r.bodyId = target.bodyId
+        r.key = key
       } else {
-        const profile = sketch.sketch.profile
+        // ---- profile features (extrude, revolve) ---------------------------------------------
+        const sketch = byId.get(feature.sketch)
+        if (!sketch || sketch.type !== 'sketch') throw new CadError('not-found', `Sketch ${feature.sketch} does not exist before ${feature.id}.`, { reason: 'missing-sketch' })
+        if (sketch.status !== 'ok' || !sketch.sketch) upstream(feature.sketch, 'Sketch')
+        const profile = sketch.sketch!.profile
         if (!profile.regions.length || profile.issues.length) {
           throw new CadError('regeneration-failed', profile.issues.length ? profile.issues.map((i) => i.message).join(' ') : 'The sketch has no closed profile.', { reason: 'invalid-profile', issues: profile.issues })
         }
-        const built = await buildSolid(feature, sketch.sketch, sketch.key, scope, kernel, cache, gen)
+        const built = await buildSolid(feature, sketch.sketch!, sketch.key, scope, kernel, cache, gen)
         const targetId = feature.operation === 'new' ? undefined : (feature.target ?? latestBody)
         const target = targetId ? bodies.get(targetId) : undefined
         if (feature.operation !== 'new' && targetId && !target) throw new CadError('not-found', `Target body ${targetId} does not exist.`, { reason: 'no-target-body' })
         if (feature.operation === 'cut' && !target) throw new CadError('precondition-failed', 'A cut needs an existing body.', { reason: 'no-target-body' })
         r.rebuilt = built.rebuilt
         if (!target) {
-          const state: BodyState = { bodyId: feature.id, name: feature.name, key: built.key, shape: built.shape, probes: built.probes, lastFeatureId: feature.id }
-          bodies.set(feature.id, state)
+          bodies.set(feature.id, { bodyId: feature.id, name: feature.name, key: built.key, shape: built.shape, probes: built.probes, lastFeatureId: feature.id })
           latestBody = feature.id
           r.bodyId = feature.id
           r.key = built.key
@@ -276,22 +395,16 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
         }
       }
     } catch (e) {
-      r.status = 'failed'
-      r.error = toErrorInfo(e)
+      r.error = e instanceof KernelError ? { code: 'regeneration-failed', message: e.message, details: { reason: e.code } } : toErrorInfo(e)
+      r.status = blockedReason(r.error) ? 'blocked' : 'failed'
     }
-    r.durationMs = now() - t0
-    results.push(r)
+    finish(r)
   }
 
   // Analysis (mass properties, topology, stable face names) of the final bodies.
   const bodyResults: BodyResult[] = []
   for (const b of bodies.values()) {
-    const key = hashOf({ shape: b.key, probes: b.probes })
-    let analysis = cache.getAnalysis(key, gen)
-    if (!analysis) {
-      analysis = await kernel.analyze(b.shape, b.probes)
-      cache.putAnalysis(key, analysis, gen)
-    }
+    const analysis = await analysisOf(b, kernel, cache, gen)
     if (!analysis.valid) {
       const last = results.find((f) => f.featureId === b.lastFeatureId)
       last?.warnings.push({ code: 'kernel-failure', message: `The body ${b.bodyId} is not a valid solid (B-rep check failed).`, details: { reason: 'invalid-shape' } })
