@@ -1,0 +1,22 @@
+{
+  "name": "@ews/assistant-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Assistant service: provider-neutral model backend (provider registry, OpenAI adapter, account connections with encrypted credentials, server-enforced AI access policy, audit), PostgreSQL schema 'assistant', OpenAPI 3.1. Hosted by @ews/api at /api/assistant/v1.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/platform-sdk": "^1.5.0",
+    "fastify": "5.12.5",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "@ews/settings-service": "^0.1.0"
+  }
+}
