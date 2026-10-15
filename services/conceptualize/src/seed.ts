@@ -1,5 +1,6 @@
 import type { Pool } from 'pg'
 import { createDecision, createSet, recordDecision } from './store/alternatives'
+import { createExploration } from './store/explorations'
 import { changeMaturity, createConcept } from './store/concepts'
 import { withTransaction, type Ctx } from './store/context'
 import { createEvidence, createImplementation, createLink } from './store/implementations'
@@ -240,5 +241,126 @@ export async function seedConcepts(pool: Pool): Promise<{ seeded: boolean; messa
     await createRelationship(ctx, { type: 'depends-on', fromId: SEED_IDS.powerConversion, toId: SEED_IDS.thermal })
     await createRelationship(ctx, { type: 'interfaces-with', fromId: SEED_IDS.energyStorage, toId: SEED_IDS.powerConversion, interface: { name: 'DC bus', kind: 'electrical', flows: ['electrical power'] } })
   })
-  return { seeded: true, message: 'Seeded example Concepts CON-001…CON-017 (ACT-100, power transmission alternatives, propulsion decompositions).' }
+  await as('eli', 'editor', (ctx) => seedCompactActuator(ctx))
+  return { seeded: true, message: 'Seeded example Concepts (ACT-100, power transmission alternatives, propulsion decompositions, 500 N compact actuator alternatives).' }
+}
+
+/**
+ * The owner's example (brief §6): three alternatives for a compact actuator delivering 500 N within a
+ * 100 mm envelope. Seeded as an exploration with preliminary estimates whose arithmetic is shown
+ * (method, inputs, outputs, assumptions); scores are engineering assumptions, not measurements. The
+ * scripted demo assistant can generate the same kind of exploration live.
+ */
+async function seedCompactActuator(ctx: Ctx) {
+  const F = 500
+  const objective = 'Develop three alternative concepts for a compact mechanical actuator capable of delivering 500 N of linear force within a 100 mm envelope.'
+  // Ball screw: T = F·l / (2π·η)
+  const lead = 0.005
+  const eta = 0.9
+  const torque = (F * lead) / (2 * Math.PI * eta)
+  // Pneumatic: A = F / p, d = √(4A/π); next ISO bore 40 mm
+  const p = 0.6e6
+  const area = (F / p) * 1e6
+  const bore = Math.sqrt((4 * area) / Math.PI)
+  // Rack and pinion: T = F·r / η
+  const r = 0.01
+  const etaRp = 0.95
+  const torqueRp = (F * r) / etaRp
+  const r3 = (n: number) => Math.round(n * 1000) / 1000
+  await createExploration(ctx, {
+    objective,
+    parent: {
+      name: 'Compact mechanical actuator (500 N, 100 mm envelope)',
+      summary: 'Deliver 500 N of linear force within a 100 mm envelope.',
+      description: objective,
+      purpose: 'Provide controlled linear force in a compact space.',
+      abstraction: 'subsystem',
+      classifications: ['actuator', 'example'],
+      statements: [
+        { kind: 'function', text: 'Deliver linear force' },
+        { kind: 'constraint', text: 'Linear force', quantity: { value: F, unit: 'N' } },
+        { kind: 'constraint', text: 'Envelope', quantity: { max: 100, unit: 'mm' } },
+        { kind: 'question', text: 'What stroke and speed are required?' },
+        { kind: 'question', text: 'Which energy source is available (electric, compressed air)?' },
+      ],
+    },
+    setName: 'Actuation principle',
+    question: 'Which principle delivers 500 N within 100 mm best?',
+    alternatives: [
+      {
+        name: 'Electromechanical ball-screw actuator',
+        summary: 'Motor drives a ball screw; the nut pushes the rod.',
+        abstraction: 'subsystem',
+        classifications: ['actuator', 'electromechanical'],
+        statements: [
+          { kind: 'principle', text: 'Rolling-element screw converts motor torque into axial force.', basis: 'assumption' },
+          { kind: 'assumption', text: `Lead ${lead * 1000} mm, efficiency ${eta}`, basis: 'assumption' },
+          { kind: 'performance', text: 'Required motor torque (preliminary)', quantity: { value: r3(torque), unit: 'N*m' }, basis: 'estimate' },
+        ],
+        children: [{ name: 'Electric motor' }, { name: 'Ball screw and nut' }, { name: 'Rod guide' }],
+        interfaces: [{ from: 0, to: 1, definition: { name: 'Motor–screw coupling', kind: 'mechanical', flows: ['torque'] } }],
+        evidence: [
+          { kind: 'calculation', title: 'Motor torque for 500 N', basis: 'estimate', method: 'T = F·l / (2π·η)', inputs: [{ name: 'F', value: F, unit: 'N' }, { name: 'l', value: lead * 1000, unit: 'mm' }, { name: 'η', value: eta, unit: '-' }], outputs: [{ name: 'T', value: r3(torque), unit: 'N*m' }], assumptions: ['No friction in bearings', 'Static load'] },
+        ],
+      },
+      {
+        name: 'Compact pneumatic cylinder',
+        summary: 'Double-acting cylinder supplied with compressed air.',
+        abstraction: 'subsystem',
+        classifications: ['actuator', 'pneumatic'],
+        statements: [
+          { kind: 'principle', text: 'Air pressure on the piston area produces axial force.', basis: 'assumption' },
+          { kind: 'assumption', text: 'Supply pressure 6 bar', basis: 'assumption' },
+          { kind: 'performance', text: 'Minimum bore (preliminary)', quantity: { value: Math.round(bore * 10) / 10, unit: 'mm' }, basis: 'estimate' },
+          { kind: 'uncertainty', text: 'Compressed air availability at the installation site.' },
+        ],
+        children: [{ name: 'Cylinder and piston' }, { name: 'Valve' }],
+        interfaces: [{ from: 1, to: 0, definition: { name: 'Air supply', kind: 'fluid', flows: ['compressed air'] } }],
+        evidence: [
+          { kind: 'calculation', title: 'Bore for 500 N at 6 bar', basis: 'estimate', method: 'A = F / p, d = √(4A/π)', inputs: [{ name: 'F', value: F, unit: 'N' }, { name: 'p', value: 6, unit: 'bar' }], outputs: [{ name: 'A', value: Math.round(area), unit: 'mm^2' }, { name: 'd', value: Math.round(bore * 10) / 10, unit: 'mm' }], assumptions: ['Friction and seal losses neglected; choose the next standard bore (40 mm)'] },
+        ],
+      },
+      {
+        name: 'Rack-and-pinion drive',
+        summary: 'Motor-driven pinion moves a toothed rack.',
+        abstraction: 'subsystem',
+        classifications: ['actuator', 'electromechanical'],
+        statements: [
+          { kind: 'principle', text: 'Gear mesh converts pinion torque into rack force.', basis: 'assumption' },
+          { kind: 'assumption', text: `Pinion pitch radius ${r * 1000} mm, efficiency ${etaRp}`, basis: 'assumption' },
+          { kind: 'performance', text: 'Required pinion torque (preliminary)', quantity: { value: r3(torqueRp), unit: 'N*m' }, basis: 'estimate' },
+          { kind: 'uncertainty', text: 'Backlash may be unacceptable for positioning.' },
+        ],
+        children: [{ name: 'Motor and gearbox' }, { name: 'Pinion and rack' }],
+        interfaces: [{ from: 0, to: 1, definition: { name: 'Pinion shaft', kind: 'mechanical', flows: ['torque'] } }],
+        evidence: [
+          { kind: 'calculation', title: 'Pinion torque for 500 N', basis: 'estimate', method: 'T = F·r / η', inputs: [{ name: 'F', value: F, unit: 'N' }, { name: 'r', value: r * 1000, unit: 'mm' }, { name: 'η', value: etaRp, unit: '-' }], outputs: [{ name: 'T', value: r3(torqueRp), unit: 'N*m' }], assumptions: ['Static load', 'Single pinion'] },
+        ],
+      },
+    ],
+    tradeStudy: {
+      title: 'Compact actuator principles',
+      criteria: [
+        { name: 'Mass (estimate)', category: 'mass', weight: 1, direction: 'minimize', scale: 'quantity', unit: 'kg' },
+        { name: 'Cost', category: 'cost', weight: 1, direction: 'maximize', scale: 'qualitative', description: '5 = cheapest' },
+        { name: 'Controllability', category: 'performance', weight: 2, direction: 'maximize', scale: 'qualitative' },
+        { name: 'Risk', category: 'risk', weight: 1, direction: 'maximize', scale: 'qualitative', description: '5 = lowest risk' },
+      ],
+      scores: [
+        { criterion: 0, alternative: 0, low: 0.6, high: 0.9, basis: 'estimate', rationale: 'Motor and screw of comparable products (assumed range)' },
+        { criterion: 0, alternative: 1, low: 0.3, high: 0.5, basis: 'estimate', rationale: 'Cylinder only; excludes compressor' },
+        { criterion: 0, alternative: 2, low: 0.7, high: 1.1, basis: 'estimate', rationale: 'Motor, gearbox and rack (assumed range)' },
+        { criterion: 1, alternative: 0, qualitative: 2, basis: 'assumption' },
+        { criterion: 1, alternative: 1, qualitative: 4, basis: 'assumption' },
+        { criterion: 1, alternative: 2, qualitative: 3, basis: 'assumption' },
+        { criterion: 2, alternative: 0, qualitative: 5, basis: 'assumption' },
+        { criterion: 2, alternative: 1, qualitative: 2, basis: 'assumption' },
+        { criterion: 2, alternative: 2, qualitative: 3, basis: 'assumption' },
+        { criterion: 3, alternative: 0, qualitative: 4, basis: 'assumption' },
+        { criterion: 3, alternative: 1, qualitative: 3, basis: 'assumption' },
+        { criterion: 3, alternative: 2, qualitative: 3, basis: 'assumption' },
+      ],
+    },
+    generator: 'seed (illustrative example)',
+  })
 }
