@@ -178,6 +178,62 @@ await page.reload()
 await page.waitForSelector('[data-testid="model-revision"]')
 await page.click('[data-dock-tab="assistant"]').catch(() => {})
 
+// --- A DECLARATIVE proposal (SDK 1.8): saved as data, reopened in a fresh session, applied by the server ------
+// No module returns declarative proposals yet, so this TEST-ONLY headless module (registered in this page only,
+// under the server-known 'reasoning' prefix) returns one: a Conceptualize createConcept call.
+const conceptName = `E2E declarative concept ${Date.now() % 100000}`
+const registered = await page.evaluate(async (name) => {
+  const { registerPlatformModule, getPlatformModules } = await import('/workspace/src/platform/platformModules.ts')
+  if (getPlatformModules().some((m) => m.id === 'reasoning')) return false
+  registerPlatformModule({
+    id: 'reasoning',
+    name: 'E2E test module (not a product module)',
+    assistant: {
+      actions: [{
+        name: 'reasoning.e2e_create_concept',
+        label: 'E2E: prepare a Concept',
+        effect: 'propose',
+        description: 'Test-only action returning a declarative proposal.',
+        parameters: { type: 'object', properties: {} },
+        run: () => ({
+          kind: 'declarative-proposal',
+          module: 'conceptualize',
+          title: `Create ${name}`,
+          explanation: 'E2E: declarative proposal applied by the assistant service.',
+          preview: [{ label: 'New Concept', proposed: name, basis: 'ai-hypothesis' }],
+          operations: [{ module: 'conceptualize', operationId: 'createConcept', method: 'POST', path: '/projects/PRJ-ACT100/concepts', body: { name } }],
+        }),
+      }],
+    },
+  })
+  return true
+}, conceptName)
+if (!registered) console.log('[ai-fake-provider] NOTE a real "reasoning" module is registered; the declarative part is skipped (use its own operations instead).')
+else {
+  const decl = await ask('forge reasoning.e2e_create_concept')
+  const declCard = decl.locator('[data-proposal-id]').first()
+  await page.waitForFunction(() => document.body.textContent.includes('Saved; applied by the conceptualize API'), null, { timeout: 10000 })
+  const declId = await declCard.getAttribute('data-proposal-id')
+  check((await declCard.textContent()).includes('Saved; applied by the conceptualize API'), `${declId} is a declarative proposal saved in the assistant service`)
+  const before = await (await fetch(`${API}/api/concepts/v1/projects/PRJ-ACT100/concepts?text=${encodeURIComponent(conceptName)}`, { headers: H })).json()
+  check(before.items.length === 0, 'nothing is written before Apply')
+  const tag = await page.evaluate(async () => (await import('/workspace/src/assistant/conversation.ts')).useConversation.getState().conversationId.slice(-4))
+  const fresh2 = await browser.newContext({ viewport: { width: 1500, height: 1000 } })
+  await fresh2.addInitScript(() => localStorage.setItem('ews.services.v1', JSON.stringify({ requirementsMode: 'api', devUser: 'eli' })))
+  const page3 = await fresh2.newPage()
+  await page3.goto(base)
+  await page3.waitForSelector('[data-testid="model-revision"]', { timeout: 60000 })
+  await page3.click('[data-dock-tab="assistant"]')
+  const card3 = page3.locator(`[data-testid="reopened-proposals"] [data-proposal-id="${declId}·${tag}"]`)
+  await card3.waitFor({ timeout: 15000 })
+  await card3.getByRole('button', { name: 'Apply', exact: true }).click()
+  await page3.waitForSelector('.as-event.is-success', { timeout: 15000 })
+  const after = await (await fetch(`${API}/api/concepts/v1/projects/PRJ-ACT100/concepts?text=${encodeURIComponent(conceptName)}`, { headers: H })).json()
+  check(after.items.length === 1, 'the reopened declarative proposal is applied by the server through the Conceptualize API from a fresh session (no browser memory of it)')
+  await shot('05c-declarative', page3)
+  await fresh2.close()
+}
+
 // --- Policy: module off → its operations are refused ---------------------------------------------------------
 await openSettings('ai')
 await page.waitForSelector('[data-setting-id="ai.access.workspace"]')
