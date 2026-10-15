@@ -218,3 +218,16 @@ Status vocabulary per [integration-milestone-1.md](integration-milestone-1.md): 
 ### Verification (this sprint)
 
 See §8.1 below (filled after the full run).
+
+## 9. Demonstration D1, AI part (D1-AI)
+
+Brief: [demo-ai-engineering.md](demo-ai-engineering.md) §3 D1-AI. Boundaries: ADR-0070 (AI output stays distinguishable).
+
+| # | Item | State | Evidence |
+| --- | --- | --- | --- |
+| 1 | `registerPlatformModule` for headless modules (Project Management `projects.*`, design reasoning `reasoning.*`) | implemented, tested | `apps/workspace/src/platform/platformModules.ts`, `platformModules.test.ts`; server catalogue knows `projects.` and `reasoning.` |
+| 2 | Generic engineering-workflow instructions; multi-step budget | implemented, tested | `services/assistant/src/wire.ts` `INSTRUCTIONS` (material questions only, explicit assumptions, origin labels user constraint / AI-proposed / derived, read before proposing, previewed proposals, checks as measured or computed, never compliance or adequacy); defaults 24 operations per answer (max 60), 4000 output tokens, 90 s, 12 history items, all with project limits; `policy.test.ts` checks the rules and that no example content is in the instructions |
+| 3 | Persisted declarative proposals, revalidation at Apply; survive reload and restart | implemented, tested | §8; `proposals.api.test.ts` (server restart), `ai-fake-provider` flow (fresh browser session) |
+| 4 | Drill example isolated | implemented, tested | `apps/workspace/fixtures/demo-plans/drill-bit-holder.json` read by the generic `scriptedPlans.ts`; `exampleIsolation.test.ts` scans product source (workspace, assistant and settings services) for the example's vocabulary |
+| 5 | `tests/e2e/flows/demo-d1.mjs` (fake provider replaying a recorded tool-call script; plumbing only, not D1 acceptance) | in progress | |
+| 6 | Live-run guide with transcript and tool-call evidence capture | in progress | |
