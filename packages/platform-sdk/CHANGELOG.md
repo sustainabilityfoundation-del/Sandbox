@@ -16,6 +16,20 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.6.0 (2026-10-15)
+
+Type: additive
+
+What changed: `contract/quantities.ts` exports the platform unit algebra (`parseUnit`, `isValidUnit`,
+`sameDimension`, `convert`, `dimensionName`, `quantityProblem`, `UnitError`, `COMMON_UNITS`, `Dims`,
+`ParsedUnit`, `QuantityInput`), moved unchanged from `services/conceptualize/src/domain/units.ts`, which now
+re-exports it.
+Why: one unit system for Conceptualize, the design reasoning calculation engine and other modules (design
+reasoning CR-S2, ADR-0044); avoids a second, divergent unit library.
+Migration for tools: none. Use these functions instead of writing unit handling. Further 1.6 additions (settings
+contribution, platform services for SysML and CAD) are recorded below as they land.
+Validated with: npm run check; npm run build:harnesses
+
 ## 1.5.0 (2026-10-14)
 
 Type: additive
