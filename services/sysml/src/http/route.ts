@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import type { Pool } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 import { SysmlServiceError, forbidden, invalid } from '../errors'
 import type { SysmlEventHub } from '../events'
 import type { ProjectRow, SysmlRepository } from '../repository'
@@ -65,7 +65,21 @@ export interface RequestContext {
   reply: FastifyReply
   /** Set response headers (ETag etc.). */
   header: (name: string, value: string) => void
+  /**
+   * With an Idempotency-Key: records the response inside the caller's database transaction (the
+   * repository's commit transaction), so a committed change and its replay record are atomic.
+   */
+  idempotency?: IdempotencyScope
 }
+
+export interface IdempotencyScope {
+  /** Stores the response in the given transaction. Throws IdempotencyRace when the same key was recorded concurrently. */
+  record: (db: Pick<PoolClient, 'query'>, body: unknown) => Promise<void>
+  readonly recorded: boolean
+}
+
+/** Another request with the same Idempotency-Key committed first; replay its stored outcome. */
+export class IdempotencyRace extends Error {}
 
 const stableJson = (v: unknown): string =>
   v === null || typeof v !== 'object' ? JSON.stringify(v) : Array.isArray(v) ? `[${v.map(stableJson).join(',')}]` : `{${Object.keys(v as object).sort().map((k) => `${JSON.stringify(k)}:${stableJson((v as Record<string, unknown>)[k])}`).join(',')}}`
@@ -102,22 +116,54 @@ export function registerRoute(app: FastifyInstance, ctx: Ctx, spec: RouteSpec, r
       let status = spec.responseStatus ?? 200
       if (spec.idempotent && key && spec.method !== 'GET') {
         const hash = createHash('sha256').update(`${spec.method} ${request.url.split('?')[0]}\n${stableJson(request.body ?? null)}\n${request.url.split('?')[1] ?? ''}`).digest('hex')
-        const { rows } = await ctx.host.pool.query<{ request_hash: string; status_code: number; response_body: unknown }>(
-          `SELECT request_hash, status_code, response_body FROM sysml.idempotency_keys WHERE actor = $1 AND key = $2 AND created_at > now() - interval '24 hours'`,
-          [principal.userId, key],
-        )
-        if (rows[0]) {
-          if (rows[0].request_hash !== hash) throw invalid('This Idempotency-Key was already used for a different request.', { fields: { 'Idempotency-Key': 'reused with a different request' } })
+        const stored = async () =>
+          (
+            await ctx.host.pool.query<{ request_hash: string; status_code: number; response_body: unknown }>(
+              `SELECT request_hash, status_code, response_body FROM sysml.idempotency_keys WHERE actor = $1 AND key = $2 AND created_at > now() - interval '24 hours'`,
+              [principal.userId, key],
+            )
+          ).rows[0]
+        const replay = (row: { request_hash: string; status_code: number; response_body: unknown }) => {
+          if (row.request_hash !== hash) throw invalid('This Idempotency-Key was already used for a different request.', { fields: { 'Idempotency-Key': 'reused with a different request' } })
           reply.header('Idempotency-Replayed', 'true')
-          reply.code(rows[0].status_code).type('application/json; charset=utf-8')
-          return reply.send(JSON.stringify(rows[0].response_body))
+          reply.code(row.status_code).type('application/json; charset=utf-8')
+          return reply.send(JSON.stringify(row.response_body))
         }
-        body = await spec.handler(rc)
-        await ctx.host.pool.query(
-          `INSERT INTO sysml.idempotency_keys (actor, key, request_hash, method, path, status_code, response_body) VALUES ($1,$2,$3,$4,$5,$6,$7)
-           ON CONFLICT (actor, key) DO UPDATE SET request_hash = EXCLUDED.request_hash, status_code = EXCLUDED.status_code, response_body = EXCLUDED.response_body, created_at = now()`,
-          [principal.userId, key, hash, spec.method, request.url.split('?')[0], status, JSON.stringify(body ?? null)],
-        )
+        const first = await stored()
+        if (first) return replay(first)
+        let recorded = false
+        const scope: IdempotencyScope = {
+          get recorded() {
+            return recorded
+          },
+          async record(db, responseBody) {
+            await db.query(`DELETE FROM sysml.idempotency_keys WHERE actor = $1 AND key = $2 AND created_at <= now() - interval '24 hours'`, [principal.userId, key])
+            try {
+              await db.query('SAVEPOINT idempotency')
+              await db.query(
+                'INSERT INTO sysml.idempotency_keys (actor, key, request_hash, method, path, status_code, response_body) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+                [principal.userId, key, hash, spec.method, request.url.split('?')[0], status, JSON.stringify(responseBody ?? null)],
+              )
+              await db.query('RELEASE SAVEPOINT idempotency')
+            } catch (e) {
+              if ((e as { code?: string }).code === '23505') throw new IdempotencyRace()
+              throw e
+            }
+            recorded = true
+          },
+        }
+        rc.idempotency = scope
+        try {
+          body = await spec.handler(rc)
+        } catch (e) {
+          // A concurrent request with this key may have committed first (this one then fails with a
+          // conflict or an IdempotencyRace): the retry gets the first outcome, as if it arrived later.
+          const winner = await stored().catch(() => undefined)
+          if (winner && winner.request_hash === hash) return replay(winner)
+          throw e
+        }
+        // Reads and dry runs write nothing in the database: record them after the fact.
+        if (!recorded) await scope.record(ctx.host.pool, body).catch(() => undefined)
       } else body = await spec.handler(rc)
       if (spec.raw) return reply
       for (const [k, v] of Object.entries(headers)) reply.header(k, v)

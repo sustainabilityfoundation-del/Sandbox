@@ -83,6 +83,11 @@ export interface ServiceProposal {
   apply: (provenance: { conversationId: string; proposalId: string; messageId: string }) => Promise<{ summary: string; createdIds?: string[] }>
   /** Compensating change (a new revision), if the module supports it. */
   undo?: (applied: { createdIds?: string[] }) => Promise<{ summary: string }>
+  /**
+   * Destructive change (SDK 1.7): the platform asks the person to type `phrase` (for example the project key)
+   * before Apply is enabled. The owning service enforces the same confirmation on the server.
+   */
+  confirmation?: { phrase: string; prompt: string }
 }
 
 export interface ServiceProposalItem {

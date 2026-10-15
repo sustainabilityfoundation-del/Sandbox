@@ -26,8 +26,13 @@ validated commands and recorded verification; one end-to-end cross-module workfl
 | Requirements management (statements, rationale, status, allocation, history) | Implemented |
 | Help system: Help menu, Help Centre, F1, tutorials, API reference, assistant access (Requirements documented; SysML and CAD pending) | Implemented (sprint 005) |
 | Requirements service: PostgreSQL API, collections, attributes, reviews, requirement baselines, quality checks, ReqIF exchange | Implemented (sprint 001; see [progress](specifications/requirements-management-progress.md)) |
-| SysML modelling (subset: parts, requirement usages, connections, satisfy; not SysML v2 compliant) | Experimental |
-| Parametric mechanical CAD (mock geometry, no CAD kernel) | Experimental |
+| Conceptualize: concepts, decomposition, alternatives, trade studies, decisions, evidence, implementations | Implemented (see [progress](specifications/conceptualize-progress.md)) |
+| SysML Modeler: SysML v2 textual subset, versioned repository, validation, views, requirement links | Experimental (Phase 1 and first Phase 2 slice; [conformance](modules/sysml/conformance.md)) |
+| SysML modelling, illustrative tool (subset: parts, requirement usages, connections, satisfy; not SysML v2 compliant) | Experimental |
+| CAD Modeler: Open CASCADE kernel, sketches with constraints, extrude, revolve, regeneration, STEP export | Experimental (Phase 1; [CAD roadmap](modules/cad/roadmap.md)) |
+| Mechanical CAD, mock tool (mock geometry kept for existing workflows) | Experimental |
+| Design reasoning layer: architecture and proposed ADRs 0039–0046 | Proposed (phase A approved; validation prototype in progress) |
+| AI connection: provider-neutral backend, own OpenAI account, Settings centre with AI access policy | In progress ([brief](specifications/ai-connection.md)) |
 | Shared identities, `represents` links, explicit cross-tool mapping | Implemented |
 | Module ownership and delegation, enforced in the repository | Implemented |
 | Typed relationship validation | Implemented |

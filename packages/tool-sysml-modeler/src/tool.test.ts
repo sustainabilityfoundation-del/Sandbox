@@ -4,6 +4,7 @@ import { ACTUATOR_EXAMPLE, applyTransaction, loadText, resolveRef, serialize } f
 import { describe, expect, it } from 'vitest'
 import { createSysmlModelerTool } from '.'
 import { sysmlModelerDemo } from './assistant'
+import { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from './projection/behavior'
 import { connectableEnds, generalView, interconnectionView } from './projection/graph'
 import { getClient } from './session'
 
@@ -51,6 +52,54 @@ describe('view projections (diagrams are computed from the model)', () => {
     const g = interconnectionView(r.model, id(r.model, 'ActuatorSystem::Architecture::LinearActuator'))
     expect(g.nodes[0].children.some((c) => c.name.startsWith('brake'))).toBe(true)
     expect(connectableEnds(r.model, id(r.model, 'ActuatorSystem::Architecture::LinearActuator')).map((e) => e.chain)).toContain('driver.powerIn')
+  })
+})
+
+describe('behaviour views (projections of actions and states)', () => {
+  it('State Transition View: states, initial state from entry, transitions labelled with their triggers', () => {
+    const m = model()
+    const ctx = stateTransitionContext(m, id(m, 'ActuatorSystem::Software::ActuatorModes::idle'))!
+    expect(ctx).toBe(id(m, 'ActuatorSystem::Software::ActuatorModes'))
+    const g = stateTransitionView(m, ctx)
+    const kids = g.nodes[0].children
+    expect(kids.filter((k) => k.shape !== 'initial').map((k) => k.name)).toEqual(['idle', 'positioning', 'fault'])
+    const name = (nid: string) => kids.find((k) => k.id === nid)!.name || '(initial)'
+    expect(g.edges.map((e) => `${name(e.source)}->${name(e.target)} ${e.label ?? ''}`.trim()).sort()).toEqual([
+      '(initial)->idle',
+      'idle->positioning StartCommand (startPositioning)',
+      'positioning->fault FaultDetected (onFault)',
+      'positioning->idle StopCommand (finishPositioning)',
+    ])
+  })
+
+  it('State Transition View: entry/do/exit actions and guards from text', () => {
+    const r = loadText('package P { item def Go; state def S { entry; then a; state a { entry action init; do action run; } state b; transition t first a accept Go if 1 > 0 then b; } }')
+    expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    const g = stateTransitionView(r.model, id(r.model, 'P::S'))
+    expect(g.nodes[0].children.find((k) => k.name === 'a')!.compartments[0].items.map((i) => i.text)).toEqual(['entry action init', 'do action run'])
+    expect(g.edges.find((e) => e.kind === 'transition')!.label).toBe('Go [1 > 0] (t)')
+  })
+
+  it('Action Flow View: actions, parameters as ports, start node, successions and flows', () => {
+    const m = model()
+    expect(actionFlowContext(m, id(m, 'ActuatorSystem::Software::ControlLoop::computeError'))).toBe(id(m, 'ActuatorSystem::Software::ControlLoop'))
+    const g = actionFlowView(m, id(m, 'ActuatorSystem::Software::ControlLoop'))
+    expect(g.nodes[0].ports.map((p) => p.name)).toEqual(['in setpoint', 'in measurement', 'out demand'])
+    expect(g.nodes[0].children.map((c) => c.name)).toEqual(['computeError', 'computeDemand'])
+    expect(g.edges.map((e) => e.kind)).toEqual(['succession'])
+    const r = loadText('package P { item def Data; action def A { action a { out x : Data; } action b { in y : Data; } flow of Data from a.x to b.y; first a; then b; } }')
+    expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    const f = actionFlowView(r.model, id(r.model, 'P::A'))
+    const flow = f.edges.find((e) => e.kind === 'flow')!
+    expect(flow.label).toBe('«flow» Data')
+    expect(flow.source.endsWith(id(r.model, 'P::A::a::x'))).toBe(true)
+    expect(f.nodes[0].children[0].shape).toBe('initial')
+    const sd = loadText('package P { action def A { first start; then a; action a; then done; } }')
+    expect(sd.diagnostics).toEqual([])
+    const v = actionFlowView(sd.model, id(sd.model, 'P::A'))
+    expect(v.nodes[0].children.map((c) => c.shape ?? c.name)).toEqual(['initial', 'a', 'final'])
+    expect(v.edges.map((e) => `${e.source.split(':')[0]}->${e.target.split(':')[0]}`)).toEqual([`initial->${id(sd.model, 'P::A::a')}`, `${id(sd.model, 'P::A::a')}->final`])
+    expect(f.edges.filter((e) => e.kind === 'succession').map((e) => e.target)).toEqual([id(r.model, 'P::A::a'), id(r.model, 'P::A::b')])
   })
 })
 
@@ -126,6 +175,20 @@ describe('assistant operations (same commands, previewed proposals, provenance, 
     expect(applied.summary).toMatch(/Created ActuatorSystem::Thermal/)
   })
 
+  it('reads matrices, coverage and behaviour', async () => {
+    const { ctx, action } = setup()
+    const sat = await action('matrix').run({ kind: 'satisfy' }, ctx)
+    expect(sat.kind === 'data' && (sat.data as { rows: string[] }).rows.length).toBeGreaterThan(0)
+    const cov = await action('coverage').run({ gapsOnly: true }, ctx)
+    const data = cov.kind === 'data' ? (cov.data as { counts: { total: number }; requirements: { requirement: string; status: string }[] }) : undefined
+    expect(data!.counts.total).toBe(3)
+    expect(data!.requirements.every((r) => r.status !== 'satisfied-and-verified')).toBe(true)
+    const st = await action('behavior').run({ view: 'state-transition' }, ctx)
+    expect(st.kind === 'data' && JSON.stringify(st.data)).toContain('StartCommand')
+    const af = await action('behavior').run({ view: 'action-flow', element: 'ActuatorSystem::Software::ControlLoop' }, ctx)
+    expect(af.kind === 'data' && (af.data as { edges: { from: string; to: string }[] }).edges.map((e) => `${e.from}->${e.to}`)).toContain('computeError->computeDemand')
+  })
+
   it('demo planner covers the documented example prompts', () => {
     const plan = (t: string) => sysmlModelerDemo!(t, { selectionIds: [] })?.calls[0]?.name
     expect(plan('What SysML commands can you use?')).toBe('sysml-modeler.describe_commands')
@@ -133,6 +196,10 @@ describe('assistant operations (same commands, previewed proposals, provenance, 
     expect(plan('What uses BrushlessMotor?')).toBe('sysml-modeler.impact')
     expect(plan('Add a part definition named Brake to ActuatorSystem::Mechanical')).toBe('sysml-modeler.propose_commands')
     expect(plan('Explain the last SysML change')).toBe('sysml-modeler.explain_commit')
+    expect(plan('Which requirements are not satisfied?')).toBe('sysml-modeler.coverage')
+    expect(plan('Show the allocation matrix')).toBe('sysml-modeler.matrix')
+    expect(plan('Describe the state machine')).toBe('sysml-modeler.behavior')
+    expect(plan('Show the action flow of the control loop')).toBe('sysml-modeler.behavior')
     expect(plan('Hello there')).toBeUndefined()
   })
 })
@@ -154,5 +221,27 @@ describe('managed requirement link (Requirements stays authoritative)', () => {
     expect(text).toContain('requirementId = "5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001";')
     expect(text).toContain('revision = 3;')
     await expect(action.run({ element: 'ActuatorSystem::Product::act100', requirement: 'REQ-001' }, ctx)).rejects.toThrow(/not a requirement/)
+  })
+})
+
+describe('text editor completion (CodeMirror source)', () => {
+  it('completes keywords, model names and qualified members after ::', async () => {
+    const { CompletionContext } = await import('@codemirror/autocomplete')
+    const { EditorState } = await import('@codemirror/state')
+    const { sysmlCompletions } = await import('./view/CodeEditor')
+    const m = model()
+    const at = (doc: string, explicit = false) => {
+      const state = EditorState.create({ doc })
+      return sysmlCompletions(m)(new CompletionContext(state, doc.length, explicit))
+    }
+    const kw = at('part def X { attri')!
+    expect(kw.options.map((o) => o.label)).toContain('attribute')
+    expect(kw.from).toBe('part def X { '.length)
+    expect(at('part m : Brushl')!.options.find((o) => o.label === 'BrushlessMotor')?.type).toBe('class')
+    const q = at('attribute m : ISQ::Mas')!
+    expect(q.from).toBe('attribute m : ISQ::'.length)
+    expect(q.options.map((o) => o.label)).toContain('MassValue')
+    expect(at('part def X { ')).toBeNull()
+    expect(at('part def X { ', true)!.options.length).toBeGreaterThan(50)
   })
 })

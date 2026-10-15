@@ -461,7 +461,19 @@ class Parser {
       if (this.is('in') || this.is('out') || this.is('inout')) prefix.direction = this.t[this.i++].value as Direction
       else if (this.accept('abstract')) prefix.isAbstract = true
       else if (this.accept('variation')) prefix.isVariation = true
-      else if (this.accept('end')) prefix.isEnd = true
+      else if (this.accept('end')) {
+        prefix.isEnd = true
+        // SysML 2.0 end multiplicity / named end: `end [0..1] item x`, `end e[0..*] item x` (parsed, not represented).
+        const at = this.tok
+        if (this.is('[')) {
+          this.multiplicity()
+          this.notRepresented('end multiplicity', at.range)
+        } else if (this.isName() && this.isAt(1, '[')) {
+          this.i++
+          this.multiplicity()
+          this.notRepresented('named end', at.range)
+        }
+      }
       else if (this.accept('derived')) prefix.isDerived = true
       else if (this.accept('constant')) prefix.isConstant = true
       else if (this.is('#')) {
@@ -499,6 +511,21 @@ class Parser {
       return { kind: 'expression', expr, range: this.range(start) }
     }
     this.fail(`Unexpected ${this.describe(this.tok)}: expected a member declaration.`)
+  }
+
+  /** A construct that is parsed but not represented in the model: reported, never dropped silently. */
+  private notRepresented(construct: string, range: Range) {
+    this.diagnostics.push({ ruleId: 'SYSML-SYNTAX-UNSUPPORTED', severity: 'error', construct, message: `“${construct}” is parsed but not represented by this version of the SysML Modeler (see the conformance list).`, range })
+  }
+
+  /** Connector end multiplicity `connect [1] a to [*] b`, `first [0..1] a then [*] b` (parsed, not represented). */
+  private endChain(): Chain {
+    if (this.is('[')) {
+      const at = this.tok
+      this.multiplicity()
+      this.notRepresented('connector end multiplicity', at.range)
+    }
+    return this.chain()
   }
 
   private unsupported(t: Token): never {
@@ -540,7 +567,11 @@ class Parser {
     if (!id.name) this.fail('An alias needs a name.')
     this.expect('for')
     const target = this.qname()
-    this.expect(';')
+    if (this.is('{')) {
+      // Relationship body (documentation of the alias): parsed, not represented.
+      const at = this.tok
+      if (this.body('package').length) this.notRepresented('alias body', at.range)
+    } else this.expect(';')
     return { kind: 'alias', name: id.name, shortName: id.shortName, nameRange: id.nameRange, target, range: this.range(start) }
   }
 
@@ -726,9 +757,9 @@ class Parser {
 
   private connectorPart(): ConnectorPart {
     if (this.accept('connect') || this.accept('allocate')) {
-      const a = this.chain()
+      const a = this.endChain()
       this.expect('to')
-      return { ends: [a, this.chain()] }
+      return { ends: [a, this.endChain()] }
     }
     if (this.accept('bind')) {
       const a = this.chain()
@@ -736,9 +767,9 @@ class Parser {
       return { ends: [a, this.chain()] }
     }
     this.expect('first')
-    const a = this.chain()
+    const a = this.endChain()
     this.expect('then')
-    return { ends: [a, this.chain()] }
+    return { ends: [a, this.endChain()] }
   }
 
   private flowPart(): ConnectorPart | undefined {
@@ -845,7 +876,7 @@ class Parser {
   private static LEVELS: string[][] = [['implies'], ['or', '|'], ['xor'], ['and', '&'], ['==', '!=', '===', '!=='], ['<', '>', '<=', '>=']]
 
   private binary(level: number): Expr {
-    if (level >= Parser.LEVELS.length) return this.additive()
+    if (level >= Parser.LEVELS.length) return this.classification()
     const start = this.tok
     let left = this.binary(level + 1)
     while (Parser.LEVELS[level].some((op) => this.is(op))) {
@@ -853,6 +884,29 @@ class Parser {
       const right = this.binary(level + 1)
       left = { kind: 'op', operator: op, args: [left, right], range: this.range(start) }
     }
+    return left
+  }
+
+  /** Classification and cast: `x istype T`, `x hastype T`, `x @ T`, `x as T`, `x meta T` (KerML §7.4.9). */
+  private classification(): Expr {
+    const start = this.tok
+    let left = this.rangeExpr()
+    while (Parser.CLASSIFICATION.some((op) => this.is(op))) {
+      const op = this.t[this.i++].value
+      const q = this.qname()
+      const chain = { parts: [q], range: q.range }
+      left = { kind: 'op', operator: op, args: [left, { kind: 'ref', chain, range: q.range }], range: this.range(start) }
+    }
+    return left
+  }
+
+  private static CLASSIFICATION = ['istype', 'hastype', '@', 'as', 'meta']
+
+  /** Range `a..b` (a sequence of integers). Multiplicity bounds are parsed separately. */
+  private rangeExpr(): Expr {
+    const start = this.tok
+    const left = this.additive()
+    if (this.accept('..')) return { kind: 'op', operator: '..', args: [left, this.additive()], range: this.range(start) }
     return left
   }
 
@@ -904,6 +958,31 @@ class Parser {
         const unit = this.expression()
         this.expect(']')
         e = { kind: 'op', operator: '[', args: [e, unit], range: this.range(start) }
+      } else if (this.is('#') && this.isAt(1, '(')) {
+        // Indexing `seq#(i)` (KerML IndexExpression).
+        this.i += 2
+        const index = this.expression()
+        this.expect(')')
+        e = { kind: 'op', operator: '#', args: [e, index], range: this.range(start) }
+      } else if (this.is('->') && this.isName(this.peek())) {
+        // Arrow invocation `x->f(a)` is the invocation `f(x, a)`.
+        this.i++
+        const target = this.qname()
+        const args: Expr[] = [e]
+        if (this.is('{')) {
+          // Expression body argument (`->forAll { in x; … }`): parsed, not represented.
+          const at = this.tok
+          this.body('expression-body')
+          this.notRepresented('expression body argument', at.range)
+        } else {
+          this.expect('(')
+          if (!this.is(')')) {
+            args.push(this.expression())
+            while (this.accept(',')) args.push(this.expression())
+          }
+          this.expect(')')
+        }
+        e = { kind: 'invoke', target, args, range: this.range(start) }
       } else break
     }
     return e

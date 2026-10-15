@@ -1,6 +1,6 @@
 # Platform: shell, contract and shared services
 
-Packages: `apps/workspace`, `packages/platform-sdk` (1.1.0), `packages/model-service`,
+Packages: `apps/workspace`, `packages/platform-sdk` (1.7.0), `packages/model-service`,
 `packages/design-system`. Architecture: [architecture.md](../architecture.md).
 
 ## Owns

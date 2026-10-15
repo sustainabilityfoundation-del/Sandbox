@@ -24,7 +24,7 @@ apps/workspace          Common shell: navigation, tool registry, subscriptions, 
 apps/glb-viewer         Standalone GLB viewer (not part of the platform)
 packages/model-service  Domain model, ownership and relationship rules, revision history,
                         baselines, change impact, DemoRepository (no React)
-packages/platform-sdk   Versioned tool contract (1.1.0), PlatformHost, React hooks, harness, testing
+packages/platform-sdk   Versioned tool contract (1.7.0), PlatformHost, React hooks, harness, testing
 packages/design-system  React Aria + Tailwind components, tokens, semantic icons
 packages/tool-requirements | tool-sysml | tool-cad   The three Phase 1 modules
 ```
@@ -136,6 +136,21 @@ A platform Help Service reads each module's help manifest (SDK 1.4) from the too
 by subscription, and serves the Help menu, Help Centre, F1 and tutorials, and the assistant's
 `read_help` operation. Documentation is Markdown next to each module's code. Details:
 [modules/help.md](modules/help.md), [ADR-0014](decisions/0014-unified-help-system.md).
+
+## 6b. Design reasoning layer (proposed)
+
+Status: **Proposed**, not implemented. Architecture set: [modules/design-reasoning](modules/design-reasoning/README.md);
+decisions ADR-0039 to ADR-0046 (Proposed).
+
+The platform distinguishes the engineering problem (requirements, functions, constraints), the proposed
+solution (concepts, alternatives, decisions, evidence; owned by Conceptualize) and the implemented design
+(SysML, CAD, components, verification). A headless Design Reasoning Engine (`services/design-reasoning`,
+schema `reasoning`) is planned for tool-assisted reasoning: context resolution, investigation plans,
+deterministic calculations (`packages/engineering-calc`), evidence classification, change impact and draft
+proposals. It owns only operational state, reaches models only through the AI Interface (the provider-neutral
+`services/assistant`, in progress) and changes authoritative data only through previewed proposals applied by
+the user. The first step adds no reasoning service: it extends Conceptualize and adds the calculation and core
+libraries. The platform unit algebra is in the SDK (`contract/quantities.ts`, SDK 1.6).
 
 ## 7. Acceptance principles (vision §11)
 

@@ -1,0 +1,18 @@
+{
+  "name": "@ews/design-reasoning-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Framework-free core of the Design Reasoning Engine: design references, basis rules, tool schemas, context manifests, run records, comparison, change impact, declarative proposals, and the labelled in-memory Conceptualize contract test adapter.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "demo": "tsx scripts/demo.ts"
+  },
+  "dependencies": {
+    "@ews/platform-sdk": "^1.5.0",
+    "@ews/engineering-calc": "^0.1.0"
+  }
+}

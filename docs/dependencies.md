@@ -107,6 +107,12 @@ translators (need approval).
 | Package | Version | Licence | Used by | Source |
 | --- | --- | --- | --- | --- |
 | elkjs | 0.11.1 (released 2026-03-03) | EPL-2.0 OR GPL-3.0-or-later; used under **EPL-2.0**, unmodified | tool-sysml-modeler (automatic diagram layout; the worker script `elk-worker.min.js` is loaded by URL on demand) | github.com/kieler/elkjs (Eclipse Layout Kernel) |
+| @codemirror/state | 6.7.6 (released 2026-09-22) | MIT | tool-sysml-modeler (SysML text editor) | github.com/codemirror/state |
+| @codemirror/view | 6.43.13 (released 2026-09-22) | MIT | tool-sysml-modeler (SysML text editor) | github.com/codemirror/view |
+| @codemirror/language | 6.12.4 (released 2026-06-25) | MIT | tool-sysml-modeler (highlighting via StreamLanguage, bracket matching) | github.com/codemirror/language |
+| @codemirror/autocomplete | 6.20.3 (released 2026-06-03) | MIT | tool-sysml-modeler (keyword and model-name completion) | github.com/codemirror/autocomplete |
+| @codemirror/commands | 6.11.1 (released 2026-09-15) | MIT | tool-sysml-modeler (keymaps, undo history) | github.com/codemirror/commands |
+| @lezer/highlight | 1.2.5 (released 2026-09-28) | MIT | tool-sysml-modeler (highlight tags) | github.com/lezer-parser/highlight |
 
 No other new dependencies: the SysML semantic core, parser, serializer, repository and client are
 written for this module (TypeScript; `pg` and `fastify` versions as already used by the services).
@@ -117,3 +123,9 @@ from tag 2026-04, earlier tags LGPL-3.0 and refused by the script), fetched with
 `npx tsx packages/sysml-core/scripts/fetch-official.ts` into `.data/sysml-release/<tag>` and used by
 the official-corpus conformance measurement (`npm run sysml:conformance`). The bundled platform model
 library (`packages/sysml-core/src/library/text.ts`) is written for this module and copies no OMG text.
+
+## Design reasoning layer (added 15 October 2026, design reasoning agent; ADR-0044)
+
+| Package | Version | Licence | Used by | Source |
+| --- | --- | --- | --- | --- |
+| mathjs | 15.2.0 (released 2026-04-07) | Apache-2.0 (runtime dependencies @babel/runtime, complex.js, decimal.js, escape-latex, fraction.js, javascript-natural-sort, seedrandom, tiny-emitter, typed-function: MIT) | engineering-calc (expression parsing only; evaluation and units are the package's own) | github.com/josdejong/mathjs |

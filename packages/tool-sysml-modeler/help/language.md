@@ -35,7 +35,8 @@ and never dropped silently.
   `stakeholder`, `viewpoint` with `frame`, `view` with `expose` and `render`, `rendering`, `actor`.
 - Expressions: literals, arithmetic, comparison, boolean operators, `if … ? … else …`, invocation,
   sequences `(a, b, c)`, feature chains `a.b.c`, quantities with units `12 [kg]`, `3 [m/s]`,
-  `9.81 [m/s^2]`.
+  `9.81 [m/s^2]`, indexing `v#(1)`, ranges `1..3`, classification and casts (`istype`, `hastype`,
+  `@`, `as`, `meta`) and arrow invocations `x->f(y)` (stored as the invocation `f(x, y)`).
 - Metadata usages `@T { name = value; }` and prefixes `#T part x;`; specializing feature chains
   (`ref part x :> a.b;`).
 
@@ -43,14 +44,17 @@ and never dropped silently.
 
 `send`, messages and events, individuals, snapshots and time slices, variation points with
 `variant`, decision, merge, fork and join nodes, loops and assignments, `include use case`,
-`filter`, dependencies, `new` (constructor expressions), `meta` and `as` casts, `->` invocations, and
-multiplicities written before `end` features. Several details of the abstract syntax are simplified
+`filter`, dependencies, `new` (constructor expressions), expression-body arguments
+(`x->forAll { … }`), and feature chains after a parenthesized expression (`(x as T).y`).
+Multiplicities of `end` features and connector ends (`end [0..1] item x`, `connect [1] a to [*] b`)
+are read but not kept: they are reported, never dropped silently. Several details of the abstract syntax are simplified
 (for example operator arguments, flow ends and the binding of `satisfy … by`); the developer
 conformance list records each one.
 
-Measured against the official SysML v2 release examples and training models (196 files), 18% load
-with no diagnostics and 46% load with no errors other than standard-library names outside the
-platform subset.
+Measured against the official SysML v2 release examples and training models (196 files), 19% load
+with no diagnostics and 47% load with no errors other than standard-library names outside the
+platform subset. Resolved against the official library (for measurement only, not bundled), 25%
+load with no diagnostics.
 
 ## Model library
 
@@ -59,3 +63,9 @@ so that models resolve: `ScalarValues` (Real, Integer, Boolean, String …), `IS
 types (MassValue, LengthValue, ForceValue, VoltageValue …), `SI` units by symbol (`kg`, `m`, `mm`,
 `s`, `N`, `V`, `A`, `W`, `Hz`, `rpm`, `Nm` …), and base packages (Parts, Ports, Actions …). It is not
 the OMG standard library; names not listed here do not resolve.
+
+Implicit specializations: a definition or usage written without `:>` or `:` is treated as
+specializing the library base of its kind (a `part def` specializes `Parts::Part`, an `action`
+subsets `Actions::actions`, a `state def` specializes `States::StateAction`, and so on). This is
+derived, not stored: the text and the stored model stay as written. It is why `first start;` and
+`then done;` resolve inside any action (`Actions::Action` declares `start` and `done`).

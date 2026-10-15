@@ -6,7 +6,8 @@ SysML Modeler tool (ID `sysml-modeler`, entitlement `tool:sysml`). Owner: the Sy
 
 ## Rules
 
-- Imports only `@ews/platform-sdk`, `@ews/design-system`, `@ews/sysml-client`, `@ews/sysml-core`
+- Imports only `@ews/platform-sdk`, `@ews/design-system`, `@ews/sysml-client`, `@ews/sysml-core`,
+  the recorded third-party packages `elkjs` (layout) and `@codemirror/*` + `@lezer/highlight` (text editor)
   and React. Never another tool (not even the illustrative `tool-sysml`), `apps/workspace`,
   `@ews/model-service`, React Aria or icon packages.
 - Every edit is a typed command sent through `ModelerSession.run` / `revert` (the same commands the
