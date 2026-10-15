@@ -1,9 +1,10 @@
-import { Badge, Button, Notice, TextField } from '@ews/design-system'
+import { Badge, Button, Notice } from '@ews/design-system'
 import { SysmlClientError, type TransactionOutcome } from '@ews/sysml-client'
 import { isTextEditableNamespace, parse, semanticsOf, serialize, type Diagnostic, type Model } from '@ews/sysml-core'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ModelerSession } from '../session'
 import { message } from '../session'
+import { CodeEditor, type CodeEditorHandle, type EditorMark } from './CodeEditor'
 import { ChangeList, DiagnosticList } from './common'
 
 /**
@@ -20,7 +21,7 @@ export function TextEditor({ session, model, namespaceId, revision }: { session:
   const [problems, setProblems] = useState<Diagnostic[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
+  const ref = useRef<CodeEditorHandle>(null)
   const dirty = draft !== base
   // Follow model changes when there is nothing unsaved; otherwise warn that the base changed.
   useEffect(() => {
@@ -76,11 +77,12 @@ export function TextEditor({ session, model, namespaceId, revision }: { session:
     }
   }
   const goTo = (d: Diagnostic) => {
-    const el = ref.current
-    if (!el || !d.range) return
-    el.focus()
-    el.setSelectionRange(d.range.start.offset, Math.max(d.range.end.offset, d.range.start.offset + 1))
+    if (d.range) ref.current?.focusRange(d.range.start.offset, Math.max(d.range.end.offset, d.range.start.offset + 1))
   }
+  const marks = useMemo<EditorMark[]>(
+    () => [...syntax, ...problems].filter((d) => d.range).map((d) => ({ from: d.range!.start.offset, to: d.range!.end.offset, severity: d.severity === 'error' ? 'error' : d.severity === 'warning' ? 'warning' : 'info', message: d.message })),
+    [syntax, problems],
+  )
   void revision
 
   if (!editable) {
@@ -104,7 +106,7 @@ export function TextEditor({ session, model, namespaceId, revision }: { session:
         </Button>
       </div>
       {outOfDate && <Notice tone="warning" title="The model changed since you started editing">Applying replaces the members with your text; changes made by others to these members would be overwritten. Revert the text to start from the latest version.</Notice>}
-      <TextField ref={ref} label="SysML v2 textual notation" multiline rows={22} value={draft} onChange={(v) => (setDraft(v), setPreview(null))} inputClassName="smod-code" />
+      <CodeEditor ref={ref} label="SysML v2 textual notation" value={draft} onChange={(v) => (setDraft(v), setPreview(null))} model={model} marks={marks} helpId="sysml-modeler.text.editor" />
       <DiagnosticList diagnostics={[...syntax.map((d) => ({ ...d }) as Diagnostic), ...problems]} onSelect={goTo} />
       {error && <Notice tone="danger" title="Not applied">{error}</Notice>}
       {preview && <ChangeList outcome={preview} />}

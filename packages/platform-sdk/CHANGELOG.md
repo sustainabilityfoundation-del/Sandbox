@@ -16,6 +16,39 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.7.0 (2026-10-15)
+
+Type: additive
+
+What changed:
+
+- `contract/projects.ts` (new): the cross-module Project Management contract — `ProjectsService` (`list`, `get`,
+  `resolve`, `artifacts`, `subscribe`), `ProjectSummary`, `ArtifactSummary`, `ArtifactAvailability`,
+  `ProjectRole`, `ProjectLifecycleStatus`, `ProjectRecordState`, `ProjectsEvent`, `ProjectsEventType`,
+  `ProjectsServiceError`, `ProjectsErrorCode`, `CurrentProject`, `PROJECTS_CONTRACT_VERSION`.
+  `PlatformServices.projects?: ProjectsService`.
+- `contract/artifacts.ts` (new, framework-free, server-side): the artifact registration contract —
+  `ArtifactSource` (`describeModule`, `list`, `describe`, `subscribe`, optional `provision`, `exportProject`,
+  `importProject`), `NativeRef`, `ArtifactDescriptor`, `ArtifactChange`, `ArtifactPage`, `ArtifactKindInfo`,
+  `ArtifactLifecycle`, `ArtifactCategory` (+ `ARTIFACT_LIFECYCLES`, `ARTIFACT_CATEGORIES`), `ProvisionRequest`,
+  `ProvisionResult`, `ModulePayload`, `ModuleImportReport`, `ARTIFACT_SOURCE_CONTRACT_VERSION`.
+- `SharedContext.project?: CurrentProject` (optional; `projectId` stays authoritative).
+- `PlatformArtifactModule` (= `ArtifactModule` | `'projects'` | `'product'` | `'conceptualize'`) and
+  `PLATFORM_ARTIFACT_MODULES`. `ArtifactModule` itself is **not** widened in 1.7: `tool-conceptualize` keeps an
+  exhaustive `Record<ArtifactModule, string>`, so widening it is source-incompatible for that consumer. It is
+  widened in a later minor together with Conceptualize accepting the new values (CR-PM-CON-1).
+- `ServiceProposal.confirmation?: { phrase, prompt }` for destructive changes (the person types the phrase
+  before Apply).
+
+Why: Project Management (docs/specifications/project-management.md; ADR-0060 to ADR-0062, approved for
+implementation 15 October 2026). One project registry and one global artifact identity for every module;
+modules register their artifacts by implementing `ArtifactSource` over their own outbox (change requests
+CR-PM-REG-1…4, routed by the coordinator).
+
+Migration for tools: none (`ArtifactModule` is unchanged). Service modules implement `ArtifactSource` in their service package when
+their change request is scheduled; contract tests will be provided by `@ews/projects-client/contract-tests`.
+Validated with: npm run check; npm run build:harnesses
+
 ## 1.6.0 (2026-10-15)
 
 Type: additive

@@ -1,9 +1,12 @@
 /** Private state of one SysML Modeler view instance (never shared engineering data). */
 export interface ModelerViewState {
   /** Centre area. */
-  tab: 'diagram' | 'text' | 'validation' | 'history'
+  tab: 'diagram' | 'text' | 'validation' | 'history' | 'matrix' | 'coverage'
   /** Diagram kind (SysML v2 standard view presentations). */
-  view: 'general' | 'interconnection'
+  view: 'general' | 'interconnection' | 'action-flow' | 'state-transition'
+  /** Relationship matrix kind (Grid View). */
+  matrix: 'satisfy' | 'allocate' | 'connect'
+  coverageGapsOnly: boolean
   /** Element selected in this view (SysML elements are not twin objects, so selection is view-private). */
   selectedId: string | null
   /** Namespace or definition the diagram and text show; null = the model root / first package. */
@@ -28,4 +31,6 @@ export const INITIAL_VIEW_STATE: ModelerViewState = {
   pane: 'view',
   dialog: null,
   zoom: 1,
+  matrix: 'satisfy',
+  coverageGapsOnly: false,
 }

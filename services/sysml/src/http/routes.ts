@@ -19,7 +19,7 @@ import {
   type Model,
 } from '@ews/sysml-core'
 import { forbidden, invalid, notFound } from '../errors'
-import type { BranchRow, CommitRow, ProjectRow, TagRow } from '../repository'
+import type { BranchRow, CommitRow, OnCommit, ProjectRow, TagRow, TransactionOutcome } from '../repository'
 import { isUuid } from '../repository'
 import { registerRoute, type Ctx, type RequestContext, type RouteSpec } from './route'
 
@@ -41,6 +41,12 @@ export const commitJson = (c: CommitRow) => ({
   changeCount: c.change_count,
   branch: c.branch_id ? { '@id': c.branch_id } : null,
 })
+
+/** Records the response of an idempotent write inside the repository's commit transaction. */
+function inTx<T>(rc: RequestContext, shape: (r: T) => unknown): OnCommit<T> | undefined {
+  const scope = rc.idempotency
+  return scope ? (db, r) => scope.record(db, shape(r)) : undefined
+}
 
 const uuid = { type: 'string', format: 'uuid' }
 const pid = { projectId: uuid }
@@ -95,8 +101,9 @@ export function registerRoutes(app: FastifyInstance, ctx: Ctx, registry: RouteSp
       const role = await ctx.host.roleOf(rc.principal.userId, rc.body.platformProjectId)
       if (!role) throw forbidden(`You are not a member of project ${rc.body.platformProjectId}.`)
       if (!['editor', 'reviewer', 'administrator'].includes(String(role))) throw forbidden(`Your role (${role}) does not allow creating SysML projects.`)
-      const r = await ctx.repo.createProject(rc.principal.userId, { name: rc.body.name, description: rc.body.description, platformProjectId: rc.body.platformProjectId, initialText: rc.body.initialText })
-      return { ...projectJson(r.project), headCommit: commitJson(r.commit) }
+      const shape = (r: { project: ProjectRow; commit: CommitRow }) => ({ ...projectJson(r.project), headCommit: commitJson(r.commit) })
+      const r = await ctx.repo.createProject(rc.principal.userId, { name: rc.body.name, description: rc.body.description, platformProjectId: rc.body.platformProjectId, initialText: rc.body.initialText }, inTx(rc, shape))
+      return shape(r)
     },
   })
   route({ method: 'GET', path: '/projects/{projectId}', operationId: 'getProjectById', tag: 'Projects', alignment: 'aligned', permission: 'read', summary: 'A project', params: pid, handler: async (rc) => projectJson(rc.project!) })
@@ -114,13 +121,13 @@ export function registerRoutes(app: FastifyInstance, ctx: Ctx, registry: RouteSp
   route({
     method: 'POST', path: '/projects/{projectId}/branches', operationId: 'postBranch', tag: 'Branches', alignment: 'aligned', permission: 'write', idempotent: true, responseStatus: 201, summary: 'Create a branch at a commit', params: pid,
     body: { type: 'object', additionalProperties: false, required: ['name', 'head'], properties: { '@type': { const: 'Branch' }, name: { type: 'string', minLength: 1, maxLength: 100 }, head: { type: 'object', required: ['@id'], properties: { '@id': uuid } } } },
-    handler: async (rc) => branchJson(await ctx.repo.createBranch(rc.project!.id, rc.principal.userId, rc.body.name, rc.body.head['@id'])),
+    handler: async (rc) => branchJson(await ctx.repo.createBranch(rc.project!.id, rc.principal.userId, rc.body.name, rc.body.head['@id'], inTx(rc, branchJson))),
   })
   route({ method: 'GET', path: '/projects/{projectId}/tags', operationId: 'getTags', tag: 'Tags', alignment: 'aligned', permission: 'read', summary: 'Tags (baselines) of a project', params: pid, handler: async (rc) => (await ctx.repo.listTags(rc.project!.id)).map(tagJson) })
   route({
     method: 'POST', path: '/projects/{projectId}/tags', operationId: 'postTag', tag: 'Tags', alignment: 'aligned', permission: 'write', idempotent: true, responseStatus: 201, summary: 'Tag a commit (baseline)', params: pid,
     body: { type: 'object', additionalProperties: false, required: ['name', 'taggedCommit'], properties: { '@type': { const: 'Tag' }, name: { type: 'string', minLength: 1, maxLength: 100 }, taggedCommit: { type: 'object', required: ['@id'], properties: { '@id': uuid } } } },
-    handler: async (rc) => tagJson(await ctx.repo.createTag(rc.project!.id, rc.principal.userId, rc.body.name, rc.body.taggedCommit['@id'])),
+    handler: async (rc) => tagJson(await ctx.repo.createTag(rc.project!.id, rc.principal.userId, rc.body.name, rc.body.taggedCommit['@id'], inTx(rc, tagJson))),
   })
 
   // ---- commits ----------------------------------------------------------------------------------
@@ -148,7 +155,7 @@ export function registerRoutes(app: FastifyInstance, ctx: Ctx, registry: RouteSp
     },
     handler: async (rc) => {
       const branchId = (rc.query.branchId as string | undefined) ?? rc.project!.default_branch_id!
-      return commitJson(await ctx.repo.rawCommit(rc.project!.id, branchId, rc.principal.userId, { change: rc.body.change, description: rc.body.description, previousCommitId: rc.body.previousCommit?.['@id'] }))
+      return commitJson(await ctx.repo.rawCommit(rc.project!.id, branchId, rc.principal.userId, { change: rc.body.change, description: rc.body.description, previousCommitId: rc.body.previousCommit?.['@id'] }, inTx(rc, commitJson)))
     },
   })
 
@@ -251,9 +258,10 @@ export function registerRoutes(app: FastifyInstance, ctx: Ctx, registry: RouteSp
       const base = rc.body.baseCommitId ?? ifMatch
       if (base !== undefined && !isUuid(base)) throw invalid('If-Match must be the branch ETag (a commit ID).', undefined, 400)
       if (!rc.body.dryRun && !base) throw invalid('Send baseCommitId (or If-Match with the branch ETag); changes are never applied without a version check.', { fields: { baseCommitId: 'required' } }, 400)
-      const out = await ctx.repo.transact(rc.project!.id, rc.params.branchId, rc.principal.userId, { baseCommitId: base, commands: rc.body.commands, dryRun: rc.body.dryRun, validationPolicy: rc.body.validationPolicy, reason: rc.body.reason, source: rc.body.source })
+      const shape = (o: TransactionOutcome) => ({ ...o, commit: o.commit ? commitJson(o.commit) : undefined })
+      const out = await ctx.repo.transact(rc.project!.id, rc.params.branchId, rc.principal.userId, { baseCommitId: base, commands: rc.body.commands, dryRun: rc.body.dryRun, validationPolicy: rc.body.validationPolicy, reason: rc.body.reason, source: rc.body.source }, inTx(rc, shape))
       if (out.commit) rc.header('ETag', `"${out.commit.id}"`)
-      return { ...out, commit: out.commit ? commitJson(out.commit) : undefined }
+      return shape(out)
     },
   })
   route({
@@ -263,8 +271,9 @@ export function registerRoutes(app: FastifyInstance, ctx: Ctx, registry: RouteSp
     body: { type: ['object', 'null'], additionalProperties: false, properties: { reason: { type: 'string', maxLength: 2000 }, source: SOURCE } },
     handler: async (rc) => {
       const branchId = (rc.query.branchId as string | undefined) ?? rc.project!.default_branch_id!
-      const out = await ctx.repo.revert(rc.project!.id, rc.params.commitId, branchId, rc.principal.userId, { reason: rc.body?.reason, source: rc.body?.source ? { ...rc.body.source, revertedCommitId: rc.params.commitId } : undefined, dryRun: rc.query.dryRun === true })
-      return { ...out, commit: out.commit ? commitJson(out.commit) : undefined }
+      const shape = (o: TransactionOutcome) => ({ ...o, commit: o.commit ? commitJson(o.commit) : undefined })
+      const out = await ctx.repo.revert(rc.project!.id, rc.params.commitId, branchId, rc.principal.userId, { reason: rc.body?.reason, source: rc.body?.source ? { ...rc.body.source, revertedCommitId: rc.params.commitId } : undefined, dryRun: rc.query.dryRun === true }, inTx(rc, shape))
+      return shape(out)
     },
   })
 

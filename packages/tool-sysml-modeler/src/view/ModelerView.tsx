@@ -3,6 +3,7 @@ import { Badge, Button, EmptyState, LoadingState, Notice, SegmentedControl, Sele
 import { isKindOf, semanticsOf, type Model } from '@ews/sysml-core'
 import { useSharedContext } from '@ews/platform-sdk/react'
 import { useMemo } from 'react'
+import { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from '../projection/behavior'
 import { generalView, interconnectionContext, interconnectionView } from '../projection/graph'
 import { ModelBrowser } from './Browser'
 import { Diagram } from './Diagram'
@@ -11,6 +12,7 @@ import { useSession, useViewState } from './hooks'
 import { Inspector } from './Inspector'
 import { HistoryPanel, ValidationPanel } from './Panels'
 import { TextEditor } from './TextEditor'
+import { CoverageView, MatrixView } from './Matrix'
 
 /** Namespace the General View and the text editor show by default: the first package. */
 function defaultRoot(model: Model): string {
@@ -49,12 +51,26 @@ export default function ModelerView() {
     const fromSel = vs.selectedId ? interconnectionContext(model, vs.selectedId) : undefined
     return fromRoot ?? fromSel ?? null
   }, [model, vs.rootId, vs.selectedId])
+  /** Context of the behaviour views: from the shown root, then the selection, then the first one in the model. */
+  const behaviourRoot = useMemo(() => {
+    if (!model || (vs.view !== 'action-flow' && vs.view !== 'state-transition')) return null
+    const find = vs.view === 'action-flow' ? actionFlowContext : stateTransitionContext
+    const fromRoot = vs.rootId ? find(model, vs.rootId) : undefined
+    const fromSel = vs.selectedId ? find(model, vs.selectedId) : undefined
+    if (fromRoot ?? fromSel) return (fromRoot ?? fromSel)!
+    const kind = vs.view === 'action-flow' ? 'ActionDefinition' : 'StateDefinition'
+    for (const el of model.elements()) if (!model.isLibrary(el['@id']) && el['@type'] === kind && find(model, el['@id']) === el['@id']) return el['@id']
+    return null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, vs.rootId, vs.selectedId, vs.view, state.revision])
   const graph = useMemo(() => {
     if (!model || !root) return null
     if (vs.view === 'interconnection') return icRoot ? interconnectionView(model, icRoot) : null
+    if (vs.view === 'action-flow') return behaviourRoot ? actionFlowView(model, behaviourRoot) : null
+    if (vs.view === 'state-transition') return behaviourRoot ? stateTransitionView(model, behaviourRoot) : null
     return generalView(model, root)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, root, icRoot, vs.view, state.revision])
+  }, [model, root, icRoot, behaviourRoot, vs.view, state.revision])
 
   if (!session) return <Notice tone="danger" title="SysML Modeler is not configured">The host did not provide a SysML client.</Notice>
   if (state.status === 'idle' || state.status === 'loading') return <LoadingState label="Loading the SysML model" />
@@ -117,7 +133,7 @@ export default function ModelerView() {
             graph={graph}
             mode={vs.view}
             revision={state.revision}
-            title={rootLabel(vs.view === 'interconnection' ? icRoot : root)}
+            title={rootLabel(vs.view === 'interconnection' ? icRoot : vs.view === 'general' ? root : behaviourRoot)}
             onOpen={(id) => {
               const el = model.get(id)
               if (!el) return
@@ -127,12 +143,20 @@ export default function ModelerView() {
             onUp={vs.view === 'general' && root && root !== model.rootId ? () => update({ rootId: s.owningNamespace(root)?.['@id'] ?? model.rootId }) : undefined}
           />
         )}
-        {vs.tab === 'diagram' && !graph && (
+        {vs.tab === 'diagram' && !graph && vs.view === 'interconnection' && (
           <EmptyState icon="relationship" title="Choose a part definition">The Interconnection View shows the parts, ports and connections inside a part definition or part usage. Select one in the browser and choose Interconnection.</EmptyState>
+        )}
+        {vs.tab === 'diagram' && !graph && vs.view === 'action-flow' && (
+          <EmptyState icon="procedure" title="No action to show">The Action Flow View shows the actions, successions and flows inside an action definition or action usage. Add one in the text editor (action usages and “first a then b;”) or select one in the browser.</EmptyState>
+        )}
+        {vs.tab === 'diagram' && !graph && vs.view === 'state-transition' && (
+          <EmptyState icon="sync" title="No state machine to show">The State Transition View shows the states and transitions inside a state definition or state usage. Add one or select one in the browser.</EmptyState>
         )}
         {vs.tab === 'text' && <TextEditor session={session} model={model} namespaceId={textRoot} revision={state.revision} />}
         {vs.tab === 'validation' && <ValidationPanel session={session} state={state} model={model} />}
         {vs.tab === 'history' && <HistoryPanel session={session} state={state} />}
+        {vs.tab === 'matrix' && <MatrixView model={model} scopeId={root ?? model.rootId} connectContext={icRoot} revision={state.revision} />}
+        {vs.tab === 'coverage' && <CoverageView model={model} scopeId={root ?? model.rootId} revision={state.revision} />}
       </main>
       <aside className="smod-right" aria-label="Properties">
         <Inspector session={session} model={model} />

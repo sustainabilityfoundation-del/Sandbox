@@ -96,6 +96,9 @@
   .smod-edge.is-selected path:not(.smod-edge-hit) { stroke: var(--ws-accent); stroke-width: 2.5; }
   .smod-edge:focus-visible path:not(.smod-edge-hit) { stroke: var(--ws-focus); stroke-width: 3; }
   .smod-edge-label { fill: var(--ws-text-2); font-size: 11px; font-family: var(--ws-font-sans); }
+  .smod-initial circle { fill: var(--ws-text); stroke: none; }
+  .smod-initial circle.smod-final-ring { fill: none; stroke: var(--ws-text); stroke-width: 1.5; }
+  .smod-edge.is-transition path:not(.smod-edge-hit) { stroke: var(--ws-text); }
   .smod-marker-hollow { fill: var(--ws-surface); stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.2; }
   .smod-marker-filled { fill: var(--ws-diagram-stroke-strong); }
   .smod-marker-open { fill: none; stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.4; }
@@ -103,6 +106,35 @@
   /* ---- text editor ---- */
   .smod-text { display: flex; flex-direction: column; gap: var(--ws-space-2); padding: var(--ws-space-3); }
   .smod-text-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); }
+  .smod-code-editor { display: flex; flex-direction: column; gap: var(--ws-space-1); min-width: 0; }
+  .smod-code-label { font-size: var(--ws-font-size-sm); color: var(--ws-text-2); }
+  .smod-code-host { border: 1px solid var(--ws-border-strong); border-radius: var(--ws-radius); background: var(--ws-surface); overflow: hidden; min-width: 0; }
+  .smod-code-host:focus-within { outline: 2px solid var(--ws-focus); outline-offset: 1px; }
+  .smod-code-host .cm-editor { min-height: 360px; max-height: 70vh; font-size: 13px; background: var(--ws-surface); color: var(--ws-text); }
+  .smod-code-host .cm-editor.cm-focused { outline: none; }
+  .smod-code-host .cm-scroller { font-family: var(--ws-mono); line-height: 1.5; }
+  .smod-code-host .cm-content { caret-color: var(--ws-text); padding: var(--ws-space-2) 0; }
+  .smod-code-host .cm-cursor { border-left-color: var(--ws-text); }
+  .smod-code-host .cm-gutters { background: var(--ws-surface-2); color: var(--ws-text-3); border-right: 1px solid var(--ws-border); }
+  .smod-code-host .cm-activeLine { background: var(--ws-state-hover); }
+  .smod-code-host .cm-activeLineGutter { background: var(--ws-state-hover); }
+  .smod-code-host .cm-selectionBackground, .smod-code-host .cm-focused .cm-selectionBackground { background: var(--ws-accent-soft); }
+  .smod-code-host .cm-matchingBracket { background: var(--ws-accent-soft); outline: 1px solid var(--ws-accent-border); }
+  .smod-code-host .cm-placeholder { color: var(--ws-text-3); }
+  .smod-code-host .cm-tooltip { background: var(--ws-overlay-surface); color: var(--ws-text); border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); box-shadow: var(--ws-shadow); }
+  .smod-code-host .cm-tooltip-autocomplete ul li[aria-selected] { background: var(--ws-selected); color: var(--ws-selected-text); }
+  .smod-code-host .cm-completionDetail { color: var(--ws-text-3); font-style: normal; margin-left: var(--ws-space-2); }
+  .smod-code-host .cm-tooltip-autocomplete ul li[aria-selected] .cm-completionDetail { color: inherit; }
+  .smod-tok-keyword { color: var(--ws-accent-strong); font-weight: 600; }
+  .smod-tok-comment { color: var(--ws-text-3); font-style: italic; }
+  .smod-tok-string { color: var(--ws-success); }
+  .smod-tok-number { color: var(--ws-info); }
+  .smod-tok-type { color: var(--ws-text); font-weight: 600; }
+  .smod-tok-operator { color: var(--ws-text-2); }
+  .smod-mark { text-decoration: underline wavy; text-decoration-skip-ink: none; text-underline-offset: 3px; }
+  .smod-mark.is-error { text-decoration-color: var(--ws-danger); }
+  .smod-mark.is-warning { text-decoration-color: var(--ws-warning); }
+  .smod-mark.is-info { text-decoration-color: var(--ws-info); }
   .smod-code { font-family: var(--ws-mono); font-size: 13px; line-height: 1.5; white-space: pre; tab-size: 4; min-height: 360px; }
 
   /* ---- diagnostics and change lists ---- */
@@ -144,6 +176,16 @@
   .smod-commit-head { display: flex; gap: var(--ws-space-2); align-items: baseline; }
   .smod-commit-summary { overflow-wrap: anywhere; }
   .smod-commit-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); color: var(--ws-text-3); font-size: var(--ws-font-size-xs); }
+
+  /* ---- grid views: matrices and coverage ---- */
+  .smod-matrix-scroll { overflow: auto; max-width: 100%; border: 1px solid var(--ws-border); border-radius: var(--ws-radius); }
+  .smod-matrix { border-collapse: collapse; font-size: var(--ws-font-size-sm); background: var(--ws-surface); }
+  .smod-matrix th, .smod-matrix td { border: 1px solid var(--ws-border); padding: var(--ws-space-1) var(--ws-space-2); text-align: left; vertical-align: top; }
+  .smod-matrix thead th { position: sticky; top: 0; z-index: 1; background: var(--ws-surface-2); }
+  .smod-matrix tbody th { position: sticky; left: 0; background: var(--ws-surface-2); font-weight: var(--ws-weight-regular); }
+  .smod-matrix td.is-filled { background: var(--ws-selected); }
+  .smod-matrix-corner { color: var(--ws-text-3); font-weight: var(--ws-weight-regular); }
+  .smod-coverage td, .smod-coverage th { min-width: 8rem; }
 
   /* ---- tablet: properties below the view ---- */
   @container tool (max-width: 900px) {

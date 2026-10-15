@@ -10,6 +10,7 @@ import { INITIAL_VIEW_STATE, type ModelerViewState } from './state'
 
 export type { ModelerViewState } from './state'
 export { generalView, interconnectionView, connectableEnds } from './projection/graph'
+export { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from './projection/behavior'
 
 export interface SysmlModelerOptions {
   /** 'api': the SysML service at `baseUrl` (default /api/sysml/v1). 'local': in-browser repository (explicit; never a fallback). */
@@ -75,9 +76,13 @@ export function createSysmlModelerTool(options: SysmlModelerOptions = {}): ToolD
         { type: 'separator', id: 'sep-1' },
         { type: 'button', id: 'general', label: 'General', icon: 'sysml-block', active: viewState.tab === 'diagram' && viewState.view === 'general', title: 'SysML v2 General View of the selected namespace', onClick: () => api.updateViewState({ tab: 'diagram', view: 'general', pane: 'view' }) },
         { type: 'button', id: 'interconnection', label: 'Interconnection', icon: 'relationship', active: viewState.tab === 'diagram' && viewState.view === 'interconnection', title: 'SysML v2 Interconnection View: parts, ports and connections of a part definition', onClick: () => api.updateViewState((vs) => ({ ...vs, tab: 'diagram', view: 'interconnection', pane: 'view' })) },
+        { type: 'button', id: 'action-flow', label: 'Action flow', icon: 'procedure', active: viewState.tab === 'diagram' && viewState.view === 'action-flow', title: 'SysML v2 Action Flow View: actions, successions and flows of an action definition or usage', onClick: () => api.updateViewState({ tab: 'diagram', view: 'action-flow', pane: 'view' }) },
+        { type: 'button', id: 'state-transition', label: 'States', icon: 'sync', active: viewState.tab === 'diagram' && viewState.view === 'state-transition', title: 'SysML v2 State Transition View: states and transitions of a state definition or usage', onClick: () => api.updateViewState({ tab: 'diagram', view: 'state-transition', pane: 'view' }) },
         { type: 'button', id: 'text', label: 'Text', icon: 'text', active: viewState.tab === 'text', title: 'Edit the selected namespace as SysML v2 textual notation', onClick: () => api.updateViewState({ tab: 'text', pane: 'view' }) },
+        { type: 'button', id: 'matrix', label: 'Matrix', icon: 'trace', active: viewState.tab === 'matrix', title: 'Relationship matrices: satisfy, allocate, connect', onClick: () => api.updateViewState({ tab: 'matrix', pane: 'view' }) },
+        { type: 'button', id: 'coverage', label: 'Coverage', icon: 'requirement', active: viewState.tab === 'coverage', title: 'Requirement coverage: satisfied and verified requirements, gaps', onClick: () => api.updateViewState({ tab: 'coverage', pane: 'view' }) },
         { type: 'separator', id: 'sep-2' },
-        { type: 'button', id: 'validate', label: 'Validate', icon: 'check', active: viewState.tab === 'validation', title: 'Validation results of the current model', onClick: () => api.updateViewState({ tab: 'validation', pane: 'view' }) },
+        { type: 'button', id: 'validate', label: 'Validate', icon: 'check', priority: 'primary', active: viewState.tab === 'validation', title: 'Validation results of the current model', onClick: () => api.updateViewState({ tab: 'validation', pane: 'view' }) },
         { type: 'button', id: 'history', label: 'History', icon: 'history', active: viewState.tab === 'history', title: 'Commits with provenance; undo', onClick: () => api.updateViewState({ tab: 'history', pane: 'view' }) },
         {
           type: 'button',

@@ -85,12 +85,13 @@ standalone harness, demos and offline experiments; explicit, never a silent fall
 - Creating a managed requirement from SysML: `RequirementsService.create` (draft), then the metadata.
 - ReqIF stays in Requirements. Coverage/impact (Phase 3) combine `traceLinks` with SysML satisfy/verify.
 
-### 5.2 Conceptualize (contract change request CR-SYSML-02)
+### 5.2 Conceptualize (CR-SYSML-02, approved 15 October 2026)
 
-Proposed `ArtifactRef` scheme for SysML Modeler elements (today `module: 'sysml'` means twin `SYS-…`):
+`ArtifactRef` scheme for SysML Modeler elements (the twin's `SYS-…` objects keep `module: 'sysml'`
+with their own kinds):
 
 ```ts
-{ module: 'sysml', kind: 'sysml-model-element', id: '<sysmlProjectId>/<elementId>', revision?: <commit number> }
+{ module: 'sysml', kind: 'sysml-model-element', id: '<projectId>/<elementId>', revision: <commit number> }
 ```
 
 `revision` is the per-project commit number (integer, increasing) at which the reference is pinned;
@@ -98,16 +99,29 @@ absent = latest. The pair (projectId, elementId) is stable across renames and te
 `conceptsForArtifact` works unchanged. The design reasoning layer stays in Conceptualize; SysML
 records only modelling assumptions it needs as `comment`/metadata on elements.
 
-### 5.3 CAD (proposal CR-SYSML-03, to be reconciled by the coordinator)
+### 5.3 CAD (CR-SYSML-03, decided 15 October 2026)
 
-- Link owner: SysML (the `from` end, a part usage/definition) holds `@EWS::CadRepresentation
-  { cadRef = "<cad ArtifactRef id>"; revision = n; role = "part" | "assembly"; }`; CAD may hold the reverse
-  link in its own data. Neither copies the other's model.
-- Interface traceability: SysML `port` usages may carry `@EWS::CadInterface { cadRef = "<cad feature id>"; }`.
-- Mass properties: CAD publishes computed mass/inertia per revision; SysML shows them as read-time
-  projections next to the modelled `mass` attribute and flags differences (no implicit write-back).
-- Change notification: both modules emit committed-change events; each side marks links stale when
-  the pinned revision is superseded.
+A part-to-CAD mapping references a **CAD Modeler entity** with exactly this `ArtifactRef`:
+
+```ts
+{ module: 'cad', kind: 'cad-modeler-entity', id: '<documentUuid>/<entityId>', revision: <document revision> }
+```
+
+- **Owned by SysML, stored in the SysML model** as a reference on the part definition or usage (the
+  `from` end): `@EWS::CadRepresentation { cadRef = "<documentUuid>/<entityId>"; revision = 4; role = "part"; }`.
+  `module` and `kind` are fixed by the metadata definition; `revision` is the CAD document revision
+  (absent = follow the latest revision, the platform rule). No CAD data (geometry, names, mass) is
+  copied into the SysML model.
+- Validation rule `SYSML-CAD-REFERENCE` refuses anything else (for example a twin ID such as
+  `CAD-120` or a name). `cadRepresentations(model, elementId?)` in `@ews/sysml-core` returns the
+  references in the `ArtifactRef` shape above, for the tool, the assistant and other modules.
+- **Mass properties are read on demand from CAD** (through the platform service CAD exposes, at the
+  pinned revision) and shown next to the modelled `mass` attribute; they are not synchronised and
+  never written back into the SysML model.
+- Not done yet: the Properties panel action to pick a CAD entity, and the on-demand mass read. Both
+  wait for a CAD read contract in `PlatformServices` (like `requirements`); until then links can be
+  written with the `setMetadata` command (UI, text or assistant) and are validated.
+- Interface traceability for ports (a `CadInterface` metadata) is a proposal for a later sprint.
 
 ### 5.4 Simulation and analysis (future)
 
@@ -119,9 +133,9 @@ artifacts referencing the commit (provenance). Phase 4.
 
 | ID | Change | Owner | Why |
 | --- | --- | --- | --- |
-| CR-SYSML-01 | SDK: `PlatformServices.sysml?: SysmlModelService` (minimal cross-module read contract: resolve element ref, get element summary, list elements, subscribe) | Coordinator | Other modules (Conceptualize, CAD, Requirements, inspector) need to resolve SysML Modeler refs without importing our client; the tool would also receive its client from the host instead of constructing it |
-| CR-SYSML-02 | `ArtifactRef` scheme for SysML Modeler elements (§5.2) | Coordinator + Conceptualize | Concept-to-model traceability |
-| CR-SYSML-03 | CAD mapping contract (§5.3) | Coordinator + CAD | Part ↔ CAD traceability, mass properties |
-| CR-SYSML-04 | `boundaries.test.ts` entries for `packages/sysml-core`, `services/sysml`, `packages/sysml-client`, `packages/tool-sysml-modeler`, and `@ews/sysml-service` in `services/api` | Coordinator | Hosting the plugin and enforcing our boundaries |
-| CR-SYSML-05 | `CapabilityModule` union gains `'sysml-modeler'` (capabilities.ts) | Coordinator | Inventory entries for the new tool |
-| CR-SYSML-06 | Shared service infrastructure package (migrations runner, outbox/SSE hub, route/idempotency helpers) instead of per-service copies | Coordinator | We re-implemented the requirements patterns in `services/sysml` to avoid depending on another module's implementation |
+| CR-SYSML-01 | SDK: `PlatformServices.sysml?: SysmlModelService` (minimal cross-module read contract: resolve element ref, get element summary, list elements, subscribe) — **approved in principle for SDK 1.6**; the tool keeps its local client until then | Coordinator | Other modules (Conceptualize, CAD, Requirements, inspector) need to resolve SysML Modeler refs without importing our client; the tool would also receive its client from the host instead of constructing it |
+| CR-SYSML-02 | `ArtifactRef` scheme for SysML Modeler elements (§5.2) — **approved** | Coordinator + Conceptualize | Concept-to-model traceability |
+| CR-SYSML-03 | CAD mapping contract (§5.3) — **decided**: `cad-modeler-entity` refs owned by SysML, mass read on demand | Coordinator + CAD | Part ↔ CAD traceability, mass properties |
+| CR-SYSML-04 | `boundaries.test.ts` entries for `packages/sysml-core`, `services/sysml`, `packages/sysml-client`, `packages/tool-sysml-modeler`, and `@ews/sysml-service` in `services/api` — **accepted** | Coordinator | Hosting the plugin and enforcing our boundaries |
+| CR-SYSML-05 | `CapabilityModule` union gains `'sysml-modeler'` (capabilities.ts) — **accepted** | Coordinator | Inventory entries for the new tool |
+| CR-SYSML-06 | Shared service infrastructure package (migrations runner, outbox/SSE hub, route/idempotency helpers) instead of per-service copies — **deferred** | Coordinator | We re-implemented the requirements patterns in `services/sysml` to avoid depending on another module's implementation |

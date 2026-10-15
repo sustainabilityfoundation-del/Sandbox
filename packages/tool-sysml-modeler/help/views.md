@@ -4,7 +4,7 @@ title: Views (General and Interconnection)
 kind: guide
 summary: Diagrams are projections of the model in SysML v2 view styles, laid out automatically. SysML v1 diagram kinds are not presented as the same thing.
 keywords: [diagram, view, general view, interconnection view, ibd, bdd, layout, graphical]
-related: [sysml-modeler.browser, sysml-modeler.properties]
+related: [sysml-modeler.browser, sysml-modeler.properties, sysml-modeler.behavior-views, sysml-modeler.matrix]
 ---
 
 Every diagram is **computed from the model** each time it changes. Deleting or rearranging a
@@ -39,5 +39,6 @@ the diagram bar. Everything a diagram offers is also available in the browser an
 
 BDD-, IBD-, activity-, state machine- and other SysML v1-style presentations are **planned** as
 labelled compatibility presentations of these views; v1 and v2 notations do not map one to one.
-Action flow, state transition and sequence views are also planned. Behaviour can already be
-modelled and edited in text.
+Sequence views are planned. Action Flow and State Transition views are described in
+[Action Flow and State Transition views](help:sysml-modeler.behavior-views); relationship matrices in
+[Relationship matrices](help:sysml-modeler.matrix).
