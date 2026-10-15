@@ -1,6 +1,8 @@
 import type { CadEngine, CommandCall, EngineState, ExecuteResult, FeatureResult } from '@ews/cad-core'
 import { Badge, TextField, useToasts, type Tone } from '@ews/design-system'
 import { useEffect, useState } from 'react'
+import { useSetting } from '@ews/platform-sdk/react'
+import { CAD_SETTING_IDS, measure } from '../settings'
 
 export type Run = (commands: CommandCall[], label?: string) => Promise<ExecuteResult | undefined>
 
@@ -73,4 +75,18 @@ export const fmtNum = (v: number | null | undefined, digits = 2) => (v === null 
 
 export function regenOf(state: EngineState | undefined, partId: string) {
   return state?.regen?.parts.find((p) => p.partId === partId)
+}
+
+/** Measured quantities in the person's display units (setting cad-modeler.units.measurements). Inputs stay in mm. */
+export function useMeasure() {
+  const units = useSetting<string>(CAD_SETTING_IDS.units)
+  const m = measure(units === 'cm' || units === 'm' || units === 'in' ? units : 'mm')
+  const show = (q: { value: number; unit: string }, digits: number) => `${fmtNum(q.value, digits)} ${q.unit}`
+  return {
+    length: (mm: number, digits = 3) => show(m.length(mm), digits),
+    lengths: (mm: number[], digits = 3) => { const u = m.length(1).unit; return `${mm.map((x) => fmtNum(m.length(x).value, digits)).join(' × ')} ${u}` },
+    area: (mm2: number, digits = 3) => show(m.area(mm2), digits),
+    volume: (mm3: number, digits = 3) => show(m.volume(mm3), digits),
+    mass: (kg: number, digits = 5) => show(m.mass(kg), digits),
+  }
 }

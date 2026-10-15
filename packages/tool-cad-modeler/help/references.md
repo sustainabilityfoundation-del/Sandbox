@@ -15,7 +15,10 @@ related: [cad-modeler.viewport, cad-modeler.ai]
   stores the target's ID (and the revision for twin components) and never copies its data.
 - **What a part represents:**
   - In new projects, choose **Product element (Project Management)** and enter the product
-    element's ID as shown in Project Management. The ID is not checked here yet.
+    element's ID as shown in Project Management. When Project Management is connected, the ID is
+    checked first: an unknown or unavailable element is refused, and a valid one is stored with its
+    name and current revision. Without Project Management the ID is stored as typed, and a notice
+    says it was not checked.
   - In projects whose twin has components, such as the PRJ-ACT100 example, **Twin component** is
     the default. Pick the component from the list; **Select** then shows it in other tools.
 

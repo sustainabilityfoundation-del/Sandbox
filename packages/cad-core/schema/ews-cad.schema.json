@@ -239,6 +239,49 @@
         },
         "description": {
           "type": "string"
+        },
+        "binding": {
+          "type": "object",
+          "description": "What the parameter implements (format 1.2): a revision-pinned reference; target values are never copied.",
+          "required": [
+            "ref"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "ref": {
+              "type": "object",
+              "required": [
+                "module",
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "module": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "quantity": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -360,6 +403,9 @@
         },
         {
           "$ref": "#/$defs/datumPlane"
+        },
+        {
+          "$ref": "#/$defs/patternLinear"
         }
       ]
     },
@@ -855,6 +901,54 @@
         },
         "plane": {
           "$ref": "#/$defs/planeRef"
+        }
+      }
+    },
+    "patternLinear": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "name",
+        "features",
+        "direction",
+        "count",
+        "spacing"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "pattern-linear"
+        },
+        "name": {
+          "type": "string"
+        },
+        "suppressed": {
+          "type": "boolean"
+        },
+        "features": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "direction": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "count": {
+          "$ref": "#/$defs/expr"
+        },
+        "spacing": {
+          "$ref": "#/$defs/expr"
         }
       }
     }

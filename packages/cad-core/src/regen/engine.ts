@@ -40,6 +40,8 @@ export interface FeatureResult {
   sketch?: SketchResult
   /** Solid features: the body this feature created or modified. */
   bodyId?: string
+  /** Linear patterns: evaluated count and spacing, and the measured gap between neighbouring occurrences (mm; null when not measurable). */
+  pattern?: { count: number; spacing: number; direction: Vec3; gap: number | null }
   /** Sketches and datum planes: the resolved plane. */
   plane?: KernelPlane
 }
@@ -236,6 +238,8 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
   const byId = new Map<string, FeatureResult>()
   const bodies = new Map<string, BodyState>()
   let latestBody: string | undefined
+  // Solid features as built, so linear patterns can rebuild them on shifted planes.
+  const profiles = new Map<string, { feature: ExtrudeFeature | RevolveFeature; sketch: SketchResult; sketchKey: string; shape: ShapeHandle }>()
 
   const upstream = (id: string, what: string): never => {
     const r = byId.get(id)
@@ -360,6 +364,67 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
         latestBody = target.bodyId
         r.bodyId = target.bodyId
         r.key = key
+      } else if (feature.type === 'pattern-linear') {
+        // ---- linear pattern: occurrences 2…count of the source features ----------------------
+        const count = evaluateIn(scope, feature.count)
+        if (!(Number.isInteger(count) && count >= 2)) throw new CadError('invalid-input', `The pattern count must be an integer of at least 2 (got ${count}).`, { reason: 'invalid-value', field: 'count' })
+        if (count > 500) throw new CadError('invalid-input', `The pattern count ${count} is larger than 500.`, { reason: 'invalid-value', field: 'count' })
+        const spacing = evaluateIn(scope, feature.spacing)
+        if (!(spacing > 0)) throw new CadError('invalid-input', `The pattern spacing must be greater than zero (got ${spacing}).`, { reason: 'invalid-value', field: 'spacing' })
+        const direction = v3.normalize(feature.direction)
+        const sources = feature.features.map((id) => {
+          const res = byId.get(id)
+          if (!res || res.status !== 'ok') return upstream(id, 'Feature')
+          const info = profiles.get(id)
+          if (!info) throw new CadError('invalid-input', `${id} is not a solid feature that can be patterned.`, { reason: 'invalid-value', field: 'features' })
+          return { id, res, info }
+        })
+        const bodyId = sources[0].res.bodyId
+        let target = bodyId ? bodies.get(bodyId) : undefined
+        if (!target) throw new CadError('precondition-failed', 'The pattern has no body to modify.', { reason: 'no-target-body' })
+        const tools: ShapeHandle[][] = [sources.map((s) => s.info.shape)]
+        let rebuilt = false
+        for (let k = 1; k < count; k++) {
+          const shift = v3.scale(direction, k * spacing)
+          const row: ShapeHandle[] = []
+          for (const s of sources) {
+            const plane = { ...s.info.sketch.plane, origin: v3.add(s.info.sketch.plane.origin, shift) }
+            const built = await buildSolid(s.info.feature, { ...s.info.sketch, plane }, s.info.sketchKey, scope, kernel, cache, gen)
+            const prefix = `${s.id}/`
+            const probes = built.probes.map((p) => ({ ...p, name: p.name.startsWith(prefix) ? `${feature.id}/i${k + 1}-${s.id}-${p.name.slice(prefix.length)}` : p.name }))
+            const op = s.info.feature.operation === 'cut' ? 'cut' : 'fuse'
+            const key = hashOf({ op, target: target.key, tool: built.key, pattern: feature.id })
+            let shape = cache.getShape(key, gen)
+            if (!shape) {
+              shape = await kernel.boolean(op, target.shape, built.shape)
+              cache.putShape(key, shape, gen)
+              rebuilt = true
+            }
+            rebuilt ||= built.rebuilt
+            target = { ...target, key, shape, probes: [...target.probes, ...probes], lastFeatureId: feature.id }
+            row.push(built.shape)
+          }
+          tools.push(row)
+        }
+        bodies.set(target.bodyId, target)
+        latestBody = target.bodyId
+        // Gap between occurrence 1 and 2 (the smallest distance between their tool solids).
+        let gap: number | null = null
+        if (kernel.distance) {
+          const gapKey = hashOf({ gap: tools[0].map((t) => t.id), next: tools[1].map((t) => t.id) })
+          const cachedGap = cache.getMeta<number>(gapKey, gen)
+          if (cachedGap !== undefined) gap = cachedGap
+          else {
+            let best = Infinity
+            for (const a of tools[0]) for (const b of tools[1]) best = Math.min(best, await kernel.distance(a, b))
+            gap = Number.isFinite(best) ? best : null
+            if (gap !== null) cache.putMeta(gapKey, gap, gen)
+          }
+        }
+        r.pattern = { count, spacing, direction, gap }
+        r.rebuilt = rebuilt
+        r.bodyId = target.bodyId
+        r.key = target.key
       } else {
         // ---- profile features (extrude, revolve) ---------------------------------------------
         const sketch = byId.get(feature.sketch)
@@ -370,6 +435,7 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
           throw new CadError('regeneration-failed', profile.issues.length ? profile.issues.map((i) => i.message).join(' ') : 'The sketch has no closed profile.', { reason: 'invalid-profile', issues: profile.issues })
         }
         const built = await buildSolid(feature, sketch.sketch!, sketch.key, scope, kernel, cache, gen)
+        profiles.set(feature.id, { feature, sketch: sketch.sketch!, sketchKey: sketch.key, shape: built.shape })
         const targetId = feature.operation === 'new' ? undefined : (feature.target ?? latestBody)
         const target = targetId ? bodies.get(targetId) : undefined
         if (feature.operation !== 'new' && targetId && !target) throw new CadError('not-found', `Target body ${targetId} does not exist.`, { reason: 'no-target-body' })

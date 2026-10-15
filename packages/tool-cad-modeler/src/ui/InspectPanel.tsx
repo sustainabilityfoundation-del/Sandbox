@@ -1,10 +1,11 @@
 import { massProperties, type CadEngine, type EngineState, type Feature, type PlaneRef, type ReferenceModule, type ReferenceRole } from '@ews/cad-core'
-import { Button, EmptyState, IconButton, Notice, Select, TextField } from '@ews/design-system'
+import { Button, EmptyState, IconButton, Notice, Select, TextField, useToasts } from '@ews/design-system'
 import { isComponent } from '@ews/platform-sdk'
-import { useModel, useToolApi } from '@ews/platform-sdk/react'
+import { usePlatformServices, useModel, useSharedContext, useToolApi } from '@ews/platform-sdk/react'
+import { checkProductReference } from '../productRefs'
 import { Fragment, useState } from 'react'
 import type { CadModelerViewState } from '../viewState'
-import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf } from './common'
+import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf, useMeasure } from './common'
 
 interface Props {
   engine: CadEngine
@@ -17,6 +18,7 @@ const v3 = (v?: number[]) => (v ? `(${v.map((x) => fmtNum(x, 3)).join(', ')})` :
 
 /** Property inspection of the selection, the part's material, semantics and cross-module references. */
 export function InspectPanel({ engine, state, vs, update }: Props) {
+  const M = useMeasure()
   const run = makeRun(engine)
   const doc = state.doc
   const part = doc.parts[0]
@@ -39,7 +41,7 @@ export function InspectPanel({ engine, state, vs, update }: Props) {
                 <dt>Surface</dt>
                 <dd>{face.surfaceType}</dd>
                 <dt>Area</dt>
-                <dd>{fmtNum(face.area, 3)} mm²</dd>
+                <dd>{M.area(face.area)}</dd>
                 <dt>Centre</dt>
                 <dd>{v3(face.center)} mm</dd>
                 <dt>Normal</dt>
@@ -98,15 +100,15 @@ export function InspectPanel({ engine, state, vs, update }: Props) {
                 <dt>Valid solid</dt>
                 <dd>{mp.valid ? 'Yes (B-rep check passed)' : 'No'}</dd>
                 <dt>Volume</dt>
-                <dd>{fmtNum(mp.volume, 3)} mm³</dd>
+                <dd>{M.volume(mp.volume)}</dd>
                 <dt>Surface area</dt>
-                <dd>{fmtNum(mp.surfaceArea, 3)} mm²</dd>
+                <dd>{M.area(mp.surfaceArea)}</dd>
                 <dt>Mass</dt>
-                <dd>{mp.mass === null ? 'Set a material' : `${fmtNum(mp.mass, 5)} kg (${mp.material!.name})`}</dd>
+                <dd>{mp.mass === null ? 'Set a material' : `${M.mass(mp.mass)} (${mp.material!.name})`}</dd>
                 <dt>Centre of mass</dt>
                 <dd>{v3(mp.centerOfMass)} mm</dd>
                 <dt>Bounding box</dt>
-                <dd>{mp.boundingBox.size.map((x) => fmtNum(x, 3)).join(' × ')} mm</dd>
+                <dd>{M.lengths(mp.boundingBox.size)}</dd>
                 <dt>Topology</dt>
                 <dd>{body.analysis.counts.solids} solid, {body.analysis.counts.faces} faces, {body.analysis.counts.edges} edges, {body.analysis.counts.vertices} vertices</dd>
               </dl>
@@ -171,6 +173,8 @@ function PartProperties({ engine, state }: { engine: CadEngine; state: EngineSta
   const part = state.doc.parts[0]
   const model = useModel()
   const api = useToolApi()
+  const services = usePlatformServices()
+  const { projectId } = useSharedContext()
   const components = model.objects.filter(isComponent)
   // New projects reference Project Management product elements (ADR-0026, CR-PM-CAD-1); projects whose twin has components (PRJ-ACT100) keep twin references.
   const [module, setModule] = useState<ReferenceModule>(components.length ? 'twin' : 'product')
@@ -238,7 +242,18 @@ function PartProperties({ engine, state }: { engine: CadEngine; state: EngineSta
             onPress={async () => {
               const id = module === 'twin' ? component! : target.trim()
               const object = module === 'twin' ? model.get(id) : undefined
-              const r = await run([{ command: 'add_reference', input: { subject: part.id, role, target: { module, id, ...(object ? { revision: object.revision, kind: object.type, label: object.name } : module === 'product' ? { kind: 'product-element' } : {}) } } }], 'Add reference')
+              let productTarget
+              if (module === 'product') {
+                // Product elements are checked with Project Management when it is connected (C3/C5).
+                const check = await checkProductReference(services, projectId, id)
+                if (check.status === 'refused') {
+                  useToasts.getState().push({ tone: 'danger', title: 'Reference not added', body: check.message })
+                  return
+                }
+                if (check.status === 'unverified') useToasts.getState().push({ tone: 'info', title: 'Product element not checked', body: check.reason })
+                productTarget = check.target
+              }
+              const r = await run([{ command: 'add_reference', input: { subject: part.id, role, target: productTarget ?? { module, id, ...(object ? { revision: object.revision, kind: object.type, label: object.name } : {}) } } }], 'Add reference')
               if (r?.ok) setTarget('')
             }}
           >
@@ -266,5 +281,7 @@ function featureFacts(f: Feature): Record<string, string> {
       return { Distance: String(f.distance), Edges: f.edges.join(', '), ...(f.target ? { Target: f.target } : {}) }
     case 'datum-plane':
       return { Plane: plane(f.plane) }
+    case 'pattern-linear':
+      return { Features: f.features.join(', '), Direction: `[${f.direction.map((x) => Number(x.toFixed(4))).join(', ')}]`, Count: String(f.count), Spacing: String(f.spacing) }
   }
 }

@@ -64,6 +64,7 @@ export function createWorkerKernel(): WorkerKernel {
     exportStep: call('exportStep') as GeometryKernel['exportStep'],
     importStep: call('importStep') as GeometryKernel['importStep'],
     release: call('release') as GeometryKernel['release'],
+    distance: call('distance') as NonNullable<GeometryKernel['distance']>,
     dispose: call('dispose') as GeometryKernel['dispose'],
     terminate: () => worker.terminate(),
     createRegenerator: () => {

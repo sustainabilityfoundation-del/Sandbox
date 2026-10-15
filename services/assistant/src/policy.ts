@@ -118,6 +118,8 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   'cad-modeler.export': 'export',
   'cad-modeler.list_documents': 'read',
   'cad-modeler.save_document': 'propose',
+  'cad-modeler.check': 'read',
+  'cad-modeler.check_bindings': 'read',
   'sysml.read_model': 'read',
   'sysml.create_part': 'propose',
   'sysml.connect': 'propose',

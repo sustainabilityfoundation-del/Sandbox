@@ -12,6 +12,10 @@ export interface ViewportSelection {
 }
 
 interface Props {
+  /** Display tessellation tolerance in mm (setting cad-modeler.display.mesh-tolerance). */
+  meshTolerance?: number
+  /** Initial view direction (setting cad-modeler.view.orientation). */
+  orientation?: Exclude<ViewPreset, 'fit'>
   engine: CadEngine
   regen: RegenerationResult | undefined
   selected: ViewportSelection[]
@@ -60,7 +64,7 @@ function tokens(el: HTMLElement) {
  * face picking and highlighting. Geometry is tessellated in the kernel worker; this component only
  * renders it (WebGL through three.js).
  */
-export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPick, onView, onToggleEdges, highlightEdges = [] }: Props) {
+export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPick, onView, onToggleEdges, highlightEdges = [], meshTolerance = 0.05, orientation = 'iso' }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const ctx = useRef<{
     renderer: THREE.WebGLRenderer
@@ -170,7 +174,7 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
     const bodies = regen?.parts.flatMap((p) => p.bodies) ?? []
     const wanted = new Map(bodies.map((b) => [b.bodyId, b]))
     for (const [id, view] of c.bodies) {
-      if (!wanted.has(id) || wanted.get(id)!.key !== view.key) {
+      if (!wanted.has(id) || `${wanted.get(id)!.key}@${meshTolerance}` !== view.key) {
         c.group.remove(view.mesh, view.edges, view.highlight)
         view.mesh.geometry.dispose()
         view.edges.geometry.dispose()
@@ -186,7 +190,7 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
     setMeshing(true)
     Promise.all(
       missing.map(async (b) => {
-        const m = await engine.mesh(b.bodyId)
+        const m = await engine.mesh(b.bodyId, { tolerance: meshTolerance })
         return { b, m }
       }),
     )
@@ -208,10 +212,10 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
           const highlight = new THREE.LineSegments(new THREE.BufferGeometry(), c.materials.edgeSelected)
           highlight.renderOrder = 2
           c.group.add(mesh, edges, highlight)
-          c.bodies.set(b.bodyId, { bodyId: b.bodyId, key: b.key, mesh, edges, faceNames: b.analysis.faces.map((f) => f.name), ranges: m.faceRanges, edgeNames: b.analysis.edges.map((x) => x.name), edgeRanges: m.edgeRanges, edgeData: m.edgePositions, highlight })
+          c.bodies.set(b.bodyId, { bodyId: b.bodyId, key: `${b.key}@${meshTolerance}`, mesh, edges, faceNames: b.analysis.faces.map((f) => f.name), ranges: m.faceRanges, edgeNames: b.analysis.edges.map((x) => x.name), edgeRanges: m.edgeRanges, edgeData: m.edgePositions, highlight })
         }
         if (!c.fitted) {
-          fit(c)
+          fit(c, DIRECTIONS[orientation].clone())
           c.fitted = true
         }
         highlight()
@@ -223,7 +227,7 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [regen, engine])
+  }, [regen, engine, meshTolerance])
 
   // ---- selection highlight ---------------------------------------------------------------------
   const highlight = () => {

@@ -1,6 +1,7 @@
-import { CadEngine, COMMANDS, QUERIES, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
+import { CadEngine, COMMANDS, MEDIA_TYPE, QUERIES, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, serializeDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
 import { ActionError, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { cadSession, type OpenDocument } from './session'
+import { runChecks, type CheckRequest, type MeasureSpec } from './checks'
 
 /**
  * Assistant operations for the CAD Modeler (contracts §5, ADR-0023). Reads return structured data
@@ -60,7 +61,7 @@ function predictionItems(dry: DryRunResult): ServiceProposalItem[] {
  * 4. else the project's only stored document. With several, the caller must choose (documentId).
  * Documents stored in another project are refused (C13).
  */
-export async function resolveDocument(args: Record<string, unknown>, ctx: AssistantActionContext, options: { allowNone?: boolean } = {}): Promise<OpenDocument | undefined> {
+export async function resolveDocument(args: Record<string, unknown>, ctx: AssistantActionContext, options: { allowNone?: boolean; createsDocument?: boolean } = {}): Promise<OpenDocument | undefined> {
   const projectId = ctx.captured.projectId
   const id = typeof args.documentId === 'string' ? args.documentId : undefined
   const inProject = (d: OpenDocument) => (d.stored?.projectId ?? d.projectId ?? projectId) === projectId
@@ -87,6 +88,8 @@ export async function resolveDocument(args: Record<string, unknown>, ctx: Assist
   // The window's views may show another project; look for this project's open documents too.
   const openHere = cadSession.openDocuments().filter(inProject)
   if (openHere.length === 1) return openHere[0]
+  // With a view mounted, an unnamed target means what the person sees: nothing open → a new document.
+  if (options.allowNone && cadSession.viewMounted) return undefined
   if (store) {
     let docs
     try {
@@ -95,6 +98,8 @@ export async function resolveDocument(args: Record<string, unknown>, ctx: Assist
       throw new ActionError('unavailable', (e as Error).message)
     }
     if (docs.length === 1) return cadSession.document(docs[0].id) ?? load(docs[0].id)
+    // A self-contained creation (starting with create_part) makes a new document instead of guessing.
+    if (docs.length > 1 && options.allowNone && options.createsDocument) return undefined
     if (docs.length > 1) throw new ActionError('invalid-arguments', `Project ${projectId} has ${docs.length} CAD documents; pass documentId (${docs.slice(0, 8).map((d) => `${d.id} “${d.title}”`).join(', ')}). See cad-modeler.list_documents.`)
   }
   if (options.allowNone) return undefined
@@ -113,6 +118,75 @@ async function dryRunFor(open: OpenDocument | undefined, commands: CommandCall[]
   return { open, version, dry }
 }
 
+
+const MEASURE_KINDS = ['parameter', 'dimension', 'bounding-size', 'volume', 'surface-area', 'mass', 'pattern-spacing', 'pattern-gap', 'pattern-count']
+
+/** Checks requested by the assistant: a measurement and a constraint ID (bounds are never accepted). */
+function validateCheckRequests(raw: unknown): CheckRequest[] {
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) throw new ActionError('invalid-arguments', '“checks” must be a list.')
+  return raw.map((c, i) => {
+    const extra = (o: unknown, allowed: string[], where: string) => {
+      const bad = o && typeof o === 'object' ? Object.keys(o).filter((key) => !allowed.includes(key)) : []
+      if (bad.length) throw new ActionError('invalid-arguments', `${where} does not accept ${bad.join(', ')}${bad.some((b) => /bound|value|min|max|limit/.test(b)) ? ': bounds are read from the constraint, never given' : ''}.`)
+    }
+    extra(c, ['measure', 'constraint', 'partId'], `checks[${i}]`)
+    extra((c as { constraint?: unknown })?.constraint, ['id', 'revision'], `checks[${i}].constraint`)
+    extra((c as { measure?: unknown })?.measure, ['kind', 'name', 'constraintId', 'axis', 'featureId'], `checks[${i}].measure`)
+    const m = (c as { measure?: Record<string, unknown> })?.measure
+    const k = m?.kind
+    if (!m || typeof k !== 'string' || !MEASURE_KINDS.includes(k)) throw new ActionError('invalid-arguments', `checks[${i}].measure.kind must be one of ${MEASURE_KINDS.join(', ')}.`)
+    const need = (field: string) => {
+      if (typeof m[field] !== 'string' || !(m[field] as string).trim()) throw new ActionError('invalid-arguments', `checks[${i}].measure.${field} is required for ${k}.`)
+    }
+    if (k === 'parameter') need('name')
+    if (k === 'dimension' && !m.name && !m.constraintId) throw new ActionError('invalid-arguments', `checks[${i}].measure needs name or constraintId for a dimension.`)
+    if (k === 'bounding-size' && !['x', 'y', 'z', 'max', 'min'].includes(String(m.axis))) throw new ActionError('invalid-arguments', `checks[${i}].measure.axis must be x, y, z, max or min.`)
+    if (k.startsWith('pattern-')) need('featureId')
+    const constraint = (c as { constraint?: { id?: unknown; revision?: unknown } }).constraint
+    if (!constraint || typeof constraint.id !== 'string' || !constraint.id) throw new ActionError('invalid-arguments', `checks[${i}].constraint.id (a Conceptualize constraint) is required; bounds are read from it.`)
+    return { measure: m as unknown as MeasureSpec, constraint: { id: constraint.id, ...(typeof constraint.revision === 'number' ? { revision: constraint.revision } : {}) }, ...(typeof (c as { partId?: unknown }).partId === 'string' ? { partId: (c as { partId: string }).partId } : {}) }
+  })
+}
+
+async function sha256(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Export without download: the file and (STEP) the read-back report, as data for another operation. */
+async function exportForReturn(d: OpenDocument, format: 'step' | 'ewscad', partId?: string) {
+  const doc = d.engine.document
+  const provenanceOf = { documentId: doc.documentId, documentRevision: d.stored?.revision ?? null, modelVersion: doc.version, unsavedChanges: !!d.stored && cadSession.isDirty(d) }
+  if (format === 'ewscad') {
+    const content = serializeDocument(doc)
+    const file = { name: d.fileName, mediaType: MEDIA_TYPE, encoding: 'utf-8', size: new TextEncoder().encode(content).length, sha256: await sha256(content), content }
+    return { kind: 'data' as const, data: { format, file, ...provenanceOf }, summary: `Native file ${file.name} (${file.size} bytes)`, inspected: [{ id: d.id, detail: `CAD document, model version ${doc.version}` }] }
+  }
+  let r
+  try {
+    r = await cadSession.exportStep(d.id, partId, { download: false })
+  } catch (e) {
+    throw new ActionError('not-allowed', (e as Error).message)
+  }
+  const file = { name: r.file.name, mediaType: r.file.mime, encoding: 'utf-8', size: new TextEncoder().encode(r.file.content).length, sha256: await sha256(r.file.content), content: r.file.content }
+  const s = r.inspection
+  return {
+    kind: 'data' as const,
+    data: {
+      format,
+      file,
+      partId: r.partId,
+      inspection: { valid: s.valid, problems: s.problems, applicationProtocol: s.applicationProtocol, schema: s.schema, lengthUnit: s.lengthUnit, solids: s.entities.MANIFOLD_SOLID_BREP ?? 0, faces: s.entities.ADVANCED_FACE ?? 0, products: s.products },
+      readBack: r.readBack,
+      note: 'STEP carries geometry only; the native ews-cad document keeps the parameters and feature history.',
+      ...provenanceOf,
+    },
+    summary: `STEP ${file.name} (${file.size} bytes): read back ${r.readBack.ok ? 'matches the native model' : `differs (${r.readBack.differences.join('; ')})`}`,
+    inspected: [{ id: d.id, detail: `STEP export of ${r.partId}, model version ${r.version}` }],
+  }
+}
 
 function validateCalls(raw: unknown): CommandCall[] {
   if (!Array.isArray(raw) || !raw.length) throw new ActionError('invalid-arguments', '“commands” must be a non-empty list of { command, input }.')
@@ -206,7 +280,7 @@ const actions: AssistantActionDefinition[] = [
     async run(args, ctx) {
       const commands = validateCalls(args.commands)
       const projectId = ctx.captured.projectId
-      const { open, version, dry } = await dryRunFor(await resolveDocument(args, ctx, { allowNone: true }), commands, args.expectedVersion as number | undefined)
+      const { open, version, dry } = await dryRunFor(await resolveDocument(args, ctx, { allowNone: true, createsDocument: commands[0]?.command === 'create_part' }), commands, args.expectedVersion as number | undefined)
       const persist = persistsOnApply()
       if (!dry.ok) {
         const where = dry.failedIndex !== undefined && dry.failedIndex >= 0 ? ` (command ${dry.failedIndex + 1}, ${commands[dry.failedIndex]?.command})` : ''
@@ -411,11 +485,13 @@ const actions: AssistantActionDefinition[] = [
   {
     name: 'cad-modeler.export',
     label: 'Prepare CAD export',
-    description: 'Propose exporting the active document: "step" writes STEP AP242 (exact B-rep with names, units, colours; no feature history) of a part; "ewscad" saves the native parametric file. The file is downloaded on the user’s computer after Apply; the result includes a structural report of the STEP file.',
-    parameters: { type: 'object', properties: { format: { type: 'string', enum: ['step', 'ewscad'] }, partId: { type: 'string' }, documentId }, required: ['format'], additionalProperties: false },
+    description:
+      'Export the document. "step" writes STEP AP242 of a part (exact B-rep with names, units, colours; geometry only, no feature history; the native model keeps the history) and reads it back: the file is imported again and its solid count, bounding box and volume are compared with the native model. "ewscad" saves the native parametric file. By default this is a proposal and the file is downloaded on the user’s computer after Apply. With "return": true (STEP or ewscad) nothing is downloaded or changed: the result returns the file (name, media type, size, SHA-256, text content) and, for STEP, the read-back report, so another operation can store it, for example as a project document.',
+    parameters: { type: 'object', properties: { format: { type: 'string', enum: ['step', 'ewscad'] }, partId: { type: 'string' }, documentId, return: { type: 'boolean', description: 'Return the file in the result instead of proposing a download.' } }, required: ['format'], additionalProperties: false },
     async run(args, ctx) {
       const d = (await resolveDocument(args, ctx))!
       const format = args.format as 'step' | 'ewscad'
+      if (args.return === true) return exportForReturn(d, format, args.partId as string | undefined)
       const regen = await d.engine.regenerate()
       if (format === 'step') {
         const partId = (args.partId as string | undefined) ?? d.engine.document.parts[0]?.id
@@ -435,8 +511,127 @@ const actions: AssistantActionDefinition[] = [
           }
           const r = await cadSession.exportStep(d.id, args.partId as string | undefined)
           const s = r.inspection
-          return { summary: `Exported ${r.file.name}: ${s.applicationProtocol}, ${s.entities.MANIFOLD_SOLID_BREP} solid(s), ${s.entities.ADVANCED_FACE} faces, unit ${s.lengthUnit}${s.valid ? '' : `, problems: ${s.problems.join(' ')}`}` }
+          const rb = r.readBack
+          return { summary: `Exported ${r.file.name}: ${s.applicationProtocol}, ${s.entities.MANIFOLD_SOLID_BREP} solid(s), ${s.entities.ADVANCED_FACE} faces, unit ${s.lengthUnit}${s.valid ? '' : `, problems: ${s.problems.join(' ')}`}; read back: ${rb.ok ? `matches the native model (${rb.imported.solids} solid(s), volume ${fmt(rb.imported.volume)} mm³)` : `DIFFERS: ${rb.differences.join('; ')}`}` }
         },
+      }
+    },
+  },
+  {
+    name: 'cad-modeler.check',
+    label: 'Check the CAD model against design constraints',
+    description:
+      'Measure the regenerated CAD model and compare the measurements with design-constraint bounds read from Conceptualize (never with numbers given here). By default every parameter bound to a Conceptualize constraint (bind_parameter) is checked, and the solid validity of every body is reported. Optional "checks" add measurements, each against a constraint: parameter, dimension (named sketch dimension), bounding-size (x, y, z, max, min), volume, surface-area, mass (needs a material), pattern-spacing, pattern-gap (material between neighbouring pattern occurrences), pattern-count. Each result has checkId, quantity, measured value and unit, bound (constraint key, revision, operator, limits), status (satisfied, violated, not-checkable with reason), method, documentId, documentRevision and kernel name and version; open assumptions are listed. Results report geometry and values only; they make no claim of structural adequacy, safety or compliance. Read-only.',
+    parameters: {
+      type: 'object',
+      properties: {
+        documentId,
+        bindings: { type: 'boolean', description: 'Check bound parameters (default true).' },
+        checks: {
+          type: 'array',
+          maxItems: 100,
+          items: {
+            type: 'object',
+            properties: {
+              measure: {
+                type: 'object',
+                properties: {
+                  kind: { type: 'string', enum: ['parameter', 'dimension', 'bounding-size', 'volume', 'surface-area', 'mass', 'pattern-spacing', 'pattern-gap', 'pattern-count'] },
+                  name: { type: 'string', description: 'Parameter name, or dimension name.' },
+                  constraintId: { type: 'string', description: 'Sketch dimension (constraint) ID.' },
+                  axis: { type: 'string', enum: ['x', 'y', 'z', 'max', 'min'] },
+                  featureId: { type: 'string', description: 'Linear pattern feature ID.' },
+                },
+                required: ['kind'],
+                additionalProperties: false,
+              },
+              constraint: { type: 'object', properties: { id: { type: 'string' }, revision: { type: 'integer', minimum: 1 } }, required: ['id'], additionalProperties: false },
+              partId: { type: 'string' },
+            },
+            required: ['measure', 'constraint'],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+    async run(args, ctx) {
+      const d = (await resolveDocument(args, ctx))!
+      const requests = validateCheckRequests(args.checks)
+      const regen = await d.engine.regenerate()
+      if (!regen) throw new ActionError('unavailable', 'The model could not be regenerated (no kernel).')
+      const report = await runChecks(d.engine.document, regen, {
+        projectId: ctx.captured.projectId,
+        concepts: ctx.services?.concepts,
+        requests,
+        bindings: args.bindings !== false,
+        storedRevision: d.stored?.revision ?? null,
+        unsavedChanges: !!d.stored && cadSession.isDirty(d),
+      })
+      if (d.remoteRevision) report.assumptions.push(`A newer revision (${d.remoteRevision}) of this document was saved elsewhere; the results refer to revision ${d.stored?.revision}.`)
+      const s = report.summary
+      return {
+        kind: 'data',
+        data: report,
+        summary: `Checked “${report.documentTitle}”${report.documentRevision ? ` revision ${report.documentRevision}` : ''}: ${s.satisfied} satisfied, ${s.violated} violated, ${s['not-checkable']} not checkable`,
+        inspected: [{ id: d.id, detail: `CAD document${report.documentRevision ? ` revision ${report.documentRevision}` : ''}, model version ${report.modelVersion}, ${report.kernel.name} ${report.kernel.version}` }],
+      }
+    },
+  },
+  {
+    name: 'cad-modeler.check_bindings',
+    label: 'Find outdated parameter bindings',
+    description:
+      'List parameters whose binding pins a revision older than the bound artifact\'s latest revision, with the bound values of the pinned and the latest revision (Conceptualize constraints), so the parameter can be reviewed and re-bound. Bindings that follow the latest revision, and bindings to modules that cannot be read here, are reported separately. Read-only.',
+    parameters: { type: 'object', properties: { documentId }, additionalProperties: false },
+    async run(args, ctx) {
+      const d = (await resolveDocument(args, ctx))!
+      const doc = d.engine.document
+      const getConstraint = ctx.services?.concepts?.getConstraint
+      const outdated: unknown[] = []
+      const current: unknown[] = []
+      const unknown: unknown[] = []
+      const values = new Map(((await d.engine.regenerate())?.parts ?? []).flatMap((p) => p.parameters.map((x) => [`${p.partId}:${x.name}`, x.value] as const)))
+      for (const part of doc.parts) {
+        for (const p of part.parameters) {
+          const b = p.binding
+          if (!b) continue
+          const base = { partId: part.id, parameter: p.name, expression: p.expression, value: values.get(`${part.id}:${p.name}`) ?? null, binding: b }
+          if (b.ref.module !== 'conceptualize' || b.ref.kind !== 'constraint' || !getConstraint) {
+            unknown.push({ ...base, reason: getConstraint ? `${b.ref.module}/${b.ref.kind} references cannot be read here.` : 'Design constraints cannot be read in this host.' })
+            continue
+          }
+          let latest
+          try {
+            latest = await getConstraint(b.ref.id, { projectId: ctx.captured.projectId })
+          } catch (e) {
+            unknown.push({ ...base, reason: (e as Error).message })
+            continue
+          }
+          if (!latest) {
+            unknown.push({ ...base, reason: `Constraint ${b.ref.id} does not exist in project ${ctx.captured.projectId}.` })
+            continue
+          }
+          if (b.ref.revision === undefined || b.ref.revision >= latest.latestRevision) {
+            current.push({ ...base, key: latest.key, revision: latest.latestRevision, follows: b.ref.revision === undefined ? 'latest' : 'pinned' })
+            continue
+          }
+          const old = await getConstraint(b.ref.id, { projectId: ctx.captured.projectId, revision: b.ref.revision }).catch(() => undefined)
+          outdated.push({
+            ...base,
+            key: latest.key,
+            pinnedRevision: b.ref.revision,
+            latestRevision: latest.latestRevision,
+            old: old ? { statement: old.statement, bound: old.bound, status: old.status } : null,
+            new: { statement: latest.statement, bound: latest.bound, status: latest.status },
+          })
+        }
+      }
+      return {
+        kind: 'data',
+        data: { documentId: doc.documentId, documentRevision: d.stored?.revision ?? null, modelVersion: doc.version, outdated, current, unknown },
+        summary: `${outdated.length} outdated, ${current.length} current, ${unknown.length} not checkable binding(s) in “${doc.metadata.title}”`,
+        inspected: [{ id: d.id, detail: `parameter bindings, model version ${doc.version}` }],
       }
     },
   },

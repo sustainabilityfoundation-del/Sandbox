@@ -19,7 +19,7 @@ npm run e2e -- platform help    # selected flows
 
 Flows (`flows/*.mjs`, one process each, exit code 0 = pass): `platform` (subscriptions, shared context, upgrade
 of version 0.1 data, CAD dimension mapping, detached windows, failure isolation, icons), `help`, `coverage`,
-`integration`, `vision`, `conceptualize`, `sysml-modeler`, `cad-modeler`. Several flows change the
+`integration`, `vision`, `conceptualize`, `sysml-modeler`, `cad-modeler`, `cad-modeler-persistence` (CAD service revisions, concurrency, edge features, deep link, units setting), `cad-d1` (regular polygon, pocket and linear pattern in the UI, volumes checked analytically). Several flows change the
 development database (the seeded `PRJ-ACT100` project); run them against a development database, not one
 holding real work.
 
