@@ -11,7 +11,7 @@
  * Requirements API operation exists without an entry here.
  */
 
-export type CapabilityModule = 'platform' | 'requirements' | 'sysml' | 'cad' | 'cad-modeler' | 'assistant' | 'conceptualize' | 'sysml-modeler'
+export type CapabilityModule = 'platform' | 'requirements' | 'sysml' | 'cad' | 'cad-modeler' | 'assistant' | 'conceptualize' | 'sysml-modeler' | 'projects'
 
 /** Where the capability is reached by a person. */
 export type CapabilitySurface = 'toolbar' | 'panel' | 'field' | 'header' | 'palette' | 'tree' | 'inspector' | 'dialog' | 'api'
@@ -141,6 +141,11 @@ export const CAPABILITIES: CapabilityEntry[] = [
   e({ id: 'cad.export', module: 'cad', surface: 'panel', label: 'Native CAD model, geometric checks, STL export', effect: 'export', status: 'restricted', coverage: 'restricted', note: 'Not implemented: needs a real CAD kernel (development plan sprints 8–9). Listed so it is never presented as available.' }),
 
   // ---- Conceptualize (appended by the Conceptualize agent; API: /api/concepts/v1, OpenAPI operationIds in services/conceptualize) ----
+  // ---- Project Management (platform module, headless; demonstration D1) ------------------------------------
+  e({ id: 'projects.home', module: 'projects', surface: 'header', label: 'Project Home, New project wizard and project switcher', effect: 'mutation', status: 'implemented', coverage: 'equivalent', aiOperations: ['projects.create', 'projects.open', 'projects.list_projects', 'projects.get_context'], note: 'projects.create makes a blank project (server dry run before the preview).' }),
+  e({ id: 'projects.product-structure', module: 'projects', surface: 'tree', label: 'Product structure: product elements and breakdown positions', effect: 'mutation', status: 'implemented', coverage: 'equivalent', aiOperations: ['projects.create_product_element', 'projects.add_breakdown_edge'] }),
+  e({ id: 'projects.artifacts', module: 'projects', surface: 'panel', label: 'Artifact registry across modules', effect: 'query', status: 'implemented', coverage: 'equivalent', aiOperations: ['projects.list_artifacts'] }),
+  e({ id: 'projects.documents', module: 'projects', surface: 'panel', label: 'Project documents with provenance (for example exported STEP files)', effect: 'import', status: 'implemented', coverage: 'partial', aiOperations: ['projects.store_document'], note: 'File hand-off from a tool without passing bytes through the model is CR-PM-SDK-4.' }),
   e({ id: 'conceptualize.new', module: 'conceptualize', surface: 'toolbar', toolbarItem: 'new', label: 'Create a Concept from a natural-language description', effect: 'mutation', status: 'implemented', coverage: 'equivalent', aiOperations: ['conceptualize.create'], note: 'Both use the same deterministic draft and createConcept; the assistant path is a service proposal applied by the user (API: createConcept).' }),
   e({ id: 'conceptualize.child', module: 'conceptualize', surface: 'toolbar', toolbarItem: 'child', label: 'Add a child Concept (decomposition)', effect: 'mutation', status: 'implemented', coverage: 'equivalent', aiOperations: ['conceptualize.decompose'], note: 'API: createConcept with parentId (contains).' }),
   e({ id: 'conceptualize.branch', module: 'conceptualize', surface: 'toolbar', toolbarItem: 'branch', label: 'Branch a Concept into a new alternative', effect: 'mutation', status: 'implemented', coverage: 'none', note: 'API: branchConcept.' }),
