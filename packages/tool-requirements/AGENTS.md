@@ -13,10 +13,17 @@ Requirements Management tool. Owner: the Requirements module (see
   read-only view, comparison), quality overview and conventions, import/export.
 - Demo mode (only when the host chose `createDemoRequirementsService()`): SDK contract only, labelled.
 - No service: explain why; never substitute other data.
-- Assistant (`src/assistant.ts`, `src/proposals.ts`): twin-based `requirements.read_for_component`
-  and `requirements.update` stay unchanged when no service is connected; with a connected view they
-  read the API and record proposals that the view previews with Apply / Reject / Undo
-  (`requirements.search`, `requirements.explain_quality` are API-only).
+- Assistant (`src/assistant.ts`): **headless** (integration milestone 1, C9). Operations take the
+  service from `AssistantActionContext.services.requirements` and the project from
+  `ctx.captured.projectId`, never from a mounted view; the module client comes from
+  `getModuleClient(service, projectId)` (API mode only). `requirements.update` returns a
+  `service-proposal` (platform preview, Apply, Undo) whose Apply makes the editor's own write
+  (`saveRequirementEdit`: module client in API mode, SDK service in demo mode) with the base revision,
+  so the server refuses the same input identically on both paths. `requirements.search` works in
+  both modes; `requirements.explain_quality` needs API mode. Without a service the twin-based
+  behaviour of `read_for_component` and `update` is unchanged. Tests:
+  `src/assistant.test.ts` (demo, no view), `services/api/test/assistant.test.ts` (real API: every
+  operation headless, validation parity, cross-project writes refused).
 - Verification records stay twin artifacts (ADR-0007), shown for requirements with a twin object.
 
 Not here: persistence (server), subscriptions, navigation, other tools' data.
