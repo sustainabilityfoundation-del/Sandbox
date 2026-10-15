@@ -62,7 +62,8 @@ along the normal:
   of a body produced by an earlier feature.
 
 A face plane is re-resolved at every regeneration, so the sketch follows the face when upstream
-parameters change. The origin is the face centroid, the normal is the outward face normal, and
+parameters change. The origin is the model origin projected onto the face plane, so on faces parallel to a standard
+plane the sketch coordinates equal the model coordinates. The normal is the outward face normal, and
 `faceFrame` gives the x direction (Z × normal, or the X axis when the normal is within 0.99 of ±Z).
 If the face no longer exists, the sketch fails with `reference-lost`. If the face is not planar, it
 fails with `face-not-planar`.
