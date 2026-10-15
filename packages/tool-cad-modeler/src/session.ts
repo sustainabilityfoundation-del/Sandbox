@@ -140,7 +140,8 @@ export class CadSession {
     this.snap = this.build()
     this.listeners.forEach((l) => l())
   }
-  private isDirty(d: OpenDocument): boolean {
+  /** True when the document changed since it was loaded, stored or saved to a file. */
+  isDirty(d: OpenDocument): boolean {
     const v = d.engine.document.version
     return d.savedVersion === null ? v > 1 : v !== d.savedVersion
   }

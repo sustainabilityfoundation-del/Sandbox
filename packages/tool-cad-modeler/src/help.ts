@@ -66,6 +66,8 @@ export const cadModelerHelp: HelpManifest = {
     { operation: 'cad-modeler.list_documents', helpId: 'cad-modeler.document' },
     { operation: 'cad-modeler.save_document', helpId: 'cad-modeler.document' },
     { operation: 'cad-modeler.export', helpId: 'cad-modeler.export-step' },
+    { operation: 'cad-modeler.check', helpId: 'cad-modeler.checks' },
+    { operation: 'cad-modeler.check_bindings', helpId: 'cad-modeler.checks' },
     // Objects that can be linked from CAD parts.
     { objectType: 'part', helpId: 'cad-modeler.references' },
   ],
