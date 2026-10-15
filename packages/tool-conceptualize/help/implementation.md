@@ -17,7 +17,7 @@ other modules, version-aware (pinned to the revision current when linked):
 | Component, part, assembly, saved result | twin ID (ROD-120, ACT-100, OUT-…) |
 | Analysis result | test-adapter ID (no Analysis module exists) |
 | Product element | A product element of Project Management (product registry), by UUID |
-| Project document | A Project Management document, work item, milestone or baseline, by UUID (for example review minutes used as evidence) |
+| Project document | A Project Management document, work item or milestone, by UUID (for example review minutes used as evidence) |
 | External | URL or document reference |
 
 **Replace** swaps an artifact in one change (the old reference stays in the history); **Unlink**
