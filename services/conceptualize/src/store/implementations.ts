@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { conflict, forbidden, invalid, notFound } from '../errors'
-import { KEY_PREFIX } from '../domain/rules'
+import { KEY_PREFIX, roleAllows } from '../domain/rules'
 import { quantityProblem } from '../domain/units'
-import type { ArtifactRefDto, ConceptLinkDto, EvidenceCreateDto, EvidenceDto, ImplementationCreateDto, ImplementationDto, ImplementationPatchDto, LinkCreateDto, RealizationCreateDto } from '../http/schemas'
+import type { ArtifactRefDto, ConceptLinkDto, ImplementationCreateDto, ImplementationDto, ImplementationPatchDto, LinkCreateDto, RealizationCreateDto } from '../http/schemas'
+import type { EvidenceCreateVDto as EvidenceCreateDto, EvidenceVDto as EvidenceDto } from '../http/designSchemas'
 import { requireConcept } from './concepts'
 import { audit, emit, isUuid, iso, isoRequired, nextKey, prov, type Ctx, type Queryable } from './context'
 
@@ -40,8 +41,8 @@ export function artifactProblem(a: ArtifactRefDto): string | null {
 interface EvidenceRow {
   id: string
   key: string
-  concept_id: string
-  concept_revision: number
+  concept_id: string | null
+  concept_revision: number | null
   kind: EvidenceDto['kind']
   title: string
   summary: string
@@ -57,52 +58,100 @@ interface EvidenceRow {
   source_kind: Prov['sourceKind']
   conversation_id: string | null
   proposal_id: string | null
+  applicability: Record<string, unknown>
+  manifest: Record<string, unknown> | null
+  source: EvidenceDto['source']
+  assumption_ids: string[]
 }
-const toEvidence = (r: EvidenceRow): EvidenceDto => ({
-  id: r.id,
-  key: r.key,
-  conceptId: r.concept_id,
-  conceptRevision: r.concept_revision,
-  kind: r.kind,
-  title: r.title,
-  summary: r.summary,
-  basis: r.basis,
-  method: r.method,
-  inputs: r.inputs,
-  outputs: r.outputs,
-  assumptions: r.assumptions,
-  artifact: r.artifact,
-  supersedesId: r.supersedes_id,
-  createdAt: isoRequired(r.created_at),
-  createdBy: r.created_by,
-  provenance: { sourceKind: r.source_kind, conversationId: r.conversation_id, proposalId: r.proposal_id },
-})
+interface ReviewRow {
+  id: string
+  evidence_id: string
+  outcome: 'accepted' | 'rejected'
+  method: string
+  note: string
+  reviewer: string
+  reviewed_at: Date
+}
 
-export async function listEvidence(db: Queryable, projectId: string, conceptId?: string): Promise<EvidenceDto[]> {
-  if (conceptId && !isUuid(conceptId)) throw invalid('conceptId must be a UUID.', { conceptId: 'uuid' }, 400)
+async function toEvidenceDtos(db: Queryable, rows: EvidenceRow[]): Promise<EvidenceDto[]> {
+  const ids = rows.map((r) => r.id)
+  const subjects = ids.length ? (await db.query<{ evidence_id: string; subject_type: string; subject_id: string; subject_revision: number | null }>('SELECT * FROM conceptualize.evidence_subjects WHERE evidence_id = ANY($1::uuid[])', [ids])).rows : []
+  const reviews = ids.length ? (await db.query<ReviewRow>('SELECT * FROM conceptualize.evidence_reviews WHERE evidence_id = ANY($1::uuid[]) ORDER BY reviewed_at, id', [ids])).rows : []
+  return rows.map((r) => {
+    const rv = reviews.filter((x) => x.evidence_id === r.id)
+    return {
+      id: r.id,
+      key: r.key,
+      conceptId: r.concept_id,
+      conceptRevision: r.concept_revision,
+      kind: r.kind,
+      title: r.title,
+      summary: r.summary,
+      basis: r.basis,
+      method: r.method,
+      inputs: r.inputs,
+      outputs: r.outputs,
+      assumptions: r.assumptions,
+      artifact: r.artifact,
+      supersedesId: r.supersedes_id,
+      createdAt: isoRequired(r.created_at),
+      createdBy: r.created_by,
+      provenance: { sourceKind: r.source_kind, conversationId: r.conversation_id, proposalId: r.proposal_id },
+      subjects: subjects.filter((s) => s.evidence_id === r.id).map((s) => ({ module: 'conceptualize' as const, type: s.subject_type as never, id: s.subject_id, ...(s.subject_revision ? { revision: s.subject_revision } : {}) })),
+      applicability: r.applicability,
+      manifest: r.manifest,
+      source: r.source,
+      assumptionIds: r.assumption_ids,
+      reviews: rv.map((x) => ({ id: x.id, outcome: x.outcome, method: x.method, note: x.note, reviewer: x.reviewer, reviewedAt: isoRequired(x.reviewed_at) })),
+      validationStatus: rv.length ? rv[rv.length - 1].outcome : 'unreviewed',
+    }
+  })
+}
+
+export async function getEvidence(db: Queryable, projectId: string, id: string): Promise<EvidenceDto | undefined> {
+  if (!isUuid(id)) return undefined
+  const { rows } = await db.query<EvidenceRow>('SELECT * FROM conceptualize.evidence WHERE id = $1 AND project_id = $2', [id, projectId])
+  return (await toEvidenceDtos(db, rows))[0]
+}
+
+/** Evidence of the project, or of one subject (any design entity; Concepts also through concept_id). */
+export async function listEvidence(db: Queryable, projectId: string, subjectId?: string): Promise<EvidenceDto[]> {
+  if (subjectId && !isUuid(subjectId)) throw invalid('conceptId must be a UUID.', { conceptId: 'uuid' }, 400)
   const { rows } = await db.query<EvidenceRow>(
-    `SELECT * FROM conceptualize.evidence WHERE project_id = $1 ${conceptId ? 'AND concept_id = $2' : ''} ORDER BY created_at DESC, key DESC`,
-    conceptId ? [projectId, conceptId] : [projectId],
+    `SELECT * FROM conceptualize.evidence e WHERE e.project_id = $1 ${subjectId ? 'AND (e.concept_id = $2 OR EXISTS (SELECT 1 FROM conceptualize.evidence_subjects s WHERE s.evidence_id = e.id AND s.subject_id = $2))' : ''} ORDER BY e.created_at DESC, e.key DESC`,
+    subjectId ? [projectId, subjectId] : [projectId],
   )
-  return rows.map(toEvidence)
+  return toEvidenceDtos(db, rows)
 }
 
 /**
- * Records evidence. Preliminary (estimate, assumption, ai-hypothesis) records keep their method,
- * inputs, outputs, units and assumptions. Verified evidence (basis evidence) needs an artifact
- * reference (the authoritative result in its owning module) and a person; the assistant cannot
- * create it, and analysis artifacts come only from a labelled test adapter today.
+ * Records evidence (immutable). Preliminary records (ai-hypothesis, assumption, assessment, estimate) keep
+ * method, inputs, outputs, units and assumptions. calculated needs a reproducibility manifest; verified
+ * evidence (basis evidence) needs an artifact reference and a person. Subjects may be any design records;
+ * conceptId stays supported as the first subject.
  */
 export async function createEvidence(ctx: Ctx, input: EvidenceCreateDto): Promise<EvidenceDto> {
-  const concept = await requireConcept(ctx.db, ctx.projectId, input.conceptId).catch(() => {
-    throw invalid('The Concept does not exist.', { conceptId: 'not found' })
-  })
+  const subjects = [...(input.subjects ?? [])]
+  if (input.conceptId && !subjects.some((s) => s.type === 'concept' && s.id === input.conceptId)) subjects.unshift({ module: 'conceptualize', type: 'concept', id: input.conceptId })
+  if (!subjects.length) throw invalid('Evidence needs a subject (conceptId or subjects).', { subjects: 'required' })
+  const { requireRefs } = await import('./refs')
+  const found = await requireRefs(ctx.db, ctx.projectId, subjects, 'subjects')
+  const firstConcept = subjects.find((s) => s.type === 'concept')
+  const concept = firstConcept ? await requireConcept(ctx.db, ctx.projectId, firstConcept.id) : undefined
   const errors: Record<string, string> = {}
   if (ctx.provenance.sourceKind === 'assistant' && input.basis === 'evidence') errors.basis = 'the assistant cannot record verified evidence; it records estimates or hypotheses'
   if (input.basis === 'evidence' && !input.artifact) errors.artifact = 'verified evidence references the authoritative result (artifact) in its owning module'
+  // ADR-0043: calculated evidence carries its reproducibility manifest; the assistant may not assert it until
+  // the service re-verifies manifests with the calculation engine (CR-C8, next sprint).
+  if (input.basis === 'calculated' && !input.manifest) errors.manifest = 'calculated evidence needs its reproducibility manifest'
+  if (input.basis === 'calculated' && ctx.provenance.sourceKind === 'assistant') errors.basis = 'the assistant cannot record calculated evidence until manifests are re-verified by the service (CR-C8)'
   if (input.artifact) {
     const p = artifactProblem(input.artifact)
     if (p) errors.artifact = p
+  }
+  if (input.source && (input.source as { module: string }).module !== 'conceptualize') {
+    const p = artifactProblem(input.source as ArtifactRefDto)
+    if (p) errors.source = p
   }
   for (const [list, name] of [
     [input.inputs ?? [], 'inputs'],
@@ -114,22 +163,69 @@ export async function createEvidence(ctx: Ctx, input: EvidenceCreateDto): Promis
     })
   }
   if (input.supersedesId) {
-    const { rows } = await ctx.db.query<{ concept_id: string }>('SELECT concept_id FROM conceptualize.evidence WHERE id = $1 AND project_id = $2', [input.supersedesId, ctx.projectId])
-    if (rows[0]?.concept_id !== input.conceptId) errors.supersedesId = 'not an evidence record of this Concept'
+    const { rowCount } = await ctx.db.query('SELECT 1 FROM conceptualize.evidence WHERE id = $1 AND project_id = $2', [input.supersedesId, ctx.projectId])
+    if (!rowCount) errors.supersedesId = 'not an evidence record of this project'
+  }
+  if (input.assumptionIds?.length) {
+    const { rows } = await ctx.db.query<{ id: string }>('SELECT id FROM conceptualize.assumptions WHERE project_id = $1 AND id = ANY($2::uuid[])', [ctx.projectId, input.assumptionIds])
+    if (rows.length !== new Set(input.assumptionIds).size) errors.assumptionIds = 'unknown assumption'
   }
   if (Object.keys(errors).length) throw invalid('The evidence record is not valid.', errors)
   const id = randomUUID()
   const key = await nextKey(ctx, KEY_PREFIX.evidence, 'evidence')
   const [sourceKind, conversationId, proposalId] = prov(ctx)
   await ctx.db.query(
-    `INSERT INTO conceptualize.evidence (id, project_id, key, concept_id, concept_revision, kind, title, summary, basis, method, inputs, outputs, assumptions, artifact, supersedes_id, created_at, created_by, source_kind, conversation_id, proposal_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
-    [id, ctx.projectId, key, input.conceptId, concept.revision, input.kind, input.title.trim(), (input.summary ?? '').trim(), input.basis, (input.method ?? '').trim(), JSON.stringify(input.inputs ?? []), JSON.stringify(input.outputs ?? []), input.assumptions ?? [], input.artifact ? JSON.stringify(input.artifact) : null, input.supersedesId ?? null, ctx.now, ctx.actor, sourceKind, conversationId, proposalId],
+    `INSERT INTO conceptualize.evidence (id, project_id, key, concept_id, concept_revision, kind, title, summary, basis, method, inputs, outputs, assumptions, artifact, supersedes_id, created_at, created_by, source_kind, conversation_id, proposal_id, applicability, manifest, source, assumption_ids)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+    [
+      id,
+      ctx.projectId,
+      key,
+      concept?.id ?? null,
+      concept?.revision ?? null,
+      input.kind,
+      input.title.trim(),
+      (input.summary ?? '').trim(),
+      input.basis,
+      (input.method ?? '').trim(),
+      JSON.stringify(input.inputs ?? []),
+      JSON.stringify(input.outputs ?? []),
+      input.assumptions ?? [],
+      input.artifact ? JSON.stringify(input.artifact) : null,
+      input.supersedesId ?? null,
+      ctx.now,
+      ctx.actor,
+      sourceKind,
+      conversationId,
+      proposalId,
+      JSON.stringify(input.applicability ?? {}),
+      input.manifest ? JSON.stringify(input.manifest) : null,
+      input.source ? JSON.stringify(input.source) : null,
+      input.assumptionIds ?? [],
+    ],
   )
-  await audit(ctx, { entityType: 'evidence', entityId: id, conceptIds: [input.conceptId], action: 'recorded', revision: concept.revision, details: { key, kind: input.kind, basis: input.basis } })
-  await emit(ctx, 'concept.revised', input.conceptId, concept.revision)
-  const { rows } = await ctx.db.query<EvidenceRow>('SELECT * FROM conceptualize.evidence WHERE id = $1', [id])
-  return toEvidence(rows[0])
+  for (const s of subjects) {
+    const info = found.find((f) => f.ref.type === s.type && f.ref.id === s.id)!
+    await ctx.db.query('INSERT INTO conceptualize.evidence_subjects (evidence_id, subject_type, subject_id, subject_revision) VALUES ($1,$2,$3,$4)', [id, s.type, s.id, s.revision ?? info.revision])
+  }
+  const conceptIds = subjects.filter((s) => s.type === 'concept').map((s) => s.id)
+  await audit(ctx, { entityType: 'evidence', entityId: id, conceptIds, action: 'recorded', revision: concept?.revision ?? null, details: { key, kind: input.kind, basis: input.basis, subjects: subjects.map((s) => `${s.type}:${s.id}`) } })
+  if (concept) await emit(ctx, 'concept.revised', concept.id, concept.revision)
+  await emit(ctx, 'evidence.recorded', id, 1)
+  return (await getEvidence(ctx.db, ctx.projectId, id))!
+}
+
+/** Append-only review of an evidence record (reviewer or administrator; never the assistant). */
+export async function reviewEvidence(ctx: Ctx, id: string, input: { outcome: 'accepted' | 'rejected'; method?: string; note?: string }): Promise<EvidenceDto> {
+  if (!roleAllows(ctx.role, 'decide')) throw forbidden('Reviewing evidence needs a reviewer or administrator.')
+  if (ctx.provenance.sourceKind === 'assistant') throw forbidden('The assistant cannot review evidence.')
+  const e = await getEvidence(ctx.db, ctx.projectId, id)
+  if (!e) throw notFound(`Evidence ${id} not found.`)
+  if (e.createdBy === ctx.actor && input.outcome === 'accepted') throw forbidden('Evidence is accepted by a reviewer other than the person who recorded it.')
+  await ctx.db.query('INSERT INTO conceptualize.evidence_reviews (id, evidence_id, outcome, method, note, reviewer, reviewed_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [randomUUID(), id, input.outcome, (input.method ?? '').trim(), (input.note ?? '').trim(), ctx.actor, ctx.now])
+  await audit(ctx, { entityType: 'evidence', entityId: id, conceptIds: e.subjects.filter((s) => s.type === 'concept').map((s) => s.id), action: `review-${input.outcome}`, reason: input.note ?? '', details: { method: input.method ?? '' } })
+  await emit(ctx, 'evidence.reviewed', id, e.reviews.length + 2)
+  return (await getEvidence(ctx.db, ctx.projectId, id))!
 }
 
 // ---- implementations -------------------------------------------------------------------------------------------

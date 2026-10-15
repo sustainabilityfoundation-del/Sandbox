@@ -3,7 +3,11 @@ import { BASIS_MEANING, GATED_MATURITIES, LINK_MEANING, MATURITY_MEANING, PERMIS
 import { TRADE_METHOD } from '../domain/tradeStudy'
 import { COMMON_UNITS } from '../domain/units'
 import { CROSS_MODULE_ENTITLEMENTS, ENTITLEMENT, type RouteSpec } from './route'
-import { SCHEMAS } from './schemas'
+import { DESIGN_SCHEMAS } from './designSchemas'
+import { SCHEMAS as BASE_SCHEMAS } from './schemas'
+
+const REPLACED = new Set(['Decision', 'DecisionCreate', 'Evidence', 'EvidenceCreate'])
+const SCHEMAS = [...BASE_SCHEMAS.filter((s) => !REPLACED.has(s.$id as string)), ...DESIGN_SCHEMAS]
 
 /** Strips TypeBox symbols and replaces named sub-schemas by `$ref`s to components. */
 export function toJsonSchema(schema: unknown, root: string | null, names: Set<string>): unknown {

@@ -1,6 +1,10 @@
 import type { Pool } from 'pg'
 import { createDecision, createSet, recordDecision } from './store/alternatives'
 import { createExploration } from './store/explorations'
+import { assumptionsFromStatements } from './store/assumptions'
+import { createConstraint } from './store/constraints'
+import { createDesignLink } from './store/designLinks'
+import { createFunction } from './store/functions'
 import { changeMaturity, createConcept } from './store/concepts'
 import { withTransaction, type Ctx } from './store/context'
 import { createEvidence, createImplementation, createLink } from './store/implementations'
@@ -51,7 +55,10 @@ export const SEED_REQUIREMENTS = {
 
 export async function seedConcepts(pool: Pool): Promise<{ seeded: boolean; message: string }> {
   const exists = await pool.query('SELECT 1 FROM conceptualize.concepts WHERE id = $1', [SEED_IDS.actuator])
-  if (exists.rowCount) return { seeded: false, message: 'Conceptualize seed already present (CON-001 exists); nothing changed.' }
+  if (exists.rowCount) {
+    const knowledge = await seedDesignKnowledge(pool)
+    return { seeded: knowledge, message: knowledge ? 'Conceptualize seed present; added the design-knowledge examples (functions, constraints, assumptions).' : 'Conceptualize seed already present; nothing changed.' }
+  }
   const as = <T>(actor: string, role: string, fn: (ctx: Ctx) => Promise<T>) =>
     withTransaction(pool, { projectId: SEED_PROJECT, actor, role, provenance: { sourceKind: 'system' } }, fn)
   const reason = 'Seeded example'
@@ -242,6 +249,7 @@ export async function seedConcepts(pool: Pool): Promise<{ seeded: boolean; messa
     await createRelationship(ctx, { type: 'interfaces-with', fromId: SEED_IDS.energyStorage, toId: SEED_IDS.powerConversion, interface: { name: 'DC bus', kind: 'electrical', flows: ['electrical power'] } })
   })
   await as('eli', 'editor', (ctx) => seedCompactActuator(ctx))
+  await seedDesignKnowledge(pool)
   return { seeded: true, message: 'Seeded example Concepts (ACT-100, power transmission alternatives, propulsion decompositions, 500 N compact actuator alternatives).' }
 }
 
@@ -363,4 +371,75 @@ async function seedCompactActuator(ctx: Ctx) {
     },
     generator: 'seed (illustrative example)',
   })
+}
+
+export const FUNCTION_SEED_IDS = {
+  linearForce: 'f0ce0000-0000-4000-8000-000000000001',
+  effort: 'f0ce0000-0000-4000-8000-000000000002',
+  convert: 'f0ce0000-0000-4000-8000-000000000003',
+  guide: 'f0ce0000-0000-4000-8000-000000000004',
+}
+
+/**
+ * Design-knowledge examples (CR-C1…C3): the function the 500 N alternatives perform, its decomposition,
+ * a constraint formalizing REQ-001 (pinned revision 1), a stated envelope constraint, and Assumptions for
+ * the assumption statements. Runs once (checks FN seed ID); the function-Concept CON-005 is left as it is
+ * to demonstrate the explicit Convert to Function operation.
+ */
+export async function seedDesignKnowledge(pool: Pool): Promise<boolean> {
+  const exists = await pool.query('SELECT 1 FROM conceptualize.functions WHERE id = $1', [FUNCTION_SEED_IDS.linearForce])
+  if (exists.rowCount) return false
+  await withTransaction(pool, { projectId: SEED_PROJECT, actor: 'eli', role: 'editor', provenance: { sourceKind: 'system' } }, async (ctx) => {
+    const fn = await createFunction(
+      ctx,
+      {
+        name: 'Deliver controlled linear force',
+        verbPhrase: 'deliver linear force',
+        description: 'Produce a controlled push or pull along one axis, whatever the actuation principle.',
+        flows: [
+          { direction: 'in', kind: 'energy', name: 'Drive energy (electrical or pneumatic)' },
+          { direction: 'in', kind: 'signal', name: 'Command' },
+          { direction: 'out', kind: 'force', name: 'Axial force', quantity: { value: 500, unit: 'N' } },
+        ],
+        objectives: [{ name: 'Axial force', quantity: { min: 500, unit: 'N' }, direction: 'min', basis: 'user-assertion' }],
+        statements: [{ kind: 'behavior', text: 'Holds position when the command is constant.' }],
+        status: 'active',
+        reason: 'Seeded example',
+      },
+      { id: FUNCTION_SEED_IDS.linearForce },
+    )
+    const subs: [string, string, string][] = [
+      [FUNCTION_SEED_IDS.effort, 'Generate driving effort', 'Turn the supplied energy into torque or pressure.'],
+      [FUNCTION_SEED_IDS.convert, 'Convert to linear motion', 'Turn the driving effort into translation and force.'],
+      [FUNCTION_SEED_IDS.guide, 'Guide and support the output', 'Carry side loads and keep the output aligned.'],
+    ]
+    for (const [id, name, description] of subs) await createFunction(ctx, { name, description, status: 'active', parentFunctionId: fn.id, reason: 'Seeded example' }, { id })
+    // The seeded 500 N alternatives perform the function.
+    const { rows } = await ctx.db.query<{ created_ids: { concepts: { id: string; role: string }[] } }>(`SELECT created_ids FROM conceptualize.explorations WHERE project_id = $1 AND generator = 'seed (illustrative example)'`, [SEED_PROJECT])
+    const alternatives = rows[0]?.created_ids.concepts.filter((c) => c.role === 'alternative') ?? []
+    for (const a of alternatives) await createDesignLink(ctx, { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: a.id }, to: { module: 'conceptualize', type: 'function', id: fn.id } })
+    await createConstraint(ctx, {
+      kind: 'dimensional',
+      statement: 'Fits a 100 mm envelope',
+      bound: { symbol: 'L', operator: '<=', quantity: { value: 100, unit: 'mm' } },
+      strength: 'hard',
+      source: { kind: 'stated' },
+      subjects: [{ module: 'conceptualize', type: 'function', id: fn.id }],
+      status: 'active',
+      reason: 'Seeded example',
+    })
+    await createConstraint(ctx, {
+      kind: 'mathematical',
+      statement: 'REQ-001 operating load as F ≥ 12 kN in the maximum-load scenario',
+      bound: { symbol: 'F', operator: '>=', quantity: { value: 12, unit: 'kN' } },
+      strength: 'hard',
+      source: { kind: 'requirement', ref: { module: 'requirements', id: SEED_REQUIREMENTS['REQ-001'], revision: 1, kind: 'requirement', label: 'REQ-001 Operating load' } },
+      subjects: [{ module: 'conceptualize', type: 'concept', id: SEED_IDS.actuator }],
+      status: 'active',
+      reason: 'Seeded example',
+    })
+    const { rows: all } = await ctx.db.query<{ id: string }>('SELECT id FROM conceptualize.concepts WHERE project_id = $1', [SEED_PROJECT])
+    await assumptionsFromStatements(ctx, all.map((c) => c.id))
+  })
+  return true
 }

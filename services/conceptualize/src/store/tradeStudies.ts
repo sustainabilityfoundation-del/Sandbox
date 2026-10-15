@@ -259,6 +259,10 @@ export async function putScores(ctx: Ctx, id: string, scores: ScoreInputDto[], e
       continue
     }
     if (ctx.provenance.sourceKind === 'assistant' && !ASSISTANT_BASES.includes(sc.basis)) errors[`${path}.basis`] = 'the assistant may only score as ai-hypothesis, assumption or estimate'
+    if (sc.basis === 'calculated') {
+      const ok = ctx.provenance.sourceKind !== 'assistant' && sc.evidenceId && (await ctx.db.query(`SELECT 1 FROM conceptualize.evidence WHERE id = $1 AND basis IN ('calculated', 'evidence')`, [sc.evidenceId])).rowCount
+      if (!ok) errors[`${path}.evidenceId`] = 'basis calculated needs a calculated evidence record (and cannot come from the assistant until CR-C8)'
+    }
     if (sc.basis === 'evidence') {
       const ok = sc.evidenceId && (await ctx.db.query(`SELECT 1 FROM conceptualize.evidence WHERE id = $1 AND basis = 'evidence' AND concept_id = $2`, [sc.evidenceId, sc.conceptId])).rowCount
       if (!ok) errors[`${path}.evidenceId`] = 'basis evidence needs a verified evidence record of this option'

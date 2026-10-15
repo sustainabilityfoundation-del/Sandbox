@@ -41,6 +41,7 @@ import { artifactConcepts, assessment, projectGraph } from '../store/views'
 import { BASE_PATH } from './openapi'
 import { registerRoute, type HostServices, type RequestContext, type RouteSpec } from './route'
 import * as S from './schemas'
+import * as D from './designSchemas'
 
 const P = Type.Object({ projectId: Type.String({ minLength: 1, maxLength: 100 }) })
 const PC = Type.Object({ projectId: Type.String(), conceptId: Type.String() })
@@ -495,7 +496,7 @@ export function registerConceptRoutes(app: FastifyInstance, services: HostServic
     params: P,
     query: Type.Object({ conceptId: Type.Optional(Type.String()), setId: Type.Optional(Type.String()) }, { additionalProperties: false }),
     permission: 'read',
-    responses: { 200: { description: 'Decisions, newest first', schema: Type.Array(S.Decision) }, ...READ_ERRORS },
+    responses: { 200: { description: 'Decisions, newest first', schema: Type.Array(D.DecisionV) }, ...READ_ERRORS },
     handler: async (rc) => ({ body: await rc.read((ctx) => listDecisions(ctx.db, rc.projectId, rc.query as { conceptId?: string; setId?: string })) }),
   })
   route({
@@ -506,13 +507,13 @@ export function registerConceptRoutes(app: FastifyInstance, services: HostServic
     summary: 'Propose (or record) a design decision with accepted, rejected or deferred outcomes and rationale',
     description: 'Editors propose; recording accepted or rejected outcomes (record: true or recordDecision) is the approval gate for reviewers and administrators. supersedesId revisits an earlier decision; the old record is kept.',
     params: P,
-    body: S.DecisionCreate,
+    body: D.DecisionCreateV,
     permission: 'author',
     anyOf: ['author', 'decide'],
     idempotency: 'required',
-    responses: { 201: { description: 'Created', schema: S.Decision }, ...WRITE_ERRORS },
+    responses: { 201: { description: 'Created', schema: D.DecisionV }, ...WRITE_ERRORS },
     handler: async (rc) => {
-      const input = body<S.DecisionCreateDto>(rc)
+      const input = body<D.DecisionCreateVDto>(rc)
       if (input.record && input.outcomes.some((o) => o.outcome !== 'deferred')) need(rc, 'decide', 'Recording accepted or rejected outcomes')
       return rc.write(async (ctx) => {
         const d = await createDecision(ctx, input)
@@ -533,7 +534,7 @@ export function registerConceptRoutes(app: FastifyInstance, services: HostServic
     anyOf: ['author', 'decide'],
     idempotency: 'optional',
     concurrency: CONCURRENCY,
-    responses: { 200: { description: 'Decision', schema: S.Decision }, ...WRITE_ERRORS },
+    responses: { 200: { description: 'Decision', schema: D.DecisionV }, ...WRITE_ERRORS },
     handler: async (rc) => {
       const b = body<{ expectedRevision?: number; reason?: string }>(rc)
       const expected = rc.expected(b.expectedRevision)
@@ -555,7 +556,7 @@ export function registerConceptRoutes(app: FastifyInstance, services: HostServic
     anyOf: ['author', 'decide'],
     idempotency: 'optional',
     concurrency: CONCURRENCY,
-    responses: { 200: { description: 'Decision', schema: S.Decision }, ...WRITE_ERRORS },
+    responses: { 200: { description: 'Decision', schema: D.DecisionV }, ...WRITE_ERRORS },
     handler: async (rc) => {
       const b = body<{ expectedRevision?: number; reason?: string }>(rc)
       const expected = rc.expected(b.expectedRevision)
@@ -574,7 +575,7 @@ export function registerConceptRoutes(app: FastifyInstance, services: HostServic
     summary: 'Read a decision',
     params: PI('decisionId'),
     permission: 'read',
-    responses: { 200: { description: 'Decision', schema: S.Decision }, ...READ_ERRORS },
+    responses: { 200: { description: 'Decision', schema: D.DecisionV }, ...READ_ERRORS },
     handler: async (rc) => {
       const d = await rc.read((ctx) => getDecision(ctx.db, rc.projectId, rc.params.decisionId))
       if (!d) throw notFound(`Decision ${rc.params.decisionId} not found.`)
@@ -681,7 +682,7 @@ export function registerConceptRoutes(app: FastifyInstance, services: HostServic
     params: P,
     query: Type.Object({ conceptId: Type.Optional(Type.String()) }, { additionalProperties: false }),
     permission: 'read',
-    responses: { 200: { description: 'Evidence', schema: Type.Array(S.Evidence) }, ...READ_ERRORS },
+    responses: { 200: { description: 'Evidence', schema: Type.Array(D.EvidenceV) }, ...READ_ERRORS },
     handler: async (rc) => ({ body: await rc.read((ctx) => listEvidence(ctx.db, rc.projectId, rc.query.conceptId as string | undefined)) }),
   })
   route({
@@ -692,10 +693,10 @@ export function registerConceptRoutes(app: FastifyInstance, services: HostServic
     summary: 'Record evidence (preliminary calculation, analysis, test, review, reference)',
     description: 'Immutable. Inputs and outputs are unit-checked quantities. basis evidence (verified) needs an artifact reference and cannot come from the assistant.',
     params: P,
-    body: S.EvidenceCreate,
+    body: D.EvidenceCreateV,
     permission: 'author',
     idempotency: 'required',
-    responses: { 201: { description: 'Created', schema: S.Evidence }, ...WRITE_ERRORS },
+    responses: { 201: { description: 'Created', schema: D.EvidenceV }, ...WRITE_ERRORS },
     handler: async (rc) =>
       rc.write(async (ctx) => {
         const e = await createEvidence(ctx, body(rc))
