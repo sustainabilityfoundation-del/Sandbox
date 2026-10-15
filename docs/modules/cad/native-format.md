@@ -122,7 +122,8 @@ failures.
 ## 5. References
 
 `{ id, subject, role, target { module, id, revision?, kind?, label? } }` with roles `represents`,
-`satisfies`, `verifies`, `realizes`, `traces`, `related` and modules `twin`, `requirements`, `sysml`,
+`satisfies`, `verifies`, `realizes`, `traces`, `related` and modules `product` (1.1: Project Management product elements, the default for new projects;
+ADR-0026), `twin`, `requirements`, `sysml`,
 `conceptualize`, `external`. `label` is display text captured at link time and is not authoritative.
 
 ## 6. Semantics of regeneration

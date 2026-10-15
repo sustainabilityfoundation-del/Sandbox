@@ -99,9 +99,8 @@ Events have the types `cad.document-created`, `cad.revision-created`, `cad.docum
 - `updatedAt` and `updatedBy`, the same values as `occurredAt` and `actor`;
 - `sourceKind` and `parts`.
 
-This is enough to list and describe CAD entities without rereading the documents. A future
-Project Management artifact source (`createCadArtifactSource(pool, events)`, SDK 1.7) is meant to
-consume it.
+This is enough to list and describe CAD entities without rereading the documents. The Project Management artifact source below
+consumes it.
 
 Delivery may repeat. Consumers deduplicate by `eventId` and reread the document. An unknown resume
 point starts the stream with `event: reset`.
@@ -109,6 +108,24 @@ point starts the stream with `event: reset`.
 **Stable UUIDs.** The document UUID is `documentId`. The part UUID is RFC 9562 version 5 of the part
 ID in the document UUID namespace (`entityUuid`, `@ews/cad-core`). It is deterministic, reproducible
 from the native file, and never changes while the part ID stays the same. See ADR-0026.
+
+## Artifact source for Project Management (CR-PM-REG-4)
+
+`createCadArtifactSource(pool, events)` implements the SDK 1.7 `ArtifactSource` (contract 1.0.0). It
+is read-only over the `cad` tables; `events` is the service's `CadEventHub`. The API host wires it
+into the Project Management plugin. That wiring is the coordinator's and is not done on this branch.
+
+| Aspect | Behaviour |
+| --- | --- |
+| Kinds | `cad-document` (id = document UUID) and `cad-modeler-entity` (id = `<documentUuid>/<partId>`, CR-CAD-1, container = the document). Both are category `geometry`. `navigable: false`, because the workspace has no deep link into the CAD Modeler yet. Assemblies and configurations do not exist in ews-cad 1.1; they will use `cad-modeler-entity` when added |
+| `list` | Current revisions, ordered by document UUID, then the document and its parts in file order. At most 500 per page, with an opaque cursor; an invalid cursor is an error. Optional `kinds` filter. An unknown or new project gives an empty page. Archived documents and their parts are listed with lifecycle `retired` and moduleState `archived`; others are `working` / `active` |
+| Descriptor | key `CAD <first 8 of UUID>[/<partId>]`; title (document title or part name); version `{ value: revision, label: 'Revision n', at }`; created and modified at and by. Part times are the document's, because the service versions whole documents. `relations` come from the document's outbound references whose subject is that part or document (for example `represents` → `product` / `product-element`) |
+| `describe` | The requested refs that exist in that project; others are absent |
+| `subscribe` | Every project's events, delivered in delivery order. Mapping: `cad.document-created`, `cad.revision-created` and `cad.document-restored` → `upserted` (the document and the parts of that revision); a revision that drops parts → `retired` for those parts (eventId `<eventId>:removed-parts`); `cad.document-archived` → `retired`; events stored before migration 0002 → `reconcile` |
+| `provision` | `not-needed`: data is keyed by project ID, and a new project has no CAD documents |
+
+Tests: `services/cad/test/artifacts.test.ts` covers the contract behaviours above. It also checks
+that the adapter writes nothing.
 
 ## Clients
 

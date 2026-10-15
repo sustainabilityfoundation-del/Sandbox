@@ -83,7 +83,7 @@ describe('CAD package boundaries (ADR-0020)', () => {
   const RULES: Record<string, { ews: RegExp; forbidden: RegExp }> = {
     'packages/cad-core': { ews: /^$/, forbidden: /^(react|react-dom|three|replicad|replicad-opencascadejs)(\/|$)/ },
     'packages/cad-client': { ews: /^@ews\/cad-core$/, forbidden: /^(react|react-dom|three|replicad|replicad-opencascadejs|pg|fastify)(\/|$)/ },
-    'services/cad': { ews: /^@ews\/cad-core(\/schema\/ews-cad\.schema\.json)?$/, forbidden: /^(react|react-dom|three|replicad|replicad-opencascadejs)(\/|$)/ },
+    'services/cad': { ews: /^@ews\/(cad-core(\/schema\/ews-cad\.schema\.json)?|platform-sdk)$/, forbidden: /^(react|react-dom|three|replicad|replicad-opencascadejs)(\/|$)/ },
     'packages/cad-kernel': { ews: /^@ews\/cad-core$/, forbidden: /^(react|react-dom|three)(\/|$)/ },
     'packages/tool-cad-modeler': { ews: /^@ews\/(platform-sdk|design-system|cad-core|cad-kernel|cad-client)(\/[\w.-]+)?$/, forbidden: /^(replicad|replicad-opencascadejs|react-aria-components|@phosphor-icons\/.*)(\/|$)/ },
   }

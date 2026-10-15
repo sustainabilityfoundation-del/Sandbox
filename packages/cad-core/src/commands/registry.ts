@@ -949,14 +949,14 @@ define<{ featureId: string; suppressed: boolean }>({
   define<{ subject: string; role: ReferenceRole; target: { module: ReferenceModule; id: string; revision?: number; kind?: string; label?: string }; ref?: string }>({
     name: 'add_reference',
     category: 'reference',
-    summary: 'Link a CAD entity to an artifact of another module (twin component, requirement, SysML element, Concept). The target is referenced, never copied.',
+    summary: 'Link a CAD entity to an artifact of another module (Project Management product element, twin component, requirement, SysML element, Concept). The target is referenced, never copied.',
     input: obj(
       {
         subject: id('Part, feature, parameter or face name'),
         role: { type: 'string', enum: ['represents', 'satisfies', 'verifies', 'realizes', 'traces', 'related'] },
         target: obj(
           {
-            module: { type: 'string', enum: ['twin', 'requirements', 'sysml', 'conceptualize', 'external'] },
+            module: { type: 'string', enum: ['twin', 'requirements', 'sysml', 'conceptualize', 'product', 'external'] },
             id: { type: 'string', minLength: 1, maxLength: 300 },
             revision: { type: 'integer', minimum: 0, description: 'Pin a revision; omit to follow the latest.' },
             kind: { type: 'string', maxLength: 60 },

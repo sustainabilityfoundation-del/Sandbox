@@ -1768,7 +1768,7 @@
     {
       "name": "add_reference",
       "category": "reference",
-      "summary": "Link a CAD entity to an artifact of another module (twin component, requirement, SysML element, Concept). The target is referenced, never copied.",
+      "summary": "Link a CAD entity to an artifact of another module (Project Management product element, twin component, requirement, SysML element, Concept). The target is referenced, never copied.",
       "input": {
         "type": "object",
         "properties": {
@@ -1799,6 +1799,7 @@
                   "requirements",
                   "sysml",
                   "conceptualize",
+                  "product",
                   "external"
                 ]
               },

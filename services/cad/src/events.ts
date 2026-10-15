@@ -78,6 +78,8 @@ export async function emit(db: Pick<PoolClient, 'query'>, e: { type: CadEventTyp
 
 export interface CadEventHub {
   subscribe(projectId: string, listener: (e: CadEvent) => void): () => void
+  /** Every project's published events (artifact source for Project Management). */
+  subscribeAll(listener: (e: CadEvent) => void): () => void
   /** Published events after `afterEventId`; unknown ID → undefined (client must reload). */
   readAfter(projectId: string, afterEventId: string | null): Promise<CadEvent[] | undefined>
   flush(): Promise<void>
@@ -88,6 +90,7 @@ const LOCK = 0x4341_4444 // "CADD"
 
 export async function createCadEventHub(pool: Pool, options: { pollMs?: number; onError?: (e: unknown) => void } = {}): Promise<CadEventHub> {
   const listeners = new Map<string, Set<(e: CadEvent) => void>>()
+  const everyProject = new Set<(e: CadEvent) => void>()
   const onError = options.onError ?? ((e) => console.error('[cad events]', e))
   let last = Number((await pool.query<{ m: string | null }>('SELECT max(delivery_seq) AS m FROM cad.outbox')).rows[0].m ?? 0)
   let closed = false
@@ -123,7 +126,7 @@ export async function createCadEventHub(pool: Pool, options: { pollMs?: number; 
       for (const r of rows) {
         last = Math.max(last, Number(r.delivery_seq))
         const ev = toEvent(r)
-        for (const l of listeners.get(r.project_id) ?? []) {
+        for (const l of [...(listeners.get(r.project_id) ?? []), ...everyProject]) {
           try {
             l(ev)
           } catch (e) {
@@ -171,6 +174,10 @@ export async function createCadEventHub(pool: Pool, options: { pollMs?: number; 
       set.add(l)
       listeners.set(projectId, set)
       return () => set.delete(l)
+    },
+    subscribeAll(l) {
+      everyProject.add(l)
+      return () => everyProject.delete(l)
     },
     async readAfter(projectId, after) {
       if (!after) return []

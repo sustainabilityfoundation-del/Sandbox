@@ -1,8 +1,8 @@
 # ADR-0026: References between CAD Modeler entities and other modules
 
 Status: Proposed (2026-10-14, CAD agent). Number provisional. Item 2 approved with a change by the
-coordinator (CR-CAD-1, 2026-10-15; see *Decision on CR-CAD-1*); items 1 and 3 remain proposed. Kept
-open for product-structure references (CR-PM-CAD-1, see *Open*).
+coordinator (CR-CAD-1, 2026-10-15; see *Decision on CR-CAD-1*); items 1 and 3 remain proposed. Product-structure
+references decided by the coordinator (CR-PM-CAD-1, 2026-10-15; see *Product structure*).
 
 ## Context
 
@@ -56,10 +56,23 @@ SysML elements in the twin; CAD never copies them.
 - Assemblies and configurations do not exist yet. When they are added they get UUIDs the same way.
 - The `entityUuid` derivation is fixed: changing it would break stored references.
 
+## Product structure (CR-PM-CAD-1, coordinator, 2026-10-15)
+
+- In new projects, CAD Modeler references to the product structure use
+  `ArtifactRef { module: 'product', kind: 'product-element', id: <product element ID>, revision? }`.
+  Product elements are owned by Project Management's product registry. They replace twin components
+  as `represents` targets.
+- PRJ-ACT100, and any project whose twin has components, keeps its twin references
+  (`module: 'twin'`). Stored references are never rewritten (ADR-0009). A later migration may add a
+  `product` reference next to a twin one, but never in place of it.
+- Native format: `product` is a reference target module in ews-cad 1.1 (additive; schema, the
+  `add_reference` command and the type).
+- CAD Modeler: the Inspect panel offers "Product element (Project Management)". It is the default
+  when the project's twin has no components and "Twin component" otherwise. Product IDs are not yet
+  validated against Project Management, because no client exists; the reference is stored as typed
+  and reported to Project Management as a relation (`createCadArtifactSource`).
+- The inbound scheme (CR-CAD-1) is unchanged.
+
 ## Open
 
-- **Product structure (CR-PM-CAD-1, later).** References from CAD parts to product-structure items
-  will use `ArtifactRef` module `'product'`, for example as `represents` targets in the outbound
-  `references[]`. They will be added as an outbound reference target kind, without changing the
-  inbound scheme above.
 - Twin projection (item 3) is deferred (CR-CAD-3).

@@ -88,7 +88,7 @@ export interface SemanticAnnotation {
 }
 
 export type ReferenceRole = 'represents' | 'satisfies' | 'verifies' | 'realizes' | 'traces' | 'related'
-export type ReferenceModule = 'twin' | 'requirements' | 'sysml' | 'conceptualize' | 'external'
+export type ReferenceModule = 'twin' | 'requirements' | 'sysml' | 'conceptualize' | 'product' | 'external'
 
 export interface ExternalReference {
   id: string
