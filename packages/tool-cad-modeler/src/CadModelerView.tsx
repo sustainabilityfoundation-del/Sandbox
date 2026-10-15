@@ -19,6 +19,8 @@ export default function CadModelerView() {
   const [vs, setVs] = useToolViewState<CadModelerViewState>()
   const session = useCadSession()
   const { projectId } = useSharedContext()
+  // Assistant operations save their changes as revisions while no view is mounted (C9).
+  useEffect(() => cadSession.attachView(), [])
   useEffect(() => {
     if (session.store) cadSession.watchProject(projectId)
   }, [projectId, session.store])

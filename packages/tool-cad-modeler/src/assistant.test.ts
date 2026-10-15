@@ -137,6 +137,8 @@ describe('CAD document service from the tool (local adapter, same contract as th
   it('saves revisions, refuses stale saves, records assistant provenance, lists and opens revisions', async () => {
     const store = createLocalCadClient({ actor: 'eli' })
     cadSession.configureStore(store)
+    // A mounted view: saving is the user's explicit step (headless persistence is tested below).
+    const detach = cadSession.attachView()
     try {
       await (await propose('cad-modeler.run_commands', { commands: cadModelerTool.assistant!.demo!('create a plate 40 x 20 x 5 in cad', { selectionIds: [] })!.calls[0].arguments.commands as never })).apply(provenance)
       const d = cadSession.active!
@@ -172,6 +174,7 @@ describe('CAD document service from the tool (local adapter, same contract as th
       expect(cadSession.active!.engine.document.parts[0].parameters.find((p) => p.name === 'thickness')?.expression).toBe('5')
       expect(cadSession.active!.engine.regeneration!.parts[0].bodies[0].analysis.volume).toBeCloseTo(40 * 20 * 5, 6)
     } finally {
+      detach()
       cadSession.configureStore(null)
     }
   })

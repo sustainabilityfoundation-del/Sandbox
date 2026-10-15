@@ -141,6 +141,23 @@ export class CadSession {
 
   // ---- documents ----------------------------------------------------------------------------
 
+  // ---- views (C9: operations also run with no view mounted) --------------------------------
+
+  private views = 0
+  /** Called by the view while it is mounted. Returns the detach function. */
+  attachView(): () => void {
+    this.views++
+    let attached = true
+    return () => {
+      if (attached) this.views--
+      attached = false
+    }
+  }
+  /** True while at least one CAD Modeler view is mounted in this window. */
+  get viewMounted(): boolean {
+    return this.views > 0
+  }
+
   get active(): OpenDocument | undefined {
     return this.activeId ? this.docs.get(this.activeId) : undefined
   }
@@ -279,6 +296,8 @@ export class CadSession {
     if (!this.store) throw new CadError('unsupported', 'No CAD document service is connected; use Save file.')
     const d = this.require(id)
     const doc = d.engine.document
+    // Nothing changed since it was loaded or saved: no new revision (the stamp alone is not a change).
+    if (d.stored && d.stored.projectId === projectId && d.savedVersion === doc.version && d.remoteRevision === undefined) return { revision: d.stored.revision, unchanged: true }
     const stamped: CadDocument = { ...doc, metadata: { ...doc.metadata, modifiedAt: new Date().toISOString(), writer: WRITER } }
     const common = { idempotencyKey: newIdempotencyKey(), message: options.message, provenance: options.provenance }
     try {
@@ -302,7 +321,7 @@ export class CadSession {
   }
 
   /** Opens a stored document (the current or a given revision) and regenerates it. */
-  async openFromStore(projectId: string, documentId: string, revision?: number): Promise<OpenDocument> {
+  async openFromStore(projectId: string, documentId: string, revision?: number, options: { activate?: boolean } = {}): Promise<OpenDocument> {
     if (!this.store) throw new CadError('unsupported', 'No CAD document service is connected.')
     const got = await this.store.get(projectId, documentId, revision)
     const existing = this.docs.get(documentId)
@@ -310,7 +329,10 @@ export class CadSession {
     if (existing) this.close(existing.id)
     const engine = new CadEngine(this.engineOptions())
     await engine.open(got.document)
+    const previous = this.activeId
     const d = this.add(engine, `${fileStem(got.document.metadata.title)}${FILE_EXTENSION}`, got.document.version)
+    // Headless loads (assistant operations) keep the view's active document.
+    if (options.activate === false && previous && this.docs.has(previous)) this.activeId = previous
     // An older revision opens as a read-back: saving it again needs the current revision as base.
     d.stored = { projectId, revision: got.summary.revision }
     this.watchProject(projectId)
