@@ -30,6 +30,7 @@ export const cadModelerHelp: HelpManifest = {
     { toolbarItem: 'fillet', helpId: 'cad-modeler.edges' },
     { toolbarItem: 'chamfer', helpId: 'cad-modeler.edges' },
     { toolbarItem: 'datum', helpId: 'cad-modeler.planes' },
+    { toolbarItem: 'pattern', helpId: 'cad-modeler.patterns' },
     { toolbarItem: 'undo', helpId: 'cad-modeler.history' },
     { toolbarItem: 'redo', helpId: 'cad-modeler.history' },
     { toolbarItem: 'fit', helpId: 'cad-modeler.viewport' },

@@ -281,5 +281,7 @@ function featureFacts(f: Feature): Record<string, string> {
       return { Distance: String(f.distance), Edges: f.edges.join(', '), ...(f.target ? { Target: f.target } : {}) }
     case 'datum-plane':
       return { Plane: plane(f.plane) }
+    case 'pattern-linear':
+      return { Features: f.features.join(', '), Direction: `[${f.direction.map((x) => Number(x.toFixed(4))).join(', ')}]`, Count: String(f.count), Spacing: String(f.spacing) }
   }
 }

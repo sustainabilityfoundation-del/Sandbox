@@ -61,6 +61,7 @@
 
   .cadm-params { display: flex; flex-direction: column; gap: var(--ws-space-2); }
   .cadm-param-row { display: grid; grid-template-columns: minmax(64px, auto) minmax(0, 1fr) auto auto; align-items: center; gap: var(--ws-space-2); }
+  .cadm-param-binding { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-1); margin: 0 0 var(--ws-space-1) var(--ws-space-2); font-size: var(--ws-font-size-sm); }
   .cadm-param-name { overflow: hidden; text-overflow: ellipsis; }
   .cadm-param-value { color: var(--ws-text-2); font-size: var(--ws-font-size-sm); white-space: nowrap; }
   .cadm-param-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto auto; align-items: end; gap: var(--ws-space-2); }

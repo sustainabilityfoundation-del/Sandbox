@@ -175,6 +175,16 @@ export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefin
       },
       {
         type: 'button',
+        id: 'pattern',
+        label: 'Pattern',
+        icon: 'windows',
+        active: viewState.editing?.kind === 'pattern-linear',
+        disabled: !s.hasBody,
+        title: 'Repeat an extrude or revolve (for example a pocket) along a direction',
+        onClick: () => api.updateViewState({ editing: { kind: 'pattern-linear' }, tab: 'edit' }),
+      },
+      {
+        type: 'button',
         id: 'datum',
         label: 'Datum plane',
         icon: 'split',

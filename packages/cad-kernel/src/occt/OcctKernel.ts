@@ -93,6 +93,14 @@ export class OcctKernel implements GeometryKernel {
     return this.store(solid)
   }
 
+  async distance(a: ShapeHandle, b: ShapeHandle): Promise<number> {
+    try {
+      return r.measureDistanceBetween(this.get(a), this.get(b))
+    } catch (e) {
+      throw new KernelError('kernel-failure', `Distance measurement failed: ${message(e)}`)
+    }
+  }
+
   async boolean(kind: 'fuse' | 'cut', target: ShapeHandle, tool: ShapeHandle): Promise<ShapeHandle> {
     const a = this.get(target)
     const b = this.get(tool)

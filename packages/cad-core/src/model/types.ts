@@ -7,7 +7,7 @@
  */
 
 export const FORMAT = 'ews-cad'
-export const FORMAT_VERSION = '1.1.0'
+export const FORMAT_VERSION = '1.2.0'
 export const MEDIA_TYPE = 'application/vnd.ews.cad+json'
 export const FILE_EXTENSION = '.ewscad'
 
@@ -74,6 +74,20 @@ export interface Parameter {
   expression: string
   unit: ParameterUnit
   description?: string
+  /**
+   * What this parameter implements (format 1.2): a revision-pinned reference to another module's
+   * artifact, typically a design constraint. The target's values are never copied here; checks read
+   * them from the owning module.
+   */
+  binding?: ParameterBinding
+}
+
+export interface ParameterBinding {
+  /** ArtifactRef of the bound artifact, with the revision the parameter was set against. */
+  ref: { module: string; kind: string; id: string; revision?: number }
+  /** The quantity of the target the parameter implements, e.g. "pocket across flats". */
+  quantity?: string
+  note?: string
 }
 
 export type SemanticKind = 'interface' | 'functional-surface' | 'design-intent' | 'note'
@@ -105,7 +119,7 @@ export type ProfileFeature = ExtrudeFeature | RevolveFeature
 /** Features that modify edges of an existing body (format 1.1). */
 export type EdgeFeature = FilletFeature | ChamferFeature
 
-export type Feature = SketchFeature | ExtrudeFeature | RevolveFeature | FilletFeature | ChamferFeature | DatumPlaneFeature
+export type Feature = SketchFeature | ExtrudeFeature | RevolveFeature | FilletFeature | ChamferFeature | DatumPlaneFeature | PatternLinearFeature
 export type FeatureType = Feature['type']
 
 interface FeatureBase {
@@ -171,6 +185,23 @@ export interface ChamferFeature extends FeatureBase {
   edges: string[]
   distance: Expr
   target?: string
+}
+
+/**
+ * Linear pattern (format 1.2): repeats the solid features (extrude, revolve) along a model direction.
+ * Occurrence k (2 ≤ k ≤ count; the original is occurrence 1) is the feature rebuilt from its sketch plane
+ * shifted by (k − 1)·spacing·direction and applied with the same operation to the same body. Its faces are
+ * named "<patternId>/i<k>-<featureId>-<role>", for example "pat-12/i2-ext-9-side:ln-3".
+ */
+export interface PatternLinearFeature extends FeatureBase {
+  type: 'pattern-linear'
+  features: string[]
+  /** Unit vector in model coordinates. */
+  direction: [number, number, number]
+  /** Total number of occurrences including the original (integer ≥ 2). */
+  count: Expr
+  /** Distance between neighbouring occurrences, in mm. */
+  spacing: Expr
 }
 
 /** A named reference plane (format 1.1): sketches and other datum planes can use it. */

@@ -1,6 +1,6 @@
 {
   "catalog": "ews-cad-commands",
-  "catalogVersion": "1.1.0",
+  "catalogVersion": "1.2.0",
   "format": "ews-cad 1.x",
   "conventions": {
     "transaction": "Commands run in transactions: all commit or none. Optional expectedVersion fails with version-conflict when the document changed.",
@@ -894,6 +894,95 @@
       "transactional": true
     },
     {
+      "name": "add_regular_polygon",
+      "category": "sketch",
+      "summary": "Add a regular polygon as editable sketch geometry: N lines with equal-length and point-on-circle constraints on a construction circumcircle, its centre dimensioned from the origin, its rotation fixed, and its size as a driving dimension (across flats through a tangent inscribed construction circle, or the circumradius). Fully constrained; the solver checks it like any sketch.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "center": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Centre [x, y] in mm (default [0, 0]); dimensioned from the origin."
+          },
+          "sides": {
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 64,
+            "description": "Number of sides."
+          },
+          "size": {
+            "type": "object",
+            "properties": {
+              "acrossFlats": {
+                "type": [
+                  "number",
+                  "string"
+                ],
+                "description": "Distance between opposite sides (inscribed-circle diameter). A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+              },
+              "circumradius": {
+                "type": [
+                  "number",
+                  "string"
+                ],
+                "description": "Distance from the centre to a vertex. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "rotation": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Angle of the first vertex from the sketch x axis, in degrees (default 0). A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Name of the size dimension (default \"across flats\" or \"circumradius\")."
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "sketchId",
+          "sides",
+          "size"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ points: [N], lines: [N], center, circumcircle, inscribedCircle?, size: constraintId, constraints: [...] }",
+      "preconditions": [
+        "The sketch exists.",
+        "Exactly one of size.acrossFlats and size.circumradius is given, and it is positive.",
+        "Rotation is a number or expression in degrees."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Removes the polygon and its constraints.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
       "name": "apply_constraint",
       "category": "constraint",
       "summary": "Apply a geometric or dimensional constraint to sketch entities.",
@@ -1507,7 +1596,7 @@
     {
       "name": "edit_feature",
       "category": "feature",
-      "summary": "Change a feature: extrude (distance, direction), revolve (angle, axis), fillet (radius, edges), chamfer (distance, edges), datum plane (offset); operation or target body.",
+      "summary": "Change a feature: extrude (distance, direction), revolve (angle, axis), fillet (radius, edges), chamfer (distance, edges), datum plane (offset), linear pattern (count, spacing, direction, features); operation or target body.",
       "input": {
         "type": "object",
         "properties": {
@@ -1525,12 +1614,32 @@
             "description": "Extrude depth or chamfer distance. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
           },
           "direction": {
-            "type": "string",
-            "enum": [
-              "normal",
-              "reverse",
-              "symmetric"
-            ]
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "reverse",
+                  "symmetric",
+                  "x",
+                  "y",
+                  "z",
+                  "-x",
+                  "-y",
+                  "-z"
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3,
+                "description": "Model vector [x, y, z]."
+              }
+            ],
+            "description": "Extrude: normal, reverse or symmetric. Linear pattern: an axis name (\"x\", \"-y\" …) or an [x, y, z] vector."
           },
           "angle": {
             "type": [
@@ -1582,6 +1691,30 @@
               "string"
             ],
             "description": "Datum plane offset. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "count": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Linear pattern: number of occurrences including the original (integer ≥ 2). A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "spacing": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Linear pattern: distance between neighbouring occurrences. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 50,
+            "description": "Linear pattern: extrude or revolve features to repeat."
           }
         },
         "required": [
@@ -1599,6 +1732,213 @@
         "invalid-expression"
       ],
       "undo": "Restores the previous definition.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "pattern_linear",
+      "category": "feature",
+      "summary": "Repeat extrude or revolve features (for example a pocket cut) along a direction: count occurrences (including the original), spacing apart. Count and spacing may be expressions over parameters. Each occurrence is rebuilt from the original sketch on a shifted plane and applied with the same operation; faces get stable names \"<patternId>/i<k>-<featureId>-<role>\". Regeneration reports the gap between neighbouring occurrences.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 50,
+            "description": "Extrude or revolve feature IDs, earlier in the same part."
+          },
+          "direction": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "x",
+                  "y",
+                  "z",
+                  "-x",
+                  "-y",
+                  "-z"
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3,
+                "description": "Model vector [x, y, z]."
+              }
+            ],
+            "description": "Model direction: \"x\", \"y\", \"z\", \"-x\", \"-y\", \"-z\", or an [x, y, z] vector (normalised)."
+          },
+          "count": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Number of occurrences including the original (integer ≥ 2). A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "spacing": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Distance between neighbouring occurrences (mm, > 0). A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Pattern name"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "features",
+          "direction",
+          "count",
+          "spacing"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ featureId }",
+      "preconditions": [
+        "The features are extrudes or revolves of the same part, earlier in the history.",
+        "count evaluates to an integer ≥ 2 and spacing to a positive length (checked again at regeneration)."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Removes the pattern.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "bind_parameter",
+      "category": "parameter",
+      "summary": "Record what a parameter implements: a revision-pinned reference to another module's artifact (typically a design constraint, { module: \"conceptualize\", kind: \"constraint\", id, revision }). Nothing is copied from the target; cad-modeler.check reads the bound values from the owning module, and cad-modeler.check_bindings reports bindings pinned to superseded revisions.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part ID"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Parameter name"
+          },
+          "ref": {
+            "type": "object",
+            "properties": {
+              "module": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "kind": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "The target revision the parameter was set against."
+              }
+            },
+            "required": [
+              "module",
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "quantity": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "The quantity of the target the parameter implements (e.g. \"pocket across flats\")."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "partId",
+          "name",
+          "ref"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ parameterId }",
+      "preconditions": [
+        "The parameter exists."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Restores the previous binding (or none).",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "unbind_parameter",
+      "category": "parameter",
+      "summary": "Remove the binding of a parameter (its value and expression stay).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part ID"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Parameter name"
+          }
+        },
+        "required": [
+          "partId",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ parameterId }",
+      "preconditions": [
+        "The parameter exists and is bound."
+      ],
+      "errors": [
+        "not-found",
+        "precondition-failed"
+      ],
+      "undo": "Restores the binding.",
       "effect": "mutation",
       "transactional": true
     },

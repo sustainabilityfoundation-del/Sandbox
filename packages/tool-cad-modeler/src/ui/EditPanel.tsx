@@ -5,6 +5,7 @@ import {
   type ConstraintType,
   type DryRunResult,
   type EngineState,
+  type Feature,
   type ExtrudeFeature,
   type RevolveFeature,
   type SketchFeature,
@@ -36,13 +37,14 @@ export function EditPanel({ engine, state, vs, update }: Props) {
   const part = state.doc.parts[0]
   if (!part) return <div className="cadm-panel-body"><Notice tone="warning">The document has no part. Add one in the Model tab.</Notice></div>
   if (editing.kind === 'new-sketch') return <NewSketchForm engine={engine} state={state} vs={vs} update={update} />
+  if (editing.kind === 'pattern-linear') return <PatternForm key={editing.featureId ?? 'new'} engine={engine} state={state} featureId={editing.featureId} update={update} />
   if (editing.kind === 'datum-plane') return <DatumPlaneForm key={editing.featureId ?? 'new'} engine={engine} state={state} featureId={editing.featureId} update={update} />
   if (editing.kind === 'fillet' || editing.kind === 'chamfer') return <EdgeFeatureForm key={`${editing.kind}:${editing.featureId ?? 'new'}`} engine={engine} state={state} vs={vs} kind={editing.kind} featureId={editing.featureId} update={update} />
   if (editing.kind === 'sketch') return <SketchTools key={editing.sketchId} engine={engine} state={state} sketchId={editing.sketchId} vs={vs} update={update} />
   return <SolidFeatureForm key={`${editing.kind}:${editing.featureId ?? 'new'}`} engine={engine} state={state} editing={editing} update={update} />
 }
 
-type GeometryKind = 'rectangle' | 'circle' | 'line' | 'arc' | 'point'
+type GeometryKind = 'rectangle' | 'polygon' | 'circle' | 'line' | 'arc' | 'point'
 
 const CONSTRAINT_LABEL: Record<ConstraintType, string> = {
   coincident: 'Coincident',
@@ -114,6 +116,7 @@ function SketchTools({ engine, state, sketchId, vs, update }: { engine: CadEngin
           onChange={setKind}
           options={[
             { value: 'rectangle', label: 'Rectangle' },
+            { value: 'polygon', label: 'Polygon' },
             { value: 'circle', label: 'Circle' },
             { value: 'line', label: 'Line' },
             { value: 'arc', label: 'Arc' },
@@ -207,7 +210,7 @@ function num(t: string) {
 }
 
 function GeometryForm({ kind, sketchId, run }: { kind: GeometryKind; sketchId: string; run: ReturnType<typeof makeRun> }) {
-  const [f, setF] = useState<Record<string, string>>({ x: '0', y: '0', x2: '40', y2: '0', w: '40', h: '20', d: '10', cx: '0', cy: '0', sx: '10', sy: '0', ex: '0', ey: '10', dims: 'yes' })
+  const [f, setF] = useState<Record<string, string>>({ x: '0', y: '0', x2: '40', y2: '0', w: '40', h: '20', d: '10', cx: '0', cy: '0', sx: '10', sy: '0', ex: '0', ey: '10', dims: 'yes', sides: '6', af: '10', rot: '0', sizeKind: 'acrossFlats' })
   const field = (key: string, label: string, unit = 'mm') => <TextField key={key} label={label} unit={unit} value={f[key]} onChange={(v) => setF((s) => ({ ...s, [key]: v }))} />
   const add = () => {
     const commands = {
@@ -216,6 +219,7 @@ function GeometryForm({ kind, sketchId, run }: { kind: GeometryKind; sketchId: s
         { command: 'add_circle', input: { sketchId, center: [num(f.cx), num(f.cy)], radius: Math.max(0.001, Number(exprValue(f.d)) / 2 || 5), ref: '$c' } },
         ...(f.dims === 'yes' ? [{ command: 'apply_constraint', input: { sketchId, type: 'diameter', entities: ['$c'], value: exprValue(f.d) } }] : []),
       ],
+      polygon: [{ command: 'add_regular_polygon', input: { sketchId, center: [num(f.cx), num(f.cy)], sides: Math.round(num(f.sides)), size: { [f.sizeKind]: exprValue(f.af) }, rotation: exprValue(f.rot) } }],
       line: [{ command: 'add_line', input: { sketchId, start: [num(f.x), num(f.y)], end: [num(f.x2), num(f.y2)] } }],
       arc: [{ command: 'add_arc', input: { sketchId, center: [num(f.cx), num(f.cy)], start: [num(f.sx), num(f.sy)], end: [num(f.ex), num(f.ey)] } }],
       point: [{ command: 'add_point', input: { sketchId, x: num(f.x), y: num(f.y) } }],
@@ -226,6 +230,14 @@ function GeometryForm({ kind, sketchId, run }: { kind: GeometryKind; sketchId: s
     <div className="cadm-form-grid">
       {kind === 'rectangle' && [field('x', 'Corner x'), field('y', 'Corner y'), field('w', 'Width'), field('h', 'Height')]}
       {kind === 'circle' && [field('cx', 'Centre x'), field('cy', 'Centre y'), field('d', 'Diameter')]}
+      {kind === 'polygon' && [
+        field('cx', 'Centre x'),
+        field('cy', 'Centre y'),
+        field('sides', 'Sides', ''),
+        <Select key="sizeKind" label="Size" value={f.sizeKind} onChange={(v) => setF((s) => ({ ...s, sizeKind: String(v) }))} options={[{ id: 'acrossFlats', label: 'Across flats' }, { id: 'circumradius', label: 'Circumradius' }]} />,
+        field('af', f.sizeKind === 'acrossFlats' ? 'Across flats' : 'Circumradius'),
+        field('rot', 'Rotation', 'deg'),
+      ]}
       {kind === 'line' && [field('x', 'Start x'), field('y', 'Start y'), field('x2', 'End x'), field('y2', 'End y')]}
       {kind === 'arc' && [field('cx', 'Centre x'), field('cy', 'Centre y'), field('sx', 'Start x'), field('sy', 'Start y'), field('ex', 'End x'), field('ey', 'End y')]}
       {kind === 'point' && [field('x', 'x'), field('y', 'y')]}
@@ -237,7 +249,7 @@ function GeometryForm({ kind, sketchId, run }: { kind: GeometryKind; sketchId: s
       <Button size="sm" icon="add" variant="tonal" onPress={add}>
         Add {kind}
       </Button>
-      <p className="cadm-hint">A rectangle at corner 0, 0 is fixed to the sketch origin. Arcs run counter-clockwise from start to end.</p>
+      <p className="cadm-hint">A rectangle at corner 0, 0 is fixed to the sketch origin. A polygon is fully constrained (equal sides on a construction circle; the size is a dimension). Arcs run counter-clockwise from start to end.</p>
     </div>
   )
 }
@@ -379,6 +391,50 @@ function SolidFeatureForm({ engine, state, editing, update }: { engine: CadEngin
           Cancel
         </Button>
       </div>
+    </div>
+  )
+}
+
+/** Create or edit a linear pattern of extrude/revolve features (format 1.2). */
+function PatternForm({ engine, state, featureId, update }: { engine: CadEngine; state: EngineState; featureId?: string; update: Props['update'] }) {
+  const run = makeRun(engine)
+  const part = state.doc.parts[0]
+  const existing = featureId ? (part.features.find((f) => f.id === featureId) as Extract<Feature, { type: 'pattern-linear' }> | undefined) : undefined
+  const solids = part.features.filter((f) => f.type === 'extrude' || f.type === 'revolve')
+  const [source, setSource] = useState<string>(existing?.features[0] ?? solids.filter((f) => f.type === 'extrude' && f.operation === 'cut').at(-1)?.id ?? solids.at(-1)?.id ?? '')
+  const axisOf = (d?: number[]) => (d ? ['x', 'y', 'z'].map((a, k) => (d[k] === 1 ? a : d[k] === -1 ? `-${a}` : '')).join('') || 'x' : 'x')
+  const [direction, setDirection] = useState(axisOf(existing?.direction))
+  const [count, setCount] = useState(String(existing?.count ?? 3))
+  const [spacing, setSpacing] = useState(String(existing?.spacing ?? 10))
+  const result = existing ? regenOf(state, part.id)?.features.find((r) => r.featureId === existing.id) : undefined
+  const apply = async () => {
+    const input = { count: exprValue(count), spacing: exprValue(spacing), direction }
+    const r = existing
+      ? await run([{ command: 'edit_feature', input: { featureId: existing.id, ...input, features: [source] } }], 'Edit pattern')
+      : await run([{ command: 'pattern_linear', input: { features: [source], ...input } }], 'Linear pattern')
+    if (r?.ok) update({ editing: null, tab: 'model' })
+  }
+  return (
+    <div className="cadm-panel-body" data-help-id="cad-modeler.patterns">
+      <h3 className="cadm-section-title">{existing ? `Edit ${existing.name}` : 'Linear pattern'}</h3>
+      {!solids.length ? (
+        <Notice tone="info">Create an extrude or revolve first; a pattern repeats it.</Notice>
+      ) : (
+        <div className="cadm-form-grid">
+          <Select label="Feature to repeat" value={source} onChange={(v) => setSource(String(v))} options={solids.map((f) => ({ id: f.id, label: `${f.name} (${f.id})` }))} />
+          <Select label="Direction" value={direction} onChange={(v) => setDirection(String(v))} options={['x', 'y', 'z', '-x', '-y', '-z'].map((a) => ({ id: a, label: `Model ${a}` }))} />
+          <TextField label="Count" value={count} onChange={setCount} description="Occurrences including the original; a number or an expression over parameters." />
+          <TextField label="Spacing" unit="mm" value={spacing} onChange={setSpacing} description="Distance between neighbouring occurrences; a number or an expression." />
+          {result?.pattern && (
+            <p className="cadm-muted">
+              {result.pattern.count} occurrences, {fmtNum(result.pattern.spacing, 3)} mm apart{result.pattern.gap !== null ? `; gap between neighbours ${fmtNum(result.pattern.gap, 3)} mm` : ''}.
+            </p>
+          )}
+          <Button variant="filled" onPress={apply} isDisabled={!source}>
+            {existing ? 'Apply' : 'Create'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

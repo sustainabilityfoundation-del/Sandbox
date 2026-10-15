@@ -10,6 +10,7 @@ export type Editing =
   | { kind: 'fillet'; featureId?: string }
   | { kind: 'chamfer'; featureId?: string }
   | { kind: 'datum-plane'; featureId?: string }
+  | { kind: 'pattern-linear'; featureId?: string }
 
 export type SelectionItem =
   | { kind: 'face' | 'edge'; id: string; bodyId: string }
