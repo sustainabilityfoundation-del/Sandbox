@@ -28,7 +28,7 @@ describe('styling contract for tool packages', () => {
   const toolFiles = toolPackages.flatMap((dir) => [...files(join(dir, 'src'), ['.ts', '.tsx', '.css']), ...files(join(dir, 'harness'), ['.ts', '.tsx'])])
 
   it('finds the tool packages', () => {
-    expect(toolPackages.map((p) => p.split(/[\\/]/).pop())).toEqual(['tool-cad', 'tool-requirements', 'tool-sysml'])
+    expect(toolPackages.map((p) => p.split(/[\\/]/).pop())).toEqual(['tool-cad', 'tool-cad-modeler', 'tool-requirements', 'tool-sysml'])
   })
 
   it.each(toolFiles.map((f) => [relative(repo, f), f]))('%s uses design tokens only', (_name, path) => {
