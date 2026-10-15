@@ -20,6 +20,7 @@ import {
   type RequirementsEvent,
 } from '@ews/platform-sdk'
 import type { EventHub } from './events/hub'
+import type { TwinDirectory } from './twin'
 
 export const ARTIFACT_MODULE = 'requirements'
 
@@ -142,32 +143,49 @@ function descriptor(r: Row, relations: ArtifactDescriptor['relations']): Artifac
   }
 }
 
+/** NativeRef of a product element in Project Management's product registry (C3 scheme). */
+export const PRODUCT_ELEMENT_REF = { module: 'product', kind: 'product-element' } as const
+
+type Relations = NonNullable<ArtifactDescriptor['relations']>
+
 /**
- * Requirement → requirement relationships (derives-from, decomposes, depends-on) with the target
- * revision they were made against. Allocations point at twin or product-registry IDs whose native
- * module this service does not know, so they are not reported here.
+ * Module-owned relationships of the given requirements:
+ * - requirement → requirement (derives-from, decomposes, depends-on) with the target revision they
+ *   were made against;
+ * - allocated-to a product element, as `{ module: 'product', kind: 'product-element', id: <element UUID> }`.
+ *   An allocation target is a product element when its canonical ID is a UUID: the ID the host's
+ *   TwinDirectory returns for it, else the stored ID. Allocations pin no target revision. Allocations to
+ *   the static sample twin (ACT-100, ROD-120 …) have no native module and are not reported.
  */
-async function relationsOf(pool: Pool, projectId: string, ids: string[]): Promise<Map<string, NonNullable<ArtifactDescriptor['relations']>>> {
-  const out = new Map<string, NonNullable<ArtifactDescriptor['relations']>>()
+async function relationsOf(pool: Pool, twin: TwinDirectory | undefined, projectId: string, ids: string[]): Promise<Map<string, Relations>> {
+  const out = new Map<string, Relations>()
   if (!ids.length) return out
-  const { rows } = await pool.query<{ from_id: string; type: string; to_id: string; to_revision: number | null }>(
-    `SELECT l.from_requirement_id::text AS from_id, l.type, l.to_requirement_id::text AS to_id, v.to_requirement_revision AS to_revision
+  const add = (from: string, rel: Relations[number]) => out.set(from, [...(out.get(from) ?? []), rel])
+  const { rows } = await pool.query<{ from_id: string; type: string; to_id: string | null; to_twin_id: string | null; to_revision: number | null }>(
+    `SELECT l.from_requirement_id::text AS from_id, l.type, l.to_requirement_id::text AS to_id, l.to_twin_id, v.to_requirement_revision AS to_revision
        FROM requirements.relationships l
        JOIN requirements.relationship_revisions v ON v.relationship_id = l.id AND v.revision = l.current_revision
-      WHERE l.project_id = $1 AND l.from_requirement_id = ANY($2::uuid[]) AND NOT l.deleted AND l.to_requirement_id IS NOT NULL
-      ORDER BY l.from_requirement_id, l.type, l.to_requirement_id`,
+      WHERE l.project_id = $1 AND l.from_requirement_id = ANY($2::uuid[]) AND NOT l.deleted
+      ORDER BY l.from_requirement_id, l.type, coalesce(l.to_requirement_id::text, l.to_twin_id)`,
     [projectId, ids],
   )
+  const targets = [...new Set(rows.flatMap((r) => (r.to_twin_id ? [r.to_twin_id] : [])))]
+  const known = twin && targets.length ? await twin.lookup(projectId, targets) : new Map()
   for (const r of rows) {
-    const list = out.get(r.from_id) ?? []
-    list.push({ type: r.type, to: { module: ARTIFACT_MODULE, kind: 'requirement', id: r.to_id }, ...(r.to_revision != null ? { toRevision: r.to_revision } : {}) })
-    out.set(r.from_id, list)
+    if (r.to_id) {
+      add(r.from_id, { type: r.type, to: { module: ARTIFACT_MODULE, kind: 'requirement', id: r.to_id }, ...(r.to_revision != null ? { toRevision: r.to_revision } : {}) })
+      continue
+    }
+    if (!r.to_twin_id) continue
+    const resolved = known.get(r.to_twin_id)?.id
+    const element = resolved && UUID.test(resolved) ? resolved : UUID.test(r.to_twin_id) ? r.to_twin_id : undefined
+    if (element) add(r.from_id, { type: r.type, to: { ...PRODUCT_ELEMENT_REF, id: element.toLowerCase() } })
   }
   return out
 }
 
-async function toDescriptors(pool: Pool, projectId: string, rows: Row[]): Promise<ArtifactDescriptor[]> {
-  const relations = await relationsOf(pool, projectId, rows.filter((r) => r.kind === 'requirement').map((r) => r.id))
+async function toDescriptors(pool: Pool, twin: TwinDirectory | undefined, projectId: string, rows: Row[]): Promise<ArtifactDescriptor[]> {
+  const relations = await relationsOf(pool, twin, projectId, rows.filter((r) => r.kind === 'requirement').map((r) => r.id))
   return rows.map((r) => descriptor(r, relations.get(r.id)))
 }
 
@@ -184,7 +202,13 @@ function decodeCursor(cursor: string | undefined): [number, string] {
 }
 
 /** The Requirements module's `ArtifactSource` (in-process; the API host wires it into Project Management). */
-export function createRequirementsArtifactSource(pool: Pool, events: Pick<EventHub, 'subscribeAll'>): ArtifactSource {
+export interface RequirementsArtifactSourceOptions {
+  /** The host's allocation-target directory (the same one the API validates with); resolves aliases of product elements. */
+  twin?: TwinDirectory
+}
+
+export function createRequirementsArtifactSource(pool: Pool, events: Pick<EventHub, 'subscribeAll'>, options: RequirementsArtifactSourceOptions = {}): ArtifactSource {
+  const { twin } = options
   return {
     module: ARTIFACT_MODULE,
     contractVersion: ARTIFACT_SOURCE_CONTRACT_VERSION,
@@ -201,7 +225,7 @@ export function createRequirementsArtifactSource(pool: Pool, events: Pick<EventH
         [projectId, rank, id, limit + 1],
       )
       const page = rows.slice(0, limit)
-      const items = await toDescriptors(pool, projectId, page)
+      const items = await toDescriptors(pool, twin, projectId, page)
       const last = page[page.length - 1]
       return rows.length > limit && last ? { items, nextCursor: encodeCursor(last.rank, last.id) } : { items }
     },
@@ -223,7 +247,7 @@ export function createRequirementsArtifactSource(pool: Pool, events: Pick<EventH
         const row = found.get(k)
         if (row && !seen.has(k)) (seen.add(k), ordered.push(row))
       }
-      return toDescriptors(pool, projectId, ordered)
+      return toDescriptors(pool, twin, projectId, ordered)
     },
 
     subscribe(listener) {

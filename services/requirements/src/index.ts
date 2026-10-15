@@ -28,4 +28,4 @@ export const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'db'
 export function migrateRequirements(pool: Pool): Promise<MigrationResult> {
   return migrate(pool, { schema: 'requirements', directory: MIGRATIONS_DIR })
 }
-export { createRequirementsArtifactSource, toArtifactChange, requirementLifecycle, REQUIREMENT_ARTIFACT_KINDS, ARTIFACT_MODULE } from './artifacts'
+export { createRequirementsArtifactSource, toArtifactChange, requirementLifecycle, REQUIREMENT_ARTIFACT_KINDS, ARTIFACT_MODULE, PRODUCT_ELEMENT_REF, type RequirementsArtifactSourceOptions } from './artifacts'
