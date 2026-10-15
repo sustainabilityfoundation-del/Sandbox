@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { resolveRef } from './commands/commands'
 import { relationshipMatrix, requirementCoverage } from './query/matrix'
 import { applyChanges, diffModels, invertChanges } from './commands/changes'
 import { COMMAND_SCHEMAS } from './commands/schemas'
@@ -373,5 +374,25 @@ describe('relationship matrices and requirement coverage', () => {
     expect(by.load.managed).toEqual({ requirementId: '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001', revision: 2 })
     expect(by.noise.status).toBe('not-covered')
     expect(cov.counts).toMatchObject({ total: 4, 'satisfied-and-verified': 1, satisfied: 2, 'not-covered': 1, linkedToManaged: 1 })
+  })
+})
+
+describe('implicit library specializations (derived, not stored)', () => {
+  it('definitions and usages without explicit generals specialize the library base type or feature', () => {
+    const r = loadText('package P { part def A; part def B :> A; part p; part q : B; action def Run { action step; first start; then step; then done; } state def S { state s1; } }')
+    expect(r.diagnostics).toEqual([])
+    const s = semanticsOf(r.model)
+    const q = (n: string) => resolveRef(r.model, n)['@id']
+    expect(s.qualifiedName(s.impliedGeneral(q('P::A'))!)).toBe('Parts::Part')
+    expect(s.generals(q('P::B'))).toEqual([q('P::A')])
+    expect(s.conformsTo(q('P::B'), q('Parts::Part'))).toBe(true)
+    expect(s.qualifiedName(s.generals(q('P::p'))[0])).toBe('Parts::parts')
+    expect(s.generals(q('P::q'))).toEqual([q('P::B')])
+    // State definitions are actions: StateAction specializes Action.
+    expect(s.conformsTo(q('P::S'), q('Actions::Action'))).toBe(true)
+    // Not stored: no relationship was added, the explicit generals stay as written.
+    expect(s.explicitGenerals(q('P::A'))).toEqual([])
+    expect([...r.model.elements()].some((e) => e.isImplied === true)).toBe(false)
+    expect(serialize(r.model)).not.toContain('Parts::Part')
   })
 })

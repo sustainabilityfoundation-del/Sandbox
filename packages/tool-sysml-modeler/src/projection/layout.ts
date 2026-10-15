@@ -41,7 +41,7 @@ const PORT = 12
 export type DiagramMode = 'general' | 'interconnection' | 'action-flow' | 'state-transition'
 
 export function nodeSize(n: GraphNode): { width: number; height: number } {
-  if (n.shape === 'initial') return { width: 22, height: 22 }
+  if (n.shape) return { width: 22, height: 22 }
   const lines = n.compartments.flatMap((c) => [c.title, ...c.items.map((i) => i.text)])
   const widest = Math.max(n.name.length * 8, n.keyword.length * CHAR_W + 16, ...lines.map((l) => Math.min(l.length, 60) * CHAR_W))
   const width = Math.min(Math.max(widest + PAD * 2, 140), 520)

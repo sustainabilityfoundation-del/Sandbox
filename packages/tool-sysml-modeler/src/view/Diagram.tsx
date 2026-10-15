@@ -85,10 +85,11 @@ export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph:
     const selected = vs.selectedId === node.elementId
     let y = n.y + HEADER_H
     const lines: React.ReactNode[] = []
-    if (node.shape === 'initial')
+    if (node.shape)
       return (
-        <g key={node.id} className="smod-initial" role="img" aria-label={node.keyword === 'initial' ? 'initial state' : 'start'}>
-          <circle cx={n.x + n.width / 2} cy={n.y + n.height / 2} r={n.width / 2} />
+        <g key={node.id} className={cx('smod-initial', node.shape === 'final' && 'is-final')} role="img" aria-label={node.shape === 'final' ? 'done' : node.keyword === 'initial' ? 'initial state' : 'start'}>
+          {node.shape === 'final' && <circle className="smod-final-ring" cx={n.x + n.width / 2} cy={n.y + n.height / 2} r={n.width / 2} />}
+          <circle cx={n.x + n.width / 2} cy={n.y + n.height / 2} r={node.shape === 'final' ? n.width / 2 - 5 : n.width / 2} />
         </g>
       )
     if (!node.isContext) {

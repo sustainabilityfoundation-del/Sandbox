@@ -80,7 +80,8 @@ export function definitionKeyword(metaclass: string): string | undefined {
 
 const PRECEDENCE: Record<string, number> = {
   if: 0, implies: 1, or: 2, '|': 2, xor: 3, and: 4, '&': 4, '==': 5, '!=': 5, '===': 5, '!==': 5,
-  '<': 6, '>': 6, '<=': 6, '>=': 6, '+': 7, '-': 7, '*': 8, '/': 8, '%': 8, '**': 9, '^': 9,
+  istype: 5.5, hastype: 5.5, '@': 5.5, as: 5.5, meta: 5.5,
+  '<': 6, '>': 6, '<=': 6, '>=': 6, '..': 6.5, '+': 7, '-': 7, '*': 8, '/': 8, '%': 8, '**': 9, '^': 9,
 }
 
 export interface SerializeOptions {
@@ -552,6 +553,7 @@ class Writer {
         const op = String(e.operator)
         const args = this.s.ownedMembers(id)
         if (op === ',') return `(${args.map((a) => this.expr(a['@id'], scopeId, 0)).join(', ')})`
+        if (op === '#') return `${this.expr(args[0]['@id'], scopeId, 11)}#(${this.expr(args[1]['@id'], scopeId, 0)})`
         if (op === '[') return `${this.expr(args[0]['@id'], scopeId, 11)} [${this.expr(args[1]['@id'], scopeId, 0)}]`
         if (op === 'if') {
           const text = `if ${this.expr(args[0]['@id'], scopeId, 0)} ? ${this.expr(args[1]['@id'], scopeId, 0)} else ${this.expr(args[2]['@id'], scopeId, 0)}`

@@ -36,7 +36,7 @@ export interface GraphNode {
   /** Shown because a member refers to it; owned by another namespace. */
   isExternal?: boolean
   /** Pseudo-node shape (behaviour views): the initial node or initial-state marker. */
-  shape?: 'initial'
+  shape?: 'initial' | 'final'
 }
 
 export type EdgeKind = 'specialization' | 'composition' | 'typing' | 'satisfy' | 'allocate' | 'connection' | 'interface' | 'flow' | 'binding' | 'succession' | 'transition'

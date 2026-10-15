@@ -73,22 +73,32 @@ export function actionFlowView(model: Model, contextId: string): Graph {
   const edges: GraphEdge[] = []
   const notes: string[] = []
   const nodeOf = (id: string | undefined) => (id && children.some((c) => c.id === id) ? id : undefined)
+  // The standard library's start and done (Actions::Action), reached through the implied specialization.
+  const libraryAction = (id: string | undefined, name: 'start' | 'done') => !!id && model.isLibrary(id) && s.name(id) === name
+  const pseudo = (shape: 'initial' | 'final') => {
+    const pid = `${shape}:${contextId}`
+    if (!children.some((c) => c.id === pid)) children[shape === 'initial' ? 'unshift' : 'push']({ id: pid, elementId: contextId, metaclass: shape === 'initial' ? 'Initial' : 'Final', keyword: shape === 'initial' ? 'start' : 'done', name: '', compartments: [], ports: [], children: [], shape })
+    return pid
+  }
   // Initial node: `first x;` (a nameless membership) or an unnamed entry followed by `then x`.
   for (const m of s.memberships(contextId)) {
     if (m['@type'] !== 'Membership' || typeof m.memberName === 'string') continue
     const target = nodeOf(refId(m, 'memberElement'))
+    if (libraryAction(refId(m, 'memberElement'), 'start')) continue
     if (target) {
-      children.unshift({ id: `initial:${contextId}`, elementId: contextId, metaclass: 'Initial', keyword: 'start', name: '', compartments: [], ports: [], children: [], shape: 'initial' })
+      pseudo('initial')
       edges.push({ id: `initial-edge:${m['@id']}`, kind: 'succession', source: `initial:${contextId}`, target })
     } else notes.push(`The initial node refers to ${label(s, refId(m, 'memberElement'))}, which is not shown in this view.`)
   }
   for (const u of s.ownedMembers(contextId)) {
     if (u['@type'] === 'SuccessionAsUsage') {
       const [a, b] = connectorEnds(s, u['@id'])
-      const src = nodeOf(a?.[a.length - 1])
-      const tgt = nodeOf(b?.[b.length - 1])
+      const aEnd = a?.[a.length - 1]
+      const bEnd = b?.[b.length - 1]
+      const src = nodeOf(aEnd) ?? (libraryAction(aEnd, 'start') ? pseudo('initial') : undefined)
+      const tgt = nodeOf(bEnd) ?? (libraryAction(bEnd, 'done') ? pseudo('final') : undefined)
       if (src && tgt) edges.push({ id: u['@id'], elementId: u['@id'], kind: 'succession', source: src, target: tgt, label: s.name(u['@id']) })
-      else notes.push(`A succession to or from ${[a, b].map((c) => (c?.length ? label(s, c[c.length - 1]) : '?')).join(' / ')} is not shown (not an action of this view, e.g. start/done of the standard library).`)
+      else notes.push(`A succession to or from ${[a, b].map((c) => (c?.length ? label(s, c[c.length - 1]) : '?')).join(' / ')} is not shown (not an action of this view).`)
     } else if (u['@type'] === 'FlowUsage') {
       const [a, b] = connectorEnds(s, u['@id'])
       const end = (c: string[] | undefined) => {
