@@ -50,14 +50,38 @@ export function nodeSize(n: GraphNode): { width: number; height: number } {
 type ElkNode = { id: string; width?: number; height?: number; x?: number; y?: number; children?: ElkNode[]; ports?: { id: string; width: number; height: number; x?: number; y?: number; layoutOptions?: Record<string, string> }[]; layoutOptions?: Record<string, string>; edges?: ElkEdge[]; labels?: { text: string; width: number; height: number }[] }
 type ElkEdge = { id: string; sources: string[]; targets: string[]; sections?: { startPoint: { x: number; y: number }; endPoint: { x: number; y: number }; bendPoints?: { x: number; y: number }[] }[]; labels?: { text: string; width: number; height: number; x?: number; y?: number }[]; container?: string }
 
-let elkPromise: Promise<{ layout: (g: ElkNode) => Promise<ElkNode> }> | undefined
+/**
+ * ELK runs in a Web Worker (elk-worker.min.js, loaded as a separate asset by URL): layout stays off
+ * the main thread and the 1.4 MB engine is fetched only when a diagram is first shown.
+ */
+let engine: Promise<{ layout: (g: ElkNode) => Promise<ElkNode> }> | undefined
 
-async function elk() {
-  elkPromise ??= import('elkjs/lib/elk.bundled.js').then((m) => {
-    const ELK = (m as unknown as { default: new () => { layout: (g: ElkNode) => Promise<ElkNode> } }).default
-    return new ELK()
+function elk() {
+  engine ??= import('elkjs/lib/elk-worker.min.js?url').then(({ default: url }) => {
+    const worker = new Worker(url)
+    let next = 0
+    const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>()
+    worker.onmessage = (answer: MessageEvent<{ id: number; data?: unknown; error?: unknown }>) => {
+      const p = pending.get(answer.data.id)
+      if (!p) return
+      pending.delete(answer.data.id)
+      if (answer.data.error) p.reject(new Error(typeof answer.data.error === 'object' ? JSON.stringify(answer.data.error) : String(answer.data.error)))
+      else p.resolve(answer.data.data)
+    }
+    worker.onerror = (e) => {
+      for (const p of pending.values()) p.reject(new Error(e.message || 'The layout worker failed.'))
+      pending.clear()
+    }
+    const send = (msg: Record<string, unknown>) =>
+      new Promise<unknown>((resolve, reject) => {
+        const id = next++
+        pending.set(id, { resolve, reject })
+        worker.postMessage({ ...msg, id })
+      })
+    void send({ cmd: 'register', algorithms: ['layered'] })
+    return { layout: (g: ElkNode) => send({ cmd: 'layout', graph: g, layoutOptions: {}, options: {} }) as Promise<ElkNode> }
   })
-  return elkPromise
+  return engine
 }
 
 function portSide(direction?: string): 'WEST' | 'EAST' {
