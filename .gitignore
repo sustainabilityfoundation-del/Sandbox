@@ -10,6 +10,7 @@ dist-harness
 docs/research/requirements/sources/
 docs/research/design-reasoning/sources/
 docs/research/cad/sources/
+docs/research/sysml/sources/
 # Local development data (embedded PostgreSQL data directory, attachment storage)
 .data/
 .env

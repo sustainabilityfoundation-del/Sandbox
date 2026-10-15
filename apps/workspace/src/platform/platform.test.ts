@@ -31,8 +31,8 @@ beforeAll(async () => {
 beforeEach(() => setPlan('all'))
 
 describe('tool catalogue', () => {
-  it('contains exactly Requirements, SysML, CAD and CAD Modeler; Analysis and Verification are retired', () => {
-    expect(getTools().map((t) => t.id)).toEqual(['requirements', 'sysml', 'cad', 'cad-modeler'])
+  it('contains exactly Requirements, SysML, CAD, Conceptualize and CAD Modeler; Analysis and Verification are retired', () => {
+    expect(getTools().map((t) => t.id)).toEqual(['requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler'])
     expect(getTool('analysis')).toBeUndefined()
     expect(getTool('verification')).toBeUndefined()
     // Their saved data keeps a readable source name.

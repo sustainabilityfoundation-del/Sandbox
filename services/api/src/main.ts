@@ -21,10 +21,11 @@ if (cfg.pgMode === 'embedded') {
 }
 const pool = new pg.Pool({ connectionString: cfg.databaseUrl, max: 20 })
 const prepared = await prepareDatabase(pool, { seed: cfg.seedOnStart })
-console.log(`Migrations: platform ${prepared.platform.applied.length} new, requirements ${prepared.requirements.applied.length} new.${prepared.seed ? ` ${prepared.seed.message}` : ''}`)
+console.log(`Migrations: platform ${prepared.platform.applied.length} new, requirements ${prepared.requirements.applied.length} new, conceptualize ${prepared.concepts.applied.length} new.${prepared.seed ? ` ${prepared.seed.message}` : ''}`)
 const server = await buildServer({ pool, storage: localObjectStorage(cfg.storageDir), production: cfg.production, logger: true, reqifSchemaDir: cfg.reqifSchemaDir, outboxRetentionHours: cfg.outboxRetentionHours })
 await server.app.listen({ host: cfg.host, port: cfg.port })
 console.log(`Requirements API on http://${cfg.host}:${cfg.port}/api/requirements/v1 (OpenAPI: /api/requirements/v1/openapi.json), database ${cfg.databaseName} (${cfg.pgMode}).`)
+console.log(`Conceptualize API on http://${cfg.host}:${cfg.port}/api/concepts/v1 (OpenAPI: /api/concepts/v1/openapi.json, reference: /api/concepts/v1/docs).`)
 
 let stopping = false
 async function shutdown() {
