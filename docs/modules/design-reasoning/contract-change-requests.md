@@ -146,7 +146,7 @@ Migration notes go to `packages/platform-sdk/CHANGELOG.md`; no tool needs to cha
 - **Why**: a server-side engine cannot create closures; today a service proposal can be applied only in the
   window that prepared it (`serviceProposals.ts`); declarative proposals fix both and are what a future
   server-side gateway (ADR-0013) would execute.
-- **Migration**: closure-based proposals keep working; modules move when convenient. ADR-0019.
+- **Migration**: closure-based proposals keep working; modules move when convenient. ADR-0042.
 
 ### CR-A2 Headless assistant contributions (P2)
 - **Change**: the workspace registers assistant contributions that are not tools (no view, no toolbar), with
