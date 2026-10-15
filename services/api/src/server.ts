@@ -17,7 +17,7 @@ import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsEventHub, migrateConc
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
 import { registerApiDocs } from './apiDocs'
 import { SYSML_BASE_PATH, sysmlPlugin } from '@ews/sysml-service'
-import { CAD_BASE_PATH, cadPlugin } from '@ews/cad-service'
+import { CAD_BASE_PATH, CAD_SETTINGS, cadPlugin } from '@ews/cad-service'
 import { SETTINGS_BASE_PATH, SettingsRegistry, settingsPlugin, type SettingsStore } from '@ews/settings-service'
 import { AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS, ASSISTANT_BASE_PATH, CredentialVault, ProviderRegistry, assistantPlugin, createFakeProvider, createOpenAIProvider, registerOAuthCallback, type AssistantBackend } from '@ews/assistant-service'
 
@@ -139,6 +139,8 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   // Settings (SDK 1.6) and the AI connection (docs/specifications/ai-connection.md §5, §5a).
   const settingsRegistry = new SettingsRegistry()
   settingsRegistry.register(AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS)
+  // Module contributions validated on the server (SDK 1.6): the same definitions the tool declares.
+  settingsRegistry.register(CAD_SETTINGS.page, CAD_SETTINGS.definitions)
   let settingsStore: SettingsStore | undefined
   registerApiDocs(app, { path: `${SETTINGS_BASE_PATH}/docs`, openapiUrl: `${SETTINGS_BASE_PATH}/openapi.json`, title: 'Settings API' })
   await app.register(settingsPlugin, { prefix: SETTINGS_BASE_PATH, pool: options.pool, registry: settingsRegistry, authenticate: auth.authenticate, roleOf: auth.roleOf, onReady: (s) => (settingsStore = s) })
