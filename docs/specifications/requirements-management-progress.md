@@ -103,6 +103,72 @@ See [docs/sprints/003-sysml-requirements-integration.md](../sprints/003-sysml-re
 - Requirements tool: *Show in SysML* in the Trace tab's SysML section.
 - `services/api/test/sysml.test.ts`: the SysML SDK paths against PostgreSQL. No migrations.
 
+## Project Management integration (CR-PM-REG-1, CR-PM-REQ-2), 15 Oct 2026
+
+Branch rebased on main edd7353 (SDK 1.7.0). Contract: docs/modules/projects/registration-and-provisioning.md (Project Management).
+
+- **CR-PM-REG-1, done.** `createRequirementsArtifactSource(pool, events): ArtifactSource` in `@ews/requirements-service` (`services/requirements/src/artifacts.ts`):
+  - Kinds `requirement` (category requirement), `requirement-collection` (requirement), `requirements-baseline` (baseline), all navigable. Open links: `{ toolId: 'requirements', params: { id | collectionId | baselineId } }`. The Requirements tool does not read these params yet (it opens on the workspace selection).
+  - `list`: stable order (kind, id), at most 500 per page, opaque cursor, `kinds` filter, unknown project → empty page. Archived requirements and collections are listed with lifecycle `retired` so the registry does not mark them missing.
+  - `describe`: request order; unknown refs, other modules' refs, non-UUID IDs and refs from another project are absent.
+  - Descriptors read the module's tables directly (no HTTP, no principal). Requirement: key, current title, `moduleState` = status or `archived`, lifecycle draft → working, in-review → in-review, approved → released, retired/archived → retired; version = content revision (`rev n`). Collection: key and title = name, version `"revision.structureRevision"`. Baseline: key and title = name, version 1, lifecycle released.
+  - `relations`: requirement → requirement links (derives-from, decomposes, depends-on) with `toRevision`. Allocations are not reported: their targets are twin or product-registry IDs, and this service cannot name their native module (question for Project Management: which `NativeRef` should an allocation to a product element carry?).
+  - `subscribe`: new `EventHub.subscribeAll` (every project, after commit, from the existing outbox). Mapping: created/updated/restored/relationships-changed → upserted requirement; archived → retired; baseline-created → upserted baseline; collection-changed → upserted collection (itemisable, so not `reconcile` as the proposed table in registration §4 says); import-completed and unknown future types → reconcile. Lifecycle changes (approve, retire) arrive as `requirement.updated`.
+  - `provision` → `not-needed`, idempotent. Verified that a new project starts empty: after memberships only, provisioning twice and running the development seed again, every `requirements.*` table has zero rows for the new project and `list()` is empty. The seed writes `PRJ-ACT100` only.
+  - `exportProject`/`importProject` not implemented (phase F).
+- **CR-PM-REQ-2, done.** `ALLOCATABLE_TYPES` = assembly, part, product-element. The `TwinDirectory` port was already injected (`ServerOptions.twin`, default `SAMPLE_TWIN`). New `composeTwinDirectory(...directories)` (first directory that knows an ID answers) for the host: `composeTwinDirectory(SAMPLE_TWIN, productTwinDirectory(pool))` (CR-PM-API-3). PRJ-ACT100 is unchanged (ROD-120 accepted, SYS-003 refused). Error messages now say "component (assembly or part) or product element".
+- Tests: `services/api/test/artifacts.test.ts` (10, real PostgreSQL), `services/requirements/src/artifacts.test.ts` (2, mappings). The Project Management contract-test suite (`@ews/projects-client/contract-tests`, registration §7) is not on main yet; these tests cover the same points and can be swapped for it when it lands.
+- No migrations.
+
+## SDK change proposal (requests 5, 7, 9), 15 Oct 2026
+
+For the coordinator to apply in the next SDK minor (all additive; CHANGELOG entries proposed below). The Requirements side is ready for each.
+
+**5. Reset signal on `RequirementsService.subscribe`**
+
+```ts
+export interface RequirementsSubscribeOptions {
+  /** The stream could not be resumed (events were purged after the retention window): reread everything. */
+  onReset?: () => void
+}
+subscribe: (projectId: string, listener: (event: RequirementsEvent) => void, options?: RequirementsSubscribeOptions) => () => void
+```
+
+- Adapter: `createHttpRequirementsService` calls `options.onReset` wherever it calls `HttpServiceConfig.onReset` today; the demo adapter never resets. `onRequirementsReset` stays as a deprecated helper for one minor.
+- Workspace: `apps/workspace/src/platform/store.ts` replaces `onRequirementsReset(requirements, projectId, refresh)` by passing `{ onReset: refresh }`.
+- Tools: none need changes.
+
+**7. Rationale in `RequirementSummary`**
+
+```ts
+export interface RequirementSummary {
+  // …
+  /** Why the requirement exists (SDK 1.8). Absent from adapters that do not provide it. */
+  rationale?: string
+}
+```
+
+- The API already returns `rationale`; the HTTP and demo adapters map it (one line each, tests in `packages/requirements-client`). `RequirementPatch.rationale` already exists.
+- Tools: the SysML inspector can then edit rationale (tool-sysml change, optional).
+
+**9. Wait for an object in the model**
+
+```ts
+export interface ToolApi<VS = unknown> {
+  // …
+  /**
+   * Resolves with the object once the model contains it (e.g. a requirement just created through a
+   * platform service and not yet projected), or undefined after timeoutMs (default 10 000).
+   */
+  whenObject: (id: string, options?: { timeoutMs?: number }) => Promise<ModelObject | undefined>
+}
+```
+
+- Host: resolve on the model-change notification instead of polling; the mock host in `/harness` resolves from its model.
+- Tools: tool-sysml replaces `waitForObject(() => api.getModel(), id)` with `api.whenObject(id)` (tool-sysml change, after the SDK lands).
+
+Proposed CHANGELOG entry: "1.8.0: `subscribe(…, { onReset })`; `RequirementSummary.rationale?`; `ToolApi.whenObject`. Additive; no tool must change. Migration: the workspace passes `onReset` instead of calling `onRequirementsReset`."
+
 ## Contract change requests
 
 1. **`RequirementWriteOptions.projectId` (optional)** — `RequirementsService.update()` carries no
@@ -135,6 +201,9 @@ Decided on 14 Oct 2026 (contracts §13): 1 and 2 approved (SDK 1.3.0, adopted in
    would remove the duplication (boundaries.test.ts change).
 
 ## Integration needs for the coordinator
+
+- **Project Management (15 Oct 2026):** wire `createRequirementsArtifactSource(pool, server.events)` into the Project Management plugin in `services/api/src/server.ts` (coordinator-owned host wiring), and pass `twin: composeTwinDirectory(SAMPLE_TWIN, productTwinDirectory(pool))` once CR-PM-API-3 lands. Send me that commit and I will add a test with the real product directory.
+- The SDK package.json is at 1.5.0 while the contract is 1.7.0, so `@ews/requirements-service` declares `^1.5.0` (COORDINATOR REVIEW commit). Please bump the package version with the next SDK change.
 
 - **Important**: the Requirements tool now reads canonical requirements only through `services.requirements`. Until the workspace provides it (HTTP adapter, or explicitly the demo adapter), the tool in the workspace shows "The Requirements service is not available here" instead of twin data (by design: no silent substitution). Workspace browser flows that open Requirements (e.g. scratchpad `vision-flow.mjs`) will need the adapter wired. `npm run check` stays green.
 - The tool now declares `sdkVersion: '^1.2.0'` and depends on `@ews/requirements-client` (allowed by boundaries.test.ts).
@@ -186,6 +255,8 @@ Decided on 14 Oct 2026 (contracts §13): 1 and 2 approved (SDK 1.3.0, adopted in
 - History is append-only through the API (DB triggers); not tamper-proof.
 
 ## Handoff log
+
+- 2026-10-15 (Project Management CRs): CR-PM-REG-1 and CR-PM-REQ-2 committed; SDK change proposal for requests 5, 7, 9 above. No migrations.
 
 - 2026-10-14 (sprint 003): SysML integration committed (see the sprint file). No migrations. Requests 7–10 added.
 
