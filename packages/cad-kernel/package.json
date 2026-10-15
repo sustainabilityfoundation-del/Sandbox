@@ -1,0 +1,20 @@
+{
+  "name": "@ews/cad-kernel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CAD Modeler geometric kernel adapter: Open CASCADE Technology (WebAssembly, LGPL-2.1, loaded at run time) behind the @ews/cad-core GeometryKernel interface; Web Worker client; STEP checks and format detection.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts",
+    "./worker-client": "./src/worker/client.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/cad-core": "^0.1.0",
+    "replicad": "1.1.0",
+    "replicad-opencascadejs": "1.1.0"
+  }
+}
