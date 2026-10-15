@@ -7,6 +7,7 @@
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') {
     if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('Digest input contains a non-finite number.')
+    if (Object.is(value, -0)) return '0'
     return JSON.stringify(value) ?? 'null'
   }
   if (Array.isArray(value)) return `[${value.map((v) => canonicalJson(v === undefined ? null : v)).join(',')}]`
@@ -81,4 +82,11 @@ export function sha256Hex(text: string): string {
 /** Digest of a value: SHA-256 of its canonical JSON. */
 export function digestOf(value: unknown): string {
   return `sha256:${sha256Hex(canonicalJson(value))}`
+}
+
+/** A number rounded to `digits` significant digits, with -0 normalized to 0 (digest spec ews-digest/1). */
+export function canonicalNumber(value: number, digits = 12): number {
+  if (!Number.isFinite(value)) throw new Error('Digest input contains a non-finite number.')
+  const r = Number(value.toPrecision(digits))
+  return Object.is(r, -0) ? 0 : r
 }
