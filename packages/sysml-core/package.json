@@ -1,0 +1,13 @@
+{
+  "name": "@ews/sysml-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SysML Modeler semantic core: KerML/SysML v2 abstract syntax (subset), textual notation parser and serializer, name resolution, model library subset, validation, units, typed commands and transactions. Framework-free.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}
