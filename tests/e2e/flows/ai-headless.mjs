@@ -12,7 +12,6 @@ import { env, launchOptions, shotsDir } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const KNOWN_FAILING = {
-  requirements: 'C9 (Requirements agent): operations use the connection RequirementsView sets on mount (setAssistantConnection)',
   'sysml-modeler': 'C9 (SysML agent): operations use the view session sessionFor(projectId)',
   'cad-modeler': 'C9 (CAD agent): operations use the open document cadSession.active',
 }
@@ -80,6 +79,9 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
   const transmission = await search('mechanical power transmission')
   const cmp = await run('conceptualize.compare', { conceptId: transmission })
   const alternative = keyOf(cmp.data?.comparisons?.[0]?.alternatives?.[0]?.concept)
+  const designKey = async (text, type) => (await run('conceptualize.search_design', { text, types: [type] })).data?.items?.[0]?.key
+  const fn = (await designKey('a', 'function')) ?? (await designKey('e', 'function'))
+  const decision = (await designKey('a', 'decision')) ?? (await designKey('e', 'decision'))
   const stamp = Date.now() % 100000
   const examples = {
     read_object: { id: 'ROD-120' },
@@ -109,6 +111,15 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
     'conceptualize.propose_requirement': { conceptId: actuator },
     'conceptualize.request_realization': { conceptId: actuator, targetModule: 'cad' },
     'conceptualize.next_steps': { conceptId: actuator },
+    'conceptualize.create_function': { name: `Headless function ${stamp}`, performedBy: [actuator] },
+    'conceptualize.convert_to_function': { conceptId: actuator },
+    'conceptualize.create_constraint': { subjectId: actuator, statement: 'Headless check: mass at most 2 kg', operator: '<=', value: 2, unit: 'kg' },
+    'conceptualize.promote_constraint': { conceptId: actuator },
+    'conceptualize.record_assumption': { statement: 'Headless check assumption', subjectId: actuator },
+    'conceptualize.create_link': { type: 'performs', from: actuator, to: fn },
+    'conceptualize.rationale': { decisionId: decision },
+    'conceptualize.traverse': { start: actuator, depth: 1 },
+    'conceptualize.search_design': { text: 'actuator' },
   }
   const ops = availableOperations().map((o) => o.name).filter((n) => !VIEW_CONTROLS.includes(n))
   const results = []
@@ -132,10 +143,10 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
       applied = `failed: ${e.message}`
     }
   }
-  return { results, applied, keys: { actuator, transmission, alternative } }
+  return { results, applied, keys: { actuator, transmission, alternative, fn, decision } }
 }, { VIEW_CONTROLS })
 
-check(!!report.keys.actuator && !!report.keys.transmission && !!report.keys.alternative, `seeded Conceptualize data found through the operations (${JSON.stringify(report.keys)})`)
+check(!!report.keys.actuator && !!report.keys.transmission && !!report.keys.alternative && !!report.keys.fn && !!report.keys.decision, `seeded Conceptualize data found through the operations (${JSON.stringify(report.keys)})`)
 for (const r of report.results) {
   const known = KNOWN_FAILING[r.module]
   if (r.ok) {
