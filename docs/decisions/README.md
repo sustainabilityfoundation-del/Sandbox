@@ -20,13 +20,14 @@ editing an accepted one.
 | [0012](0012-read-time-projection-of-external-objects.md) | Read-time projection of externally owned objects into the twin's model | Accepted |
 | [0014](0014-unified-help-system.md) | Unified help system with module-owned documentation | Accepted |
 | [0015](0015-conceptualize-module.md) | Conceptualize: Concepts independent of their implementations | Accepted |
+| [0070](0070-development-assurance-boundaries.md) | Boundaries for future standards-aware development assurance (profiles as data, classifications keep their standard, configuration-specific evidence, distinct states) | Accepted |
 
 ## Open decisions
 
 Proposed for review: [ADR-0013: complete AI coverage through shared semantic operations](0013-ai-semantic-capability-coverage.md) (renumbered from 0011, which was already taken by the Requirements service boundary).
 This extends ADR-0010 without changing the current proposal-preview policy.
 
-Proposed by module programs, for coordinator review before acceptance (numbers 0016–0019 and 0027–0029 are
+Proposed by module programs, for coordinator review before acceptance (numbers 0016–0019 and 0028–0029 are
 unused; the AI connection sprint uses 0047 upwards):
 
 | ADR | Decision | Status |
@@ -38,6 +39,7 @@ unused; the AI connection sprint uses 0047 upwards):
 | [0024](0024-cad-topological-naming.md) | Generative topological naming with geometric probes | Proposed |
 | [0025](0025-cad-sketch-constraint-solver.md) | In-house numerical sketch constraint solver for Phase 1 | Proposed |
 | [0026](0026-cad-cross-module-references.md) | References between CAD Modeler entities and other modules | Proposed |
+| [0027](0027-cad-mock-tool-replacement.md) | Replacing the mock CAD tool with the CAD Modeler (non-destructive migration) | Proposed |
 | [0030](0030-sysml-module-placement-and-packages.md) | SysML Modeler: placement, packages and tool identity | Proposed |
 | [0031](0031-sysml-typescript-semantic-core.md) | SysML Modeler: TypeScript semantic core with a hand-written parser | Proposed |
 | [0032](0032-sysml-abstract-syntax-element-store.md) | SysML Modeler: the stored model is the KerML/SysML abstract syntax | Proposed |
@@ -55,6 +57,8 @@ unused; the AI connection sprint uses 0047 upwards):
 | [0044](0044-calculation-models-and-math-stack.md) | Calculation models in Conceptualize; a deterministic calculation engine on mathjs and the platform unit algebra | Proposed |
 | [0045](0045-reasoning-runs-and-model-access.md) | Reasoning runs: model access through the AI Interface, budgets, checkpoints, reproducibility, no chain-of-thought | Proposed |
 | [0046](0046-change-impact-and-invalidation.md) | Change impact distinguishes possible from demonstrated; invalidation is flagged, never silent | Proposed |
+| [0047](0047-ai-provider-backend-and-account-connection.md) | AI provider backend, account connection and server-enforced access policy | Proposed |
+| [0048](0048-ai-settings-framework.md) | Settings framework: SDK 1.6 setting definitions, settings service, Settings centre | Proposed |
 
 CAD: [cad-program-contracts.md](../specifications/cad-program-contracts.md), [docs/modules/cad](../modules/cad/README.md).
 SysML: [sysml-program-contracts.md](../specifications/sysml-program-contracts.md), [docs/modules/sysml](../modules/sysml/README.md).

@@ -61,6 +61,47 @@ Expand verification and validation (plans, procedures, cases, coverage, anomalie
 releases, safety and reliability, cybersecurity and evidence workflows. Exit: change impact and
 evidence invalidation on a pinned configuration.
 
+### Deferred epic E-ASSURE: Standards-aware development assurance and safety engineering
+
+Status: **Deferred** (recorded 15 October 2026). Not a prerequisite for the current demonstration
+([D1](specifications/demo-ai-engineering.md)) or [integration milestone 1](specifications/integration-milestone-1.md).
+Architecture boundaries: [ADR-0070](decisions/0070-development-assurance-boundaries.md); vision
+[§7](architecture-vision.md#7-safety-critical-development-and-assurance). This section is the single backlog entry
+for the epic; other documents link here.
+
+Intent: a common engineering and assurance foundation with selectable, versioned **industry profiles** layered
+over the platform. Candidate profiles for future evaluation (not interchangeable, and not claims of compliance;
+exact editions, applicability and obligations need review against authoritative, appropriately licensed texts):
+
+| Domain | Candidate standards |
+| --- | --- |
+| Aviation | ARP4754A/B; companion ARP4761 safety assessment; interfaces to software and electronic-hardware assurance workflows |
+| General functional safety | IEC 61508 |
+| Automotive | ISO 26262; ISO 21448 (SOTIF) |
+| Railway | EN 50126, EN 50129, EN 50716 (legacy project support as needed) |
+| Medical devices | ISO 14971; IEC 62304 |
+| Machinery | ISO 12100; ISO 13849; IEC 62061 |
+| Process industries | IEC 61511 |
+| Nuclear instrumentation and control | IEC 61513 and supporting standards |
+| Space | Relevant ECSS engineering, safety and product-assurance standards |
+| Cross-industry | ISO/IEC/IEEE 15288 (lifecycle processes); ISO/IEC/IEEE 15026 (assurance cases) |
+| Cybersecurity (future) | Sector frameworks such as ISO/SAE 21434 |
+
+Future capabilities:
+
+| # | Capability | Builds on (existing contracts) |
+| --- | --- | --- |
+| A1 | Safety assessment and risk-control traceability | Typed, revision-pinned relationships (ADR-0004, milestone C3); Conceptualize assumptions and decisions |
+| A2 | Validation and verification planning, execution and evidence | Verification records pinned to requirement revision and configuration (ADR-0007); evidence qualifications (C11) |
+| A3 | Assurance cases, objective-compliance matrices, certification deliverables | Project baselines and export packages (C6, ADR-0064) |
+| A4 | Standards applicability, tailoring, reviewed cross-standard mappings | Settings framework for project-scoped profile selection (ADR-0048); profiles as versioned data |
+| A5 | Configuration-specific evidence reuse and change-impact assessment | Exact revision references, baselines, possible vs demonstrated impact (ADR-0046) |
+| A6 | Lifecycle feedback from operational incidents, maintenance and field changes | Project registry and artifact registry (ADR-0060–0062) |
+
+Out of scope until the epic is scheduled: certification dashboards, rules engines, profile content, standards
+research beyond this list, and any universal conversion between DAL, ASIL, SIL, Performance Level or medical
+software safety classes.
+
 ## Phase 3: Executable engineering (planned)
 
 Mathematics, statistics, control and system modelling, analysis integration. Exit: reproducible runs
