@@ -6,6 +6,7 @@ import { interconnectionContext, keywordOf } from '../projection/graph'
 import { message, type ModelerSession } from '../session'
 import { iconFor } from './Browser'
 import { RequirementLink } from './RequirementLink'
+import { Represents } from './Represents'
 import { useViewState } from './hooks'
 
 /**
@@ -184,6 +185,7 @@ export function Inspector({ session, model }: { session: ModelerSession; model: 
         </>
       )}
       {(isKindOf(el['@type'], 'RequirementDefinition') || isKindOf(el['@type'], 'RequirementUsage')) && el['@type'] !== 'SatisfyRequirementUsage' && <RequirementLink session={session} model={model} elementId={id} readOnly={readOnly} />}
+      {(isKindOf(el['@type'], 'PartDefinition') || isKindOf(el['@type'], 'PartUsage') || isKindOf(el['@type'], 'ItemDefinition') || isKindOf(el['@type'], 'ItemUsage')) && !isKindOf(el['@type'], 'ConnectionUsage') && !isKindOf(el['@type'], 'MetadataDefinition') && <Represents session={session} model={model} elementId={id} readOnly={readOnly} revision={model.version} />}
       {isKindOf(el['@type'], 'Type') && !readOnly && (
         <Checkbox isSelected={el.isAbstract === true} onChange={(v) => void run([{ op: 'setAbstract', elementId: id, isAbstract: v }])}>
           Abstract

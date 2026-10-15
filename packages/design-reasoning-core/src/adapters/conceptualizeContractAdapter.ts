@@ -302,6 +302,7 @@ export function createConceptualizeTestAdapter(options: ConceptualizeTestAdapter
         requireRole(ctx, AUTHOR, 'Creating an assumption')
         const b = item.body
         checkBasis(ctx, b.basis, 'Assumption')
+        if (b.scope && !Array.isArray((b.scope as { subjects?: unknown }).subjects)) fail('invalid', 'An assumption scope needs subjects (may be empty).', { fields: { 'scope.subjects': 'required' } })
         for (const s of b.scope?.subjects ?? []) if (!exists(s)) fail('not-found', `Assumption subject ${s.type} ${s.id} does not exist.`)
         const id = newId()
         const rec: AssumptionRecord = {
@@ -553,6 +554,7 @@ export function createConceptualizeTestAdapter(options: ConceptualizeTestAdapter
 
   return {
     mode: 'test-adapter',
+    capabilities: { functionAlternativeSets: true, calculationModels: true, calculatedEvidenceVerification: true, realizedConceptRevision: true, reasoningSourceKind: true, scoreQualifications: true, events: true },
     label: 'TEST ADAPTER: in-memory implementation of the proposed Conceptualize contract (CR-C1…C10); not the Conceptualize module',
 
     async get(type, id, ctx, revision) {

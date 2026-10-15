@@ -398,12 +398,88 @@ Limitations:
 Next: when Conceptualize's checkpoint is on main, point the actuator scenario, and a new-project scenario without
 actuator IDs, at the real API.
 
+## Real Conceptualize API: scenarios on the real service (checkpoint)
+
+C11 was accepted and merged (c9e7f02). `git merge main` first (e461edc). Binding: [integration milestone 1](integration-milestone-1.md).
+Status: the HTTP binding and both scenarios are **implemented** and **tested** against the real Conceptualize and
+Requirements services (API host, disposable PostgreSQL) for the steps labelled "real service" below. Steps that
+need CR-C8 (stored calculation models, manifest re-verification) run on the engine or the contract adapter and are
+reported separately; they do not satisfy the milestone.
+
+Command: `npm run reasoning:test:db` (`packages/design-reasoning-core/vitest.db.config.ts`, the API host's
+`globalSetup`; test file `packages/design-reasoning-core/test/scenarios.db.test.ts`). It runs the actuator scenario
+and the new-project scenario on the real services and on the contract adapter, and the contract probes. Each step
+prints what it ran against.
+
+### Actuator scenario (seeded PRJ-ACT100)
+
+| Step | Real-service run | Adapter run |
+| --- | --- | --- |
+| 1 Function without a solution | real service | adapter |
+| 2 Assumptions and constraints (REQ-001 rev 1 pinned) | real service | adapter |
+| 3 Candidate concepts drafted and applied by a person | real service (set under a parent Concept: CR-C7) | adapter |
+| 4 Buckling calculation | **engine on inputs read from the real service**; model not stored, manifest stored but not re-verified (CR-C8) | adapter (model stored, manifest re-verified) |
+| 5 Trade study, ranking, Pareto | real service | adapter |
+| 6 Decision: editor refused, reviewer records | real service | adapter |
+| 7 Implementation linked to the twin, CAD and SysML (client-attested) | real service | adapter |
+| 8 Rationale from records | real service | adapter |
+| 9 Hypothetical change, nothing written | real service: all `possible` (no stored model to re-evaluate) | adapter: decision and evidence `checked-unaffected` |
+| 10 Applied constraint change | real service: all `possible`, no flag drafted (CR-C8) | adapter: decision and evidence `demonstrated`, flag drafted and applied |
+
+Same numbers on both: P_cr = 110.4 kN, margin 86.4 kN, ranking 0.890 > 0.746 > 0.661 > 0.626.
+
+### New-project scenario (milestone workflow steps 2, 4 and 7; no actuator IDs)
+
+`src/prototype/newProjectScenario.ts`. A new project with memberships only (test fixture: there is no project
+service on main), a screw-vise fixture example.
+
+| Step | Real-service run | Adapter run |
+| --- | --- | --- |
+| 1 Empty project: 0 functions, concepts, constraints, decisions | real service (Conceptualize) | adapter |
+| 2 Requirement "clamping force ≥ 2 kN", revision 1 | real service (Requirements API) | test fixture |
+| 3 Function, constraint formalizing the requirement at rev 1, four assumptions | real service | adapter |
+| 4 Three candidate concepts (screw vise, toggle, pneumatic) via engine draft, applied by eli | real service (parent Concept: CR-C7) | adapter |
+| 5 Calculation with pinned inputs: F = 2πηT/l = 4712 N ≥ F_req 2 kN | **engine on inputs read from the real service** (CR-C8 pending) | **adapter-backed** (model stored, manifest re-verified) |
+| 6 Decision with requirement-revised and relation-violated conditions; editor proposes, reviewer records | real service | adapter |
+| 7 Requirement revised to ≥ 6 kN, revision 2 | real service (Requirements API) | test fixture |
+| 8 Impact of the revision | real service: **demonstrated** CST (pinned rev 1 < 2) and DEC (condition fired); **possible** function and concepts | adapter: same, plus evidence `checked-unaffected` |
+| 9 Hypothetical re-formalization F ≥ 6 kN | real service: DEC demonstrated (condition), calculation not re-evaluated (CR-C8) | **adapter-backed**: evidence **demonstrated** (4.7 kN < 6 kN) |
+
+Asserted: no ROD/CAD/SYS/ACT/PRJ-ACT100 references in any impact item or in the project graph.
+
+### Contract probes
+
+See contract-change-requests.md, "Real service versus contract adapter": five invariants agree, D1–D15 list the
+differences (D1 fixed in the adapter, D13 fixed in the reasoning core, the rest pending CR-C4, C7, C8, C11, C13 and
+C11 storage, D2 and D14 new).
+
+Checks run on 15 October 2026:
+- `npm run check`: all workspaces type-check; 53 test files passed, 1 skipped; 959 tests passed, 1 skipped.
+- `npm run reasoning:test:db`: 15 tests passed (exit 0). On Windows the temporary PostgreSQL directory sometimes
+  cannot be removed at teardown (EBUSY); the run still passes.
+- `npm run build` was not run: no application or build configuration changed.
+
+What each step ran against: as labelled above. The twin is the sample twin, client-attested. No live AI provider:
+candidate concepts are scripted inputs to the engine tool.
+
+Limitations:
+- CR-C8 steps (calculation storage, manifest re-verification, re-evaluation in impact) are adapter-backed only.
+- The real service stores a forged manifest as calculated evidence (D6, probed). Do not rely on calculated evidence
+  from the service before CR-C8.
+- `test/env.ts` imports the API host's test helpers (`services/api/test/helpers.ts`) by relative path. This is test
+  infrastructure outside `src/`, but it leaves the package; a shared test-environment export would remove it.
+- New projects get memberships by direct SQL in the test (no project service yet).
+
+Next: when CR-C7 and CR-C8 land, switch the capability flags in the HTTP binding and the labelled steps become
+real-service steps; investigate D14 with Conceptualize.
+
 ## Review status
 
 Phase A: approved by the coordinator (15 October 2026; merged into main as 4f7884b, ADRs renumbered 0039–0046, still Proposed until R1 is reviewed).
 Phase B (R1): accepted by the coordinator and merged into main (ec16cf2, 15 October 2026).
 R3 (calculation engine production): accepted by the coordinator and merged into main (f005102).
-C11 (uncertainty semantics, engine and reasoning core): **ready for coordinator review** (15 October 2026). Conceptualize side open.
+C11 (uncertainty semantics, engine and reasoning core): accepted by the coordinator and merged into main (c9e7f02).
+Real Conceptualize API scenarios: **ready for coordinator review** (15 October 2026).
 
 ## Handoff log
 
@@ -412,3 +488,4 @@ C11 (uncertainty semantics, engine and reasoning core): **ready for coordinator 
 - a673c84, b217a3e, a5b4d92: R1 boundary rules, engineering-calc, design-reasoning-core; (this commit) R1 documentation and checkpoint.
 - R3: engineering-calc 0.2.0 (isolation, taxonomy, interval bounds, manifest v2, library, performance) and documentation; see the R3 commits on the branch after ec16cf2.
 - C11: engineering-calc 0.3.0 result kinds, manifest v3, qualifyManifest; propagation through design-reasoning-core; storage contract; see the C11 commits on the branch after d628556.
+- Real API: HTTP binding with capabilities, both scenarios and contract probes on the real services (`reasoning:test:db`); see the commits on the branch after e461edc.

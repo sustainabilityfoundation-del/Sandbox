@@ -178,6 +178,7 @@
   .smod-commit-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); color: var(--ws-text-3); font-size: var(--ws-font-size-xs); }
 
   /* ---- grid views: matrices and coverage ---- */
+  .smod-empty-actions { display: flex; flex-wrap: wrap; gap: var(--ws-space-2); justify-content: center; }
   .smod-matrix-scroll { overflow: auto; max-width: 100%; border: 1px solid var(--ws-border); border-radius: var(--ws-radius); }
   .smod-matrix { border-collapse: collapse; font-size: var(--ws-font-size-sm); background: var(--ws-surface); }
   .smod-matrix th, .smod-matrix td { border: 1px solid var(--ws-border); padding: var(--ws-space-1) var(--ws-space-2); text-align: left; vertical-align: top; }

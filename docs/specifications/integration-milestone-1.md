@@ -14,6 +14,11 @@ Status vocabulary used everywhere (progress files, roadmap, About page, reports)
 Every report also says what each step ran against: **real service**, **contract/test adapter**, **scripted
 demo** or **live AI provider**.
 
+> **Priority (15 October 2026):** [demonstration D1](demo-ai-engineering.md) is the primary delivery objective: the
+> smallest credible end-to-end AI engineering workflow comes before broadening any module. Milestone items D1 does not
+> need wait. Standards-aware assurance is deferred ([E-ASSURE](../roadmap.md#deferred-epic-e-assure-standards-aware-development-assurance-and-safety-engineering),
+> [ADR-0070](../decisions/0070-development-assurance-boundaries.md)) and is not a prerequisite.
+
 ## 1. Current-state assessment (main f005102, 15 October 2026)
 
 An external review examined main at `ec16cf2`. Each of its findings, checked against the code now:

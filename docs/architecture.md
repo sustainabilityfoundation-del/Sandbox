@@ -24,7 +24,7 @@ apps/workspace          Common shell: navigation, tool registry, subscriptions, 
 apps/glb-viewer         Standalone GLB viewer (not part of the platform)
 packages/model-service  Domain model, ownership and relationship rules, revision history,
                         baselines, change impact, DemoRepository (no React)
-packages/platform-sdk   Versioned tool contract (1.7.0), PlatformHost, React hooks, harness, testing
+packages/platform-sdk   Versioned tool contract (1.8.0), PlatformHost, React hooks, harness, testing
 packages/design-system  React Aria + Tailwind components, tokens, semantic icons
 packages/tool-requirements | tool-sysml | tool-cad   The three Phase 1 modules
 ```
@@ -151,6 +151,15 @@ proposals. It owns only operational state, reaches models only through the AI In
 `services/assistant`, in progress) and changes authoritative data only through previewed proposals applied by
 the user. The first step adds no reasoning service: it extends Conceptualize and adds the calculation and core
 libraries. The platform unit algebra is in the SDK (`contract/quantities.ts`, SDK 1.6).
+
+## 6c. Development assurance (deferred)
+
+Standards-aware assurance is the deferred epic
+[E-ASSURE](roadmap.md#deferred-epic-e-assure-standards-aware-development-assurance-and-safety-engineering). Its
+boundaries apply now ([ADR-0070](decisions/0070-development-assurance-boundaries.md)): industry rules are versioned
+profile data layered over the platform, never terminology or gates in generic modules; classifications keep their
+governing standard; evidence names the configuration, inputs and tool versions it supports; requirement validation,
+implementation, verification, review and evidence currency stay separate states.
 
 ## 7. Acceptance principles (vision §11)
 

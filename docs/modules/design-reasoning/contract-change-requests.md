@@ -367,3 +367,42 @@ engine. It does **not** establish that the model is valid for the design: a pers
 `limits.modelValidationStatus` only repeats what the definition said at evaluation time. It does **not** establish
 that any requirement is satisfied: requirement verification is a separate record in Requirements. Conceptualize
 must never derive either from a verified manifest.
+
+## Real service versus contract adapter (15 October 2026)
+
+The reasoning core now binds the real Conceptualize API (`createConceptualizeHttpAdapter`,
+`packages/design-reasoning-core/src/adapters/conceptualizeHttpAdapter.ts`) as well as the in-memory contract
+adapter. Every implementation declares `capabilities` (`KnowledgeCapabilities` in `contract/conceptualize.ts`);
+the engine and the scenarios check them instead of guessing. On the real service all seven are `false` today:
+`functionAlternativeSets`, `calculationModels`, `calculatedEvidenceVerification`, `realizedConceptRevision`,
+`reasoningSourceKind`, `scoreQualifications`, `events`. The binding uses the v1 operation names (`x-r1-operation`
+mapping) and IDs.
+
+`npm run reasoning:test:db` runs the same calls against both implementations
+(`packages/design-reasoning-core/test/scenarios.db.test.ts`, "contract probes") and asserts each side's actual
+behaviour, so a change on either side fails a probe.
+
+**Agree** (probed): batch atomicity (a failing item leaves nothing); idempotency-key replay; stale
+`expectedRevision` is a conflict; an assumption scope must name its subjects; an editor cannot record a decision,
+a reviewer can.
+
+**Differ** (each is either a pending CR or an adapter correction):
+
+| # | Invariant | Real service | Adapter | Resolution |
+| --- | --- | --- | --- | --- |
+| D1 | Assumption `scope` | `scope.subjects` required (422) | accepted any scope | Adapter aligned this sprint (probed: agree) |
+| D2 | List query parameters | `limit` accepted on concepts only; other lists reject query strings | not applicable | HTTP binding sends none except on concepts; request: accept `limit`/cursor on every list (pagination) |
+| D3 | `POST /graph/traverse`, `/graph/paths` | read-only POSTs; assistant write headers are refused | not applicable | HTTP binding sends no provenance headers on these |
+| D4 | Source kind `reasoning`, run and step IDs | not available; mapped to `assistant` | recorded | CR-C13 |
+| D5 | Alternative set owned by a Function, members must perform it | `functionId` → 501; sets need a parent Concept and do not check members | enforced | CR-C7. Scenarios create a parent Concept when the capability is missing |
+| D6 | Calculation models; evidence `calculation`; manifest re-verification | `createCalculationModel` and `calculation` → 501; a bare `manifest` is stored **without verification** (probe: a forged manifest is accepted) | stored and re-verified | CR-C8. Until then the engine evaluates locally on inputs read from the service and labels the step |
+| D7 | Realized concept revision on implementations | 501 | supported | CR-C11 |
+| D8 | DesignRef type `calculation-model` | not in the enum | supported | with CR-C8 |
+| D9 | `selected-through` derived edges | only for recorded accepted/rejected outcomes | also deferred and proposed | Open: decide in CR-C4 whether deferred outcomes propagate; the reasoning core tolerates both |
+| D10 | Trade scores `evidenceOutput`, `qualification`; assistant `calculated` scores | rejected | supported | C11 storage contract (above) |
+| D11 | Trade-study result `qualifications` | absent | present | C11 storage contract |
+| D12 | Link registry | more types, including derived ones (affects, alternatives-for, applies-to, decides, decision-assumes, decision-constrained-by, member, realized-as, realizes, requirement-link, selected-through, subject, watches) and fields `impact`, `stored` | built-in subset | Reasoning core uses the service registry plus its built-ins; no change requested |
+| D13 | Impact through other modules' artifacts | (reasoning-core side) propagation went through REQ-001 into unrelated seed designs | — | Fixed: other-module artifacts are terminal in propagation |
+| D14 | Evidence reached by impact | in both scenarios on the real service, impact did not reach the calculated evidence (the registry has a derived `subject` type; cause not yet isolated) | reached through its subjects | Investigate with Conceptualize next sprint; matters once CR-C8 lets impact re-evaluate stored models |
+| D15 | Events | 501 | supported | CR-C13 |
+

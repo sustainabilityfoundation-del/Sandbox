@@ -16,7 +16,7 @@ import { parse } from './syntax/parser'
 import { serialize } from './syntax/serializer'
 import { loadText } from './syntax/text'
 import { evaluate, featureValue, formatValue } from './units/evaluate'
-import { cadRepresentations, validate } from './validation/validate'
+import { cadRepresentations, representations, validate } from './validation/validate'
 
 const P = (body: string) => `package P {\n    private import ScalarValues::*;\n    private import ISQ::*;\n    private import SI::*;\n${body}\n}`
 
@@ -402,5 +402,23 @@ describe('implicit library specializations (derived, not stored)', () => {
     expect(s.explicitGenerals(q('P::A'))).toEqual([])
     expect([...r.model.elements()].some((e) => e.isImplied === true)).toBe(false)
     expect(serialize(r.model)).not.toContain('Parts::Part')
+  })
+})
+
+describe('product element references (CR-PM-SYS-1)', () => {
+  it('stores, validates and reads ProductElement references next to CAD references', () => {
+    const r = applyTransaction(model('package A { part def R; }'), {
+      commands: [
+        { op: 'setMetadata', elementId: 'A::R', metadata: 'ProductElement', values: { productElementId: '7d1f3c2e-8b1a-4c55-9e0f-1a2b3c4d5e6f', revision: 3 } },
+        { op: 'setMetadata', elementId: 'A::R', metadata: 'CadRepresentation', values: { cadRef: '0e7c2c1a-4b7d-4f7e-9a51-2f3c6c1d9a10/e12' } },
+      ],
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(validate(r.model).filter((d) => d.severity === 'error')).toEqual([])
+    const refs = representations(r.model).map((x) => x.ref)
+    expect(refs).toContainEqual({ module: 'product', kind: 'product-element', id: '7d1f3c2e-8b1a-4c55-9e0f-1a2b3c4d5e6f', revision: 3 })
+    expect(refs).toContainEqual({ module: 'cad', kind: 'cad-modeler-entity', id: '0e7c2c1a-4b7d-4f7e-9a51-2f3c6c1d9a10/e12' })
+    expect(rules(model('package A { part def R { @EWS::ProductElement { productElementId = "ROD-120"; } } }'))).toEqual(['SYSML-PRODUCT-REFERENCE'])
   })
 })
