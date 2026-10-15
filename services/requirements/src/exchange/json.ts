@@ -156,7 +156,8 @@ export async function applyJsonImport(ctx: Ctx, jobId: string, opts: { decisions
     }
     await ctx.db.query('SAVEPOINT rel')
     try {
-      await createRelationship(ctx, opts.twin, { type: rel.type, fromId: from, toRequirementId: to, toTwinId: rel.toTwinId ?? undefined, rationale: rel.rationale, reason })
+      const sysmlTarget = (rel as { targetKind?: string }).targetKind === 'sysml-model-element'
+      await createRelationship(ctx, opts.twin, { type: rel.type, fromId: from, toRequirementId: to, toTwinId: sysmlTarget ? undefined : (rel.toTwinId ?? undefined), toSysmlElement: sysmlTarget ? (rel.toTwinId ?? undefined) : undefined, rationale: rel.rationale, reason })
       await ctx.db.query('RELEASE SAVEPOINT rel')
       result.relationshipsCreated++
     } catch (e) {

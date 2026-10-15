@@ -12,8 +12,8 @@ import {
   useUnsavedChanges,
 } from '@ews/platform-sdk/react'
 import { getModuleClient, type Requirement } from '@ews/requirements-client'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { selectedComponent, selectedRequirementIds, type RequirementsPage, type RequirementsViewState } from './domain'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { openLinkViewState, selectedComponent, selectedRequirementIds, type RequirementsPage, type RequirementsViewState } from './domain'
 import { ModuleDataProvider, useModuleData, useResource } from './data'
 import { useVerificationRecords } from './Verification'
 import { CollectionsPanel } from './ui/Collections'
@@ -60,6 +60,26 @@ function ApiView() {
   // A selected requirement (legacy twin ID or UUID) or SysML usage highlights its row.
   const legacy = selectedRequirementIds(model, selectedIds)[0] ?? selectedIds.find((id) => /^[0-9a-f-]{36}$/i.test(id))
   const highlighted = useResource(legacy ? () => (/^[0-9a-f-]{36}$/i.test(legacy) ? Promise.resolve(legacy) : client.resolve(legacy).then((r) => r.id, () => null)) : null, [client, legacy])
+
+  // Open links from other modules (artifact registry: `collectionId`, `baselineId`) arrive as the shared
+  // selection until the SDK can pass open params: a selected UUID that is not a requirement in the model
+  // is looked up among this project's collections and baselines and opened.
+  const linkId = selectedIds.length === 1 && /^[0-9a-f-]{36}$/i.test(selectedIds[0]) && !model.get(selectedIds[0]) ? selectedIds[0] : null
+  const link = useResource(
+    linkId
+      ? () =>
+          Promise.all([client.collections(true), client.baselines()]).then(([cs, bs]) =>
+            openLinkViewState(cs.some((c) => c.id === linkId) ? { collectionId: linkId } : bs.some((b) => b.id === linkId) ? { baselineId: linkId } : {}),
+          )
+      : null,
+    [client, linkId],
+  )
+  const appliedLink = useRef<string | null>(null)
+  useEffect(() => {
+    if (!linkId || !link.data || appliedLink.current === linkId) return
+    appliedLink.current = linkId
+    setState(link.data)
+  }, [linkId, link.data, setState])
 
   const open = useCallback((id: string) => setState({ editor: { requirementId: id, focus: 'details', tab: state.editor?.tab ?? 'details' } }), [setState, state.editor?.tab])
   const selectRequirement = useCallback(

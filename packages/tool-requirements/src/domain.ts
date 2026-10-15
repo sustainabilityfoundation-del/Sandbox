@@ -222,3 +222,20 @@ export function eligibleBaselines(baselines: Baseline[], requirement: Engineerin
     return { baseline }
   })
 }
+
+/**
+ * View state for an artifact open link (`ArtifactDescriptor.open.params` from the artifact source:
+ * `id` for a requirement, `collectionId`, `baselineId`). Unknown or empty params give null.
+ * Used by the view when the shared selection is a collection or baseline ID, and by the SDK
+ * open-params hook once it exists (SDK change proposal in the progress file).
+ */
+export function openLinkViewState(params: Record<string, string | undefined>): Partial<RequirementsViewState> | null {
+  const uuid = (v: string | undefined) => (v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v.toLowerCase() : undefined)
+  const id = uuid(params.id)
+  const collectionId = uuid(params.collectionId)
+  const baselineId = uuid(params.baselineId)
+  if (id) return { page: 'table', editor: { requirementId: id, focus: 'details', tab: 'details' } }
+  if (collectionId) return { page: 'table', collectionId, baselineId: null }
+  if (baselineId) return { page: 'table', baselineId }
+  return null
+}

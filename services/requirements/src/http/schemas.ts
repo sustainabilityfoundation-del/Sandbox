@@ -36,6 +36,10 @@ export const ErrorBody = Type.Object(
 
 // ---- requirements ------------------------------------------------------------------------------------
 
+export const Origin = Type.Union([Type.Literal('stakeholder'), Type.Literal('ai-proposed'), Type.Literal('derived')], {
+  description: 'Where the requirement came from: a stakeholder (user constraint), an AI-proposed choice a person accepted, or derived from another requirement (with a derives-from relationship). Null: not recorded.',
+})
+
 export const Requirement = Type.Object(
   {
     id: Uuid,
@@ -55,6 +59,7 @@ export const Requirement = Type.Object(
     applicability: Type.Array(Type.String(), { description: 'Configuration IDs the requirement applies to; empty means all' }),
     verificationMethods: Type.Array(Type.String()),
     acceptanceCriteria: Type.String(),
+    origin: Nullable(Origin),
     attributes: Type.Record(Type.String(), AttributeValue, { description: 'Custom attribute values keyed by attribute definition ID' }),
     legacyIds: Type.Array(Type.String(), { description: 'Resolvable aliases such as legacy twin IDs' }),
     changeReason: Type.String({ description: 'Reason recorded with this revision' }),
@@ -89,6 +94,7 @@ export const Requirement = Type.Object(
         applicability: [],
         verificationMethods: ['analysis', 'test'],
         acceptanceCriteria: 'Static analysis margin of safety > 0 at 12 kN; proof test at 12 kN without permanent deformation.',
+        origin: null,
         attributes: {},
         legacyIds: ['REQ-001'],
         changeReason: 'Seeded from the sample twin',
@@ -116,6 +122,7 @@ const RequirementFields = {
   applicability: Type.Array(Type.String({ minLength: 1, maxLength: 100 }), { maxItems: 100 }),
   verificationMethods: Type.Array(Type.String({ minLength: 1, maxLength: 40 }), { maxItems: 10 }),
   acceptanceCriteria: Type.String({ maxLength: 20000 }),
+  origin: Nullable(Origin),
   attributes: Type.Record(Type.String(), AttributeValue),
 }
 
@@ -131,6 +138,8 @@ export const RequirementCreate = Type.Object(
     applicability: Type.Optional(RequirementFields.applicability),
     verificationMethods: Type.Optional(RequirementFields.verificationMethods),
     acceptanceCriteria: Type.Optional(RequirementFields.acceptanceCriteria),
+    origin: Type.Optional(RequirementFields.origin),
+    derivesFrom: Type.Optional(Type.String({ format: 'uuid', description: 'With origin "derived": the requirement this one derives from; the derives-from relationship is created in the same transaction' })),
     attributes: Type.Optional(RequirementFields.attributes),
     collectionId: Type.Optional(Uuid),
     parentNodeId: Type.Optional(Uuid),
@@ -154,6 +163,7 @@ export const RequirementPatch = Type.Object(
     applicability: Type.Optional(RequirementFields.applicability),
     verificationMethods: Type.Optional(RequirementFields.verificationMethods),
     acceptanceCriteria: Type.Optional(RequirementFields.acceptanceCriteria),
+    origin: Type.Optional(RequirementFields.origin),
     attributes: Type.Optional(Type.Record(Type.String(), AttributeValue, { description: 'Merged into the current values; null removes a value' })),
     key: Type.Optional(Type.String({ pattern: '^[A-Za-z][A-Za-z0-9_.-]{0,39}$', description: 'Renumber (administrators only)' })),
   },
@@ -242,7 +252,9 @@ export const Relationship = Type.Object(
     type: RelationshipType,
     fromId: Uuid,
     toRequirementId: Nullable(Uuid),
-    toTwinId: Nullable(Type.String()),
+    toTwinId: Nullable(Type.String({ description: 'Allocation target ID; targetKind says which directory it belongs to' })),
+    targetKind: Type.Union([Type.Literal('twin'), Type.Literal('sysml-model-element')], { description: "'twin': component or product element (host twin directory); 'sysml-model-element': SysML Modeler element `<sysmlProjectId>/<elementId>`" }),
+    toTargetRevision: Nullable(Type.Integer({ description: 'Revision of the target this relationship revision was made against (SysML commit number), if known' })),
     revision: Type.Integer(),
     deleted: Type.Boolean(),
     rationale: Type.String(),
@@ -263,6 +275,8 @@ export const RelationshipCreate = Type.Object(
     fromId: Uuid,
     toRequirementId: Type.Optional(Uuid),
     toTwinId: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
+    toSysmlElement: Type.Optional(Type.String({ minLength: 3, maxLength: 100, description: 'Allocation to a SysML Modeler element: `<sysmlProjectId>/<elementId>` (validated by the host)' })),
+    expectedFromRevision: Type.Optional(Type.Integer({ minimum: 1, description: 'Refuse with 409 unless the from requirement is still at this revision' })),
     rationale: Type.Optional(Type.String({ maxLength: 2000 })),
     reason: Type.Optional(Type.String({ maxLength: 2000 })),
   },

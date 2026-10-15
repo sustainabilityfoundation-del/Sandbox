@@ -7,7 +7,7 @@ import { PERMISSIONS, roleAllows, type Permission, type Role } from '../domain/r
 import { withReadTransaction, withTransaction, type Ctx } from '../store/context'
 import type { EventHub } from '../events/hub'
 import type { ObjectStorage } from '../storage'
-import type { TwinDirectory } from '../twin'
+import type { SysmlElementDirectory, TwinDirectory } from '../twin'
 
 /** The authenticated caller, resolved by the host (development identities or production auth). */
 export interface Principal {
@@ -18,6 +18,8 @@ export interface Principal {
 export interface HostServices {
   pool: Pool
   twin: TwinDirectory
+  /** SysML Modeler elements as allocation targets (optional; without it SysML allocations are refused). */
+  sysml?: SysmlElementDirectory
   storage: ObjectStorage
   events: EventHub
   /** Directory with the official ReqIF schemas (npm run req:reqif:schemas); validation is skipped and reported when absent. */

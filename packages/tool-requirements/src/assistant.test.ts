@@ -67,3 +67,11 @@ describe('assistant actions headless with the demo service (no view mounted)', (
     await expect(action('requirements.explain_quality').run({ requirementId: 'REQ-005' }, withDemo())).rejects.toMatchObject({ code: 'not-available' })
   })
 })
+
+describe('D1 operations need the Requirements API', () => {
+  it('requirements.create and requirements.allocate explain that the demo service cannot record them', async () => {
+    await expect(action('requirements.create').run({ title: 'T', statement: 'S', origin: 'stakeholder' }, withDemo())).rejects.toMatchObject({ code: 'not-available' })
+    await expect(action('requirements.allocate').run({ requirementId: 'REQ-005', add: [{ kind: 'component', id: 'MTR-130' }] }, withDemo())).rejects.toMatchObject({ code: 'not-available' })
+    await expect(action('requirements.create').run({ title: 'T', statement: 'S', origin: 'stakeholder' }, twinOnly)).rejects.toMatchObject({ code: 'not-available' })
+  })
+})

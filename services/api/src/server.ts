@@ -11,11 +11,13 @@ import {
   staticTwinDirectory,
   type EventHub,
   type ObjectStorage,
+  type SysmlElementDirectory,
   type TwinDirectory,
 } from '@ews/requirements-service'
 import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsEventHub, migrateConcepts, seedConcepts, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
 import { registerApiDocs } from './apiDocs'
+import { sysmlElementDirectory } from './sysmlDirectory'
 import { SYSML_BASE_PATH, sysmlPlugin } from '@ews/sysml-service'
 import {
   PROJECTS_BASE_PATH,
@@ -84,6 +86,8 @@ export interface ServerOptions {
   storage: ObjectStorage
   production?: boolean
   twin?: TwinDirectory
+  /** SysML Modeler elements as allocation targets (default: the in-process SysML service). */
+  sysml?: SysmlElementDirectory
   logger?: boolean
   eventPollMs?: number
   /** Official ReqIF schemas for validation (npm run req:reqif:schemas). */
@@ -171,6 +175,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     pool: options.pool,
     // Allocation targets: the product registry first (C2, CR-PM-API-3), then the static development directory.
     twin: composeTwinDirectories(productTwinDirectory(options.pool), options.twin ?? SAMPLE_TWIN),
+    sysml: options.sysml ?? sysmlElementDirectory(options.pool),
     storage: options.storage,
     events,
     authenticate: auth.authenticate,

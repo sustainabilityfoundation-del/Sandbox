@@ -112,7 +112,7 @@ Branch rebased on main edd7353 (SDK 1.7.0). Contract: docs/modules/projects/regi
   - `list`: stable order (kind, id), at most 500 per page, opaque cursor, `kinds` filter, unknown project → empty page. Archived requirements and collections are listed with lifecycle `retired` so the registry does not mark them missing.
   - `describe`: request order; unknown refs, other modules' refs, non-UUID IDs and refs from another project are absent.
   - Descriptors read the module's tables directly (no HTTP, no principal). Requirement: key, current title, `moduleState` = status or `archived`, lifecycle draft → working, in-review → in-review, approved → released, retired/archived → retired; version = content revision (`rev n`). Collection: key and title = name, version `"revision.structureRevision"`. Baseline: key and title = name, version 1, lifecycle released.
-  - `relations`: requirement → requirement links (derives-from, decomposes, depends-on) with `toRevision`. Allocations are not reported: their targets are twin or product-registry IDs, and this service cannot name their native module (question for Project Management: which `NativeRef` should an allocation to a product element carry?).
+  - `relations`: requirement → requirement links (derives-from, decomposes, depends-on) with `toRevision`, and allocations to product elements as `{ module: 'product', kind: 'product-element', id: <element UUID> }` (C3 scheme, decided 15 Oct 2026; allocations pin no target revision). A target counts as a product element when its canonical ID is a UUID: the ID the host's `TwinDirectory` returns (optional `createRequirementsArtifactSource(pool, events, { twin })`; pass the same composed directory the API validates with), else the stored ID. Allocations to the static sample twin (ROD-120 …) have no native module and are not reported.
   - `subscribe`: new `EventHub.subscribeAll` (every project, after commit, from the existing outbox). Mapping: created/updated/restored/relationships-changed → upserted requirement; archived → retired; baseline-created → upserted baseline; collection-changed → upserted collection (itemisable, so not `reconcile` as the proposed table in registration §4 says); import-completed and unknown future types → reconcile. Lifecycle changes (approve, retire) arrive as `requirement.updated`.
   - `provision` → `not-needed`, idempotent. Verified that a new project starts empty: after memberships only, provisioning twice and running the development seed again, every `requirements.*` table has zero rows for the new project and `list()` is empty. The seed writes `PRJ-ACT100` only.
   - `exportProject`/`importProject` not implemented (phase F).
@@ -138,6 +138,61 @@ Merged main d628556 (docs/specifications/integration-milestone-1.md).
     - C13: PATCH, archive, transition and relationship writes to a PRJ-ACT100 requirement through another project's path are refused (4xx, never a conflict), nothing changes, and the project-bound client and the assistant in that project get `not-found`.
 - **COORDINATOR REVIEW** commit 9bae3e9: `apps/workspace/src/assistant/assistant.test.ts` runs its twin demo flow without a Requirements service (it passed before only because no view was mounted). Test-only.
 - Limitation: proposals are still closures (`apply`/`undo`) held by the workspace, not persisted declarative data (C9 §3); that needs `services/assistant` persistence and a declarative proposal contract from the coordinator. The Requirements Apply is already a pure function of (requirement ID, patch, expected revision, project), so it can be expressed declaratively when that contract exists.
+
+## D1-REQ: requirements.create and requirements.allocate, 15 Oct 2026
+
+Merged main (SDK 1.8.0); `@ews/requirements-service`, `@ews/requirements-client` and `@ews/tool-requirements` depend on `@ews/platform-sdk ^1.8.0`.
+
+- **Migration `0003_origin_and_allocation_targets.sql`** (additive):
+  - `requirement_revisions.origin` (`stakeholder` | `ai-proposed` | `derived`, NULL = not recorded). Neither `source` (free text naming a document) nor custom attributes (project-defined; absent in a new project) fit.
+  - `relationships.target_kind` (`twin` | `sysml-model-element`, default `twin`; only allocations may be non-twin).
+  - `relationship_revisions.to_target_revision`: the SysML commit the allocation was made against.
+- **API (additive):**
+  - `origin` on requirement read, create and patch. It is a content field, so changing it creates a revision.
+  - Create accepts `derivesFrom`; `origin: 'derived'` requires it, and it is refused otherwise. The derives-from link is created in the same transaction.
+  - Relationship create accepts `toSysmlElement` (`<sysmlProjectId>/<elementId>`) and `expectedFromRevision` (409 if the requirement changed).
+  - Relationship reads return `targetKind` and `toTargetRevision`; `toTwinId` remains the target ID for every allocation.
+- **SysML targets** are validated through a new host port, `SysmlElementDirectory` (`HostServices.sysml`). The host adapter is `services/api/src/sysmlDirectory.ts`: it uses the SysML module's own `describe()`, so only named definitions and usages at the default-branch head are allowed. It is wired in `server.ts` (COORDINATOR REVIEW 21aa3a8). Without the port, SysML allocations are refused with an explanation.
+- **Artifact source:** SysML allocations are reported as `{ module: 'sysml', kind: 'sysml-model-element', id }` with `toRevision`.
+- **Assistant** (headless service proposals; API mode only, refused with an explanation for the demo service):
+  - `requirements.create`:
+    - Takes title, statement, rationale, type, verification methods, acceptance criteria, origin and `derivesFrom` (key or ID).
+    - Preview basis: `user-statement` for stakeholder, `ai-hypothesis` otherwise, with an assumption note.
+    - Provenance: the change reason is `Assistant proposal <id> (conversation <id>)`, and the actor is the person.
+    - One idempotency key per proposal. Undo archives.
+  - `requirements.allocate`:
+    - Adds allocations (product element, component or SysML element) and removes existing ones by target ID.
+    - Additions carry the previewed requirement revision; removals carry the relationship revision.
+    - Undo restores.
+    - Removals and additions are separate API calls, so a failure part-way leaves the earlier ones applied. The summary says what was done; additions are safe to retry.
+- **UI:**
+  - The editor has an Origin select and, for a new derived requirement, "Derived from (key)".
+  - In the Trace tab, "Allocate to" offers a component, a product element (by ID) or a SysML element (searched through `PlatformServices.sysml`; definitions and usages only).
+  - Both use the same request builder as the assistant (`src/allocations.ts`).
+- **Tests:**
+  - `services/api/test/d1.test.ts` (5 tests, real API, PostgreSQL and the SysML seed, no view):
+    - create with every origin, the derived link, provenance, a double Apply that creates one requirement, and Undo;
+    - allocate to all three target kinds, the relations reported, removal and Undo;
+    - UI/assistant parity for create (title too long, derived without a parent, unknown type, reader);
+    - UI/assistant parity for allocate (unknown product element, a twin SysML element used as a component, unknown SysML element, stale revision, reader).
+  - Unit tests: `src/allocations.test.ts`, and the demo-mode refusals in `src/assistant.test.ts`.
+  - Browser (workspace :5191, API :8797): create a derived requirement with the editor (origin stored, derives-from link to REQ-001), the origin shown after saving, allocation to a seeded SysML element from the Trace tab (commit recorded and shown), no console errors.
+- **COORDINATOR REVIEW** 21aa3a8: `server.ts` wiring; `capabilities.ts` (`requirements.add` and `requirements.allocate` now name the new operations); `services/assistant/src/policy.ts` (both operations `propose`).
+- **Limitations:**
+  - Origin is not exported to ReqIF.
+  - Product elements are entered by ID in the UI, because the SDK has no product-element search.
+  - JSON re-import of a SysML allocation needs the SysML directory, which the import path does not pass, so such allocations are reported as skipped.
+
+## Open links and allocation relations, 15 Oct 2026
+
+- `openLinkViewState(params)` (`packages/tool-requirements/src/domain.ts`) maps the artifact source's open params to view state: `id` → detail panel of the requirement, `collectionId` → collection in the table page, `baselineId` → historical baseline view. Non-UUID or unknown params are ignored.
+- The SDK cannot pass params to a tool (`openTool(toolId)` only). Until it can, a host opens a collection or baseline link with `select([id])` and `openTool('requirements')`. The view looks up a selected UUID that is not a requirement in the model among the project's collections and baselines and applies the mapping once per selection. A selected requirement keeps today's behaviour (highlighted row). The `id` mapping is used only once params can be passed.
+- Browser check not done: no host UI selects a collection or baseline ID yet (the Project Management artifact list will). Covered by unit tests (`src/openLink.test.ts`) and the type check.
+- Allocation relations: see CR-PM-REG-1 above; test in `services/api/test/artifacts.test.ts` (by UUID, by an alias the directory resolves, and without a directory).
+
+**SDK proposal (open params, for 1.8):** `openTool(toolId: string, options?: { params?: Record<string, string> })` on `ToolApi`, and `useOpenParams(): { params: Record<string, string>; nonce: number } | null` in `/react` (a new nonce per open, so reopening the same link applies again). The workspace passes `ArtifactDescriptor.open.params`. The Requirements view then calls `openLinkViewState(params)`, and the selection fallback can go.
+
+**Request to Project Management** (`services/projects/src/twinDirectory.ts`): `productTwinDirectory.lookup` returns `id: <requested alias>`. Please return the element's canonical UUID as `id` (the map stays keyed by the requested ID). Then allocations made by alias are reported with the element UUID too.
 
 ## SDK change proposal (requests 5, 7, 9), 15 Oct 2026
 
@@ -276,6 +331,10 @@ Decided on 14 Oct 2026 (contracts §13): 1 and 2 approved (SDK 1.3.0, adopted in
 - History is append-only through the API (DB triggers); not tamper-proof.
 
 ## Handoff log
+
+- 2026-10-15 (D1-REQ): requirements.create and requirements.allocate, migration 0003 (additive), SysML directory port. Commits 9915575, b47c126, 21aa3a8 (review), 5491fba.
+
+- 2026-10-15 (after aa2550f): allocation relations (C3 ref), open-link mapping, API help page rules (empty statement allowed in a draft, refused at request-review). No migrations.
 
 - 2026-10-15 (integration milestone 1): C9 headless Requirements operations and C13 scoping tests committed (a95b4e4, review commit 9bae3e9). No migrations.
 
