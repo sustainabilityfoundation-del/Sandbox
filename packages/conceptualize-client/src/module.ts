@@ -249,7 +249,8 @@ export class ConceptsModuleClient {
   createConstraint(input: T.ConstraintCreate, opts: WriteOpts = {}) {
     return this.create<T.DesignConstraint>('/constraints', input, opts)
   }
-  updateConstraint(id: string, patch: T.ConstraintPatch, opts: WriteOpts & { expectedRevision: number }) {
+  /** reviseConstraint (R1): content changes and, optionally, a status in one call. */
+  updateConstraint(id: string, patch: T.ConstraintPatch & { status?: T.ConstraintStatus }, opts: WriteOpts & { expectedRevision: number }) {
     return this.send<T.DesignConstraint>('PATCH', `/constraints/${id}`, { ...patch, expectedRevision: opts.expectedRevision }, opts)
   }
   changeConstraintStatus(id: string, status: T.ConstraintStatus, opts: WriteOpts & { expectedRevision: number; reason: string }) {
@@ -276,8 +277,9 @@ export class ConceptsModuleClient {
   updateAssumption(id: string, patch: T.AssumptionPatch, opts: WriteOpts & { expectedRevision: number }) {
     return this.send<T.Assumption>('PATCH', `/assumptions/${id}`, { ...patch, expectedRevision: opts.expectedRevision }, opts)
   }
-  changeAssumptionValidation(id: string, status: T.AssumptionStatus, opts: WriteOpts & { expectedRevision: number; reason: string; evidenceIds?: string[] }) {
-    return this.send<T.Assumption>('POST', `/assumptions/${id}/validation`, { status, expectedRevision: opts.expectedRevision, reason: opts.reason, ...(opts.evidenceIds ? { evidenceIds: opts.evidenceIds } : {}) }, opts)
+  /** setAssumptionValidation (R1-2): validated needs evidence; a reviewer when a recorded decision rests on the assumption. */
+  changeAssumptionValidation(id: string, status: T.AssumptionStatus, opts: WriteOpts & { expectedRevision?: number; reason: string; evidence?: T.DesignRef; evidenceIds?: string[] }) {
+    return this.send<T.Assumption>('POST', `/assumptions/${id}/validation`, { status, reason: opts.reason, ...(opts.expectedRevision ? { expectedRevision: opts.expectedRevision } : {}), ...(opts.evidence ? { evidence: opts.evidence } : {}), ...(opts.evidenceIds ? { evidenceIds: opts.evidenceIds } : {}) }, opts)
   }
   assumptionRevisions(id: string) {
     return this.get<T.RevisionSummary[]>(`/assumptions/${id}/revisions`)
@@ -308,7 +310,8 @@ export class ConceptsModuleClient {
   }
 
   // ---- decision and evidence extensions (CR-C5, CR-C6) ----------------------------------------------------------
-  flagDecision(id: string, input: { reason: string; conditionId?: string; impactReportRef?: T.ArtifactRefInput }, opts: WriteOpts = {}) {
+  /** flagDecisionForReview (R1-7): only recorded decisions. */
+  flagDecision(id: string, input: { reason: string; conditionId?: string; impactReportId?: string; impactReportRef?: T.ArtifactRefInput }, opts: WriteOpts = {}) {
     return this.send<T.Decision>('POST', `/decisions/${id}/review-flag`, input, opts)
   }
   changeDecisionValidity(id: string, validity: 'valid' | 'invalidated', opts: WriteOpts & { expectedRevision: number; reason: string; invalidatedBy?: T.AnyRef }) {
@@ -326,8 +329,8 @@ export class ConceptsModuleClient {
 
   // ---- batch, graph and search (CR-C10, CR-C9) ---------------------------------------------------------------------
   /** All or nothing, with placeholders ("$name") resolved across operations. */
-  batch(operations: T.BatchOperation[], opts: WriteOpts = {}) {
-    return this.create<T.BatchResult>('/batch', { operations, ...(opts.reason ? { reason: opts.reason } : {}) }, opts)
+  batch(items: T.BatchItem[], opts: WriteOpts = {}) {
+    return this.create<T.BatchResult>('/batch', { items, ...(opts.reason ? { reason: opts.reason } : {}) }, opts)
   }
   traverse(request: T.TraverseRequest) {
     return this.send<T.TraverseResult>('POST', '/graph/traverse', request)

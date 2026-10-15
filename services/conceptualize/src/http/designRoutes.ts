@@ -1,6 +1,6 @@
 import { Type } from '@sinclair/typebox'
 import type { FastifyInstance } from 'fastify'
-import { notFound } from '../errors'
+import { invalid as invalidBody, notFound } from '../errors'
 import type { DesignEntityType } from '../domain/rules'
 import { changeValidity, decisionRationale, flagDecision } from '../store/alternatives'
 import { assumptionsFromStatements, changeValidation, createAssumption, listAssumptionRevisions, listAssumptions, requireAssumption, updateAssumption } from '../store/assumptions'
@@ -99,8 +99,8 @@ export function registerDesignRoutes(app: FastifyInstance, services: HostService
     handler: async (rc) => { const c = await rc.read((ctx) => requireConstraint(ctx.db, rc.projectId, rc.params.constraintId, rc.query.revision as number | undefined)); return { body: c, etag: c.revision } },
   })
   route({
-    method: 'PATCH', path: '/projects/{projectId}/constraints/{constraintId}', operationId: 'updateConstraint', tag: 'Constraints', summary: 'Edit a constraint (new revision)', params: PI('constraintId'), body: D.ConstraintPatch,
-    permission: 'author', idempotency: 'optional', concurrency: CONC, responses: { 200: { description: 'Constraint', schema: D.ConstraintDto }, ...WRITE },
+    method: 'PATCH', path: '/projects/{projectId}/constraints/{constraintId}', operationId: 'reviseConstraint', tag: 'Constraints', summary: 'Revise a constraint (new revision); with status, also changes its status (R1 reviseConstraint)', params: PI('constraintId'), body: D.ConstraintPatch,
+    permission: 'read', anyOf: ['author', 'decide'], idempotency: 'optional', concurrency: CONC, responses: { 200: { description: 'Constraint', schema: D.ConstraintDto }, ...WRITE },
     handler: async (rc) => { const b = body<D.ConstraintPatchDto>(rc); const ex = rc.expected(b.expectedRevision); return rc.write(async (ctx) => { const c = await updateConstraint(ctx, rc.params.constraintId, b, ex); return { body: c, etag: c.revision } }) },
   })
   route({
@@ -146,10 +146,16 @@ export function registerDesignRoutes(app: FastifyInstance, services: HostService
     handler: async (rc) => { const b = body<D.AssumptionPatchDto>(rc); const ex = rc.expected(b.expectedRevision); return rc.write(async (ctx) => { const a = await updateAssumption(ctx, rc.params.assumptionId, b, ex); return { body: a, etag: a.revision } }) },
   })
   route({
-    method: 'POST', path: '/projects/{projectId}/assumptions/{assumptionId}/validation', operationId: 'changeAssumptionValidation', tag: 'Assumptions',
-    summary: 'Record a validation status change (validated and invalidated need evidence; the assistant may only propose a review)', params: PI('assumptionId'), body: D.ValidationChange,
+    method: 'POST', path: '/projects/{projectId}/assumptions/{assumptionId}/validation', operationId: 'setAssumptionValidation', tag: 'Assumptions',
+    summary: 'Record a validation status change (R1-2: validated needs an evidence reference and a person; the assistant may only propose a review)', params: PI('assumptionId'), body: D.ValidationChange,
     permission: 'read', anyOf: ['author', 'decide'], idempotency: 'optional', concurrency: CONC, responses: { 200: { description: 'Assumption', schema: D.AssumptionDto }, ...WRITE },
-    handler: async (rc) => { const b = body<{ status: string; evidenceIds?: string[]; expectedRevision?: number; reason: string }>(rc); const ex = rc.expected(b.expectedRevision); return rc.write(async (ctx) => { const a = await changeValidation(ctx, rc.params.assumptionId, b.status as never, b.evidenceIds ?? [], ex, b.reason); return { body: a, etag: a.revision } }) },
+    handler: async (rc) => {
+      const b = body<{ status: string; evidence?: { type: string; id: string }; evidenceIds?: string[]; expectedRevision?: number; reason: string }>(rc)
+      const ex = b.expectedRevision !== undefined || rc.request.headers['if-match'] ? rc.expected(b.expectedRevision) : undefined
+      if (b.evidence && b.evidence.type !== 'evidence') throw invalidBody('evidence references an evidence record.', { evidence: 'evidence refs only' })
+      const evidenceIds = [...new Set([...(b.evidence ? [b.evidence.id] : []), ...(b.evidenceIds ?? [])])]
+      return rc.write(async (ctx) => { const a = await changeValidation(ctx, rc.params.assumptionId, b.status as never, evidenceIds, ex, b.reason); return { body: a, etag: a.revision } })
+    },
   })
   route({
     method: 'GET', path: '/projects/{projectId}/assumptions/{assumptionId}/revisions', operationId: 'listAssumptionRevisions', tag: 'Assumptions', summary: 'Revisions of an assumption', params: PI('assumptionId'),
@@ -198,9 +204,9 @@ export function registerDesignRoutes(app: FastifyInstance, services: HostService
 
   // ---- decisions (CR-C5) -----------------------------------------------------------------------------------
   route({
-    method: 'POST', path: '/projects/{projectId}/decisions/{decisionId}/review-flag', operationId: 'flagDecision', tag: 'Decisions',
+    method: 'POST', path: '/projects/{projectId}/decisions/{decisionId}/review-flag', operationId: 'flagDecisionForReview', tag: 'Decisions',
     summary: 'Flag a recorded decision for review (validity under-review; the decision record is not edited)', params: PI('decisionId'), body: D.ReviewFlag,
-    permission: 'author', idempotency: 'optional', responses: { 200: { description: 'Decision', schema: D.DecisionV }, ...WRITE },
+    permission: 'read', anyOf: ['author', 'decide'], idempotency: 'optional', responses: { 200: { description: 'Decision', schema: D.DecisionV }, ...WRITE },
     handler: async (rc) => rc.write(async (ctx) => { const d = await flagDecision(ctx, rc.params.decisionId, body(rc)); return { body: d, etag: d.recordVersion } }),
   })
   route({
@@ -234,7 +240,7 @@ export function registerDesignRoutes(app: FastifyInstance, services: HostService
     method: 'POST', path: '/projects/{projectId}/batch', operationId: 'batch', tag: 'Batch',
     summary: 'Atomic batch of create, link and update operations with placeholders and one provenance',
     description: 'All or nothing. Placeholders ("$name") defined by an operation are replaced in later operations. Each item uses the same validation as its single endpoint; the error names the failing item. Idempotency-Key covers the whole batch.',
-    params: P, body: D.BatchRequest, permission: 'author', idempotency: 'required', responses: { 200: { description: 'Results and placeholder map', schema: D.BatchResult }, ...WRITE },
+    params: P, body: D.BatchRequest, permission: 'read', anyOf: ['author', 'decide'], idempotency: 'required', responses: { 200: { description: 'Results and placeholder map', schema: D.BatchResult }, ...WRITE },
     handler: async (rc) => rc.write(async (ctx) => ({ body: await runBatch(ctx, body(rc)) })),
   })
 

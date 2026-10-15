@@ -55,8 +55,8 @@ Assumption statements of a Concept are Assumptions: existing ones were created w
 upgraded; for new statements choose **Record … assumption statement(s)**. Each statement shows the key of
 its Assumption (or Constraint) in the Intent tab. **Add assumption** records a free one.
 
-**Validation** (inspector): *validated* and *invalidated* need an evidence record. Invalidating an
-Assumption that a recorded decision rests on needs a reviewer. The assistant can only put an Assumption
+**Validation** (inspector): *validated* needs an evidence record (for *invalidated* it is optional).
+Validating or invalidating an Assumption that a recorded decision rests on needs a reviewer. The assistant can only put an Assumption
 **under review**. Every change is kept in the validation history.
 
 ## Design links
@@ -76,7 +76,8 @@ recorded, never deleted. Administrators can register new namespaced link types (
 **Rationale and validity** under a decision assembles what it rests on: alternatives and outcomes,
 supporting or contradicting evidence with its review status, Assumptions and Constraints with the
 revision the decision pinned and the current one, the trade study and conditions under which the
-decision becomes invalid. **Rests on revised records** warns when a pinned revision is no longer
+decision becomes invalid. A decision superseded by a newer recorded decision is shown as
+*invalidated*. **Rests on revised records** warns when a pinned revision is no longer
 current. **Flag for review** sets the decision *under review* (the record is not edited); a reviewer
 answers with **Still valid** or **Invalidate**. Flags are kept with who cleared them.
 

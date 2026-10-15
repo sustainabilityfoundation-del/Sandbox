@@ -115,7 +115,7 @@ describe('design-knowledge operations (Design Reasoning P1)', () => {
       const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } })
       if (url.includes('/concepts?')) return json({ items: [{ id: 'c6', key: 'CON-006', name: 'Ball screw' }], total: 1, limit: 20, offset: 0 })
       if (url.endsWith('/concepts/c6')) return json({ id: 'c6', key: 'CON-006', name: 'Ball screw', revision: 1, statements: [] })
-      if (url.endsWith('/batch')) return json({ results: [{ index: 0, op: 'create-function', ref: '$fn', id: 'f1', key: 'FN-009', revision: 1 }, { index: 1, op: 'create-design-link', ref: '$l1', id: 'l1', key: null, revision: 1 }], ids: { $fn: 'f1', $l1: 'l1' } })
+      if (url.endsWith('/batch')) return json({ results: [{ index: 0, op: 'createFunction', as: '$fn', id: 'f1', key: 'FN-009', revision: 1 }, { index: 1, op: 'createLink', as: '$l1', id: 'l1', key: null, revision: 1 }], ids: { $fn: 'f1', $l1: 'l1' } })
       return json({})
     }) as typeof globalThis.fetch
     const concepts = createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch })
@@ -127,9 +127,9 @@ describe('design-knowledge operations (Design Reasoning P1)', () => {
     expect(applied.createdIds).toEqual(['f1', 'l1'])
     const batch = calls.slice(before).find((c) => c.url.endsWith('/batch'))!
     expect(batch.headers).toMatchObject({ 'X-Source-Kind': 'assistant', 'X-Proposal-Id': 'CP-9', 'Idempotency-Key': 'C-2:CP-9:function' })
-    expect(batch.body.operations).toEqual([
-      { op: 'create-function', ref: '$fn', data: { name: 'Reject heat', reason: 'Assistant proposal CP-9' } },
-      { op: 'create-design-link', ref: '$l1', data: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: 'c6' }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } },
+    expect(batch.body.items).toEqual([
+      { op: 'createFunction', as: '$fn', body: { name: 'Reject heat', reason: 'Assistant proposal CP-9' } },
+      { op: 'createLink', as: '$l1', body: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: 'c6' }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } },
     ])
   })
 })

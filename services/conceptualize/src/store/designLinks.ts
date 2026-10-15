@@ -24,6 +24,10 @@ export interface LinkTypeInfo {
   acyclic: boolean
   assistantAssertable: boolean
   impact: 'possible' | 'demonstrated' | 'none'
+  /** Direction a change travels for impact analysis (ADR-0046): to-from = a change of the to end may affect the from end. */
+  propagation: 'to-from' | 'from-to' | 'both' | 'none'
+  /** For links to artifacts: the only modules allowed at the to end. */
+  artifactModules: string[] | null
   description: string
   builtin: boolean
   stored: 'design-links' | 'relationships' | 'derived'
@@ -39,20 +43,28 @@ interface TypeRow {
   acyclic: boolean
   assistant_assertable: boolean
   impact: LinkTypeInfo['impact']
+  propagation: LinkTypeInfo['propagation']
+  artifact_modules: string[] | null
   description: string
   builtin: boolean
 }
 
 /** Readings of stored data (never written as design links), listed so the graph vocabulary is complete. */
+/** Readings of stored data (never written as design links; R1-8 names, binds and produced-by arrive with CR-C8). */
 export const DERIVED_TYPES: LinkTypeInfo[] = [
-  { name: 'realizes', label: 'realizes', inverse: 'implemented by', fromTypes: ['implementation'], toTypes: ['concept'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', description: 'Implementation membership (ConceptImplementation realizes the Concept).', builtin: true, stored: 'derived' },
-  { name: 'implemented-with', label: 'implemented with', inverse: 'artifact of', fromTypes: ['implementation'], toTypes: ['artifact'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', description: 'Artifact references of an implementation.', builtin: true, stored: 'derived' },
-  { name: 'selected-through', label: 'selected through', inverse: 'selects', fromTypes: ['concept'], toTypes: ['decision'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'demonstrated', description: 'Accepted outcome of a recorded decision.', builtin: true, stored: 'derived' },
-  { name: 'member-of', label: 'alternative in', inverse: 'has alternative', fromTypes: ['concept'], toTypes: ['alternative-set'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'none', description: 'Membership in an alternative set.', builtin: true, stored: 'derived' },
-  { name: 'decides', label: 'decides', inverse: 'decided by', fromTypes: ['decision'], toTypes: ['alternative-set', 'concept'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'none', description: 'The decision is about the set or subject.', builtin: true, stored: 'derived' },
-  { name: 'evidence-for', label: 'evidence for', inverse: 'has evidence', fromTypes: ['evidence'], toTypes: ['concept', 'function', 'constraint', 'assumption', 'decision'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', description: 'Evidence subjects.', builtin: true, stored: 'derived' },
-  { name: 'applies-to', label: 'applies to', inverse: 'assumes', fromTypes: ['assumption'], toTypes: ['concept', 'function', 'constraint', 'exploration'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', description: 'Scope subjects of an assumption.', builtin: true, stored: 'derived' },
-  { name: 'requirement-link', label: 'traces to', inverse: 'traced from', fromTypes: ['concept'], toTypes: ['artifact'], symmetric: false, acyclic: false, assistantAssertable: true, impact: 'possible', description: 'Concept links (satisfies, derives, refines, proposes, references) to artifacts.', builtin: true, stored: 'derived' },
+  { name: 'realizes', label: 'realizes', inverse: 'implemented by', fromTypes: ['implementation'], toTypes: ['concept'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', propagation: 'to-from', artifactModules: null, description: 'Implementation realizes the Concept (implementation membership).', builtin: true, stored: 'derived' },
+  { name: 'realized-as', label: 'realized as', inverse: 'realization of', fromTypes: ['implementation'], toTypes: ['artifact'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', propagation: 'from-to', artifactModules: null, description: 'Implementation → artifact of another module.', builtin: true, stored: 'derived' },
+  { name: 'selected-through', label: 'selected through', inverse: 'selects', fromTypes: ['concept'], toTypes: ['decision'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'demonstrated', propagation: 'to-from', artifactModules: null, description: 'Concept selected (or rejected) through a recorded decision.', builtin: true, stored: 'derived' },
+  { name: 'decides', label: 'decides', inverse: 'decided by', fromTypes: ['decision'], toTypes: ['alternative-set','concept'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'none', propagation: 'none', artifactModules: null, description: 'Decision decides an alternative set (or is about its subject Concept).', builtin: true, stored: 'derived' },
+  { name: 'member', label: 'has alternative', inverse: 'alternative in', fromTypes: ['alternative-set'], toTypes: ['concept'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'none', propagation: 'none', artifactModules: null, description: 'Alternative set → member Concept.', builtin: true, stored: 'derived' },
+  { name: 'decision-assumes', label: 'rests on', inverse: 'assumed by', fromTypes: ['decision'], toTypes: ['assumption'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', propagation: 'to-from', artifactModules: null, description: 'Decision rests on an assumption (pinned revision).', builtin: true, stored: 'derived' },
+  { name: 'decision-constrained-by', label: 'took into account', inverse: 'considered by', fromTypes: ['decision'], toTypes: ['constraint'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', propagation: 'to-from', artifactModules: null, description: 'Decision took a constraint into account (pinned revision).', builtin: true, stored: 'derived' },
+  { name: 'affects', label: 'affects', inverse: 'affected by', fromTypes: ['decision'], toTypes: ['function','concept','implementation','constraint','assumption','evidence','decision','alternative-set','trade-study','exploration','artifact'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', propagation: 'from-to', artifactModules: null, description: 'Decision names an affected record or artifact.', builtin: true, stored: 'derived' },
+  { name: 'watches', label: 'watches', inverse: 'watched by', fromTypes: ['decision'], toTypes: ['function','concept','implementation','constraint','assumption','evidence','decision','alternative-set','trade-study','exploration','artifact'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', propagation: 'to-from', artifactModules: null, description: 'An invalidation condition of the decision watches the subject.', builtin: true, stored: 'derived' },
+  { name: 'subject', label: 'is about', inverse: 'has evidence', fromTypes: ['evidence'], toTypes: ['concept','function','constraint','assumption','decision'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'none', propagation: 'none', artifactModules: null, description: 'Evidence is about the subject.', builtin: true, stored: 'derived' },
+  { name: 'applies-to', label: 'applies to', inverse: 'assumes', fromTypes: ['assumption'], toTypes: ['concept','function','constraint','exploration'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', propagation: 'to-from', artifactModules: null, description: 'Scope subjects of an assumption (Conceptualize extension of the R1 vocabulary).', builtin: true, stored: 'derived' },
+  { name: 'alternatives-for', label: 'alternatives for', inverse: 'has alternatives', fromTypes: ['alternative-set'], toTypes: ['concept'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'none', propagation: 'none', artifactModules: null, description: 'Alternative set of a parent Concept (Conceptualize extension of the R1 vocabulary).', builtin: true, stored: 'derived' },
+  { name: 'requirement-link', label: 'traces to', inverse: 'traced from', fromTypes: ['concept'], toTypes: ['artifact'], symmetric: false, acyclic: false, assistantAssertable: false, impact: 'possible', propagation: 'to-from', artifactModules: null, description: 'Concept links (satisfies, derives, refines, proposes, references) to artifacts.', builtin: true, stored: 'derived' },
 ]
 
 const RELATIONSHIP_TYPES_INFO: LinkTypeInfo[] = RELATIONSHIP_TYPES.map((t) => ({
@@ -65,6 +77,8 @@ const RELATIONSHIP_TYPES_INFO: LinkTypeInfo[] = RELATIONSHIP_TYPES.map((t) => ({
   acyclic: RELATIONSHIP_RULES[t].acyclic,
   assistantAssertable: true,
   impact: t === 'alternative-to' ? 'none' : 'possible',
+  propagation: t === 'alternative-to' || t === 'conflicts-with' ? 'none' : t === 'contains' || t === 'interfaces-with' ? 'both' : 'to-from',
+  artifactModules: null,
   description: RELATIONSHIP_RULES[t].meaning,
   builtin: true,
   stored: 'relationships',
@@ -80,6 +94,8 @@ const toType = (r: TypeRow): LinkTypeInfo => ({
   acyclic: r.acyclic,
   assistantAssertable: r.assistant_assertable,
   impact: r.impact,
+  propagation: r.propagation ?? 'to-from',
+  artifactModules: r.artifact_modules ?? null,
   description: r.description,
   builtin: r.builtin,
   stored: 'design-links',
@@ -103,15 +119,15 @@ async function linkType(db: Queryable, name: string): Promise<LinkTypeInfo> {
   return toType(rows[0])
 }
 
-export async function createLinkType(ctx: Ctx, input: { name: string; label: string; inverse: string; fromTypes: string[]; toTypes: string[]; symmetric?: boolean; acyclic?: boolean; assistantAssertable?: boolean; impact?: 'possible' | 'none'; description?: string }): Promise<LinkTypeInfo> {
+export async function createLinkType(ctx: Ctx, input: { name: string; label: string; inverse: string; fromTypes: string[]; toTypes: string[]; symmetric?: boolean; acyclic?: boolean; assistantAssertable?: boolean; impact?: 'possible' | 'none'; propagation?: LinkTypeInfo['propagation']; artifactModules?: string[]; description?: string }): Promise<LinkTypeInfo> {
   if (!roleAllows(ctx.role, 'administer')) throw forbidden('Registering link types needs an administrator.')
   if (ctx.provenance.sourceKind === 'assistant') throw forbidden('The assistant cannot register link types.')
   const { rowCount } = await ctx.db.query('SELECT 1 FROM conceptualize.link_types WHERE name = $1', [input.name])
   if (rowCount) throw conflict(`The link type ${input.name} already exists.`)
   if (input.symmetric && input.toTypes.some((t) => !input.fromTypes.includes(t))) throw invalid('A symmetric type needs the same entity types on both ends.', { toTypes: 'differs from fromTypes' })
   await ctx.db.query(
-    `INSERT INTO conceptualize.link_types (name, label, inverse, from_types, to_types, is_symmetric, acyclic, assistant_assertable, impact, description, builtin, created_at, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12)`,
-    [input.name, input.label.trim(), input.inverse.trim(), input.fromTypes, input.toTypes, !!input.symmetric, !!input.acyclic, input.assistantAssertable ?? true, input.impact ?? 'possible', (input.description ?? '').trim(), ctx.now, ctx.actor],
+    `INSERT INTO conceptualize.link_types (name, label, inverse, from_types, to_types, is_symmetric, acyclic, assistant_assertable, impact, description, builtin, created_at, created_by, propagation, artifact_modules) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12,$13,$14)`,
+    [input.name, input.label.trim(), input.inverse.trim(), input.fromTypes, input.toTypes, !!input.symmetric, !!input.acyclic, input.assistantAssertable ?? true, input.impact ?? 'possible', (input.description ?? '').trim(), ctx.now, ctx.actor, input.propagation ?? 'to-from', input.artifactModules?.length ? input.artifactModules : null],
   )
   await audit(ctx, { entityType: 'link-type', entityId: input.name, action: 'registered', details: { fromTypes: input.fromTypes, toTypes: input.toTypes } })
   return linkType(ctx.db, input.name)
@@ -212,6 +228,7 @@ export async function createDesignLink(ctx: Ctx, input: DesignLinkCreateDto): Pr
   if (artifact) {
     const p = artifactProblem(input.to as ArtifactRefDto)
     if (p) throw invalid('The artifact reference is not valid.', { to: p })
+    if (t.artifactModules && !t.artifactModules.includes((input.to as ArtifactRefDto).module)) throw invalid(`A ${t.name} link must point at ${t.artifactModules.join('/')}, not ${(input.to as ArtifactRefDto).module}.`, { to: `module ${t.artifactModules.join('/')}` })
   } else if (input.from.id === input.to.id) throw invalid('A record cannot be linked to itself.', { to: 'same as from' })
 
   // Type-specific rules.

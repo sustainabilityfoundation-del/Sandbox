@@ -1,5 +1,5 @@
 import { ActionError, argOptionalString, argString, type AssistantActionDefinition, type DemoPlanner, type ServiceProposalItem } from '@ews/platform-sdk'
-import type { BatchOperation, ConstraintKind, DesignEntityType, DesignRef, Quantity } from '@ews/conceptualize-client'
+import type { BatchItem, ConstraintKind, DesignEntityType, DesignRef, Quantity } from '@ews/conceptualize-client'
 import { formatQuantity } from './domain'
 import { assistantProvenance, connection, proposal, resolve, resolveRef, string } from './assistantShared'
 
@@ -53,8 +53,8 @@ export const designActions: AssistantActionDefinition[] = [
           ...performers.map((c): ServiceProposalItem => ({ label: 'Performs (link)', proposed: `${c.key} ${c.name} performs ${name}`, targetId: c.id, basis: 'ai-hypothesis' })),
         ],
         async apply(p) {
-          const ops: BatchOperation[] = [{ op: 'create-function', ref: '$fn', data: { name, ...(verbPhrase ? { verbPhrase } : {}), ...(description ? { description } : {}), ...(parent ? { parentFunctionId: parent.ref.id } : {}), reason: `Assistant proposal ${p.proposalId}` } }]
-          for (const c of performers) ops.push({ op: 'create-design-link', ref: `$l${ops.length}`, data: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: c.id }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } })
+          const ops: BatchItem[] = [{ op: 'createFunction', as: '$fn', body: { name, ...(verbPhrase ? { verbPhrase } : {}), ...(description ? { description } : {}), ...(parent ? { parentFunctionId: parent.ref.id } : {}), reason: `Assistant proposal ${p.proposalId}` } }]
+          for (const c of performers) ops.push({ op: 'createLink', as: `$l${ops.length}`, body: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: c.id }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } })
           const r = await client.batch(ops, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:function`, reason: `Assistant proposal ${p.proposalId}` })
           fnId = r.ids.$fn
           linkIds = Object.entries(r.ids).filter(([k]) => k !== '$fn').map(([, v]) => v)

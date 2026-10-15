@@ -203,6 +203,7 @@ export const ConceptCreate = Type.Object(
     maturity: Type.Optional(L('idea', 'exploring', 'defined')),
     parentId: Type.Optional(Uuid),
     decompositionId: Type.Optional(Uuid),
+    performs: Type.Optional(Type.Array(Uuid, { maxItems: 20, description: 'Functions this Concept performs (creates performs links; R1 ConceptInput)' })),
     reason: Type.Optional(Text(2000)),
   },
   { $id: 'ConceptCreate', additionalProperties: false, examples: [{ name: 'Thermal management', summary: 'Keep the motor below 80 °C.', abstraction: 'function', parentId: '0c0a0001-0000-4000-8000-000000000001' }] },

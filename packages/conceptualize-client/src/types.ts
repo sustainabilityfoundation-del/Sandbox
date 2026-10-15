@@ -3,7 +3,7 @@
  * /api/concepts/v1/openapi.json (source: services/conceptualize/src/http/schemas.ts).
  */
 import type { ArtifactModule, ConceptAbstraction, ConceptMaturity } from '@ews/platform-sdk'
-import type { AnyRef, DecisionValidity, DesignRef, EvidenceReview, InvalidationCondition, ReviewFlagRecord, SupportRef } from './designTypes'
+import type { AnyRef, DecisionValidity, DesignRef, EvidenceReview, InvalidationCondition, PinRef, ReviewFlagRecord, SupportRef } from './designTypes'
 export type * from './designTypes'
 
 /** Basis ladder (ADR-0043), lowest to highest: ai-hypothesis, assumption / user-assertion, assessment, estimate, calculated, evidence, decision. */
@@ -148,6 +148,8 @@ export interface ConceptCreate {
   maturity?: 'idea' | 'exploring' | 'defined'
   parentId?: string
   decompositionId?: string
+  /** Functions this Concept performs (R1 ConceptInput). */
+  performs?: string[]
   reason?: string
 }
 
@@ -335,8 +337,8 @@ export interface DecisionCreate {
   record?: boolean
   supersedesId?: string
   support?: SupportRef[]
-  assumptionIds?: DesignRef[]
-  constraintIds?: DesignRef[]
+  assumptionIds?: PinRef[]
+  constraintIds?: PinRef[]
   affected?: AnyRef[]
   invalidationConditions?: InvalidationCondition[]
 }
@@ -461,7 +463,7 @@ export interface Evidence {
   provenance: ProvenanceInfo
   /** CR-C6 extensions. */
   subjects?: DesignRef[]
-  applicability?: Record<string, unknown>
+  applicability?: string | Record<string, unknown>
   manifest?: Record<string, unknown> | null
   source?: AnyRef | null
   assumptionIds?: string[]
@@ -483,7 +485,7 @@ export interface EvidenceCreate {
   artifact?: ArtifactRefInput
   supersedesId?: string
   subjects?: DesignRef[]
-  applicability?: Record<string, unknown>
+  applicability?: string | Record<string, unknown>
   /** Required for basis calculated (reproducibility manifest). */
   manifest?: Record<string, unknown>
   source?: AnyRef

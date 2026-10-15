@@ -26,8 +26,8 @@ export const Flow = Type.Object(
   { $id: 'Flow', additionalProperties: false },
 )
 export const Objective = Type.Object(
-  { name: Text(200, 1), quantity: Quantity, direction: L('min', 'max', 'target'), basis: Type.Optional(Basis) },
-  { $id: 'Objective', additionalProperties: false, description: 'Performance objective of a Function (value or range with unit)' },
+  { name: Text(200, 1), direction: L('minimize', 'maximize', 'target'), quantity: Type.Optional(Quantity), basis: Type.Optional(Basis) },
+  { $id: 'PerformanceObjective', additionalProperties: false, description: 'Performance objective of a Function: optimisation direction, optional value or range with unit, basis (R1 contract)' },
 )
 export const FunctionDto = Type.Object(
   {
@@ -40,7 +40,7 @@ export const FunctionDto = Type.Object(
     description: Type.String(),
     purpose: Type.String(),
     flows: Type.Array(Flow),
-    objectives: Type.Array(Objective),
+    performanceObjectives: Type.Array(Objective),
     statements: Type.Array(Statement),
     classifications: Type.Array(Type.String()),
     status: L('draft', 'active', 'retired'),
@@ -61,13 +61,13 @@ const FunctionFields = {
   description: Type.Optional(Text(40000)),
   purpose: Type.Optional(Text(4000)),
   flows: Type.Optional(Type.Array(Flow, { maxItems: 50 })),
-  objectives: Type.Optional(Type.Array(Objective, { maxItems: 50 })),
+  performanceObjectives: Type.Optional(Type.Array(Objective, { maxItems: 50 })),
   statements: Type.Optional(Type.Array(StatementInput, { maxItems: 300 })),
   classifications: Type.Optional(Type.Array(Text(60, 1), { maxItems: 30 })),
 }
 export const FunctionCreate = Type.Object(
   { name: Text(200, 1), ...FunctionFields, status: Type.Optional(L('draft', 'active')), parentFunctionId: Type.Optional(Uuid), decompositionId: Type.Optional(Uuid), reason: Type.Optional(Text(2000)) },
-  { $id: 'FunctionCreate', additionalProperties: false, examples: [{ name: 'Transmit mechanical power', verbPhrase: 'transmit power', objectives: [{ name: 'Torque', quantity: { max: 8, unit: 'N*m' }, direction: 'max' }] }] },
+  { $id: 'FunctionCreate', additionalProperties: false, examples: [{ name: 'Transmit mechanical power', verbPhrase: 'transmit power', performanceObjectives: [{ name: 'Torque', quantity: { max: 8, unit: 'N*m' }, direction: 'target' }] }] },
 )
 export type FunctionCreateDto = Static<typeof FunctionCreate>
 export const FunctionPatch = Type.Object(
@@ -94,7 +94,7 @@ export const ConstraintSource = Type.Union(
   [
     Type.Object({ kind: Type.Literal('requirement'), ref: ArtifactRef }, { additionalProperties: false }),
     Type.Object({ kind: Type.Literal('derived'), from: DesignRef }, { additionalProperties: false }),
-    Type.Object({ kind: Type.Literal('stated') }, { additionalProperties: false }),
+    Type.Object({ kind: Type.Literal('stated'), basis: Type.Optional(Basis) }, { additionalProperties: false }),
   ],
   { $id: 'ConstraintSource', description: 'requirement: formalizes one pinned requirement revision; derived: from another design record; stated: by a person or the assistant (see basis)' },
 )
@@ -146,7 +146,7 @@ export const ConstraintCreate = Type.Object(
 )
 export type ConstraintCreateDto = Static<typeof ConstraintCreate>
 export const ConstraintPatch = Type.Object(
-  { expectedRevision: Type.Optional(Type.Integer({ minimum: 1 })), statement: Type.Optional(Text(4000, 1)), kind: Type.Optional(L('qualitative', 'logical', 'mathematical', 'dimensional', 'interface')), ...ConstraintFields, reason: Type.Optional(Text(2000)) },
+  { expectedRevision: Type.Optional(Type.Integer({ minimum: 1 })), statement: Type.Optional(Text(4000, 1)), kind: Type.Optional(L('qualitative', 'logical', 'mathematical', 'dimensional', 'interface')), ...ConstraintFields, status: Type.Optional(L('proposed', 'active', 'relaxed', 'retired')), reason: Type.Optional(Text(2000)) },
   { $id: 'ConstraintPatch', additionalProperties: false },
 )
 export type ConstraintPatchDto = Static<typeof ConstraintPatch>
@@ -160,7 +160,21 @@ export const PromoteStatement = Type.Object(
 
 export const AssumptionScope = Type.Object({ subjects: Type.Array(DesignRef, { maxItems: 50 }), applicability: Type.Optional(Text(2000)) }, { $id: 'AssumptionScope', additionalProperties: false })
 export const AssumptionValidation = Type.Object(
-  { id: Uuid, revision: Type.Integer(), fromStatus: Type.String(), toStatus: Type.String(), evidenceIds: Type.Array(Uuid), reason: Type.String(), actor: Type.String(), occurredAt: Timestamp, provenance: Provenance },
+  {
+    id: Uuid,
+    revision: Type.Integer({ description: 'Content revision the change applied to' }),
+    status: Type.String({ description: 'R1: the new status' }),
+    by: Type.String(),
+    at: Timestamp,
+    reason: Type.String(),
+    evidence: Type.Optional(DesignRef),
+    fromStatus: Type.String(),
+    toStatus: Type.String(),
+    evidenceIds: Type.Array(Uuid),
+    actor: Type.String(),
+    occurredAt: Timestamp,
+    provenance: Provenance,
+  },
   { $id: 'AssumptionValidation' },
 )
 export const AssumptionDto = Type.Object(
@@ -194,7 +208,7 @@ export const AssumptionCreate = Type.Object(
     statement: Text(4000, 1),
     quantity: Type.Optional(Nullable(Quantity)),
     scope: Type.Optional(AssumptionScope),
-    basis: Type.Optional(L('user-assertion', 'ai-hypothesis', 'assumption')),
+    basis: Type.Optional(L('user-assertion', 'ai-hypothesis', 'assumption', 'assessment', 'estimate')),
     dependsOn: Type.Optional(Type.Array(AnyRef, { maxItems: 50 })),
     origin: Type.Optional(Type.Object({ conceptId: Uuid, statementId: Uuid }, { additionalProperties: false })),
     reason: Type.Optional(Text(2000)),
@@ -216,8 +230,8 @@ export const AssumptionPatch = Type.Object(
 )
 export type AssumptionPatchDto = Static<typeof AssumptionPatch>
 export const ValidationChange = Type.Object(
-  { status: L('unvalidated', 'under-review', 'validated', 'invalidated', 'retired'), evidenceIds: Type.Optional(Type.Array(Uuid, { maxItems: 20 })), expectedRevision: Type.Optional(Type.Integer({ minimum: 1 })), reason: Text(2000, 1) },
-  { $id: 'ValidationChange', additionalProperties: false, description: 'validated needs evidence and a person with author rights; invalidating an assumption a recorded decision depends on needs a reviewer.' },
+  { status: L('unvalidated', 'under-review', 'validated', 'invalidated', 'retired'), evidence: Type.Optional(DesignRef), evidenceIds: Type.Optional(Type.Array(Uuid, { maxItems: 20 })), expectedRevision: Type.Optional(Type.Integer({ minimum: 1 })), reason: Text(2000, 1) },
+  { $id: 'ValidationChange', additionalProperties: false, description: 'R1-2: validated needs an evidence reference (evidence, or evidenceIds) and a person; validating or invalidating an assumption used by a recorded decision needs a reviewer. expectedRevision is optional (the history is append-only).' },
 )
 
 // ---- link registry and design links (CR-C4) ------------------------------------------------------------------------
@@ -233,6 +247,8 @@ export const LinkType = Type.Object(
     acyclic: Type.Boolean(),
     assistantAssertable: Type.Boolean(),
     impact: L('possible', 'demonstrated', 'none'),
+    propagation: L('to-from', 'from-to', 'both', 'none'),
+    artifactModules: Nullable(Type.Array(Type.String())),
     description: Type.String(),
     builtin: Type.Boolean(),
     stored: L('design-links', 'relationships', 'derived'),
@@ -250,6 +266,8 @@ export const LinkTypeCreate = Type.Object(
     acyclic: Type.Optional(Type.Boolean()),
     assistantAssertable: Type.Optional(Type.Boolean()),
     impact: Type.Optional(L('possible', 'none')),
+    propagation: Type.Optional(L('to-from', 'from-to', 'both', 'none')),
+    artifactModules: Type.Optional(Type.Array(L('requirements', 'sysml', 'cad', 'twin', 'analysis', 'external', 'reasoning'), { maxItems: 10 })),
     description: Type.Optional(Text(2000)),
   },
   { $id: 'LinkTypeCreate', additionalProperties: false },
@@ -302,15 +320,28 @@ export const InvalidationCondition = Type.Object(
   },
   { $id: 'InvalidationCondition', additionalProperties: false },
 )
+export const PinRef = Type.Object({ id: Uuid, revision: Type.Optional(Type.Integer({ minimum: 1 })) }, { $id: 'PinRef', additionalProperties: false })
+export const ReviewFlagRecord = Type.Object(
+  {
+    at: Timestamp,
+    by: Type.String(),
+    reason: Type.String(),
+    impactReportId: Type.Optional(Type.String()),
+    conditionId: Type.Optional(Type.String()),
+    sourceKind: Type.Optional(Type.String()),
+    cleared: Type.Optional(Type.Object({ at: Timestamp, by: Type.String(), note: Type.String(), outcome: Type.Optional(Type.String()) })),
+  },
+  { $id: 'ReviewFlagRecord', description: 'R1-7: append-only; validity is under-review while an uncleared flag exists' },
+)
 export const DecisionExtensions = {
   support: Type.Optional(Type.Array(SupportRef, { maxItems: 50 })),
-  assumptionIds: Type.Optional(Type.Array(DesignRef, { maxItems: 50, description: 'Assumptions (pinned revisions)' })),
-  constraintIds: Type.Optional(Type.Array(DesignRef, { maxItems: 50, description: 'Constraints (pinned revisions)' })),
+  assumptionIds: Type.Optional(Type.Array(Type.Union([DesignRef, PinRef]), { maxItems: 50, description: 'Assumptions with the revision the decision rests on ({ id, revision } as in R1, or a DesignRef); the current revision when omitted' })),
+  constraintIds: Type.Optional(Type.Array(Type.Union([DesignRef, PinRef]), { maxItems: 50, description: 'Constraints with the revision taken into account; the current revision when omitted' })),
   affected: Type.Optional(Type.Array(AnyRef, { maxItems: 100 })),
   invalidationConditions: Type.Optional(Type.Array(InvalidationCondition, { maxItems: 50 })),
 }
 export const ReviewFlag = Type.Object(
-  { reason: Text(2000, 1), impactReportRef: Type.Optional(ArtifactRef), conditionId: Type.Optional(Text(60)) },
+  { reason: Text(2000, 1), impactReportId: Type.Optional(Text(200)), impactReportRef: Type.Optional(ArtifactRef), conditionId: Type.Optional(Text(60)) },
   { $id: 'ReviewFlag', additionalProperties: false, description: 'Sets validity under-review (no edit of the decision record).' },
 )
 export const ValidityChange = Type.Object(
@@ -328,7 +359,7 @@ export const Rationale = Type.Object(
     tradeStudy: Nullable(Type.Object({ ref: DesignRef, key: Type.String(), title: Type.String(), ranking: Type.String(), preliminary: Type.Boolean() })),
     invalidationConditions: Type.Array(InvalidationCondition),
     validity: L('valid', 'under-review', 'invalidated'),
-    reviewFlags: Type.Array(Type.Unknown()),
+    reviewFlags: Type.Array(ReviewFlagRecord),
     supersedes: Nullable(Type.String()),
     supersededBy: Nullable(Type.String()),
     stale: Type.Array(Type.String({ description: 'Pinned assumption/constraint revisions that are no longer current' })),
@@ -340,7 +371,7 @@ export const Rationale = Type.Object(
 
 export const EvidenceExtensions = {
   subjects: Type.Optional(Type.Array(DesignRef, { maxItems: 50 })),
-  applicability: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+  applicability: Type.Optional(Type.Union([Text(2000), Type.Record(Type.String(), Type.Unknown())], { description: 'Where the evidence applies (R1: text; structured objects are kept)' })),
   manifest: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: 'Reproducibility manifest (required for basis calculated)' })),
   source: Type.Optional(AnyRef),
   assumptionIds: Type.Optional(Type.Array(Uuid, { maxItems: 50 })),
@@ -356,44 +387,50 @@ export const EvidenceReviewCreate = Type.Object(
 
 // ---- batch (CR-C10) -----------------------------------------------------------------------------------------------
 
-export const BatchOperation = Type.Object(
+export const BATCH_OPS = [
+  'createFunction',
+  'createConcept',
+  'createConstraint',
+  'reviseConstraint',
+  'createAssumption',
+  'createEvidence',
+  'createLink',
+  'createAlternativeSet',
+  'createTradeStudy',
+  'putScores',
+  'proposeDecision',
+  'recordDecision',
+  'flagDecisionForReview',
+  'createImplementation',
+  'createCalculationModel',
+  'updateConcept',
+  'updateFunction',
+  'createRelationship',
+  'createConceptLink',
+  'addAlternative',
+] as const
+export const BatchItem = Type.Object(
   {
-    op: L(
-      'create-concept',
-      'update-concept',
-      'create-function',
-      'update-function',
-      'create-constraint',
-      'create-assumption',
-      'create-relationship',
-      'create-design-link',
-      'create-evidence',
-      'create-decision',
-      'create-implementation',
-      'create-concept-link',
-      'create-alternative-set',
-      'add-alternative',
-    ),
-    ref: Type.Optional(Type.String({ pattern: '^\\$[A-Za-z][A-Za-z0-9_-]{0,40}$', description: 'Placeholder for the created record, usable by later items as "$name"' })),
-    id: Type.Optional(Type.String({ description: 'Target of update operations (UUID or placeholder)' })),
-    expectedRevision: Type.Optional(Type.Integer({ minimum: 1 })),
-    data: Type.Record(Type.String(), Type.Unknown()),
+    op: Type.Union(BATCH_OPS.map((o) => Type.Literal(o)), { description: 'R1-1: the operationId of the write. createLink is a design link (CR-C4); createConceptLink, updateConcept, updateFunction, createRelationship and addAlternative are Conceptualize extensions; createCalculationModel answers 501 until CR-C8.' }),
+    as: Type.Optional(Type.String({ pattern: '^\\$[A-Za-z][A-Za-z0-9_-]{0,40}$', description: 'Placeholder for the created (or affected) record, usable by later items as "$name"' })),
+    body: Type.Record(Type.String(), Type.Unknown(), { description: 'The body of the single operation (same schema and rules); updates carry id and expectedRevision in the body' }),
   },
-  { $id: 'BatchOperation', additionalProperties: false },
+  { $id: 'BatchItem', additionalProperties: false },
 )
 export const BatchRequest = Type.Object(
-  { operations: Type.Array(BatchOperation, { minItems: 1, maxItems: 200 }), reason: Type.Optional(Text(2000)) },
+  { items: Type.Array(BatchItem, { minItems: 1, maxItems: 200 }), reason: Type.Optional(Text(2000)) },
   {
     $id: 'BatchRequest',
     additionalProperties: false,
-    description: 'Executed in one transaction with one provenance; any string value equal to an earlier placeholder ("$fn1") is replaced by the created ID. All or nothing.',
-    examples: [{ operations: [{ op: 'create-function', ref: '$fn', data: { name: 'Deliver linear force' } }, { op: 'create-design-link', data: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: '…' }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } }] }],
+    description: 'Executed in one transaction with one provenance; any string equal to an earlier placeholder ("$fn1") is replaced by its ID anywhere in later bodies. All or nothing. The Idempotency-Key header covers the whole batch.',
+    examples: [{ items: [{ op: 'createFunction', as: '$fn', body: { name: 'Deliver linear force' } }, { op: 'createLink', body: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: '…' }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } }] }],
   },
 )
+export type BatchRequestDto = Static<typeof BatchRequest>
 export const BatchResult = Type.Object(
   {
-    results: Type.Array(Type.Object({ index: Type.Integer(), op: Type.String(), ref: Nullable(Type.String()), id: Type.String(), key: Nullable(Type.String()), revision: Nullable(Type.Integer()) })),
-    ids: Type.Record(Type.String(), Type.String()),
+    results: Type.Array(Type.Object({ index: Type.Integer(), op: Type.String(), as: Nullable(Type.String()), id: Type.String(), key: Nullable(Type.String()), revision: Nullable(Type.Integer()) })),
+    ids: Type.Record(Type.String(), Type.String(), { description: 'Placeholder → created or affected ID' }),
   },
   { $id: 'BatchResult' },
 )
@@ -405,7 +442,7 @@ export const GraphNode = Type.Object(
   { $id: 'GraphNode' },
 )
 export const GraphEdge = Type.Object(
-  { id: Type.String(), type: Type.String(), from: AnyRef, to: AnyRef, basis: Nullable(Type.String()), pinned: Type.Boolean(), stored: L('design-links', 'relationships', 'concept-links', 'derived') },
+  { id: Type.String(), type: Type.String(), from: AnyRef, to: AnyRef, basis: Nullable(Type.String()), pinned: Type.Boolean(), derived: Type.Boolean({ description: 'R1-8: read from records, not a stored link' }), stored: L('design-links', 'relationships', 'concept-links', 'derived') },
   { $id: 'GraphEdge' },
 )
 export const TraverseRequest = Type.Object(
@@ -422,7 +459,7 @@ export const TraverseRequest = Type.Object(
   { $id: 'TraverseRequest', additionalProperties: false },
 )
 export const TraverseResult = Type.Object(
-  { nodes: Type.Array(GraphNode), edges: Type.Array(GraphEdge), truncated: Type.Boolean(), cursor: Type.Optional(Type.String()), builtFrom: Type.Object({ at: Timestamp, asOf: Nullable(Timestamp) }) },
+  { nodes: Type.Array(GraphNode), edges: Type.Array(GraphEdge), truncated: Type.Boolean(), cursor: Type.Optional(Type.String()), builtFrom: Type.Object({ at: Timestamp, asOf: Nullable(Timestamp), revision: Type.Integer({ description: 'Project revision (latest audit sequence) the result reflects' }) }) },
   { $id: 'TraverseResult' },
 )
 export const PathsRequest = Type.Object(
@@ -473,7 +510,7 @@ export const DESIGN_SCHEMAS: TSchema[] = [
   Rationale,
   EvidenceReview,
   EvidenceReviewCreate,
-  BatchOperation,
+  BatchItem,
   BatchRequest,
   BatchResult,
   GraphNode,
@@ -491,7 +528,6 @@ export type AssumptionOut = Static<typeof AssumptionDto>
 export type DesignLinkOut = Static<typeof DesignLinkDto>
 export type InvalidationConditionDto = Static<typeof InvalidationCondition>
 export type SupportRefDto = Static<typeof SupportRef>
-export type BatchRequestDto = Static<typeof BatchRequest>
 export type TraverseRequestDto = Static<typeof TraverseRequest>
 export type PathsRequestDto = Static<typeof PathsRequest>
 export type BoundDto = Static<typeof Bound>
@@ -509,9 +545,9 @@ export const DecisionV = Type.Object(
     affected: Type.Array(AnyRef),
     invalidationConditions: Type.Array(InvalidationCondition),
     validity: L('valid', 'under-review', 'invalidated'),
-    reviewFlags: Type.Array(Type.Record(Type.String(), Type.Unknown())),
+    reviewFlags: Type.Array(ReviewFlagRecord),
   },
-  { $id: 'Decision' },
+  { $id: 'Decision', description: 'validity is derived (R1-7): invalidated when a reviewer invalidated it or a recorded decision superseded it; under-review while an uncleared review flag exists; otherwise valid.' },
 )
 export const DecisionCreateV = Type.Object({ ...BaseDecisionCreate.properties, ...DecisionExtensions }, { $id: 'DecisionCreate', additionalProperties: false })
 export type DecisionCreateVDto = Static<typeof DecisionCreateV>
@@ -521,7 +557,7 @@ export const EvidenceV = Type.Object(
     conceptId: Nullable(Uuid),
     conceptRevision: Nullable(Type.Integer()),
     subjects: Type.Array(DesignRef),
-    applicability: Type.Record(Type.String(), Type.Unknown()),
+    applicability: Type.Union([Type.String(), Type.Record(Type.String(), Type.Unknown())]),
     manifest: Nullable(Type.Record(Type.String(), Type.Unknown())),
     source: Nullable(AnyRef),
     assumptionIds: Type.Array(Uuid),

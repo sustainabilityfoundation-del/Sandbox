@@ -140,6 +140,28 @@ interface DecisionRow {
   validity: DecisionDto['validity']
   review_flags: DecisionDto['reviewFlags']
 }
+type FlagRecord = DecisionDto['reviewFlags'][number]
+/** Flags written before R1 used flaggedBy/flaggedAt, impactReportRef and cleared.reason. */
+function normalizeFlag(raw: unknown): FlagRecord {
+  const f = raw as Record<string, unknown> & { cleared?: Record<string, string> }
+  const cleared = f.cleared ? { at: String(f.cleared.at), by: String(f.cleared.by), note: String(f.cleared.note ?? f.cleared.reason ?? ''), ...(f.cleared.outcome ? { outcome: String(f.cleared.outcome) } : {}) } : undefined
+  return {
+    at: String(f.at ?? f.flaggedAt),
+    by: String(f.by ?? f.flaggedBy),
+    reason: String(f.reason ?? ''),
+    ...(f.impactReportId ? { impactReportId: String(f.impactReportId) } : {}),
+    ...(f.conditionId ? { conditionId: String(f.conditionId) } : {}),
+    ...(f.sourceKind ? { sourceKind: String(f.sourceKind) } : {}),
+    ...(cleared ? { cleared } : {}),
+  }
+}
+/** R1-7: validity is derived from the stored invalidation, supersession by a recorded decision and uncleared flags. */
+function deriveValidity(r: DecisionRow): DecisionDto['validity'] {
+  if (r.validity === 'invalidated' || (r.status === 'recorded' && r.superseded_by_id)) return 'invalidated'
+  if ((r.review_flags ?? []).some((f) => !(f as { cleared?: unknown }).cleared)) return 'under-review'
+  return 'valid'
+}
+
 const toDecision = (r: DecisionRow): DecisionDto => ({
   id: r.id,
   key: r.key,
@@ -164,8 +186,8 @@ const toDecision = (r: DecisionRow): DecisionDto => ({
   constraintIds: r.constraint_refs,
   affected: r.affected,
   invalidationConditions: r.invalidation_conditions,
-  validity: r.validity,
-  reviewFlags: r.review_flags,
+  validity: deriveValidity(r),
+  reviewFlags: (r.review_flags ?? []).map(normalizeFlag),
 })
 
 export async function getDecision(db: Queryable, projectId: string, id: string): Promise<DecisionDto | undefined> {
@@ -259,8 +281,10 @@ export async function recordDecision(ctx: Ctx, id: string, expected: number, rea
   if (d.supersedesId) {
     const old = await getDecision(ctx.db, ctx.projectId, d.supersedesId)
     if (old?.supersededById) throw conflict(`${old.key} is already superseded.`)
-    await ctx.db.query('UPDATE conceptualize.decisions SET superseded_by_id = $2, record_version = record_version + 1 WHERE id = $1', [d.supersedesId, id])
+    // R1-7: superseding by a recorded decision invalidates the old one (its record is otherwise unchanged).
+    await ctx.db.query("UPDATE conceptualize.decisions SET superseded_by_id = $2, validity = CASE WHEN status = 'recorded' THEN 'invalidated' ELSE validity END, record_version = record_version + 1 WHERE id = $1", [d.supersedesId, id])
     await audit(ctx, { entityType: 'decision', entityId: d.supersedesId, action: 'superseded', details: { by: id } })
+    if (old?.status === 'recorded') await emit(ctx, 'decision.invalidated', d.supersedesId, (old.recordVersion ?? 0) + 1)
   }
   await ctx.db.query(`UPDATE conceptualize.decisions SET status = 'recorded', recorded_by = $2, recorded_at = $3, record_version = record_version + 1 WHERE id = $1`, [id, ctx.actor, ctx.now])
   const concepts = await getConcepts(ctx.db, ctx.projectId, d.outcomes.map((o) => o.conceptId))
@@ -302,10 +326,14 @@ async function validateExtensions(ctx: Ctx, input: DecisionCreateDto) {
     if (support.some((x) => x.ref.type !== 'evidence')) throw invalid('Support references evidence records.', { support: 'evidence refs only' })
     await requireRefs(ctx.db, ctx.projectId, support.map((x) => x.ref), 'support')
   }
-  const pin = async (refs: DesignRefDto[], type: 'assumption' | 'constraint', field: string) => {
-    if (refs.some((x) => x.type !== type)) throw invalid(`${field} references ${type} records.`, { [field]: `${type} refs only` })
-    const found = await requireRefs(ctx.db, ctx.projectId, refs, field)
-    return refs.map((x) => ({ module: 'conceptualize' as const, type, id: x.id, revision: x.revision ?? found.find((f) => f.ref.id === x.id)!.revision }))
+  const pin = async (raw: { id: string; type?: string; revision?: number }[], type: 'assumption' | 'constraint', field: string) => {
+    if (raw.some((x) => x.type !== undefined && x.type !== type)) throw invalid(`${field} references ${type} records.`, { [field]: `${type} refs only` })
+    const found = await requireRefs(ctx.db, ctx.projectId, raw.map((x) => ({ type, id: x.id })), field)
+    return raw.map((x, i) => {
+      const current = found.find((f) => f.ref.id === x.id)!.revision ?? 1
+      if (x.revision !== undefined && x.revision > current) throw invalid(`${field}: revision ${x.revision} of ${type} ${x.id} does not exist (current ${current}).`, { [`${field}.${i}.revision`]: 'not a revision' })
+      return { module: 'conceptualize' as const, type, id: x.id, revision: x.revision ?? current }
+    })
   }
   const assumptionIds = await pin(input.assumptionIds ?? [], 'assumption', 'assumptionIds')
   const constraintIds = await pin(input.constraintIds ?? [], 'constraint', 'constraintIds')
@@ -330,7 +358,9 @@ async function validateExtensions(ctx: Ctx, input: DecisionCreateDto) {
  * Flags a recorded decision for review (validity under-review) with a reason and an optional impact report;
  * the decision record itself is not edited. Authors (or the assistant through an applied proposal) may flag.
  */
-export async function flagDecision(ctx: Ctx, id: string, input: { reason: string; impactReportRef?: unknown; conditionId?: string }): Promise<DecisionDto> {
+export async function flagDecision(ctx: Ctx, id: string, input: { reason: string; impactReportId?: string; impactReportRef?: unknown; conditionId?: string }): Promise<DecisionDto> {
+  if (!roleAllows(ctx.role, 'author') && !roleAllows(ctx.role, 'decide')) throw forbidden('Flagging a decision needs an editor, reviewer or administrator.')
+  if (!input.reason?.trim()) throw invalid('A review flag needs a reason.', { reason: 'required' })
   if (!isUuid(id)) throw notFound(`Decision ${id} not found.`)
   const { rows } = await ctx.db.query<DecisionRow>('SELECT * FROM conceptualize.decisions WHERE id = $1 AND project_id = $2 FOR UPDATE', [id, ctx.projectId])
   if (!rows[0]) throw notFound(`Decision ${id} not found.`)
@@ -338,7 +368,7 @@ export async function flagDecision(ctx: Ctx, id: string, input: { reason: string
   if (d.status !== 'recorded') throw conflict(`${d.key} is ${d.status}; only recorded decisions are flagged for review.`)
   if (d.validity === 'invalidated') throw conflict(`${d.key} is already invalidated.`)
   if (input.conditionId && !d.invalidationConditions.some((c) => c.id === input.conditionId)) throw invalid('Unknown invalidation condition.', { conditionId: 'not a condition of this decision' })
-  const flag = { reason: input.reason.trim(), ...(input.impactReportRef ? { impactReportRef: input.impactReportRef } : {}), ...(input.conditionId ? { conditionId: input.conditionId } : {}), flaggedBy: ctx.actor, flaggedAt: ctx.now.toISOString(), sourceKind: ctx.provenance.sourceKind }
+  const flag = { at: ctx.now.toISOString(), by: ctx.actor, reason: input.reason.trim(), ...(input.impactReportId ? { impactReportId: input.impactReportId } : {}), ...(input.impactReportRef ? { impactReportRef: input.impactReportRef } : {}), ...(input.conditionId ? { conditionId: input.conditionId } : {}), sourceKind: ctx.provenance.sourceKind }
   await ctx.db.query(`UPDATE conceptualize.decisions SET validity = 'under-review', review_flags = review_flags || $2::jsonb, record_version = record_version + 1 WHERE id = $1`, [id, JSON.stringify([flag])])
   await audit(ctx, { entityType: 'decision', entityId: id, conceptIds: d.outcomes.map((o) => o.conceptId), action: 'review-flagged', reason: input.reason, details: flag })
   await emit(ctx, 'decision.review-flagged', id, d.recordVersion + 1)
@@ -353,7 +383,7 @@ export async function changeValidity(ctx: Ctx, id: string, validity: 'valid' | '
   if (d.status !== 'recorded') throw conflict(`${d.key} is ${d.status}.`)
   if (d.validity === validity) throw invalid(`${d.key} is already ${validity}.`)
   if (d.validity === 'invalidated') throw conflict(`${d.key} is invalidated; record a superseding decision instead.`)
-  const cleared = { by: ctx.actor, at: ctx.now.toISOString(), outcome: validity, reason }
+  const cleared = { by: ctx.actor, at: ctx.now.toISOString(), outcome: validity, note: reason }
   const flags = d.reviewFlags.map((f) => ((f as { cleared?: unknown }).cleared ? f : { ...f, cleared }))
   await ctx.db.query('UPDATE conceptualize.decisions SET validity = $2, review_flags = $3, record_version = record_version + 1 WHERE id = $1', [id, validity, JSON.stringify(flags)])
   await audit(ctx, { entityType: 'decision', entityId: id, conceptIds: d.outcomes.map((o) => o.conceptId), action: validity === 'invalidated' ? 'invalidated' : 'review-cleared', reason, details: { invalidatedBy: invalidatedBy ?? null } })

@@ -309,15 +309,15 @@ function FunctionDetail({ fn }: { fn: DesignFunction }) {
       )}
       <Section title="Objectives" helpId="conceptualize.knowledge.function.objectives">
         <ul className="con-statements">
-          {fn.objectives.map((o, i) => (
+          {fn.performanceObjectives.map((o, i) => (
             <li key={i} data-basis={o.basis ?? 'user-assertion'}>
               <span className="con-statement-text">
-                {o.name} <strong>{formatQuantity(o.quantity)}</strong> <span className="con-muted">({o.direction})</span>
+                {o.name} {o.quantity && <strong>{formatQuantity(o.quantity)}</strong>} <span className="con-muted">({o.direction})</span>
               </span>
               <BasisBadge basis={o.basis ?? 'user-assertion'} />
             </li>
           ))}
-          {!fn.objectives.length && <li className="con-muted">No objectives.</li>}
+          {!fn.performanceObjectives.length && <li className="con-muted">No objectives.</li>}
         </ul>
       </Section>
       {fn.statements.length > 0 && (
@@ -452,7 +452,8 @@ function AssumptionDetail({ a }: { a: Assumption }) {
   const [ev, setEv] = useState<string | null>(null)
   const [reason, setReason] = useState('')
   const { error, busy, run } = useRun()
-  const needsEvidence = to === 'validated' || to === 'invalidated'
+  const needsEvidence = to === 'validated'
+  const offersEvidence = to === 'validated' || to === 'invalidated'
   return (
     <div className="con-stack">
       <RecordHead keyText={a.key} title={a.statement}>
@@ -494,9 +495,9 @@ function AssumptionDetail({ a }: { a: Assumption }) {
         {(can('author') || can('decide')) && (
           <div className="con-inline-form">
             <Select label="Validation" size="sm" value={to} onChange={(v) => setTo(v as AssumptionStatus)} options={(['unvalidated', 'under-review', 'validated', 'invalidated', 'retired'] as const).map((s) => ({ id: s, label: s }))} />
-            {needsEvidence && <Select label="Evidence" size="sm" value={ev} placeholder="Required" onChange={setEv} options={(evidence.data ?? []).map((e) => ({ id: e.id, label: `${e.key} ${e.title} (${BASIS[e.basis].label})` }))} />}
+            {offersEvidence && <Select label="Evidence" size="sm" value={ev} placeholder={needsEvidence ? 'Required' : 'Optional'} onChange={setEv} options={(evidence.data ?? []).map((e) => ({ id: e.id, label: `${e.key} ${e.title} (${BASIS[e.basis].label})` }))} />}
             <TextField label="Reason (recorded)" value={reason} onChange={setReason} />
-            <Button size="sm" variant="outlined" isPending={busy} isDisabled={to === a.validationStatus || !reason.trim() || (needsEvidence && !ev)} onPress={() => void run(async () => (await client.changeAssumptionValidation(a.id, to, { expectedRevision: a.revision, reason: reason.trim(), ...(needsEvidence && ev ? { evidenceIds: [ev] } : {}) }), setReason('')))}>
+            <Button size="sm" variant="outlined" isPending={busy} isDisabled={to === a.validationStatus || !reason.trim() || (needsEvidence && !ev)} onPress={() => void run(async () => (await client.changeAssumptionValidation(a.id, to, { expectedRevision: a.revision, reason: reason.trim(), ...(ev && (to === 'validated' || to === 'invalidated') ? { evidence: dref('evidence', ev) } : {}) }), setReason('')))}>
               Record
             </Button>
           </div>
@@ -768,7 +769,7 @@ export function DecisionRationale({ d }: { d: Decision }) {
         <ul className="con-history">
           {x.reviewFlags.map((f, i) => (
             <li key={i}>
-              Review flag: {f.reason} <span className="con-muted">{f.by ? `by ${f.by} ` : ''}{formatDate(f.at)}</span> {f.cleared && <Badge tone="neutral">cleared by {f.cleared.by}: {f.cleared.outcome}</Badge>}
+              Review flag: {f.reason} <span className="con-muted">by {f.by} {formatDate(f.at)}{f.impactReportId ? ` (impact report ${f.impactReportId})` : ''}</span> {f.cleared && <Badge tone="neutral" title={f.cleared.note}>cleared by {f.cleared.by}{f.cleared.outcome ? `: ${f.cleared.outcome}` : ''}</Badge>}
             </li>
           ))}
         </ul>

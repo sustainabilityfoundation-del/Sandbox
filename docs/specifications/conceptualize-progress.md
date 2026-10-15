@@ -31,6 +31,87 @@ the graph view is plain SVG.
 Vertical slice = M1–M5 plus the help/test parts of M7, working end to end in the workspace on the
 real API and PostgreSQL.
 
+## Sprint 2: design knowledge (Design Reasoning P1, refined by R1)
+
+Source: `docs/modules/design-reasoning/contract-change-requests.md` (CR-C1…C6, C9, C10 and the R1
+refinements R1-1…R1-10), `packages/design-reasoning-core/src/contract/conceptualize.ts`. Merged main
+ec16cf2 (R1) into the branch before aligning. C7, C8 and C11–C13 are next sprint.
+
+| CR | Content | Status |
+| --- | --- | --- |
+| C10 / R1-1 | `POST /batch`: `items: [{ op, as?, body }]`, ops = R1 operationIds (createFunction, createConcept, createConstraint, reviseConstraint, createAssumption, createEvidence, createLink, createAlternativeSet, createTradeStudy, putScores, proposeDecision, recordDecision, flagDecisionForReview, createImplementation, createCalculationModel) plus extensions (updateConcept, updateFunction, createRelationship, createConceptLink, addAlternative); placeholders substituted anywhere; one transaction, one provenance, Idempotency-Key required; errors name `Item i (op)` and the field; per-item permissions | done |
+| C1 | Function (FN-…), immutable revisions, `performanceObjectives` (minimize/maximize/target, basis), flows, `decomposes-into` (acyclic, shared sub-functions), named function decompositions, `performs` (Concept → Function), Concept `performs` in create; explicit, previewed **convert-to-function** (no automatic migration) | done |
+| C3 | Assumption (ASM-…), revisions, scope, dependsOn, append-only validation history; **automatic additive migration** from assumption statements of the current revision (0002); `assumptions-from-statements` for new statements; R1-2 validation rules | done |
+| C2 / R1-4 | DesignConstraint (CST-…): kinds, bound, strength, source requirement (pinned, exactly one `formalizes`, created automatically) / derived / stated (with basis); `constrains` from subjects; user-invoked **promote-statement**; reviseConstraint (content + status); relaxing/retiring a hard formalizing constraint needs a reviewer; `suspect` derived by clients | done |
+| C4 | Link-type registry (`link_types`, built-ins per R1 with `propagation` and `artifactModules`; administrators register namespaced types), `/design-links` with endpoint, duplicate, cycle, assistant-flag and basis rules | done (path deviation below) |
+| C5 / R1-3, R1-7 | Decisions: support, assumption and constraint pins (`{ id, revision }` or DesignRef; revision must exist), affected, invalidation conditions, review flags `{ at, by, reason, impactReportId?, cleared? }`, **derived validity**, superseding by a recorded decision invalidates, rationale endpoint (stale pins) | done |
+| C6 / R1-6 | Evidence: subjects, applicability (text), manifest, source, assumptionIds; append-only reviews (reviewer, never the author or the assistant), derived `validationStatus`; basis `assessment` and `calculated` (calculated needs a manifest, refused from the assistant until C8) enforced on the server | done (conflict 1 below) |
+| C9 / R1-8, R1-10 | `POST /graph/traverse` (follow, depth, nodeTypes, where, limit/cursor, **asOf implemented**), `GET /graph/neighbourhood`, `POST /graph/paths`, `GET /search` across types; derived edges with R1 names and `derived: true`; `builtFrom.revision` = latest audit sequence | done |
+
+UI: Explorer record types (Concepts, Functions, Constraints, Assumptions) with status and basis labels;
+inspector for each record (objectives, flows, links, decompose, status, source and pinned requirement,
+validation history); Concept *Design knowledge* tab (previewed conversion, promote, assumptions from
+statements, typed links with search); Intent shows the Assumption/Constraint key next to statements;
+decision rationale with stale pins, flag for review, Still valid / Invalidate; evidence reviews.
+Assistant (service proposals): `create_function` (one batch), `convert_to_function`,
+`create_constraint`, `promote_constraint`, `record_assumption`, `create_link`; reads `rationale`,
+`traverse`, `search_design`. Help topic `conceptualize.knowledge`; capability entries appended.
+
+### Deviations from the contract (recorded; coordinator informed)
+
+1. **Design links at `/design-links`**, not `/links` (integration.md §3): `/links` already serves
+   Concept→artifact links (v1). Moving them is a breaking v1 change; proposal: keep `/design-links`, or
+   rename the v1 paths in a coordinated major change.
+2. **operationId collisions with v1**: R1 names the design-link write `createLink`, but v1 uses
+   `createLink` for Concept→artifact links; the decision write is `createDecision` (v1, R1:
+   `proposeDecision`) and scores `putTradeScores` (R1: `putScores`). The **batch accepts the R1 names**
+   (`createLink` = design link; v1 Concept links are `createConceptLink` in a batch). OpenAPI keeps the v1
+   operationIds; operations added this sprint use the R1 names (`setAssumptionValidation`,
+   `flagDecisionForReview`, `reviseConstraint`). Single-endpoint design-link create stays
+   `createDesignLink`. Decision needed: rename the v1 operationIds (breaking for generated clients) or
+   keep the mapping.
+3. **Not implemented until later CRs** (answer HTTP 501 with code `invalid`, `details.notImplemented`;
+   the SDK error codes have no `not-implemented`): `createCalculationModel` and evidence `calculation`
+   (C8), alternative-set `functionId` (C7), implementation `realizedConceptRevision` (C11).
+4. **Alternative sets need a parent Concept** in v1 (`parentConceptId` required; R1 makes it optional).
+5. **Stricter than the R1 test adapter** (kept deliberately): the assistant may only set assumptions
+   *under-review* (adapter: refuses only *validated*); unknown `$placeholders` are errors (adapter leaves
+   them as text); function and constraint creation defaults (`active`, `proposed`) as before for
+   constraints. Assumption validation changes do not create a new content revision (separate history).
+6. Calculated basis cannot be written by the assistant until C8 (manifest verification).
+
+### Conflicts with sprint-1 behaviour (need a coordinator decision; not changed)
+
+1. **R1-6 "basis `evidence` is never written directly"** vs v1: Conceptualize records verified
+   evidence as `basis: 'evidence'` with an artifact reference, by a person, and verification status
+   needs it (contracts, sprint 1). Options: (a) keep for person-recorded evidence with a twin/analysis
+   artifact, (b) derive `evidence` from an accepted review only. Today (a); the assistant cannot write it.
+2. **R1-3 "reviewers do not author"** vs v1 `createDecision` with `record: true`, which a reviewer may
+   call (create and record in one step). The batch follows R1 (proposeDecision needs author,
+   recordDecision needs decide); the single endpoint keeps v1 behaviour until you decide.
+
+### Settings Conceptualize would contribute to a future SDK `SettingsContribution`
+
+| Setting | Scope | Today |
+| --- | --- | --- |
+| Data mode (API / demo) | user | platform service settings |
+| Default basis for new statements (user statement / assumption) | user | fixed: user statement |
+| Explorer default record type and view (tree / graph) | user | view state |
+| Show AI hypotheses banner / highlight | user | always on |
+| Default trade-study method and qualitative scale labels | project | fixed (weighted sum, 1–5) |
+| Approval gates: maturities that need a reviewer | project (admin) | fixed in `rules.ts` |
+| Assistant may assert link types (per type) | project (admin) | `link_types.assistant_assertable` |
+| Registered link types | project (admin) | `POST /link-types` |
+| Seed example data on start | deployment | `SEED_ON_START` |
+| Stale-link check interval / requirement change notifications | user | on open |
+
+### Change requests still open (SDK)
+
+CR-S1 (`DesignRef`, `ArtifactModule` + `conceptualize`/`reasoning`), CR-S3 (`ConceptsService.getFunction`,
+`traverse`, `decisionRationale`), CR-S4 (`ServiceProposalItem.basis` + `assessment`/`calculated`):
+the client defines `DesignRef` locally until S1 ships; the assistant maps assessment/calculated to the
+nearest existing preview basis until S4.
+
 ## Domain model (summary; full description in docs/modules/conceptualize.md)
 
 - **Concept**: UUID + key `CON-001`; record (maturity, verification status, current revision) and
@@ -202,20 +283,35 @@ Entitlement `tool:conceptualize` on every route.
   immutability triggers, outbox with notify trigger).
 - `services/api/src/platform/migrations/0002_conceptualize_entitlement.sql`: additive grant of
   `tool:conceptualize` to ada, rui, eli, rho where they exist.
+- `0002_design_knowledge.sql` (sprint 2, additive): basis CHECKs widened (assessment, calculated);
+  functions, constraints, assumptions (+ revisions, validations), link_types, design_links,
+  evidence_subjects (backfilled from concept_id), evidence_reviews; decision and evidence columns with
+  defaults; decompositions may have a function parent. **CR-C3 data migration**: one Assumption
+  (ASM-nnn, provenance `system`, reason "migrated from statement", origin = statement) per assumption
+  statement of each Concept's current revision. Test: `test/migration.test.ts` on an 0001-format fixture
+  (old rows unchanged, assumption created, decisions valid, evidence subjects backfilled).
+- `0003_r1_link_vocabulary.sql` (additive): `link_types.propagation`, `artifact_modules`; built-in rows
+  widened to the R1 vocabulary; user-registered types unchanged (tested on an 0002-format fixture).
+  Function objectives written before R1 with direction `min`/`max` are read as `target` (no rewrite).
 
 ## Test commands and results (last run)
 
 | Command | Result |
 | --- | --- |
-| `npm run check` | 407 passed, 1 skipped |
+Sprint 2 (after merging main ec16cf2, R1):
+
+| Command | Result |
+| --- | --- |
+| `npm run check` | 733 passed, 1 skipped |
 | `npm run build` | OK |
-| `npm run build:harnesses` | OK |
-| `npm run req:test:db` | 121 passed (includes the 29 Conceptualize tests) |
-| `npm run concept:test:db` | 29 passed |
-| Browser: workspace vertical slice (`pw/concept/workspace-flow.mjs`) | 19/19, no console errors |
-| Browser: extended features (`pw/concept/extras-flow.mjs`) | 8/8 |
-| Browser: assistant operations (`pw/concept/assistant-flow.mjs`) | 5/5 |
-| Browser: harness API and demo (`pw/concept/harness-flow.mjs`) | 3/3 |
+| `npm run concept:test:db` | 55 passed (migration 0002 and 0003 fixtures, 21 design-knowledge API tests incl. R1 invariants, 29 v1 tests, contract suite) |
+| `npx vitest run packages/tool-conceptualize` | 8 passed (design operations, batch apply with provenance) |
+| Browser: design knowledge (`pw/concept/design-flow.mjs`) | 27/27, no console errors (functions, constraints, assumptions, convert, promote, links, rationale, flag, validity, evidence review, assistant batch, phone width, reader) |
+| Browser: workspace vertical slice (`pw/concept/workspace-flow.mjs`) | all passed (regression) |
+| Browser: assistant operations (`pw/concept/assistant-flow.mjs`) | all passed (regression) |
+
+Sprint 1 (last run): check 407 passed; build and harnesses OK; req:test:db 121 passed; concept:test:db
+29 passed; browser flows 19/19, 8/8, 5/5, 3/3.
 
 ## Demonstration
 
@@ -237,6 +333,16 @@ in `apps/workspace` `API_PORT=8798 npx vite --port 5196` and open http://localho
 7. AI collaboration: confirm or remove AI hypotheses, next steps, explorations with Undo, assistant
    provenance. Further prompts: “Decompose CON-0xx into …”, “Link CON-0xx to SYS-003”, “Propose
    requirements for CON-0xx”, “Request CAD generation for CON-0xx”, “Pursue CON-0xx”.
+
+Design knowledge (sprint 2): Explorer → record type **Functions** → FN-001 *Deliver controlled linear
+force* (objectives with basis, sub-functions, the 500 N alternatives performing it, the 100 mm envelope
+constraint). **Constraints** → the constraint formalizing REQ-001 rev 1 (reviewer gate). **Assumptions** →
+migrated ASM records; record a validation. Open CON-005 → *Design knowledge* → **Preview conversion**
+(four implements → performs) → Convert. A Concept with a quantified constraint statement → **Promote
+to constraint**; add a typed link. A recorded decision → **Rationale and validity** (stale pins) →
+Flag for review → as rui **Still valid**; Evidence → Accept (rui). Assistant: “Convert CON-005 to a
+function”, “Create a function "Reject heat" performed by CON-006”, “Why was DEC-001 made?”, “Which
+concepts perform FN-001?”. API: `POST /batch` with `items` (see OpenAPI example).
 
 ## Handoff log
 

@@ -37,10 +37,10 @@ describe('Functions and function decomposition (CR-C1)', () => {
   })
 
   it('creates, revises and decomposes Functions; refuses cycles and stale edits', async () => {
-    const parent = await post('/functions', { name: 'Store energy', objectives: [{ name: 'Capacity', quantity: { min: 2, unit: 'kW*h' }, direction: 'min' }] })
+    const parent = await post('/functions', { name: 'Store energy', performanceObjectives: [{ name: 'Capacity', quantity: { min: 2, unit: 'kW*h' }, direction: 'maximize' }] })
     expect(parent.status).toBe(201)
     await expectConforms(env, 'createFunction', 201, parent.body)
-    expect(parent.body).toMatchObject({ revision: 1, status: 'draft', provenance: { sourceKind: 'user' } })
+    expect(parent.body).toMatchObject({ revision: 1, status: 'active', provenance: { sourceKind: 'user' }, performanceObjectives: [{ name: 'Capacity', direction: 'maximize', basis: 'user-assertion' }] })
     const child = await post('/functions', { name: 'Hold charge', parentFunctionId: parent.body.id })
     expect(child.status).toBe(201)
     // child decomposes-into parent would be a cycle.
@@ -106,6 +106,7 @@ describe('Assumptions (CR-C3)', () => {
     expect(ok.status).toBe(200)
     expect(ok.body).toMatchObject({ validationStatus: 'validated', validatedBy: [ev.id] })
     expect(ok.body.validations.map((v: { toStatus: string }) => v.toStatus)).toEqual(['under-review', 'validated'])
+    expect(ok.body.validations[1]).toMatchObject({ status: 'validated', by: 'eli', reason: 'Measured', evidence: { type: 'evidence', id: ev.id } })
   })
 
   it('records a free assumption and refuses an assistant assertion basis', async () => {
@@ -225,7 +226,7 @@ describe('decision and evidence extensions (CR-C5, CR-C6)', () => {
     await env.call('eli', 'PATCH', `${BASE}/assumptions/${asm.id}`, { expectedRevision: 1, statement: 'Duty cycle 35 %' })
     const flagged = await post(`/decisions/${dec.body.id}/review-flag`, { reason: 'Assumption revised', conditionId: 'IC-1' }, 'eli', assistant())
     expect(flagged.status).toBe(200)
-    expect(flagged.body).toMatchObject({ validity: 'under-review', reviewFlags: [{ reason: 'Assumption revised' }] })
+    expect(flagged.body).toMatchObject({ validity: 'under-review', reviewFlags: [{ reason: 'Assumption revised', by: 'eli', at: expect.any(String) }] })
     const rationale = await get(`/decisions/${dec.body.id}/rationale`)
     expect(rationale.status).toBe(200)
     await expectConforms(env, 'decisionRationale', 200, rationale.body)
@@ -236,7 +237,7 @@ describe('decision and evidence extensions (CR-C5, CR-C6)', () => {
     expect((await post(`/decisions/${dec.body.id}/validity`, { expectedRevision: flagged.body.recordVersion, validity: 'valid', reason: 'Still fine' })).status).toBe(403)
     const cleared = await post(`/decisions/${dec.body.id}/validity`, { expectedRevision: flagged.body.recordVersion, validity: 'valid', reason: 'Still within the margin' }, 'rui')
     expect(cleared.status, JSON.stringify(cleared.body)).toBe(200)
-    expect(cleared.body).toMatchObject({ validity: 'valid', reviewFlags: [{ reason: 'Assumption revised', cleared: expect.objectContaining({ by: 'rui' }) }] })
+    expect(cleared.body).toMatchObject({ validity: 'valid', reviewFlags: [{ reason: 'Assumption revised', cleared: expect.objectContaining({ by: 'rui', note: 'Still within the margin' }) }] })
   })
 
   it('needs a manifest for calculated evidence, refuses it from the assistant, and reviews evidence independently', async () => {
@@ -261,45 +262,138 @@ describe('decision and evidence extensions (CR-C5, CR-C6)', () => {
   })
 })
 
-describe('atomic batch with placeholders (CR-C10)', () => {
-  it('creates related records in one transaction and resolves placeholders', async () => {
+describe('atomic batch with placeholders (CR-C10, R1-1)', () => {
+  const fnRef = (id: string) => ({ module: 'conceptualize', type: 'function', id })
+  const cRef = (id: string) => ({ module: 'conceptualize', type: 'concept', id })
+  it('creates related records in one transaction and resolves placeholders anywhere in later bodies', async () => {
     const res = await post('/batch', {
       reason: 'Explore a cooling function',
-      operations: [
-        { op: 'create-function', ref: '$fn', data: { name: 'Reject heat' } },
-        { op: 'create-concept', ref: '$fins', data: { name: 'Finned housing' } },
-        { op: 'create-concept', ref: '$fan', data: { name: 'Forced air' } },
-        { op: 'create-design-link', data: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: '$fins' }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } },
-        { op: 'create-design-link', data: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: '$fan' }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } },
-        { op: 'create-constraint', data: { kind: 'qualitative', statement: 'No external power for cooling', subjects: [{ module: 'conceptualize', type: 'function', id: '$fn' }] } },
-        { op: 'update-function', id: '$fn', expectedRevision: 1, data: { purpose: 'Keep the motor below 80 °C' } },
+      items: [
+        { op: 'createFunction', as: '$fn', body: { name: 'Reject heat', performanceObjectives: [{ name: 'Heat rejected', direction: 'maximize', quantity: { min: 40, unit: 'W' } }] } },
+        { op: 'createConcept', as: '$fins', body: { name: 'Finned housing', performs: ['$fn'] } },
+        { op: 'createConcept', as: '$fan', body: { name: 'Forced air' } },
+        { op: 'createLink', body: { type: 'performs', from: cRef('$fan'), to: fnRef('$fn') } },
+        { op: 'createConstraint', as: '$cst', body: { kind: 'qualitative', statement: 'No external power for cooling', subjects: [fnRef('$fn')], source: { kind: 'stated', basis: 'assumption' } } },
+        { op: 'reviseConstraint', body: { id: '$cst', expectedRevision: 1, strength: 'soft', reason: 'Fan power is acceptable if small' } },
+        { op: 'createAssumption', as: '$asm', body: { statement: 'Ambient 25 °C', basis: 'assumption', scope: { subjects: [fnRef('$fn')] } } },
+        { op: 'updateFunction', body: { id: '$fn', expectedRevision: 1, purpose: 'Keep the motor below 80 °C' } },
       ],
     })
-    expect(res.status).toBe(200)
+    expect(res.status, JSON.stringify(res.body)).toBe(200)
     await expectConforms(env, 'batch', 200, res.body)
-    expect(Object.keys(res.body.ids).sort()).toEqual(['$fan', '$fins', '$fn'])
-    expect(res.body.results).toHaveLength(7)
+    expect(Object.keys(res.body.ids).sort()).toEqual(['$asm', '$cst', '$fan', '$fins', '$fn'])
+    expect(res.body.results.map((r: { op: string }) => r.op)).toEqual(['createFunction', 'createConcept', 'createConcept', 'createLink', 'createConstraint', 'reviseConstraint', 'createAssumption', 'updateFunction'])
     expect((await get(`/functions/${res.body.ids.$fn}`)).body).toMatchObject({ revision: 2, purpose: 'Keep the motor below 80 °C' })
+    const performs = (await get(`/design-links?id=${res.body.ids.$fn}&type=performs`)).body
+    expect(performs).toHaveLength(2)
+    const cst = (await get(`/constraints/${res.body.ids.$cst}`)).body
+    expect(cst).toMatchObject({ revision: 2, strength: 'soft', basis: 'assumption', source: { kind: 'stated', basis: 'assumption' } })
   })
 
-  it('rolls everything back when one operation fails, naming the operation and field', async () => {
-    const before = (await get('/functions')).body
-    const count = (Array.isArray(before) ? before : before.items).length
+  it('rolls everything back when one item fails, naming the item and field', async () => {
+    const count = (await get('/functions')).body.length
     const res = await post('/batch', {
-      operations: [
-        { op: 'create-function', ref: '$ok', data: { name: 'Would be created' } },
-        { op: 'create-design-link', data: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: '$missing' }, to: { module: 'conceptualize', type: 'function', id: '$ok' } } },
+      items: [
+        { op: 'createFunction', as: '$ok', body: { name: 'Would be created' } },
+        { op: 'createLink', body: { type: 'performs', from: cRef('$missing'), to: fnRef('$ok') } },
       ],
     })
     expect(res.status).toBe(422)
     expect(res.body.error.message).toContain('$missing')
-    const bad = await post('/batch', { operations: [{ op: 'create-function', data: { name: '' } }] })
+    const bad = await post('/batch', { items: [{ op: 'createFunction', body: { name: '' } }] })
     expect(bad.status).toBe(422)
-    expect(bad.body.error.message).toMatch(/^Operation 0 \(create-function\)/)
-    const after = (await get('/functions')).body
-    expect((Array.isArray(after) ? after : after.items).length).toBe(count)
-    // Idempotency-Key is required.
-    expect((await env.call('eli', 'POST', `${BASE}/batch`, { operations: [{ op: 'create-function', data: { name: 'x' } }] })).status).toBe(400)
+    expect(bad.body.error.message).toMatch(/^Item 0 \(createFunction\)/)
+    const rule = await post('/batch', { items: [{ op: 'createFunction', as: '$f', body: { name: 'Fine' } }, { op: 'createLink', body: { type: 'decomposes-into', from: fnRef('$f'), to: fnRef('$f') } }] })
+    expect(rule.status).toBe(422)
+    expect(rule.body.error.message).toMatch(/^Item 1 \(createLink\)/)
+    expect((await get('/functions')).body.length).toBe(count)
+    // Idempotency-Key is required; replay returns the same result.
+    expect((await env.call('eli', 'POST', `${BASE}/batch`, { items: [{ op: 'createFunction', body: { name: 'x' } }] })).status).toBe(400)
+    const key = { 'idempotency-key': `batch-${Date.now()}` }
+    const once = await env.call('eli', 'POST', `${BASE}/batch`, { items: [{ op: 'createFunction', as: '$x', body: { name: 'Replayed' } }] }, key)
+    const twice = await env.call('eli', 'POST', `${BASE}/batch`, { items: [{ op: 'createFunction', as: '$x', body: { name: 'Replayed' } }] }, key)
+    expect(twice.body.ids).toEqual(once.body.ids)
+    // Operations of later change requests answer 501.
+    expect((await post('/batch', { items: [{ op: 'createCalculationModel', body: { name: 'Euler buckling' } }] })).status).toBe(501)
+  })
+
+  it('separates proposing and recording decisions (R1-3) and invalidates a superseded decision (R1-7)', async () => {
+    const a = await concept('Batch option A')
+    const b = await concept('Batch option B')
+    const asm = (await post('/assumptions', { statement: 'Batch duty cycle 10 %', basis: 'assumption' })).body
+    const propose = { op: 'proposeDecision', as: '$d', body: { title: 'Take A', rationale: 'Lighter', subjectId: a.id, outcomes: [{ conceptId: a.id, outcome: 'accepted' }, { conceptId: b.id, outcome: 'rejected' }], assumptionIds: [{ id: asm.id, revision: 1 }] } }
+    const byReviewer = await post('/batch', { items: [propose] }, 'rui')
+    expect(byReviewer.status).toBe(403)
+    const both = await post('/batch', { items: [propose, { op: 'recordDecision', body: { id: '$d', reason: 'x' } }] })
+    expect(both.status).toBe(403)
+    expect(both.body.error.message).toMatch(/^Item 1 \(recordDecision\)/)
+    const proposed = await post('/batch', { items: [propose] })
+    expect(proposed.status).toBe(200)
+    const id = proposed.body.ids.$d
+    expect((await get(`/decisions/${id}`)).body).toMatchObject({ status: 'proposed', assumptionIds: [{ id: asm.id, revision: 1 }] })
+    expect((await post('/batch', { items: [{ op: 'flagDecisionForReview', body: { id, reason: 'Too early' } }] })).status).toBe(409)
+    expect((await post('/batch', { items: [{ op: 'recordDecision', body: { id, reason: 'Reviewed' } }] }, 'rui')).status).toBe(200)
+    const flagged = await post('/batch', { items: [{ op: 'flagDecisionForReview', body: { id, reason: 'Impact report IR-1', impactReportId: 'IR-1' } }] })
+    expect(flagged.status).toBe(200)
+    expect((await get(`/decisions/${id}`)).body).toMatchObject({ validity: 'under-review', reviewFlags: [{ reason: 'Impact report IR-1', impactReportId: 'IR-1', by: 'eli' }] })
+    // Pins must name an existing revision.
+    expect((await post('/batch', { items: [{ ...propose, body: { ...propose.body, assumptionIds: [{ id: asm.id, revision: 9 }] } }] })).status).toBe(422)
+    // Superseding by a recorded decision invalidates the old one.
+    const revisit = await post('/batch', { items: [{ op: 'proposeDecision', as: '$n', body: { title: 'Take B after all', rationale: 'Load changed', subjectId: a.id, supersedesId: id, outcomes: [{ conceptId: b.id, outcome: 'accepted' }, { conceptId: a.id, outcome: 'rejected' }] } }] })
+    await post('/batch', { items: [{ op: 'recordDecision', body: { id: revisit.body.ids.$n, reason: 'Reviewed' } }] }, 'rui')
+    expect((await get(`/decisions/${id}`)).body.validity).toBe('invalidated')
+  })
+
+  it('maps R1 bodies of alternative sets, trade studies, scores and implementations', async () => {
+    const parent = await concept('Batch parent')
+    const x = await concept('Batch X')
+    const y = await concept('Batch Y')
+    const res = await post('/batch', {
+      items: [
+        { op: 'createAlternativeSet', as: '$set', body: { name: 'Drives', question: 'Which drive?', parentConceptId: parent.id, memberIds: [x.id, y.id] } },
+        { op: 'createTradeStudy', as: '$ts', body: { title: 'Drive study', setId: '$set', criteria: [{ name: 'Mass', category: 'mass', weight: 1, direction: 'minimize', scale: 'quantity', unit: 'kg' }] } },
+        { op: 'createImplementation', as: '$impl', body: { name: 'X in CAD', concepts: [{ conceptId: x.id }], artifacts: [{ module: 'cad', id: 'CAD-120', revision: 1 }] } },
+      ],
+    })
+    expect(res.status, JSON.stringify(res.body)).toBe(200)
+    const study = (await get(`/trade-studies/${res.body.ids.$ts}`)).body
+    const scored = await post('/batch', { items: [{ op: 'putScores', body: { studyId: study.id, expectedRevision: study.revision, scores: [{ criterionId: study.criteria[0].id, conceptId: x.id, value: 2, basis: 'estimate', rationale: 'Hand estimate' }] } }] })
+    expect(scored.status, JSON.stringify(scored.body)).toBe(200)
+    expect(scored.body.results[0].revision).toBe(study.revision + 1)
+    expect((await post('/batch', { items: [{ op: 'createAlternativeSet', body: { name: 'For a function', question: 'q', parentConceptId: parent.id, functionId: FN.linearForce, memberIds: [] } }] })).status).toBe(501)
+  })
+})
+
+describe('R1 refinements', () => {
+  it('needs a reviewer to validate or invalidate an assumption a recorded decision rests on (R1-2)', async () => {
+    const a = await concept('Pinned option')
+    const asm = (await post('/assumptions', { statement: 'Pinned assumption', basis: 'assumption' })).body
+    const ev = (await post('/evidence', { subjects: [ref('assumption', asm.id)], kind: 'test', title: 'Check', basis: 'estimate' })).body
+    await post('/decisions', { title: 'Rest on it', rationale: 'r', subjectId: a.id, record: true, outcomes: [{ conceptId: a.id, outcome: 'accepted' }], assumptionIds: [{ id: asm.id }] }, 'rui')
+    const byEditor = await post(`/assumptions/${asm.id}/validation`, { status: 'validated', evidence: ref('evidence', ev.id), reason: 'Checked' })
+    expect(byEditor.status).toBe(403)
+    expect((await post(`/assumptions/${asm.id}/validation`, { status: 'validated', reason: 'No evidence' }, 'rui')).status).toBe(422)
+    const ok = await post(`/assumptions/${asm.id}/validation`, { status: 'validated', evidence: ref('evidence', ev.id), reason: 'Checked' }, 'rui')
+    expect(ok.status).toBe(200)
+    await expectConforms(env, 'setAssumptionValidation', 200, ok.body)
+    // Invalidating needs no evidence (R1-2) but still a reviewer here.
+    expect((await post(`/assumptions/${asm.id}/validation`, { status: 'invalidated', reason: 'Measured higher' }, 'rui')).status).toBe(200)
+  })
+
+  it('returns R1 derived edges marked derived, with the project revision', async () => {
+    const t = await post('/graph/traverse', { start: [ref('concept', SEED.actuator)], maxDepth: 1 }, 'rho')
+    expect(t.status).toBe(200)
+    await expectConforms(env, 'traverseGraph', 200, t.body)
+    expect(t.body.builtFrom.revision).toBeGreaterThan(0)
+    const derived = t.body.edges.filter((e: { derived: boolean }) => e.derived)
+    expect(derived.length).toBeGreaterThan(0)
+    expect(t.body.edges.filter((e: { derived: boolean }) => !e.derived).every((e: { stored: string }) => e.stored !== 'derived')).toBe(true)
+    const names = new Set((await get('/link-types')).body.filter((l: { stored: string }) => l.stored === 'derived').map((l: { name: string }) => l.name))
+    for (const n of ['realizes', 'realized-as', 'selected-through', 'decides', 'member', 'decision-assumes', 'decision-constrained-by', 'subject', 'affects', 'watches']) expect(names.has(n), n).toBe(true)
+    for (const e of derived) expect(names.has(e.type), e.type).toBe(true)
+    const types = (await get('/link-types')).body
+    expect(types.find((l: { name: string }) => l.name === 'formalizes')).toMatchObject({ propagation: 'both', artifactModules: ['requirements'] })
+    expect(types.find((l: { name: string }) => l.name === 'depends-on').fromTypes).toContain('alternative-set')
   })
 })
 
@@ -358,7 +452,7 @@ describe('events and OpenAPI for design knowledge', () => {
     const doc = (await env.call('', 'GET', '/api/concepts/v1/openapi.json')).body
     const ops = Object.values(doc.paths).flatMap((m) => Object.values(m as Record<string, { operationId: string; 'x-permissions': unknown }>))
     const ids = new Set(ops.map((o) => o.operationId))
-    for (const id of ['createFunction', 'convertToFunction', 'createConstraint', 'promoteStatement', 'createAssumption', 'changeAssumptionValidation', 'registerLinkType', 'createDesignLink', 'flagDecision', 'decisionRationale', 'reviewEvidence', 'batch', 'traverseGraph', 'graphPaths', 'searchDesign']) expect(ids.has(id), id).toBe(true)
+    for (const id of ['createFunction', 'convertToFunction', 'createConstraint', 'promoteStatement', 'createAssumption', 'setAssumptionValidation', 'registerLinkType', 'createDesignLink', 'flagDecisionForReview', 'reviseConstraint', 'decisionRationale', 'reviewEvidence', 'batch', 'traverseGraph', 'graphPaths', 'searchDesign']) expect(ids.has(id), id).toBe(true)
     for (const op of ops) expect(op['x-permissions'], op.operationId).toBeTruthy()
     expect(doc.components.schemas.Decision.properties.validity).toBeTruthy()
     expect(doc.components.schemas.Evidence.properties.subjects).toBeTruthy()

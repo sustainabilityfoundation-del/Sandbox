@@ -98,10 +98,14 @@ export function registerConceptRoutes(app: FastifyInstance, services: HostServic
     handler: async (rc) =>
       rc.write(async (ctx) => {
         const input = body<S.ConceptCreateDto>(rc)
-        const { parentId, decompositionId, ...rest } = input
+        const { parentId, decompositionId, performs, ...rest } = input
         if (decompositionId && !parentId) throw invalid('decompositionId needs parentId.', { decompositionId: 'needs parentId' })
         const c = await createConcept(ctx, rest)
         if (parentId) await createRelationship(ctx, { type: 'contains', fromId: parentId, toId: c.id, decompositionId })
+        if (performs?.length) {
+          const { createDesignLink } = await import('../store/designLinks')
+          for (const fn of performs) await createDesignLink(ctx, { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: c.id }, to: { module: 'conceptualize', type: 'function', id: fn } })
+        }
         return { status: 201, body: c, etag: c.revision, headers: { Location: conceptPath(rc.projectId, c.id) } }
       }),
   })

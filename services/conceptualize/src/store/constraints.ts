@@ -73,7 +73,7 @@ function toDto(r: Row, subjects: DesignRefDto[]): ConstraintOut {
     bound: r.bound,
     expression: r.expression,
     strength: r.strength,
-    source: r.source,
+    source: r.source.kind === 'stated' ? { kind: 'stated', basis: r.basis } : r.source,
     basis: r.basis,
     origin: r.origin,
     status: r.status,
@@ -144,10 +144,13 @@ async function insertRevision(ctx: Ctx, id: string, revision: number, c: { kind:
 }
 
 export async function createConstraint(ctx: Ctx, input: ConstraintCreateDto, options: { origin?: { conceptId: string; statementId: string } } = {}): Promise<ConstraintOut> {
-  const basis: Basis = input.basis ?? (ctx.provenance.sourceKind === 'assistant' ? 'ai-hypothesis' : 'user-assertion')
+  const statedBasis = input.source?.kind === 'stated' ? input.source.basis : undefined
+  if (input.basis && statedBasis && input.basis !== statedBasis) throw invalid('basis and source.basis disagree.', { basis: 'differs from source.basis' })
+  const basis: Basis = input.basis ?? statedBasis ?? (ctx.provenance.sourceKind === 'assistant' ? 'ai-hypothesis' : 'user-assertion')
   checkBasis(ctx, basis)
   checkBound(input.bound)
-  const source: ConstraintSourceDto = input.source ?? { kind: 'stated' }
+  // R1: a stated source carries the basis of the statement.
+  const source: ConstraintSourceDto = !input.source || input.source.kind === 'stated' ? { kind: 'stated', basis } : input.source
   if (source.kind === 'requirement') {
     if (source.ref.module !== 'requirements' || !source.ref.revision) throw invalid('A requirement source is a requirement UUID with a pinned revision.', { 'source.ref': 'requirements module and revision' })
     const p = artifactProblem(source.ref)
@@ -181,7 +184,21 @@ async function lock(ctx: Ctx, id: string, expected: number): Promise<ConstraintO
   return c
 }
 
+/** reviseConstraint (R1-1): content changes make a new revision; a status in the same body is applied after them with the same rules as changeConstraintStatus. */
 export async function updateConstraint(ctx: Ctx, id: string, patch: ConstraintPatchDto, expected: number): Promise<ConstraintOut> {
+  const { status, ...content } = patch
+  if (status !== undefined && !Object.keys(content).some((k) => k !== 'expectedRevision' && k !== 'reason' && (content as Record<string, unknown>)[k] !== undefined)) {
+    if (!patch.reason?.trim()) throw invalid('A status change needs a reason.', { reason: 'required' })
+    return changeConstraintStatus(ctx, id, status, expected, patch.reason)
+  }
+  if (!roleAllows(ctx.role, 'author')) throw forbidden('Editing a constraint needs an editor or administrator.')
+  const revised = await reviseContent(ctx, id, content, expected)
+  if (status === undefined || status === revised.status) return revised
+  if (!patch.reason?.trim()) throw invalid('A status change needs a reason.', { reason: 'required' })
+  return changeConstraintStatus(ctx, id, status, revised.revision, patch.reason)
+}
+
+async function reviseContent(ctx: Ctx, id: string, patch: Omit<ConstraintPatchDto, 'status'>, expected: number): Promise<ConstraintOut> {
   const c = await lock(ctx, id, expected)
   if (c.status === 'retired') throw invalid(`${c.key} is retired.`)
   const basis = patch.basis ?? c.basis

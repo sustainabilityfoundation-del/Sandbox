@@ -80,7 +80,21 @@ async function toDtos(db: Queryable, rows: Row[]): Promise<AssumptionOut[]> {
       origin: r.origin,
       validationStatus: r.validation_status,
       validatedBy: r.validation_status === 'validated' && lastValidated ? lastValidated.evidence_ids : [],
-      validations: v.map((x) => ({ id: x.id, revision: x.revision, fromStatus: x.from_status, toStatus: x.to_status, evidenceIds: x.evidence_ids, reason: x.reason, actor: x.actor, occurredAt: isoRequired(x.occurred_at), provenance: { sourceKind: x.source_kind, conversationId: x.conversation_id, proposalId: x.proposal_id } })),
+      validations: v.map((x) => ({
+        id: x.id,
+        revision: x.revision,
+        status: x.to_status,
+        by: x.actor,
+        at: isoRequired(x.occurred_at),
+        reason: x.reason,
+        ...(x.evidence_ids[0] ? { evidence: { module: 'conceptualize' as const, type: 'evidence' as const, id: x.evidence_ids[0] } } : {}),
+        fromStatus: x.from_status,
+        toStatus: x.to_status,
+        evidenceIds: x.evidence_ids,
+        actor: x.actor,
+        occurredAt: isoRequired(x.occurred_at),
+        provenance: { sourceKind: x.source_kind, conversationId: x.conversation_id, proposalId: x.proposal_id },
+      })),
       changeReason: r.change_reason,
       provenance: { sourceKind: r.source_kind, conversationId: r.conversation_id, proposalId: r.proposal_id, messageId: r.message_id },
       revisionCreatedAt: isoRequired(r.rev_created_at),
@@ -196,12 +210,12 @@ export async function assumptionsFromStatements(ctx: Ctx, conceptIds: string[]):
   return out
 }
 
-async function lock(ctx: Ctx, id: string, expected: number): Promise<AssumptionOut> {
+async function lock(ctx: Ctx, id: string, expected: number | undefined): Promise<AssumptionOut> {
   if (!isUuid(id)) throw notFound(`Assumption ${id} not found.`)
   const { rowCount } = await ctx.db.query('SELECT 1 FROM conceptualize.assumptions WHERE id = $1 AND project_id = $2 FOR UPDATE', [id, ctx.projectId])
   if (!rowCount) throw notFound(`Assumption ${id} not found.`)
   const a = (await getAssumption(ctx.db, ctx.projectId, id))!
-  if (a.revision !== expected) throw conflict(`${a.key} changed since revision ${expected} (now ${a.revision}). Reload; nothing was overwritten.`, a.revision)
+  if (expected !== undefined && a.revision !== expected) throw conflict(`${a.key} changed since revision ${expected} (now ${a.revision}). Reload; nothing was overwritten.`, a.revision)
   return a
 }
 
@@ -222,19 +236,26 @@ export async function updateAssumption(ctx: Ctx, id: string, patch: AssumptionPa
 }
 
 /** Explicit validation record. validated needs evidence and a person; invalidating one a recorded decision depends on needs a reviewer. */
-export async function changeValidation(ctx: Ctx, id: string, status: AssumptionOut['validationStatus'], evidenceIds: string[], expected: number, reason: string): Promise<AssumptionOut> {
+/**
+ * setAssumptionValidation (R1-2): validating needs an evidence reference and a person; validating or
+ * invalidating an assumption used by a recorded decision needs a reviewer. Every change is appended to the
+ * validation history. Stricter than the R1 test adapter: the assistant may only set under-review.
+ */
+export async function changeValidation(ctx: Ctx, id: string, status: AssumptionOut['validationStatus'], evidenceIds: string[], expected: number | undefined, reason: string): Promise<AssumptionOut> {
   const a = await lock(ctx, id, expected)
   if (a.validationStatus === status) throw invalid(`${a.key} is already ${status}.`)
+  if (!reason?.trim()) throw invalid('A validation change needs a reason.', { reason: 'required' })
   const assistant = ctx.provenance.sourceKind === 'assistant'
   if (assistant && status !== 'under-review') throw forbidden('The assistant can only propose a review of an assumption; a person validates or invalidates it.')
-  if (status === 'validated' || status === 'invalidated') {
-    if (!evidenceIds.length) throw invalid(`Setting ${status} needs evidence.`, { evidenceIds: 'required' })
+  if (!roleAllows(ctx.role, 'author') && !roleAllows(ctx.role, 'decide')) throw forbidden('Changing assumption validation needs an editor, reviewer or administrator.')
+  if (status === 'validated' && !evidenceIds.length) throw invalid('Validating an assumption needs an evidence reference.', { evidence: 'required' })
+  if (evidenceIds.length) {
     const { rows } = await ctx.db.query<{ id: string }>('SELECT id FROM conceptualize.evidence WHERE project_id = $1 AND id = ANY($2::uuid[])', [ctx.projectId, evidenceIds])
-    if (rows.length !== new Set(evidenceIds).size) throw invalid('Every evidence record must exist in this project.', { evidenceIds: 'unknown' })
+    if (rows.length !== new Set(evidenceIds).size) throw invalid('Every evidence record must exist in this project.', { evidence: 'unknown' })
   }
-  if (status === 'invalidated' && !roleAllows(ctx.role, 'decide')) {
+  if ((status === 'validated' || status === 'invalidated') && !roleAllows(ctx.role, 'decide')) {
     const { rowCount } = await ctx.db.query(`SELECT 1 FROM conceptualize.decisions WHERE project_id = $1 AND status = 'recorded' AND superseded_by_id IS NULL AND assumption_refs @> jsonb_build_array(jsonb_build_object('id', $2::text))`, [ctx.projectId, id])
-    if (rowCount) throw forbidden(`${a.key} supports a recorded decision; invalidating it needs a reviewer or administrator.`)
+    if (rowCount) throw forbidden(`${a.key} is used by a recorded decision; validating or invalidating it needs a reviewer or administrator.`)
   }
   await ctx.db.query('UPDATE conceptualize.assumptions SET validation_status = $2, record_version = record_version + 1, updated_at = $3, updated_by = $4 WHERE id = $1', [id, status, ctx.now, ctx.actor])
   const [sourceKind, conversationId, proposalId] = prov(ctx)

@@ -70,6 +70,35 @@ Exploration: atomic creation of parent + alternatives + decomposition + evidence
 - **Relationship types** are defined once in `RELATIONSHIP_RULES` (acyclic, symmetric, reading,
   meaning); validation reads the rules. Adding a type = rule + check-constraint migration.
 
+### 3.1 Design knowledge (Design Reasoning P1, R1 refinements)
+
+Separate, revisioned records with keys and provenance, next to Concepts:
+
+- **Function** `FN-…`: what must be accomplished (name, verb phrase, flows, `performanceObjectives` with
+  direction minimize/maximize/target and basis). Never implemented directly, never an alternative.
+  Concepts **perform** Functions; Functions **decompose into** sub-functions (acyclic, shared allowed,
+  optional named decompositions). Function-Concepts are converted only explicitly
+  (`convert-to-function`: derived-from link pinned to the Concept revision, implements → performs).
+- **DesignConstraint** `CST-…`: kind, bound, strength, status, subjects (`constrains` links), source
+  `requirement` (exactly one pinned `formalizes`), `derived` or `stated` (with basis). Statements can be
+  promoted; suspect state (requirement revised) is derived by clients.
+- **Assumption** `ASM-…`: statement, quantity, scope, dependsOn, validation status with an append-only
+  history; created automatically for existing assumption statements by migration 0002.
+- **Design links**: typed, registry-driven (`link_types`: endpoints, symmetric, acyclic,
+  assistant-assertable, impact propagation, allowed artifact modules); administrators register
+  namespaced types. Readings of stored data (realizes, realized-as, selected-through, decides, member,
+  decision-assumes, decision-constrained-by, affects, watches, subject, applies-to) are graph edges with
+  `derived: true`, never stored links.
+- **Decision extensions**: support (evidence), pinned assumptions and constraints, affected records,
+  invalidation conditions, review flags; validity is derived (invalidated, under review while a flag is
+  open, valid). **Evidence extensions**: subjects, applicability, manifest, source, independent reviews.
+- **Basis ladder** (ADR-0043): ai-hypothesis < assumption / user-assertion < assessment < estimate <
+  calculated < evidence < decision; enforced on the server for every statement, link, score and record.
+
+Writes from the reasoning layer go through `POST /batch` (items named by operationId, placeholders).
+Graph reads: traverse (with `asOf`), neighbourhood, paths, search. See the progress file for the
+contract deviations.
+
 ## 4. Concept versus implementation
 
 A ConceptImplementation references artifacts with `ArtifactRef` (contracts §3): requirement UUIDs
@@ -88,6 +117,9 @@ Schema `conceptualize` (migration `0001_initial.sql`): `concepts`, `concept_revi
 `realization_requests`, `concept_links`, `explorations`, `audit_events`, `outbox`, `idempotency_keys`,
 `key_counters`. Immutable tables have triggers refusing UPDATE/DELETE; foreign keys use ON DELETE
 RESTRICT. Platform migration `0002_conceptualize_entitlement.sql` grants `tool:conceptualize`.
+Migration `0002_design_knowledge.sql` adds functions, design_constraints, assumptions (each with
+revisions), assumption_validations, link_types, design_links, evidence_subjects and evidence_reviews;
+`0003_r1_link_vocabulary.sql` adds impact propagation to the link registry (both additive).
 
 ## 6. Public API
 
@@ -97,7 +129,9 @@ verification status, branch, assessment, graph), relationships and decomposition
 decisions (create, record, withdraw), trade studies (create, patch, scores), evidence,
 implementations (artifacts link/replace/unlink/repin, realization requests), concept links,
 artifact→Concepts lookup, explorations (create, undo), permissions, unit check, project history by
-proposal, events. Conventions as Requirements: error body, ETag/If-Match or `expectedRevision`,
+proposal, events; design knowledge (functions, constraints, assumptions, link types, design links,
+decision rationale, validity and review flags, evidence reviews, batch, graph traverse, neighbourhood,
+paths and search, entity history). Conventions as Requirements: error body, ETag/If-Match or `expectedRevision`,
 `Idempotency-Key`, cursor pagination, RFC 3339 UTC. Provenance headers: `X-Source-Kind`,
 `X-Conversation-Id`, `X-Proposal-Id`, `X-Message-Id`.
 

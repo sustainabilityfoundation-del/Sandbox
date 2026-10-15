@@ -23,10 +23,11 @@ export interface Flow {
   name: string
   quantity?: Quantity | null
 }
-export interface Objective {
+/** Performance objective of a Function (R1): optimisation direction, optional value or range, basis. */
+export interface PerformanceObjective {
   name: string
-  quantity: Quantity
-  direction: 'min' | 'max' | 'target'
+  direction: 'minimize' | 'maximize' | 'target'
+  quantity?: Quantity
   basis?: Basis
 }
 
@@ -42,7 +43,7 @@ export interface DesignFunction {
   description: string
   purpose: string
   flows: Flow[]
-  objectives: Objective[]
+  performanceObjectives: PerformanceObjective[]
   statements: Statement[]
   classifications: string[]
   status: FunctionStatus
@@ -62,7 +63,7 @@ export interface FunctionCreate {
   description?: string
   purpose?: string
   flows?: Flow[]
-  objectives?: Objective[]
+  performanceObjectives?: PerformanceObjective[]
   statements?: StatementInput[]
   classifications?: string[]
   status?: 'draft' | 'active'
@@ -87,7 +88,7 @@ export interface Bound {
   operator: '<=' | '<' | '=' | '>=' | '>' | 'in-range'
   quantity: Quantity
 }
-export type ConstraintSource = { kind: 'requirement'; ref: ArtifactRefInput } | { kind: 'derived'; from: DesignRef } | { kind: 'stated' }
+export type ConstraintSource = { kind: 'requirement'; ref: ArtifactRefInput } | { kind: 'derived'; from: DesignRef } | { kind: 'stated'; basis?: Basis }
 export interface DesignConstraint {
   id: string
   key: string
@@ -130,6 +131,11 @@ export type AssumptionStatus = 'unvalidated' | 'under-review' | 'validated' | 'i
 export interface AssumptionValidation {
   id: string
   revision: number
+  /** R1 fields. */
+  status: AssumptionStatus
+  by: string
+  at: string
+  evidence?: DesignRef
   fromStatus: string
   toStatus: string
   evidenceIds: string[]
@@ -183,6 +189,8 @@ export interface LinkType {
   acyclic: boolean
   assistantAssertable: boolean
   impact: 'possible' | 'demonstrated' | 'none'
+  propagation: 'to-from' | 'from-to' | 'both' | 'none'
+  artifactModules: string[] | null
   description: string
   builtin: boolean
   stored: 'design-links' | 'relationships' | 'derived'
@@ -240,13 +248,18 @@ export interface InvalidationCondition {
   subject: AnyRef
   description: string
 }
+/** R1-7: append-only review flags; validity is under-review while one is not cleared. */
 export interface ReviewFlagRecord {
+  at: string
+  by: string
   reason: string
+  impactReportId?: string
   conditionId?: string
-  by?: string
-  at?: string
-  cleared?: { by: string; at: string; outcome: string; reason: string }
+  sourceKind?: string
+  cleared?: { at: string; by: string; note: string; outcome?: string }
 }
+/** A pinned revision as in R1 ({ id, revision }); DesignRefs are accepted too. */
+export type PinRef = { id: string; revision?: number } | DesignRef
 export interface Rationale {
   decision: unknown
   question: string
@@ -272,31 +285,37 @@ export interface EvidenceReview {
 }
 
 // ---- batch (CR-C10) ----------------------------------------------------------------------------------------
+/** R1-1: item ops are the operationIds of the writes; the last five are Conceptualize extensions. */
 export type BatchOp =
-  | 'create-concept'
-  | 'update-concept'
-  | 'create-function'
-  | 'update-function'
-  | 'create-constraint'
-  | 'create-assumption'
-  | 'create-relationship'
-  | 'create-design-link'
-  | 'create-evidence'
-  | 'create-decision'
-  | 'create-implementation'
-  | 'create-concept-link'
-  | 'create-alternative-set'
-  | 'add-alternative'
-export interface BatchOperation {
+  | 'createFunction'
+  | 'createConcept'
+  | 'createConstraint'
+  | 'reviseConstraint'
+  | 'createAssumption'
+  | 'createEvidence'
+  | 'createLink'
+  | 'createAlternativeSet'
+  | 'createTradeStudy'
+  | 'putScores'
+  | 'proposeDecision'
+  | 'recordDecision'
+  | 'flagDecisionForReview'
+  | 'createImplementation'
+  | 'createCalculationModel'
+  | 'updateConcept'
+  | 'updateFunction'
+  | 'createRelationship'
+  | 'createConceptLink'
+  | 'addAlternative'
+export interface BatchItem {
   op: BatchOp
-  /** Placeholder for the created record ("$name"), usable by later operations. */
-  ref?: string
-  id?: string
-  expectedRevision?: number
-  data: Record<string, unknown>
+  /** Placeholder for the created record ("$name"); replaced by its ID anywhere in later bodies. */
+  as?: string
+  /** Body of the single operation; updates carry id and expectedRevision. */
+  body: Record<string, unknown>
 }
 export interface BatchResult {
-  results: { index: number; op: string; ref: string | null; id: string; key: string | null; revision: number | null }[]
+  results: { index: number; op: string; as: string | null; id: string; key: string | null; revision: number | null }[]
   ids: Record<string, string>
 }
 
@@ -316,6 +335,8 @@ export interface GraphEdge {
   to: AnyRef
   basis: string | null
   pinned: boolean
+  /** R1-8: read from records rather than a stored link. */
+  derived: boolean
   stored: 'design-links' | 'relationships' | 'concept-links' | 'derived'
 }
 export interface TraverseRequest {
@@ -333,7 +354,7 @@ export interface TraverseResult {
   edges: GraphEdge[]
   truncated: boolean
   cursor?: string
-  builtFrom: { at: string; asOf: string | null }
+  builtFrom: { at: string; asOf: string | null; revision: number }
 }
 export interface PathsResult {
   paths: { nodes: AnyRef[]; edges: GraphEdge[] }[]

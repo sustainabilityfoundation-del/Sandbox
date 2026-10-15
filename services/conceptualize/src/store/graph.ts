@@ -27,6 +27,8 @@ export interface GEdge {
   basis: string | null
   pinned: boolean
   stored: 'design-links' | 'relationships' | 'concept-links' | 'derived'
+  /** R1-8: true for edges read from records (implementations, decisions, alternative sets, evidence subjects) rather than stored links. */
+  derived: boolean
 }
 export interface GNode {
   ref: GRef
@@ -47,43 +49,53 @@ export async function projectEdges(db: Queryable, projectId: string, asOf?: stri
   const alive = (created: Date, removedAt: Date | null, removed: boolean) => (at ? created <= at && (!removedAt || removedAt > at) : !removed)
   const edges: GEdge[] = []
   const rel = await db.query<{ id: string; type: string; from_id: string; to_id: string; basis: string; created_at: Date; removed_at: Date | null; removed: boolean }>('SELECT id, type, from_id, to_id, basis, created_at, removed_at, removed FROM conceptualize.relationships WHERE project_id = $1', [projectId])
-  for (const r of rel.rows) if (alive(r.created_at, r.removed_at, r.removed)) edges.push({ id: r.id, type: r.type, from: d('concept', r.from_id), to: d('concept', r.to_id), basis: r.basis, pinned: false, stored: 'relationships' })
+  for (const r of rel.rows) if (alive(r.created_at, r.removed_at, r.removed)) edges.push({ id: r.id, type: r.type, from: d('concept', r.from_id), to: d('concept', r.to_id), basis: r.basis, pinned: false, stored: 'relationships', derived: false })
   const dl = await db.query<{ id: string; type: string; from_type: DesignEntityType; from_id: string; from_revision: number | null; to_type: string; to_id: string; to_module: string | null; to_revision: number | null; basis: string; created_at: Date; removed_at: Date | null; removed: boolean }>('SELECT * FROM conceptualize.design_links WHERE project_id = $1', [projectId])
   for (const r of dl.rows) {
     if (!alive(r.created_at, r.removed_at, r.removed)) continue
-    edges.push({ id: r.id, type: r.type, from: d(r.from_type, r.from_id, r.from_revision), to: r.to_type === 'artifact' ? a(r.to_module!, r.to_id, r.to_revision) : d(r.to_type as DesignEntityType, r.to_id, r.to_revision), basis: r.basis, pinned: !!(r.from_revision || r.to_revision), stored: 'design-links' })
+    edges.push({ id: r.id, type: r.type, from: d(r.from_type, r.from_id, r.from_revision), to: r.to_type === 'artifact' ? a(r.to_module!, r.to_id, r.to_revision) : d(r.to_type as DesignEntityType, r.to_id, r.to_revision), basis: r.basis, pinned: !!(r.from_revision || r.to_revision), stored: 'design-links', derived: false })
   }
   const cl = await db.query<{ id: string; relation: string; concept_id: string; module: string; artifact_id: string; artifact_revision: number | null; created_at: Date; removed_at: Date | null; removed: boolean }>('SELECT id, relation, concept_id, module, artifact_id, artifact_revision, created_at, removed_at, removed FROM conceptualize.concept_links WHERE project_id = $1', [projectId])
-  for (const r of cl.rows) if (alive(r.created_at, r.removed_at, r.removed)) edges.push({ id: r.id, type: r.relation, from: d('concept', r.concept_id), to: a(r.module, r.artifact_id, r.artifact_revision), basis: null, pinned: !!r.artifact_revision, stored: 'concept-links' })
+  for (const r of cl.rows) if (alive(r.created_at, r.removed_at, r.removed)) edges.push({ id: r.id, type: r.relation, from: d('concept', r.concept_id), to: a(r.module, r.artifact_id, r.artifact_revision), basis: null, pinned: !!r.artifact_revision, stored: 'concept-links', derived: false })
   const ic = await db.query<{ implementation_id: string; concept_id: string; added_at: Date; removed_at: Date | null; removed: boolean }>('SELECT ic.* FROM conceptualize.implementation_concepts ic JOIN conceptualize.implementations i ON i.id = ic.implementation_id WHERE i.project_id = $1', [projectId])
-  for (const r of ic.rows) if (alive(r.added_at, r.removed_at, r.removed)) edges.push({ id: `realizes:${r.implementation_id}:${r.concept_id}`, type: 'realizes', from: d('implementation', r.implementation_id), to: d('concept', r.concept_id), basis: null, pinned: false, stored: 'derived' })
+  for (const r of ic.rows) if (alive(r.added_at, r.removed_at, r.removed)) edges.push({ id: `realizes:${r.implementation_id}:${r.concept_id}`, type: 'realizes', from: d('implementation', r.implementation_id), to: d('concept', r.concept_id), basis: null, pinned: false, stored: 'derived', derived: true })
   const ia = await db.query<{ id: string; implementation_id: string; module: string; artifact_id: string; artifact_revision: number | null; added_at: Date; removed_at: Date | null; removed: boolean }>('SELECT ia.* FROM conceptualize.implementation_artifacts ia JOIN conceptualize.implementations i ON i.id = ia.implementation_id WHERE i.project_id = $1', [projectId])
-  for (const r of ia.rows) if (alive(r.added_at, r.removed_at, r.removed)) edges.push({ id: r.id, type: 'implemented-with', from: d('implementation', r.implementation_id), to: a(r.module, r.artifact_id, r.artifact_revision), basis: null, pinned: !!r.artifact_revision, stored: 'derived' })
+  for (const r of ia.rows) if (alive(r.added_at, r.removed_at, r.removed)) edges.push({ id: r.id, type: 'realized-as', from: d('implementation', r.implementation_id), to: a(r.module, r.artifact_id, r.artifact_revision), basis: null, pinned: !!r.artifact_revision, stored: 'derived', derived: true })
   const am = await db.query<{ set_id: string; concept_id: string; status: string; added_at: Date }>('SELECT m.* FROM conceptualize.alternative_members m JOIN conceptualize.alternative_sets s ON s.id = m.set_id WHERE s.project_id = $1', [projectId])
-  for (const r of am.rows) if ((!at || r.added_at <= at) && r.status !== 'withdrawn') edges.push({ id: `member:${r.set_id}:${r.concept_id}`, type: 'member-of', from: d('concept', r.concept_id), to: d('alternative-set', r.set_id), basis: null, pinned: false, stored: 'derived' })
+  for (const r of am.rows) if ((!at || r.added_at <= at) && r.status !== 'withdrawn') edges.push({ id: `member:${r.set_id}:${r.concept_id}`, type: 'member', from: d('alternative-set', r.set_id), to: d('concept', r.concept_id), basis: null, pinned: false, stored: 'derived', derived: true })
   const sets = await db.query<{ id: string; parent_id: string; created_at: Date }>('SELECT id, parent_id, created_at FROM conceptualize.alternative_sets WHERE project_id = $1', [projectId])
-  for (const r of sets.rows) if (!at || r.created_at <= at) edges.push({ id: `alternatives-for:${r.id}`, type: 'alternatives-for', from: d('alternative-set', r.id), to: d('concept', r.parent_id), basis: null, pinned: false, stored: 'derived' })
-  const dec = await db.query<{ id: string; set_id: string | null; subject_id: string | null; status: string; superseded_by_id: string | null; outcomes: { conceptId: string; outcome: string }[]; support: { ref: { id: string }; role: string }[]; assumption_refs: { id: string; revision?: number }[]; constraint_refs: { id: string; revision?: number }[]; proposed_at: Date }>(
-    'SELECT id, set_id, subject_id, status, superseded_by_id, outcomes, support, assumption_refs, constraint_refs, proposed_at FROM conceptualize.decisions WHERE project_id = $1',
+  for (const r of sets.rows) if (!at || r.created_at <= at) edges.push({ id: `alternatives-for:${r.id}`, type: 'alternatives-for', from: d('alternative-set', r.id), to: d('concept', r.parent_id), basis: null, pinned: false, stored: 'derived', derived: true })
+  const dec = await db.query<{ id: string; set_id: string | null; subject_id: string | null; status: string; superseded_by_id: string | null; outcomes: { conceptId: string; outcome: string }[]; support: { ref: { id: string }; role: string }[]; assumption_refs: { id: string; revision?: number }[]; constraint_refs: { id: string; revision?: number }[]; affected: GRef[]; invalidation_conditions: { id: string; subject: GRef }[]; proposed_at: Date }>(
+    'SELECT id, set_id, subject_id, status, superseded_by_id, outcomes, support, assumption_refs, constraint_refs, affected, invalidation_conditions, proposed_at FROM conceptualize.decisions WHERE project_id = $1',
     [projectId],
   )
   for (const r of dec.rows) {
     if (at && r.proposed_at > at) continue
-    if (r.set_id) edges.push({ id: `decides:${r.id}`, type: 'decides', from: d('decision', r.id), to: d('alternative-set', r.set_id), basis: null, pinned: false, stored: 'derived' })
-    if (r.subject_id) edges.push({ id: `decides-subject:${r.id}`, type: 'decides', from: d('decision', r.id), to: d('concept', r.subject_id), basis: null, pinned: false, stored: 'derived' })
-    if (r.status === 'recorded' && !r.superseded_by_id) for (const o of r.outcomes.filter((x) => x.outcome === 'accepted')) edges.push({ id: `selected:${r.id}:${o.conceptId}`, type: 'selected-through', from: d('concept', o.conceptId), to: d('decision', r.id), basis: 'decision', pinned: false, stored: 'derived' })
-    for (const s of r.support) edges.push({ id: `support:${r.id}:${s.ref.id}`, type: s.role === 'contradicts' ? 'contradicted-by' : 'supported-by', from: d('decision', r.id), to: d('evidence', s.ref.id), basis: null, pinned: false, stored: 'derived' })
-    for (const x of r.assumption_refs) edges.push({ id: `dep:${r.id}:${x.id}`, type: 'depends-on', from: d('decision', r.id), to: d('assumption', x.id, x.revision), basis: null, pinned: !!x.revision, stored: 'derived' })
-    for (const x of r.constraint_refs) edges.push({ id: `dep:${r.id}:${x.id}`, type: 'depends-on', from: d('decision', r.id), to: d('constraint', x.id, x.revision), basis: null, pinned: !!x.revision, stored: 'derived' })
+    if (r.set_id) edges.push({ id: `decides:${r.id}`, type: 'decides', from: d('decision', r.id), to: d('alternative-set', r.set_id), basis: null, pinned: false, stored: 'derived', derived: true })
+    if (r.subject_id) edges.push({ id: `decides-subject:${r.id}`, type: 'decides', from: d('decision', r.id), to: d('concept', r.subject_id), basis: null, pinned: false, stored: 'derived', derived: true })
+    // R1-8: Concept selected (or rejected) through a recorded decision.
+    if (r.status === 'recorded') for (const o of r.outcomes.filter((x) => x.outcome === 'accepted' || x.outcome === 'rejected')) edges.push({ id: `selected:${r.id}:${o.conceptId}`, type: 'selected-through', from: d('concept', o.conceptId), to: d('decision', r.id), basis: 'decision', pinned: false, stored: 'derived', derived: true })
+    for (const s of r.support) edges.push({ id: `support:${r.id}:${s.ref.id}`, type: s.role === 'contradicts' ? 'contradicted-by' : 'supported-by', from: d('decision', r.id), to: d('evidence', s.ref.id), basis: null, pinned: false, stored: 'derived', derived: true })
+    for (const x of r.assumption_refs) edges.push({ id: `assumes:${r.id}:${x.id}`, type: 'decision-assumes', from: d('decision', r.id), to: d('assumption', x.id, x.revision), basis: null, pinned: !!x.revision, stored: 'derived', derived: true })
+    for (const x of r.constraint_refs) edges.push({ id: `constrained:${r.id}:${x.id}`, type: 'decision-constrained-by', from: d('decision', r.id), to: d('constraint', x.id, x.revision), basis: null, pinned: !!x.revision, stored: 'derived', derived: true })
+    for (const x of r.affected ?? []) edges.push({ id: `affects:${r.id}:${keyOf(x)}`, type: 'affects', from: d('decision', r.id), to: x, basis: null, pinned: !!x.revision, stored: 'derived', derived: true })
+    for (const c of r.invalidation_conditions ?? []) edges.push({ id: `watches:${r.id}:${c.id}`, type: 'watches', from: d('decision', r.id), to: c.subject, basis: null, pinned: !!c.subject.revision, stored: 'derived', derived: true })
   }
   const es = await db.query<{ evidence_id: string; subject_type: DesignEntityType; subject_id: string; subject_revision: number | null; created_at: Date; basis: string }>('SELECT s.*, e.created_at, e.basis FROM conceptualize.evidence_subjects s JOIN conceptualize.evidence e ON e.id = s.evidence_id WHERE e.project_id = $1', [projectId])
-  for (const r of es.rows) if (!at || r.created_at <= at) edges.push({ id: `evidence:${r.evidence_id}:${r.subject_id}`, type: 'evidence-for', from: d('evidence', r.evidence_id), to: d(r.subject_type, r.subject_id, r.subject_revision), basis: r.basis, pinned: !!r.subject_revision, stored: 'derived' })
+  for (const r of es.rows) if (!at || r.created_at <= at) edges.push({ id: `evidence:${r.evidence_id}:${r.subject_id}`, type: 'subject', from: d('evidence', r.evidence_id), to: d(r.subject_type, r.subject_id, r.subject_revision), basis: r.basis, pinned: !!r.subject_revision, stored: 'derived', derived: true })
   const asm = await db.query<{ id: string; scope: { subjects?: { type: DesignEntityType; id: string }[] }; created_at: Date; basis: string }>(
     'SELECT a.id, v.scope, a.created_at, v.basis FROM conceptualize.assumptions a JOIN conceptualize.assumption_revisions v ON v.assumption_id = a.id AND v.revision = a.current_revision WHERE a.project_id = $1',
     [projectId],
   )
-  for (const r of asm.rows) if (!at || r.created_at <= at) for (const s of r.scope.subjects ?? []) edges.push({ id: `applies:${r.id}:${s.id}`, type: 'applies-to', from: d('assumption', r.id), to: d(s.type, s.id), basis: r.basis, pinned: false, stored: 'derived' })
+  for (const r of asm.rows) if (!at || r.created_at <= at) for (const s of r.scope.subjects ?? []) edges.push({ id: `applies:${r.id}:${s.id}`, type: 'applies-to', from: d('assumption', r.id), to: d(s.type, s.id), basis: r.basis, pinned: false, stored: 'derived', derived: true })
+  for (const e of edges) e.derived = e.stored === 'derived'
   return edges
+}
+
+/** Project revision for builtFrom (R1): the latest audit sequence number at asOf (or now). Audit events are append-only. */
+export async function projectRevision(db: Queryable, projectId: string, asOf?: string | null): Promise<number> {
+  const { rows } = await db.query<{ n: string | null }>('SELECT max(id) AS n FROM conceptualize.audit_events WHERE project_id = $1 AND ($2::timestamptz IS NULL OR occurred_at <= $2::timestamptz)', [projectId, asOf ?? null])
+  return Number(rows[0]?.n ?? 0)
 }
 
 async function nodesFor(db: Queryable, projectId: string, refs: GRef[], at: Date | null): Promise<Map<string, GNode>> {
@@ -146,7 +158,7 @@ export async function traverse(db: Queryable, projectId: string, req: TraverseRe
   const page = nodes.slice(offset, offset + limit)
   const pageKeys = new Set(page.map((n) => keyOf(n.ref)))
   const edges = [...edgeSet.values()].filter((e) => pageKeys.has(keyOf(e.from)) || pageKeys.has(keyOf(e.to)))
-  return { nodes: page, edges, truncated: offset + limit < nodes.length, ...(offset + limit < nodes.length ? { cursor: encode(offset + limit) } : {}), builtFrom: { at: new Date().toISOString(), asOf: req.asOf ?? null } }
+  return { nodes: page, edges, truncated: offset + limit < nodes.length, ...(offset + limit < nodes.length ? { cursor: encode(offset + limit) } : {}), builtFrom: { at: new Date().toISOString(), asOf: req.asOf ?? null, revision: await projectRevision(db, projectId, req.asOf) } }
 }
 
 /** All simple paths (either direction along edges) between two refs, up to maxDepth links. */

@@ -30,7 +30,7 @@ interface Row {
   description: string
   purpose: string
   flows: FunctionOut['flows']
-  objectives: FunctionOut['objectives']
+  objectives: FunctionOut['performanceObjectives']
   statements: StatementDto[]
   classifications: string[]
   change_reason: string
@@ -47,6 +47,12 @@ const SELECT = `SELECT f.id, f.project_id, f.key, f.current_revision, f.status, 
   v.source_kind, v.conversation_id, v.proposal_id, v.message_id, v.created_at AS rev_created_at, v.created_by AS rev_created_by
   FROM conceptualize.functions f JOIN conceptualize.function_revisions v ON v.function_id = f.id`
 
+/** R1: directions are minimize | maximize | target. Rows written before R1 used min/max for the bound side, which the quantity already carries. */
+const normalizeObjective = (o: FunctionOut['performanceObjectives'][number]): FunctionOut['performanceObjectives'][number] => {
+  const d = o.direction as string
+  return d === 'min' || d === 'max' ? { ...o, direction: 'target' } : o
+}
+
 const toDto = (r: Row): FunctionOut => {
   const historical = r.revision !== r.current_revision
   return {
@@ -59,7 +65,7 @@ const toDto = (r: Row): FunctionOut => {
     description: r.description,
     purpose: r.purpose,
     flows: r.flows,
-    objectives: r.objectives,
+    performanceObjectives: (r.objectives ?? []).map(normalizeObjective),
     statements: r.statements,
     classifications: r.classifications,
     status: r.status,
@@ -114,13 +120,13 @@ interface Content {
   description: string
   purpose: string
   flows: FunctionOut['flows']
-  objectives: FunctionOut['objectives']
+  objectives: FunctionOut['performanceObjectives']
   statements: StatementDto[]
   classifications: string[]
 }
 const CONTENT_FIELDS = ['name', 'verbPhrase', 'description', 'purpose', 'flows', 'objectives', 'statements', 'classifications'] as const
 
-function validateQuantities(ctx: Ctx, flows: FunctionOut['flows'], objectives: FunctionOut['objectives']) {
+function validateQuantities(ctx: Ctx, flows: FunctionOut['flows'], objectives: FunctionOut['performanceObjectives']) {
   const errors: Record<string, string> = {}
   flows.forEach((f, i) => {
     if (f.quantity) {
@@ -129,11 +135,11 @@ function validateQuantities(ctx: Ctx, flows: FunctionOut['flows'], objectives: F
     }
   })
   const out = objectives.map((o, i) => {
-    const p = quantityProblem(o.quantity)
-    if (p) errors[`objectives.${i}.quantity`] = p
+    const p = o.quantity ? quantityProblem(o.quantity) : null
+    if (p) errors[`performanceObjectives.${i}.quantity`] = p
     const basis = o.basis ?? (ctx.provenance.sourceKind === 'assistant' ? 'ai-hypothesis' : 'user-assertion')
-    if (ctx.provenance.sourceKind === 'assistant' && !ASSISTANT_BASES.includes(basis)) errors[`objectives.${i}.basis`] = 'the assistant may only record ai-hypothesis, assumption, assessment or estimate'
-    if (['evidence', 'decision', 'calculated'].includes(basis)) errors[`objectives.${i}.basis`] = 'record evidence, calculations and decisions as their own records'
+    if (ctx.provenance.sourceKind === 'assistant' && !ASSISTANT_BASES.includes(basis)) errors[`performanceObjectives.${i}.basis`] = 'the assistant may only record ai-hypothesis, assumption, assessment or estimate'
+    if (['evidence', 'decision', 'calculated'].includes(basis)) errors[`performanceObjectives.${i}.basis`] = 'record evidence, calculations and decisions as their own records'
     return { ...o, basis }
   })
   if (Object.keys(errors).length) throw invalid('The function is not valid.', errors)
@@ -161,11 +167,11 @@ export async function createFunction(ctx: Ctx, input: FunctionCreateDto, options
     statements: await validateStatements(ctx, null, input.statements ?? [], []),
     classifications: [...new Set((input.classifications ?? []).map((c) => c.trim().toLowerCase()).filter(Boolean))],
   }
-  content.objectives = validateQuantities(ctx, content.flows, input.objectives ?? [])
+  content.objectives = validateQuantities(ctx, content.flows, input.performanceObjectives ?? [])
   const key = await nextKey(ctx, KEY_PREFIX.function, 'functions')
   await ctx.db.query(
     `INSERT INTO conceptualize.functions (id, project_id, key, current_revision, status, origin_concept_id, created_at, created_by, updated_at, updated_by) VALUES ($1,$2,$3,1,$4,$5,$6,$7,$6,$7)`,
-    [id, ctx.projectId, key, input.status ?? 'draft', options.originConceptId ?? null, ctx.now, ctx.actor],
+    [id, ctx.projectId, key, input.status ?? 'active', options.originConceptId ?? null, ctx.now, ctx.actor],
   )
   const reason = (input.reason ?? '').trim()
   await insertRevision(ctx, id, 1, content, reason)
@@ -196,13 +202,13 @@ export async function updateFunction(ctx: Ctx, id: string, patch: FunctionPatchD
     description: (patch.description ?? current.description).trim(),
     purpose: (patch.purpose ?? current.purpose).trim(),
     flows: patch.flows ?? current.flows,
-    objectives: current.objectives,
+    objectives: current.performanceObjectives,
     statements: patch.statements ? await validateStatements(ctx, null, patch.statements, current.statements) : current.statements,
     classifications: patch.classifications ? [...new Set(patch.classifications.map((c) => c.trim().toLowerCase()).filter(Boolean))] : current.classifications,
   }
-  merged.objectives = patch.objectives ? validateQuantities(ctx, merged.flows, patch.objectives) : current.objectives
+  merged.objectives = patch.performanceObjectives ? validateQuantities(ctx, merged.flows, patch.performanceObjectives) : current.performanceObjectives
   const reason = (patch.reason ?? '').trim()
-  const changed = CONTENT_FIELDS.filter((f) => !same(merged[f], current[f]))
+  const changed = CONTENT_FIELDS.filter((f) => !same(merged[f], f === 'objectives' ? current.performanceObjectives : current[f]))
   let revision = current.revision
   if (changed.length) {
     if (current.status === 'retired') throw invalid(`${current.key} is retired. Set it to draft or active before editing.`)
@@ -243,7 +249,7 @@ export async function convertToFunction(ctx: Ctx, conceptId: string, expected: n
   const keep = concept.statements.filter((s) => ['function', 'behavior', 'performance', 'constraint'].includes(s.kind))
   const objectives = keep
     .filter((s) => (s.kind === 'performance' || s.kind === 'constraint') && s.quantity)
-    .map((s) => ({ name: s.text, quantity: { value: s.quantity!.value ?? null, unit: s.quantity!.unit, min: s.quantity!.min ?? null, max: s.quantity!.max ?? null }, direction: (s.quantity!.max != null && s.quantity!.min == null ? 'max' : s.quantity!.min != null && s.quantity!.max == null ? 'min' : 'target') as 'min' | 'max' | 'target', basis: s.basis === 'evidence' || s.basis === 'decision' || s.basis === 'calculated' ? ('user-assertion' as const) : s.basis }))
+    .map((s) => ({ name: s.text, quantity: { value: s.quantity!.value ?? null, unit: s.quantity!.unit, min: s.quantity!.min ?? null, max: s.quantity!.max ?? null }, direction: 'target' as const, basis: s.basis === 'evidence' || s.basis === 'decision' || s.basis === 'calculated' ? ('user-assertion' as const) : s.basis }))
   const fn = await createFunction(
     ctx,
     {
@@ -252,7 +258,7 @@ export async function convertToFunction(ctx: Ctx, conceptId: string, expected: n
       purpose: concept.purpose,
       classifications: concept.classifications,
       statements: keep.map((s) => ({ kind: s.kind, text: s.text, basis: ['evidence', 'decision', 'calculated'].includes(s.basis) ? 'user-assertion' : s.basis, quantity: s.quantity, state: s.state, source: s.source || `From ${concept.key} rev ${concept.revision}` })),
-      objectives,
+      performanceObjectives: objectives,
       status: 'active',
       reason: reason || `Converted from ${concept.key} rev ${concept.revision}`,
     },

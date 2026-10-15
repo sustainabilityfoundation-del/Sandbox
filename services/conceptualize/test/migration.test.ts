@@ -62,7 +62,7 @@ describe('migration 0002 on old data (ADR-0009)', () => {
     const before = (await pool.query(`SELECT * FROM conceptualize.concept_statements ORDER BY revision, ordinal`)).rows
     const evidenceBefore = (await pool.query(`SELECT * FROM conceptualize.evidence`)).rows
     const result = await migrateConcepts(pool)
-    expect(result.applied).toEqual(['0002_design_knowledge.sql'])
+    expect(result.applied).toEqual(['0002_design_knowledge.sql', '0003_r1_link_vocabulary.sql'])
     expect((await pool.query(`SELECT * FROM conceptualize.concept_statements ORDER BY revision, ordinal`)).rows).toEqual(before)
     expect((await pool.query(`SELECT * FROM conceptualize.evidence`)).rows.map((r) => ({ ...r, applicability: undefined, manifest: undefined, source: undefined, assumption_ids: undefined }))).toEqual(evidenceBefore.map((r) => ({ ...r, applicability: undefined, manifest: undefined, source: undefined, assumption_ids: undefined })))
     expect((await migrateConcepts(pool)).applied).toEqual([])
@@ -97,5 +97,39 @@ describe('migration 0002 on old data (ADR-0009)', () => {
     await pool.query(`INSERT INTO conceptualize.concept_revisions (concept_id, revision, name, abstraction, maturity_at_creation, source_kind, created_at, created_by) VALUES ($1,3,'Old concept','system','defined','user',now(),'eli')`, [CONCEPT])
     await pool.query(`INSERT INTO conceptualize.concept_statements (concept_id, revision, ordinal, statement_id, kind, text, basis) VALUES ($1,3,0,gen_random_uuid(),'note','Qualitative','assessment')`, [CONCEPT])
     await pool.query(`ROLLBACK`)
+  })
+})
+
+describe('migration 0003 on data in the 0002 format (R1 link vocabulary)', () => {
+  let pool3: pg.Pool
+  let name3: string
+  let dir3: string
+  beforeAll(async () => {
+    name3 = `ews_test_${randomBytes(5).toString('hex')}`
+    await ensureDatabase(admin(), name3)
+    const u = new URL(admin())
+    u.pathname = `/${name3}`
+    pool3 = new pg.Pool({ connectionString: u.toString(), max: 4 })
+    dir3 = mkdtempSync(join(tmpdir(), 'con-mig3-'))
+    for (const f of ['0001_initial.sql', '0002_design_knowledge.sql']) copyFileSync(join(CONCEPT_MIGRATIONS_DIR, f), join(dir3, f))
+    await migrate(pool3, { schema: 'conceptualize', directory: dir3 })
+    await pool3.query(`INSERT INTO conceptualize.link_types (name, label, inverse, from_types, to_types, description, created_by) VALUES ('thermal:rejects-heat-to', 'rejects heat to', 'receives heat from', '{concept}', '{concept}', 'User type', 'ada')`)
+  })
+  afterAll(async () => {
+    await pool3?.end()
+    await dropDatabase(admin(), name3)
+    rmSync(dir3, { recursive: true, force: true })
+  })
+
+  it('adds propagation and artifact modules, widens built-in endpoints and leaves user-registered types unchanged', async () => {
+    const before = (await pool3.query(`SELECT name, label, inverse, from_types, to_types, description, created_by FROM conceptualize.link_types WHERE NOT builtin`)).rows
+    expect((await migrateConcepts(pool3)).applied).toEqual(['0003_r1_link_vocabulary.sql'])
+    const custom = (await pool3.query(`SELECT name, label, inverse, from_types, to_types, description, created_by, propagation, artifact_modules FROM conceptualize.link_types WHERE NOT builtin`)).rows
+    expect(custom).toEqual(before.map((r) => ({ ...r, propagation: 'to-from', artifact_modules: null })))
+    const builtin = Object.fromEntries((await pool3.query(`SELECT name, propagation, artifact_modules, from_types FROM conceptualize.link_types WHERE builtin`)).rows.map((r) => [r.name, r]))
+    expect(builtin.formalizes).toMatchObject({ propagation: 'both', artifact_modules: ['requirements'] })
+    expect(builtin['verified-by'].artifact_modules).toEqual(['twin'])
+    expect(builtin.constrains.propagation).toBe('from-to')
+    expect(builtin['depends-on'].from_types).toContain('trade-study')
   })
 })

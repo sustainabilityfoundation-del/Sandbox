@@ -401,7 +401,7 @@ export async function seedDesignKnowledge(pool: Pool): Promise<boolean> {
           { direction: 'in', kind: 'signal', name: 'Command' },
           { direction: 'out', kind: 'force', name: 'Axial force', quantity: { value: 500, unit: 'N' } },
         ],
-        objectives: [{ name: 'Axial force', quantity: { min: 500, unit: 'N' }, direction: 'min', basis: 'user-assertion' }],
+        performanceObjectives: [{ name: 'Axial force', quantity: { min: 500, unit: 'N' }, direction: 'target', basis: 'user-assertion' }],
         statements: [{ kind: 'behavior', text: 'Holds position when the command is constant.' }],
         status: 'active',
         reason: 'Seeded example',
