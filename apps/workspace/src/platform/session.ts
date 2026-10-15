@@ -1,4 +1,5 @@
 import { windowInfo, type DetachedViewDef } from '../session/windowSession'
+import { currentProjectId, isLegacyProject } from '../projects/currentProject'
 import type { ContextState, Layout, LayoutClass } from './store'
 import type { ViewMeta } from './views'
 
@@ -22,7 +23,8 @@ export interface SessionState {
   detachedViews?: DetachedViewDef[]
 }
 
-const MAIN_KEY = 'ews.session.v1'
+// Sessions are kept per project (integration milestone 1, C13); the example project keeps its original key.
+const MAIN_KEY = isLegacyProject(currentProjectId) ? 'ews.session.v1' : `ews.session.${currentProjectId}.v1`
 
 export const sessionKey = windowInfo.role === 'main' ? MAIN_KEY : `ews.window.${windowInfo.windowId}.v1`
 

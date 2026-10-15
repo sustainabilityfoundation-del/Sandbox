@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import { RemoteAssistantService } from './assistant/RemoteAssistantService'
 import { startAssistantConnection } from './assistant/connection'
-import { loadSettings } from './settings/store'
+import { loadSettings, useSettingsState } from './settings/store'
+import { currentProjectId } from './projects/currentProject'
 import { useConversation } from './assistant/conversation'
 import { DemoRepository, browserStorage } from '@ews/model-service'
 import { startWindowSync } from './session/sync'
@@ -22,7 +23,9 @@ initPreferences()
 // Swap this for a cloud-backed EngineeringRepository; tools are unaffected.
 const repository = new DemoRepository({ storage: browserStorage() })
 
-// Settings (SDK 1.6): values from the settings service, defaults until they load.
+// Settings (SDK 1.6): values from the settings service, defaults until they load. Project-scoped values belong
+// to the window's project (CR-PM-WS-1, C13).
+useSettingsState.setState({ projectId: currentProjectId })
 void loadSettings()
 
 // The labelled demo assistant until the person connects an AI account (Settings → AI and reasoning); then

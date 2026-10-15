@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { buildModelIndex, composeSnapshot, type ExternalProjection, type ModelIndex, type ModelSnapshot } from '@ews/model-service'
+import { buildModelIndex, composeSnapshot, mergeProjections, type ExternalProjection, type ModelIndex, type ModelSnapshot } from '@ews/model-service'
 import type {
   ActivityEntry,
   ActivityKind,
@@ -16,6 +16,9 @@ import { loadMainSession, loadSession, saveSession, type SessionState } from './
 import type { ArtifactInput, RequirementsService, ToolCommand, ViewStateUpdate } from '@ews/platform-sdk'
 import { onRequirementsReset } from '@ews/requirements-client'
 import { loadRequirementsProjection, requirementObject } from './requirementsProjection'
+import { workspaceServices } from './services'
+import { loadProductProjection } from '../projects/productProjection'
+import { isLegacyProject } from '../projects/currentProject'
 import { canOpenTool, toolAccess, type ToolAccess } from './entitlements'
 import { toolIdOfView, type ViewMeta, type ViewPin } from './views'
 
@@ -310,7 +313,8 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           configurationId: snapshot.configurations.some((c) => c.id === ctx?.configurationId)
             ? ctx!.configurationId
             : snapshot.configurations[0].id,
-          scenarioId: snapshot.scenarios.some((s) => s.id === ctx?.scenarioId) ? ctx!.scenarioId : snapshot.scenarios[0].id,
+          // A new project has no scenarios yet (its twin starts empty).
+          scenarioId: snapshot.scenarios.some((s) => s.id === ctx?.scenarioId) ? ctx!.scenarioId : (snapshot.scenarios[0]?.id ?? ''),
           selectedIds: (ctx?.selectedIds ?? []).filter((id) => model.get(id)),
         }
         // Restored tabs are kept even if the subscription no longer includes them (they show why);
@@ -369,7 +373,13 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
       if (!service || !twinSnapshot) return
       try {
         const legacyIds = twinSnapshot.objects.filter((o) => o.type === 'requirement').map((o) => o.id)
-        const projection = await loadRequirementsProjection(service, context.projectId, context.configurationId, legacyIds)
+        // Product elements from the product registry for projects other than the example (CR-PM-MS-2).
+        const projects = workspaceServices.projects
+        const [requirementsProjection, productProjection] = await Promise.all([
+          loadRequirementsProjection(service, context.projectId, context.configurationId, legacyIds),
+          projects && !isLegacyProject(context.projectId) ? loadProductProjection(projects, context.projectId) : Promise.resolve(null),
+        ])
+        const projection = mergeProjections(requirementsProjection, productProjection)!
         repository?.registerExternalObjects?.(projection.objects.map((o) => ({ id: o.id, type: o.type, revision: o.revision })))
         const model = composeModel(get().twinSnapshot!, projection)
         set((s) => ({
