@@ -10,10 +10,16 @@ const model = libraryModel('lib.column.euler-round')
 const inputs = { F: { value: 12, unit: 'kN' }, E: { value: 210, unit: 'GPa' }, Sy: { value: 600, unit: 'MPa' }, d: { value: 25, unit: 'mm' }, L: { value: 600, unit: 'mm' }, K: { value: 1, unit: '-' }, n: { value: 2, unit: '-' } }
 const ranged = { ...inputs, d: { value: 25, min: 24, max: 26, unit: 'mm' }, K: { value: 1, min: 0.7, max: 1.5, unit: '-' }, E: { value: 210, min: 200, max: 220, unit: 'GPa' }, L: { value: 600, min: 580, max: 620, unit: 'mm' }, F: { value: 12, min: 10, max: 14, unit: 'kN' } }
 
+/** Median per-call time over 5 batches after a warm-up batch (robust to JIT warm-up and parallel test load). */
 function time(fn: () => void, n: number): number {
-  const t0 = performance.now()
-  for (let i = 0; i < n; i++) fn()
-  return (performance.now() - t0) / n
+  for (let i = 0; i < Math.min(n, 20); i++) fn()
+  const batches: number[] = []
+  for (let b = 0; b < 5; b++) {
+    const t0 = performance.now()
+    for (let i = 0; i < n; i++) fn()
+    batches.push((performance.now() - t0) / n)
+  }
+  return batches.sort((x, y) => x - y)[2]
 }
 
 describe('performance', () => {
@@ -25,7 +31,7 @@ describe('performance', () => {
 
   it('evaluates a compiled model at points in well under 2 ms', () => {
     const compiled = compileModel(model)
-    const ms = time(() => evaluateModel(compiled, inputs), 2000)
+    const ms = time(() => evaluateModel(compiled, inputs), 400)
     console.log(`point evaluation: ${ms.toFixed(4)} ms`)
     expect(ms).toBeLessThan(2)
   })

@@ -179,7 +179,7 @@ interface CalculationManifest {
   inner bounds, inlined or differentiated expressions ≤ 20 000 nodes (else `limit` or enclosure).
 - **Cooperative budget** (main entry, Node and browser): every evaluation has an operation budget (default
   5 000 000 AST operations, `resource-limit`) and a deadline (default 2 s, `timeout`). The worst case inside the
-  static limits (one 500-node non-monotonic expression over 10 ranged inputs) takes about 50 ms.
+  static limits (one 500-node non-monotonic expression over 10 ranged inputs) takes about 50–110 ms.
 - **Hard isolation** (`@ews/engineering-calc/node`, Node only, for services): `createIsolatedEvaluator` runs
   evaluations in a `worker_threads` worker with V8 `resourceLimits` (default 64 MB old generation, 16 MB young
   generation, 4 MB stack) and a hard wall-clock timeout (default 5 s) after which the worker is terminated and
@@ -280,12 +280,12 @@ relations are given; they were **not consulted in this session** and no text is 
 
 | Operation | Measured | Test threshold |
 | --- | --- | --- |
-| Compile a model (parse, dimensions, ordering, digest) | ≈ 3.2 ms | < 20 ms |
-| Point evaluation of a compiled model | ≈ 0.28 ms | < 2 ms |
+| Compile a model (parse, dimensions, ordering, digest) | 1.3–3.2 ms | < 20 ms |
+| Point evaluation of a compiled model | 0.26–0.28 ms | < 2 ms |
 | Exact interval evaluation, 5 ranged inputs | ≈ 0.9 ms | < 20 ms |
-| Manifest verification | ≈ 3.1 ms | < 20 ms |
-| Worst case inside the static limits (500-node non-monotonic expression, 10 ranged inputs) | ≈ 53 ms, 0.49 M operations | < 2000 ms |
+| Manifest verification | 2.3–3.1 ms | < 20 ms |
+| Worst case inside the static limits (500-node non-monotonic expression, 10 ranged inputs) | 53–108 ms, 0.49 M operations | < 2000 ms |
 
-Thresholds are several times the measurements so that the tests catch order-of-magnitude regressions, not
+Timings are medians of five batches after a warm-up; the ranges are from several runs. Thresholds are several times the measurements so that the tests catch order-of-magnitude regressions, not
 machine variation (`perf.test.ts`). Worker start-up from TypeScript sources takes seconds under load and is
 excluded from evaluation time (§7).
