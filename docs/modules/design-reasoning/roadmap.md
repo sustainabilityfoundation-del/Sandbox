@@ -58,6 +58,9 @@ additive migrations pass fixture tests of the b5e2668 schema; the five questions
 other than "different way" are answerable in the Conceptualize UI without AI.
 
 ### R3 Calculation engine
+
+Status (15 October 2026): **technically complete, ready for coordinator review** ([progress file, R3](../../specifications/design-reasoning-progress.md#r3-calculation-engine-production-checkpoint)). Scope as set by the coordinator (worker isolation, error taxonomy, exact or honestly labelled interval bounds, manifest versioning, relations library, performance tests); the library replaces the screw-torque/gear-ratio examples below with the coordinator's list. Conceptualize's refusal of tampered manifests is shown by the contract test adapter; the real service implements it with CR-C8.
+
 Reference cases with independent hand or textbook values (buckling, beam deflection, screw torque, gear
 ratio) agree within 1e-9 relative; dimensional analysis test corpus (≥ 50 relations, valid and invalid);
 interval vertex results checked against analytic bounds for monotonic cases; worker timeout and AST limits

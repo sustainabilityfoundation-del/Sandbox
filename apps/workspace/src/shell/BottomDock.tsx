@@ -15,6 +15,7 @@ function DockTabs({ open, onCollapse, onClose }: { open: boolean; onCollapse?: (
   const running = useConversation((s) => s.running !== null)
   const pending = useConversation((s) => Object.values(s.proposals).filter((p) => p.status === 'pending' || p.status === 'conflict').length)
   const serviceName = useConversation((s) => s.service?.info.name)
+  const serviceKind = useConversation((s) => s.service?.info.kind)
 
   return (
     <header className="ws-dock-header">
@@ -34,9 +35,11 @@ function DockTabs({ open, onCollapse, onClose }: { open: boolean; onCollapse?: (
         </Tab>
         <Tab id="assistant" data-dock-tab="assistant" className="ws-dock-tab">
           ChatGPT
-          <span className="ws-dock-demo" title={`${serviceName ?? 'Assistant'} (not connected to ChatGPT)`}>
-            Demo
-          </span>
+          {serviceKind !== 'remote' && (
+            <span className="ws-dock-demo" title={`${serviceName ?? 'Assistant'} (not connected to an AI model; connect in Settings → AI and reasoning)`}>
+              Demo
+            </span>
+          )}
           {running && <Spinner size={14} label="Assistant working" />}
           {pending > 0 && (
             <span className="ws-dock-count" title={`${pending} change preview(s) awaiting review`} aria-label={`${pending} awaiting review`}>

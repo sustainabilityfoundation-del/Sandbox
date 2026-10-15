@@ -15,6 +15,7 @@ export {
   useResolvedSelection,
   useRestoredScroll,
   useSelection,
+  useSetting,
   useSharedContext,
   useToolApi,
   useToolCommand,

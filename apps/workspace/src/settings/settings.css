@@ -1,0 +1,29 @@
+/* Settings centre (same layout pattern as the Help Centre); tokens only. */
+@layer components {
+  .ws-settings { display: grid; grid-template-columns: minmax(180px, 220px) minmax(0, 1fr); gap: var(--ws-space-4); min-height: min(64vh, 600px); }
+  .ws-settings-nav { display: flex; flex-direction: column; gap: var(--ws-space-3); min-width: 0; border-right: 1px solid var(--ws-border); padding-right: var(--ws-space-3); }
+  .ws-settings-navh { margin: 0 0 var(--ws-space-1); font-size: var(--ws-font-size-xs); font-weight: var(--ws-weight-medium); color: var(--ws-text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+  .ws-settings-list { display: flex; flex-direction: column; gap: var(--ws-space-2); margin: 0; padding: 0; list-style: none; }
+  .ws-settings-page { min-width: 0; max-height: 68vh; overflow: auto; padding-right: var(--ws-space-1); }
+  .ws-settings-body { display: flex; flex-direction: column; gap: var(--ws-space-4); }
+  .ws-settings-title { margin: 0; font-size: var(--ws-font-title); font-weight: var(--ws-weight-medium); }
+  .ws-settings-intro { margin: var(--ws-space-1) 0 0; color: var(--ws-text-2); line-height: 1.5; }
+  .ws-settings-group { display: flex; flex-direction: column; gap: var(--ws-space-3); padding-top: var(--ws-space-3); border-top: 1px solid var(--ws-border); }
+  .ws-settings-h { margin: 0; font-size: var(--ws-font-size); font-weight: var(--ws-weight-medium); }
+  .ws-settings-h4 { margin: var(--ws-space-2) 0 0; font-size: var(--ws-font-size-sm); font-weight: var(--ws-weight-medium); color: var(--ws-text-2); }
+  .ws-setting { display: flex; flex-direction: column; gap: var(--ws-space-1); max-width: 40rem; }
+  .ws-setting-label { font-size: var(--ws-font-size-xs); font-weight: var(--ws-weight-medium); color: var(--ws-text-2); }
+  .ws-setting-help { margin: 0; font-size: var(--ws-font-size-xs); color: var(--ws-text-3); line-height: 1.5; }
+  .ws-setting-error { margin: 0; font-size: var(--ws-font-size-xs); color: var(--ws-danger); }
+  .ws-settings-card { display: flex; flex-direction: column; gap: var(--ws-space-2); padding: var(--ws-space-3); border: 1px solid var(--ws-border); border-radius: var(--ws-radius-lg); background: var(--ws-surface-2); max-width: 44rem; }
+  .ws-settings-pre { margin: 0; padding: var(--ws-space-2); max-height: 14rem; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: var(--ws-mono); font-size: var(--ws-font-size-xs); background: var(--ws-surface); border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); }
+  .ws-settings-mono { font-family: var(--ws-mono); word-break: break-word; }
+  .ws-settings-details > summary { cursor: pointer; font-size: var(--ws-font-size-sm); color: var(--ws-accent); border-radius: var(--ws-radius-sm); }
+  .ws-settings-details > summary:focus-visible { outline: 2px solid var(--ws-focus); outline-offset: 2px; }
+  .ws-settings-details[open] > summary { margin-bottom: var(--ws-space-3); }
+}
+@media (max-width: 640px) {
+  .ws-settings { grid-template-columns: minmax(0, 1fr); }
+  .ws-settings-nav { border-right: 0; padding-right: 0; border-bottom: 1px solid var(--ws-border); padding-bottom: var(--ws-space-3); }
+  .ws-settings-page { max-height: none; }
+}

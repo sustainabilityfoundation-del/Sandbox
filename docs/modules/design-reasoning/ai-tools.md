@@ -39,8 +39,10 @@ unchanged; `GET /api/reasoning/v1/tools` is the source of truth for schemas and 
   "implementationStatus": "implemented"
 }
 // Errors: { "code": "invalid-input|not-found|forbidden|not-entitled|stale-context|unit-error|domain-error|
-//            budget-exhausted|cancelled|unavailable|not-implemented", "message": "…", "details": {…} }
+//            budget-exhausted|cancelled|unavailable|not-implemented|timeout|resource-limit|internal", "message": "…", "details": {…} }
 ```
+
+Calculation failures map through the engine's error taxonomy (mathematics.md §7a): timeout and resource-limit are retryable.
 
 Idempotency: mutation-class tools take `idempotencyKey` (the executor supplies the tool-call ID); a repeat
 returns the first draft. Query tools are naturally idempotent.

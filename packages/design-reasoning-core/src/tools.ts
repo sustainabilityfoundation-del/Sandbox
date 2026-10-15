@@ -144,7 +144,7 @@ export const TOOLS: ToolDefinition[] = [
       properties: {
         model: ref,
         values: { type: 'object', additionalProperties: quantity, description: 'symbol → quantity, replacing the binding (hypothetical)' },
-        uncertainty: { enum: ['point', 'interval-vertices'] },
+        uncertainty: { enum: ['point', 'interval'] },
         recordAsEvidence: { type: 'object', additionalProperties: false, required: ['subjects', 'title'], properties: { subjects: { type: 'array', minItems: 1, items: ref }, title: str(300) } },
       },
     },

@@ -210,3 +210,16 @@ describe('comparison: Pareto dominance with intervals', () => {
     expect(r.dominated).toEqual([{ conceptId: 'b', by: 'a', strength: 'robust' }])
   })
 })
+
+describe('package rules', () => {
+  it('uses the SDK testing fixtures only in tests (and scripts/, outside src)', async () => {
+    const { readdirSync, readFileSync, statSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const root = join(__dirname)
+    const files = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? files(join(dir, n)) : [join(dir, n)]))
+    const offending = files(root)
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+      .filter((f) => /from\s+['"]@ews\/platform-sdk\/testing['"]/.test(readFileSync(f, 'utf8')))
+    expect(offending).toEqual([])
+  })
+})

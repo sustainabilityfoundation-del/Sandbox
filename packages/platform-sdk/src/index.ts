@@ -17,6 +17,7 @@ export * from './contract/concepts'
 export * from './contract/quantities'
 export * from './contract/artifacts'
 export * from './contract/projects'
+export * from './contract/settings'
 export type { PlatformHost } from './contract/host'
 // Domain model only. Tools never get the repository itself: every read and write goes through the host.
 export type * from '@ews/model-service'
