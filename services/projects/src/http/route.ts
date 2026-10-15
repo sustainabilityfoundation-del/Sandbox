@@ -9,6 +9,7 @@ import type { EventHub } from '../events/hub'
 import type { BlobStore } from '../blob/blobStore'
 import type { MembershipPort, Principal, ProjectSettingsPort } from '../ports'
 import type { ProvisioningModule } from '../provisioning'
+import type { ArtifactSource } from '@ews/platform-sdk'
 
 export interface HostServices {
   pool: Pool
@@ -22,6 +23,10 @@ export interface HostServices {
   settings?: ProjectSettingsPort
   /** Installed modules, provisioned after a project is created (C1). Absent: none recorded. */
   modules?: ProvisioningModule[]
+  /** Module artifact sources (SDK 1.7 ArtifactSource, ADR-0062); the registry consumer indexes their artifacts. */
+  artifactSources?: ArtifactSource[]
+  /** Receives the registry consumer handle (tests wait for it; the host may expose it). */
+  onRegistry?: (handle: { idle: () => Promise<void>; reconcile: (projectId: string) => Promise<unknown> }) => void
   /** Upload limit per document version in bytes (default 200 MB). */
   maxUploadBytes?: number
 }

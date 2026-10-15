@@ -13,8 +13,7 @@ import { localBlobStore } from '../src/blob/blobStore'
  * integration-milestone-1.md §2) against the real services hosted by the API (Project Management, Requirements,
  * Conceptualize, SysML) on a real PostgreSQL that is stopped and started again between steps 2 and 6.
  *
- * Step 2's "function" is a Concept with abstraction 'function' (on main today); a first-class Function
- * (Conceptualize CR-C1, cf33f80) is not on main yet, so that part is reported as not verified.
+ * Step 2's function is a first-class Conceptualize Function (C1, on main since the I1 merge).
  * The database starts empty apart from the development identities and the preserved PRJ-ACT100 fixture.
  */
 const dir = mkdtempSync(join(tmpdir(), 'ews-i1-'))
@@ -60,7 +59,7 @@ const ok = <T = any>(r: { status: number; body: T }, status = 200): T => {
 
 afterAll(async () => {
   await down().catch(() => undefined)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 })
 })
 
 describe('I1 acceptance (steps 1, 2, 5, 6) on real services', () => {
@@ -77,11 +76,13 @@ describe('I1 acceptance (steps 1, 2, 5, 6) on real services', () => {
     expect(ok(await call('ada', 'GET', `${CON}/concepts`)).items).toEqual([])
     expect(ok(await call('ada', 'GET', `/api/sysml/v1/projects?platformProjectId=${id}`))).toEqual([])
     const states = ok(await call('ada', 'GET', `${PM}/${id}/context`)).modules
-    expect(states.filter((m: { module: string }) => m.module !== 'settings').map((m: { status: string }) => m.status)).toEqual(['not-needed', 'not-needed', 'not-needed'])
+    const hosted = states.filter((m: { module: string }) => m.module !== 'settings')
+    expect(hosted.map((m: { module: string }) => m.module).sort()).toEqual(['cad', 'conceptualize', 'requirements', 'sysml'])
+    expect(hosted.every((m: { status: string }) => m.status === 'not-needed' || m.status === 'ready')).toBe(true)
 
     // ---- Step 2: requirement (Requirements, real), function and candidate concepts and a decision (Conceptualize, real)
     const requirement = ok(await call('ada', 'POST', `${REQ}/requirements`, { title: 'Bracket stiffness', statement: 'The bracket shall deflect less than 0.5 mm under a 200 N load.', type: 'performance' }), 201)
-    const fn = ok(await call('ada', 'POST', `${CON}/concepts`, { name: 'Hold the drive unit', abstraction: 'function' }), 201)
+    const fn = ok(await call('ada', 'POST', `${CON}/functions`, { name: 'Hold the drive unit', verbPhrase: 'hold drive unit' }), 201)
     const parent = ok(await call('ada', 'POST', `${CON}/concepts`, { name: 'Drive mount', abstraction: 'component' }), 201)
     const candidates = []
     for (const name of ['Welded steel bracket', 'Machined aluminium bracket', 'Cast bracket']) candidates.push(ok(await call('ada', 'POST', `${CON}/concepts`, { name, abstraction: 'component' }), 201))
@@ -114,6 +115,7 @@ describe('I1 acceptance (steps 1, 2, 5, 6) on real services', () => {
       requirement: ok(await call('ada', 'GET', `${REQ}/requirements/${requirement.id}`)),
       requirementRevisions: ok(await call('ada', 'GET', `${REQ}/requirements/${requirement.id}/revisions`)),
       allocations: ok(await call('ada', 'GET', `${REQ}/relationships?type=allocated-to`)),
+      fn: ok(await call('ada', 'GET', `${CON}/functions/${fn.id}`)),
       concepts: ok(await call('ada', 'GET', `${CON}/concepts?limit=200`)).items.map((c: { id: string; name: string; abstraction: string; revision: number }) => ({ id: c.id, name: c.name, abstraction: c.abstraction, revision: c.revision })),
       set: ok(await call('ada', 'GET', `${CON}/alternative-sets/${set.id}`)),
       decision: ok(await call('ada', 'GET', `${CON}/decisions/${decision.id}`)),
@@ -127,7 +129,8 @@ describe('I1 acceptance (steps 1, 2, 5, 6) on real services', () => {
     const before = await snapshot()
     expect(before.decision).toMatchObject({ status: 'recorded', recordedBy: 'ada', title: 'Machined aluminium bracket' })
     expect(before.decision.outcomes).toHaveLength(3)
-    expect(before.concepts.map((c: { name: string }) => c.name).sort()).toEqual(['Cast bracket', 'Drive mount', 'Hold the drive unit', 'Machined aluminium bracket', 'Welded steel bracket'])
+    expect(before.concepts.map((c: { name: string }) => c.name).sort()).toEqual(['Cast bracket', 'Drive mount', 'Machined aluminium bracket', 'Welded steel bracket'])
+    expect(before.fn).toMatchObject({ id: fn.id, name: 'Hold the drive unit' })
     expect(before.allocations.some((r: { id: string; toTwinId: string }) => r.id === allocation.id && r.toTwinId === bracket.id)).toBe(true)
     expect(before.requirement.revision).toBe(reqV2.revision)
 
@@ -144,6 +147,6 @@ describe('I1 acceptance (steps 1, 2, 5, 6) on real services', () => {
     expect(after.decision.rationale).toContain('lowest mass')
     expect(after.tree.roots[0].children[0].element.id).toBe(bracket.id)
     expect(after.workItems.items[0]).toMatchObject({ id: task.id, subjects: [bracket.artifactId] })
-    expect(after.concepts.find((c: { id: string }) => c.id === fn.id)).toMatchObject({ abstraction: 'function' })
+    expect(after.fn).toMatchObject({ id: fn.id, name: 'Hold the drive unit', revision: fn.revision })
   })
 })

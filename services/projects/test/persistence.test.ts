@@ -48,7 +48,7 @@ async function call(user: string, method: string, url: string, body?: unknown, h
 
 afterAll(async () => {
   await down().catch(() => undefined)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 })
 })
 
 describe('persistence across a restart of the API and PostgreSQL', () => {

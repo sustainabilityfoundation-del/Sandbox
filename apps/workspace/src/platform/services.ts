@@ -86,8 +86,13 @@ function createProjects(settings: ServiceSettings): ProjectsService | undefined 
   return createHttpProjectsService({ baseUrl: '/api/projects/v1', devUser: settings.devUser })
 }
 
-
-export const workspaceServices: PlatformServices = { requirements: createRequirements(serviceSettings), help: workspaceHelp, concepts: createConcepts(serviceSettings), sysml: createSysml(serviceSettings), projects: createProjects(serviceSettings) }
+export const workspaceServices: PlatformServices = {
+  requirements: createRequirements(serviceSettings),
+  help: workspaceHelp,
+  concepts: createConcepts(serviceSettings),
+  sysml: createSysml(serviceSettings),
+  projects: createProjects(serviceSettings),
+}
 
 /** Saves new settings and reloads; other windows follow through the storage event below. */
 export function saveServiceSettings(next: ServiceSettings): void {

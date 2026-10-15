@@ -280,7 +280,7 @@ const milestoneFields = {
 export const CreateMilestone = Type.Object(milestoneFields, { additionalProperties: false, $id: 'CreateMilestone' })
 export const UpdateMilestone = Type.Object({ expectedRevision: Type.Optional(Type.Integer({ minimum: 1 })), ...milestoneFields, name: Type.Optional(milestoneFields.name), due: Type.Optional(Nullable(Day)) }, { additionalProperties: false, $id: 'UpdateMilestone' })
 
-const DocumentVersion = Type.Object({ version: Type.Integer(), fileName: Type.String(), mediaType: Type.String(), byteSize: Type.Integer(), sha256: Type.String(), note: Type.String(), uploadedAt: DateTime, uploadedBy: Type.String() })
+const DocumentVersion = Type.Object({ version: Type.Integer(), fileName: Type.String(), mediaType: Type.String(), byteSize: Type.Integer(), sha256: Type.String(), note: Type.String(), uploadedAt: DateTime, uploadedBy: Type.String(), provenance: Type.Optional(Type.Record(Type.String(), Type.Unknown())) })
 export const Document = Type.Object(
   {
     id: Type.String({ format: 'uuid' }),
