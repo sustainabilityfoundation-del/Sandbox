@@ -120,6 +120,25 @@ Branch rebased on main edd7353 (SDK 1.7.0). Contract: docs/modules/projects/regi
 - Tests: `services/api/test/artifacts.test.ts` (10, real PostgreSQL), `services/requirements/src/artifacts.test.ts` (2, mappings). The Project Management contract-test suite (`@ews/projects-client/contract-tests`, registration §7) is not on main yet; these tests cover the same points and can be swapped for it when it lands.
 - No migrations.
 
+## Integration milestone 1: C9 headless operations, C13 project scoping, 15 Oct 2026
+
+Merged main d628556 (docs/specifications/integration-milestone-1.md).
+
+- **C9, done for Requirements.** `packages/tool-requirements/src/assistant.ts` takes the service from `AssistantActionContext.services.requirements` and the project from `ctx.captured.projectId`; `setAssistantConnection`, the view-held connection and the in-view proposal store (`src/proposals.ts`, the proposal cards in RequirementsView) are removed.
+  - `requirements.update` returns a platform `service-proposal` (field preview with current and proposed text, Apply, Undo). Apply calls `saveRequirementEdit`, the same write as the editor (module client in API mode, SDK service in demo mode), with the base revision and reason `Assistant proposal <proposalId>`. The text is passed as given, so the server is the only validator.
+  - `requirements.search` uses the SDK `list()` (demo and API). `requirements.read_for_component` uses the module client's allocation query in API mode, the twin otherwise. `requirements.explain_quality` needs API mode and says so in demo mode.
+  - Without a service the twin behaviour of `read_for_component` and `update` is unchanged.
+  - Status changes stay refused through the assistant (they are reviews and transitions).
+- **Tests.**
+  - `packages/tool-requirements/src/assistant.test.ts` (7, demo service, no view): search, proposal/Apply/Undo, a stale Apply refused, refusals.
+  - `services/api/test/assistant.test.ts` (6, real API, no React):
+    - every operation succeeds headless;
+    - UI path vs assistant path give identical refusals (class, code, status, message) for a statement over 20 000 characters, a stale revision and a reader;
+    - the empty-statement rule is identical on both paths. The server allows an empty statement in a draft and refuses it at request-review; this is an existing domain rule, kept, so "empty statement" is not a refusal on either path;
+    - C13: PATCH, archive, transition and relationship writes to a PRJ-ACT100 requirement through another project's path are refused (4xx, never a conflict), nothing changes, and the project-bound client and the assistant in that project get `not-found`.
+- **COORDINATOR REVIEW** commit 9bae3e9: `apps/workspace/src/assistant/assistant.test.ts` runs its twin demo flow without a Requirements service (it passed before only because no view was mounted). Test-only.
+- Limitation: proposals are still closures (`apply`/`undo`) held by the workspace, not persisted declarative data (C9 §3); that needs `services/assistant` persistence and a declarative proposal contract from the coordinator. The Requirements Apply is already a pure function of (requirement ID, patch, expected revision, project), so it can be expressed declaratively when that contract exists.
+
 ## SDK change proposal (requests 5, 7, 9), 15 Oct 2026
 
 For the coordinator to apply in the next SDK minor (all additive; CHANGELOG entries proposed below). The Requirements side is ready for each.
@@ -202,6 +221,8 @@ Decided on 14 Oct 2026 (contracts §13): 1 and 2 approved (SDK 1.3.0, adopted in
 
 ## Integration needs for the coordinator
 
+- **C9 capability inventory** (`apps/workspace/src/assistant/capabilities.ts`, coordinator-owned): the notes on `requirements.fields` ("preview is shown inside the Requirements tool") and `sysml.edit-requirement` ("needs an open Requirements view") are now outdated. `requirements.update` is a platform service proposal and works with every tab closed.
+
 - **Project Management (15 Oct 2026):** wire `createRequirementsArtifactSource(pool, server.events)` into the Project Management plugin in `services/api/src/server.ts` (coordinator-owned host wiring), and pass `twin: composeTwinDirectory(SAMPLE_TWIN, productTwinDirectory(pool))` once CR-PM-API-3 lands. Send me that commit and I will add a test with the real product directory.
 - The SDK package.json is at 1.5.0 while the contract is 1.7.0, so `@ews/requirements-service` declares `^1.5.0` (COORDINATOR REVIEW commit). Please bump the package version with the next SDK change.
 
@@ -255,6 +276,8 @@ Decided on 14 Oct 2026 (contracts §13): 1 and 2 approved (SDK 1.3.0, adopted in
 - History is append-only through the API (DB triggers); not tamper-proof.
 
 ## Handoff log
+
+- 2026-10-15 (integration milestone 1): C9 headless Requirements operations and C13 scoping tests committed (a95b4e4, review commit 9bae3e9). No migrations.
 
 - 2026-10-15 (Project Management CRs): CR-PM-REG-1 and CR-PM-REQ-2 committed; SDK change proposal for requests 5, 7, 9 above. No migrations.
 
