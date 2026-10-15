@@ -124,7 +124,7 @@ describe('workspace help', () => {
   })
 
   it('follows the subscription: tools outside it are not listed', () => {
-    expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'sysml', 'cad', 'ai'])
+    expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'sysml', 'cad', 'conceptualize', 'ai'])
     useEntitlements.getState().setPlan('requirements')
     expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'ai'])
     expect(workspaceHelp.contextual({ moduleId: 'cad' }).map((r) => r.topic.id)).toEqual(['platform.getting-started'])

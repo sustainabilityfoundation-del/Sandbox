@@ -365,6 +365,7 @@ function proposeService(ctx: ExecutionContext, entitlement: EntitlementId, resul
   })
   registerServiceHandlers(proposal.id, result)
   return {
+    proposalId: proposal.id,
     data: {
       proposalId: proposal.id,
       status: 'awaiting user review',
