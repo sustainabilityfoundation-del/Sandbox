@@ -12,7 +12,7 @@ import {
 import { Badge, Button, Checkbox, EmptyState, IconButton, Notice, SegmentedControl, Select, TextField } from '@ews/design-system'
 import { useEffect, useMemo, useState } from 'react'
 import type { CadModelerViewState, Editing } from '../viewState'
-import { CommitField, SKETCH_STATUS, exprValue, fmtNum, makeRun, regenOf } from './common'
+import { CommitField, SKETCH_STATUS, exprValue, fmtNum, makeRun, regenOf, useMeasure } from './common'
 import { DatumPlaneForm, EdgeFeatureForm, NewSketchForm, describePlane } from './PlaneAndEdgeForms'
 
 interface Props {
@@ -67,6 +67,7 @@ const CONSTRAINT_LABEL: Record<ConstraintType, string> = {
 }
 
 function SketchTools({ engine, state, sketchId, vs, update }: { engine: CadEngine; state: EngineState; sketchId: string; vs: CadModelerViewState; update: Props['update'] }) {
+  const M = useMeasure()
   const run = makeRun(engine)
   const part = state.doc.parts.find((p) => p.features.some((f) => f.id === sketchId))
   const sketch = part?.features.find((f) => f.id === sketchId) as SketchFeature | undefined
@@ -100,7 +101,7 @@ function SketchTools({ engine, state, sketchId, vs, update }: { engine: CadEngin
       )}
       {result?.sketch && !result.sketch.profile.issues.length && (
         <p className="cadm-muted">
-          Closed profile: {result.sketch.profile.regions.length} region(s), area {fmtNum(result.sketch.profile.regions.reduce((s, r) => s + r.area, 0), 2)} mm².
+          Closed profile: {result.sketch.profile.regions.length} region(s), area {M.area(result.sketch.profile.regions.reduce((s, r) => s + r.area, 0), 2)}.
         </p>
       )}
 
@@ -291,6 +292,7 @@ function ConstraintForm({ sketch, selected, run, onDone }: { sketch: SketchFeatu
 }
 
 function SolidFeatureForm({ engine, state, editing, update }: { engine: CadEngine; state: EngineState; editing: Extract<Editing, { kind: 'extrude' | 'revolve' }>; update: Props['update'] }) {
+  const M = useMeasure()
   const run = makeRun(engine)
   const all = state.doc.parts.flatMap((p) => p.features.map((f) => ({ part: p, f })))
   const existing = editing.featureId ? (all.find((x) => x.f.id === editing.featureId)?.f as ExtrudeFeature | RevolveFeature | undefined) : undefined
@@ -344,7 +346,7 @@ function SolidFeatureForm({ engine, state, editing, update }: { engine: CadEngin
             <>
               {(preview.after?.bodies ?? []).map((b) => (
                 <span key={b.bodyId} className="cadm-block">
-                  {b.bodyId}: {fmtNum(b.volume, 1)} mm³ ({preview.before.bodies.find((x) => x.bodyId === b.bodyId) ? `was ${fmtNum(preview.before.bodies.find((x) => x.bodyId === b.bodyId)!.volume, 1)}` : 'new'}), {b.faces} faces{b.valid ? '' : ', invalid solid'}
+                  {b.bodyId}: {M.volume(b.volume, 1)} ({preview.before.bodies.find((x) => x.bodyId === b.bodyId) ? `was ${M.volume(preview.before.bodies.find((x) => x.bodyId === b.bodyId)!.volume, 1)}` : 'new'}), {b.faces} faces{b.valid ? '' : ', invalid solid'}
                 </span>
               ))}
               {(preview.after?.failures ?? []).map((f) => (

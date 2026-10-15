@@ -12,6 +12,8 @@ import './deepLink'
 export { cadDeepLinkParams, parseCadDeepLink, type CadDeepLink } from './deepLink'
 import { cadSession, setDefaultKernelFactory } from './session'
 import { INITIAL_VIEW_STATE, type CadModelerViewState } from './viewState'
+import { CAD_SETTINGS } from './settings'
+export { CAD_SETTINGS, CAD_SETTING_DEFINITIONS, CAD_SETTING_IDS } from './settings'
 
 export type { CadModelerViewState } from './viewState'
 /** For platform-level workflow tests: the window's CAD session (documents, kernel, files). */
@@ -59,6 +61,7 @@ export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefin
   initialViewState: INITIAL_VIEW_STATE,
   assistant: cadModelerAssistant,
   help: cadModelerHelp,
+  settings: CAD_SETTINGS,
   keepMounted: true,
   toolbar: ({ api, viewState, context }) => {
     const s = viewState.status

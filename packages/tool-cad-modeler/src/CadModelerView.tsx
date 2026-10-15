@@ -1,12 +1,13 @@
 import './modeler.css'
 import type { SketchFeature } from '@ews/cad-core'
 import { Badge, Button, EmptyState, Notice, Spinner, StatusBadge, Tab, TabList, TabPanel, Tabs, useToasts } from '@ews/design-system'
-import { useSharedContext, useToolViewState, useUnsavedChanges } from '@ews/platform-sdk/react'
+import { useSharedContext, useToolViewState, useUnsavedChanges, useSetting } from '@ews/platform-sdk/react'
 import { OpenDialog } from './ui/OpenDialog'
 import { useCallback, useEffect, type KeyboardEvent } from 'react'
 import { plateCommands } from './assistant'
 import { cadSession, useCadSession, useEngineState } from './session'
 import { takeCadDeepLink } from './deepLink'
+import { CAD_SETTING_IDS } from './settings'
 import { DiagnosticsPanel } from './ui/DiagnosticsPanel'
 import { EditPanel } from './ui/EditPanel'
 import { InspectPanel } from './ui/InspectPanel'
@@ -20,6 +21,9 @@ export default function CadModelerView() {
   const [vs, setVs] = useToolViewState<CadModelerViewState>()
   const session = useCadSession()
   const { projectId } = useSharedContext()
+  const showEdgesSetting = useSetting<boolean>(CAD_SETTING_IDS.showEdges)
+  const meshTolerance = useSetting<number>(CAD_SETTING_IDS.meshTolerance)
+  const orientation = useSetting<string>(CAD_SETTING_IDS.orientation)
   // Assistant operations save their changes as revisions while no view is mounted (C9).
   useEffect(() => cadSession.attachView(), [])
   // C13: the session shows this project's documents only.
@@ -203,7 +207,9 @@ export default function CadModelerView() {
             engine={open.engine}
             regen={state.regen}
             selected={selectedFaces}
-            showEdges={vs.showEdges}
+            showEdges={vs.showEdgesSet ? vs.showEdges : showEdgesSetting !== false}
+            meshTolerance={typeof meshTolerance === 'number' ? meshTolerance : undefined}
+            orientation={orientation === 'front' || orientation === 'top' || orientation === 'right' ? orientation : 'iso'}
             viewRequest={vs.viewRequest}
             highlightEdges={vs.highlightEdges ?? []}
             onPick={(p) => {
@@ -217,7 +223,7 @@ export default function CadModelerView() {
               update({ selection: [item], tab: 'inspect' })
             }}
             onView={(kind) => update({ viewRequest: { kind, seq: Date.now() } })}
-            onToggleEdges={() => update({ showEdges: !vs.showEdges })}
+            onToggleEdges={() => update({ showEdges: !(vs.showEdgesSet ? vs.showEdges : showEdgesSetting !== false), showEdgesSet: true })}
           />
         )}
         <footer className="cadm-status">

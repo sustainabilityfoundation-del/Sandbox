@@ -2,7 +2,7 @@ import type { CadEngine, EngineState, Feature, Part } from '@ews/cad-core'
 import { AppIcon, Button, IconButton, MenuButton, MenuItem, Select, TextField, cx } from '@ews/design-system'
 import { useState } from 'react'
 import type { CadModelerViewState, SelectionItem } from '../viewState'
-import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf } from './common'
+import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf, useMeasure } from './common'
 
 interface Props {
   engine: CadEngine
@@ -36,6 +36,7 @@ export function ModelPanel({ engine, state, vs, update }: Props) {
 }
 
 function PartSection({ part, state, vs, onSelect, onEdit, engine }: { part: Part; state: EngineState; vs: CadModelerViewState; onSelect: (s: SelectionItem) => void; onEdit: (f: Feature) => void; engine: CadEngine }) {
+  const M = useMeasure()
   const run = makeRun(engine)
   const pr = regenOf(state, part.id)
   const isSelected = (id: string) => vs.selection.some((s) => s.id === id)
@@ -85,7 +86,7 @@ function PartSection({ part, state, vs, onSelect, onEdit, engine }: { part: Part
                 <Button variant="quiet" size="sm" className={cx("cadm-tree-button justify-start!", isSelected(b.bodyId) && "is-selected")} onPress={() => onSelect({ kind: 'body', id: b.bodyId })}>
                   <AppIcon name="cad-representation" size="sm" />
                   <span className="cadm-tree-name">{b.name}</span>
-                  <span className="cadm-muted">{fmtNum(b.analysis.volume, 1)} mm³</span>
+                  <span className="cadm-muted">{M.volume(b.analysis.volume, 1)}</span>
                 </Button>
               </li>
             ))}

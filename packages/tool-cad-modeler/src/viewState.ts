@@ -27,6 +27,8 @@ export interface CadModelerViewState {
   editing: Editing | null
   selection: SelectionItem[]
   showEdges: boolean
+  /** True once the person toggled edges in this view; before that the "Show edges" setting applies. */
+  showEdgesSet?: boolean
   /** Edges highlighted in the 3D view (fillet and chamfer forms). */
   highlightEdges?: string[]
   /** Open dialog (documents of the project in the CAD service). */

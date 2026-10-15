@@ -4,7 +4,7 @@ import { isComponent } from '@ews/platform-sdk'
 import { useModel, useToolApi } from '@ews/platform-sdk/react'
 import { Fragment, useState } from 'react'
 import type { CadModelerViewState } from '../viewState'
-import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf } from './common'
+import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf, useMeasure } from './common'
 
 interface Props {
   engine: CadEngine
@@ -17,6 +17,7 @@ const v3 = (v?: number[]) => (v ? `(${v.map((x) => fmtNum(x, 3)).join(', ')})` :
 
 /** Property inspection of the selection, the part's material, semantics and cross-module references. */
 export function InspectPanel({ engine, state, vs, update }: Props) {
+  const M = useMeasure()
   const run = makeRun(engine)
   const doc = state.doc
   const part = doc.parts[0]
@@ -39,7 +40,7 @@ export function InspectPanel({ engine, state, vs, update }: Props) {
                 <dt>Surface</dt>
                 <dd>{face.surfaceType}</dd>
                 <dt>Area</dt>
-                <dd>{fmtNum(face.area, 3)} mm²</dd>
+                <dd>{M.area(face.area)}</dd>
                 <dt>Centre</dt>
                 <dd>{v3(face.center)} mm</dd>
                 <dt>Normal</dt>
@@ -98,15 +99,15 @@ export function InspectPanel({ engine, state, vs, update }: Props) {
                 <dt>Valid solid</dt>
                 <dd>{mp.valid ? 'Yes (B-rep check passed)' : 'No'}</dd>
                 <dt>Volume</dt>
-                <dd>{fmtNum(mp.volume, 3)} mm³</dd>
+                <dd>{M.volume(mp.volume)}</dd>
                 <dt>Surface area</dt>
-                <dd>{fmtNum(mp.surfaceArea, 3)} mm²</dd>
+                <dd>{M.area(mp.surfaceArea)}</dd>
                 <dt>Mass</dt>
-                <dd>{mp.mass === null ? 'Set a material' : `${fmtNum(mp.mass, 5)} kg (${mp.material!.name})`}</dd>
+                <dd>{mp.mass === null ? 'Set a material' : `${M.mass(mp.mass)} (${mp.material!.name})`}</dd>
                 <dt>Centre of mass</dt>
                 <dd>{v3(mp.centerOfMass)} mm</dd>
                 <dt>Bounding box</dt>
-                <dd>{mp.boundingBox.size.map((x) => fmtNum(x, 3)).join(' × ')} mm</dd>
+                <dd>{M.lengths(mp.boundingBox.size)}</dd>
                 <dt>Topology</dt>
                 <dd>{body.analysis.counts.solids} solid, {body.analysis.counts.faces} faces, {body.analysis.counts.edges} edges, {body.analysis.counts.vertices} vertices</dd>
               </dl>
