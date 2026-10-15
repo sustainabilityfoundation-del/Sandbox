@@ -9,6 +9,12 @@ Progress: [ai-connection-progress.md](ai-connection-progress.md).
 > AI models. . Allow me to sign into my account and implement a simple example of the drill bit holder
 > conceptual design for a milwaukee drill
 
+Follow-up from the owner (verbatim, same day):
+
+> The AI connection brief should include the creation of a settings menu in the same area as the help menu. The
+> settings should include configurable items for all modules but the AI reasoning layer setting page should
+> allow the connection to the external AI service and allow configuration of what access the AI tool is given.
+
 ## 2. Outcome of this sprint
 
 1. The owner connects **their own** OpenAI account from the workspace and the assistant panel ("ChatGPT")
@@ -20,6 +26,9 @@ Progress: [ai-connection-progress.md](ai-connection-progress.md).
 3. A worked example: **conceptual design of a drill bit holder for a Milwaukee drill**, done through the
    Conceptualize module and the assistant, which the owner can run with the real model and which also runs
    (labelled as a demo) without an account.
+4. A **Settings menu** in the workspace header next to the Help (?) menu, with one page per module (see §5a).
+   The **AI and reasoning** page is where the owner connects the external AI service (§4) and configures what
+   access the AI is given. The assistant panel links to that page instead of having its own connect flow.
 
 ## 3. Security constraints (owner's words, binding)
 
@@ -71,6 +80,49 @@ Read first: `docs/modules/ai-interface.md`, `docs/modules/ai-interface/features.
 `apps/workspace/README.md` ("Connecting ChatGPT"), `docs/specifications/conceptualize-contracts.md`,
 `docs/development-workflow.md`, root `AGENTS.md`.
 
+## 5a. Settings menu and the AI access policy
+
+**Settings framework (platform, built by this agent under coordinator review).**
+- Header: a Settings button (gear icon from the design-system registry, accessible label "Settings") beside
+  the Help menu. It opens a Settings centre (dialog or full-height panel, same pattern as the Help Centre) with
+  a page list grouped by module, search, and deep links (`?settings=<page-id>`); keyboard, phone, tablet,
+  desktop, both themes.
+- Contract: an **additive SDK 1.6 change** that you are authorised to make, in one `COORDINATOR REVIEW:`
+  commit with the CHANGELOG migration note: `SettingsContribution` in the tool definition (`settings?:`), a
+  list of typed setting definitions (`id` namespaced `<module>.<area>.<item>`, label, description, help ID,
+  type: boolean | enum | number with unit and range | string | secret-reference, default, scope: user |
+  project, `requiresPermission?`), plus `useSetting(id)` / `ToolApi.settings` for reading. Pages are rendered
+  by the platform from the definitions with design-system controls; a module may supply a custom panel only for
+  what definitions cannot express. Validation runs on the server.
+- Storage: a small **settings service** (`services/settings`, `@ews/settings-service`, schema `settings`,
+  `/api/settings/v1`, OpenAPI, ETag/If-Match) for user- and project-scoped values. It answers the open
+  preference-service question in `requirements-navigation-filtering.md`. Secrets are never stored there: the AI
+  credentials live in `services/assistant` and settings only hold a reference/status.
+- Pages delivered in this sprint: **Platform** (theme, density, layout and window preferences currently in the
+  Display and layout menu, service mode, demo subscription: keep the existing header controls working, the
+  Settings page uses the same state), and **AI and reasoning**. Pages for Requirements, Conceptualize, SysML
+  Modeler, CAD Modeler and the illustrative tools are contributed by their module agents after the contract
+  lands: list in the progress file the settings you see in each module's code (filters, units, defaults) as
+  suggestions; do not edit their packages. No placeholder pages: a module without definitions is simply absent.
+
+**AI and reasoning page.**
+- Connection: provider (OpenAI now; other adapters appear automatically), Connect / Disconnect, status
+  ("connected as … · key ending …"), model selection from the provider's model list, test connection.
+- **Access policy**, enforced on the server when the tool list for a request is built and again when a tool
+  call is executed (the browser view of the policy is only UX):
+  - per module (Requirements, Conceptualize, SysML Modeler, CAD Modeler, illustrative tools, Help): AI off /
+    read only / read and propose changes. Applying always needs the person (unchanged policy);
+  - per operation class: read objects, search, run calculations, propose changes, export files, request
+    external generation;
+  - data sharing: which context may be sent to the provider (selection, open-tool state, requirement text,
+    model element details, conversation history length), with a preview "what is sent with each request";
+  - limits: maximum tool calls per answer, maximum tokens, request timeout;
+  - an audit view: recent AI calls (time, model, tools called, tokens) from the assistant service's records.
+- The policy is per user, with project-level ceilings an administrator (`ada`) can set; a user can only narrow
+  the project ceiling. The design reasoning layer (`docs/specifications/design-reasoning*.md`, in review) will
+  add its settings to this page later; reserve the `ai.reasoning.*` namespace and do not implement reasoning.
+- Defaults: read and propose for every module the user is entitled to; history length and limits conservative.
+
 ## 6. Drill bit holder example
 
 A concept for an accessory that holds hex-shank drill bits / driver bits on or with a Milwaukee cordless drill
@@ -95,7 +147,7 @@ example as (a) a help tutorial the owner follows with the real model, and (b) a 
 
 | Owner | Paths |
 | --- | --- |
-| AI connection agent | `services/assistant/**`, `apps/workspace/src/assistant/**`, `apps/workspace/src/shell/assistant/**`, `docs/modules/ai-interface/**` (new pages; keep existing decisions), workspace help pages for the assistant, `docs/specifications/ai-connection-progress.md`, new ADRs `docs/decisions/00NN-ai-*.md` (status **Proposed**; use numbers from 0047 upwards; do not edit the index) |
+| AI connection agent | `services/assistant/**`, `services/settings/**`, `apps/workspace/src/settings/**` (new), the Settings button in the shell header, `apps/workspace/src/assistant/**`, `apps/workspace/src/shell/assistant/**`, `docs/modules/ai-interface/**` (new pages; keep existing decisions), workspace help pages for the assistant, `docs/specifications/ai-connection-progress.md`, new ADRs `docs/decisions/00NN-ai-*.md` (status **Proposed**; use numbers from 0047 upwards; do not edit the index) |
 | Agent, limited (append only; mark each in a `COORDINATOR REVIEW:` commit) | `services/api/src/server.ts`, `main.ts`, `package.json`s (dependencies; root scripts prefixed `ai:`), `docs/dependencies.md`, `packages/platform-sdk/src/boundaries.test.ts` (rules for the new service), platform test lists if they enumerate services |
 | Coordinator | Everything else: `packages/platform-sdk` contract, `packages/model-service`, other tools and services (Conceptualize, Requirements, CAD, SysML), the rest of `apps/workspace`, `AGENTS.md`, `README.md`, `docs/architecture.md`, `docs/roadmap.md`, `docs/decisions/README.md`. The drill example uses Conceptualize, Requirements and CAD Modeler through their existing operations; if they need changes, write a change request in the progress file |
 
@@ -108,6 +160,9 @@ Anything else, or a paid service other than the owner's own provider account, ne
 
 - Unit and service tests use a **fake provider**; no test calls a real provider by default. An opt-in live smoke
   test runs only when an environment variable with a key is present (never committed).
+- Settings tests: definitions validated (unique namespaced IDs, defaults within range); server rejects invalid
+  values and stale writes; a user cannot widen a project ceiling; with a module set to "off" its tools are not
+  sent to the model and a forged tool call for it is refused; with "read only" a propose call is refused.
 - Tests: credential never returned or logged; encrypted at rest; only allowed tools are sent; a model tool call
   outside the user's entitlements is refused; a proposal from a real-model tool call still needs Apply; provider
   errors map to clear messages; the second provider (fake) works without workspace changes.
