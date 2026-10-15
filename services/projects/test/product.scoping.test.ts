@@ -92,10 +92,9 @@ describe('C2: the product registry is the authoritative product structure', () =
     const r = await requirement(p.id)
     const ok = await env.call('eli', 'POST', `${REQ(p.id)}/relationships`, { type: 'allocated-to', fromId: r.id, toTwinId: part.id })
     expect(ok.status).toBe(201)
-    // Other kinds need Requirements CR-PM-REQ-2 (accept 'product-element'); until then they are refused, explained.
-    const notYet = await env.call('eli', 'POST', `${REQ(p.id)}/relationships`, { type: 'allocated-to', fromId: r.id, toTwinId: product.id })
-    expect(notYet.status).toBe(422)
-    expect(notYet.body.error.message).toContain('product-element')
+    // Other kinds (product, system, subsystem) report type 'product-element', which Requirements accepts since CR-PM-REQ-2.
+    const productLevel = await env.call('eli', 'POST', `${REQ(p.id)}/relationships`, { type: 'allocated-to', fromId: r.id, toTwinId: product.id })
+    expect(productLevel.status).toBe(201)
     // A retired element is no longer a valid target.
     const retired = await element(p.id, { name: 'Old bracket', elementKind: 'part' })
     await env.call('eli', 'PATCH', `${P(p.id)}/product-elements/${retired.id}`, { lifecycle: 'retired' }, ifMatch(1))
