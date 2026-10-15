@@ -16,6 +16,8 @@ export interface QName {
 export interface Chain {
   parts: QName[]
   range: Range
+  /** A reference to a member declared earlier in the same body (e.g. an unnamed entry action before `then`). */
+  nodeRef?: Member
 }
 
 export interface TypeRef {
@@ -46,7 +48,7 @@ export interface ValuePart {
 }
 
 /** How a member is owned by its namespace (selects the membership metaclass). */
-export type MembershipKind = 'owning' | 'feature' | 'end' | 'parameter' | 'return' | 'subject' | 'variant' | 'require' | 'assume' | 'result' | 'entry' | 'do' | 'exit'
+export type MembershipKind = 'owning' | 'feature' | 'end' | 'parameter' | 'return' | 'subject' | 'variant' | 'require' | 'assume' | 'result' | 'entry' | 'do' | 'exit' | 'objective' | 'verify' | 'actor' | 'stakeholder' | 'frame' | 'render'
 
 interface BaseMember {
   visibility?: Visibility
@@ -72,6 +74,8 @@ export interface ImportNode extends BaseMember {
   /** `::**` */
   isRecursive: boolean
   isImportAll: boolean
+  /** `expose` (views): an import that also selects what the view shows. */
+  isExpose?: boolean
 }
 
 export interface AliasNode extends BaseMember {
@@ -101,6 +105,7 @@ export interface MetadataNode extends BaseMember {
 /** The metaclass a definition or usage keyword stands for. */
 export interface DefinitionNode extends BaseMember {
   kind: 'definition'
+  prefixMetadata?: QName[]
   metaclass: string
   name?: string
   shortName?: string
@@ -124,6 +129,7 @@ export interface TransitionPart {
   /** `accept [name :] T` */
   acceptType?: QName
   acceptName?: string
+  acceptVia?: Chain
   guard?: Expr
 }
 
@@ -148,6 +154,8 @@ export interface UsageNode extends BaseMember {
   subsets: QName[]
   redefines: QName[]
   references?: QName
+  /** Subsetting, redefinition or reference subsetting of a feature chain (`:> a.b`). */
+  chainSpecializations?: { kind: 'subsets' | 'redefines' | 'references'; chain: Chain }[]
   multiplicity?: Multiplicity
   value?: ValuePart
   members: Member[]
@@ -158,6 +166,20 @@ export interface UsageNode extends BaseMember {
   satisfy?: { requirement: QName; by?: Chain }
   /** Result expression of a constraint/calc body written as `{ expr }`. */
   result?: Expr
+  /** `#M` prefix metadata applied to this declaration. */
+  prefixMetadata?: QName[]
+  /** `assert not`, `not satisfy` */
+  isNegated?: boolean
+  /** Reference forms (`perform x.y;`, `assert c;`, `require c;`, `verify r;`, …): the referenced feature. */
+  performs?: Chain
+  /** Accept action: `accept [name :] T [via port]`. */
+  accept?: { payloadName?: string; payloadType?: QName; via?: Chain }
+}
+
+/** `first x;` (initial node of an action body): a non-owning membership referencing x. */
+export interface FirstNode extends BaseMember {
+  kind: 'first'
+  target: Chain
 }
 
 /** A bare expression in a constraint or calculation body (its result). */
@@ -166,7 +188,7 @@ export interface ExpressionNode extends BaseMember {
   expr: Expr
 }
 
-export type Member = PackageNode | ImportNode | AliasNode | CommentNode | MetadataNode | DefinitionNode | UsageNode | ExpressionNode
+export type Member = PackageNode | ImportNode | AliasNode | CommentNode | MetadataNode | DefinitionNode | UsageNode | ExpressionNode | FirstNode
 
 export interface ParsedModel {
   members: Member[]

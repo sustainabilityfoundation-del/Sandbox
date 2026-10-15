@@ -66,10 +66,16 @@ export const MEMBERSHIP_METACLASS: Record<MembershipKind, string> = {
   entry: 'StateSubactionMembership',
   do: 'StateSubactionMembership',
   exit: 'StateSubactionMembership',
+  objective: 'ObjectiveMembership',
+  verify: 'RequirementVerificationMembership',
+  actor: 'ActorMembership',
+  stakeholder: 'StakeholderMembership',
+  frame: 'FramedConcernMembership',
+  render: 'ViewRenderingMembership',
 }
 
 /** Usages that are referential (never composite) whatever their prefix. */
-const REFERENTIAL = new Set(['AttributeUsage', 'EnumerationUsage', 'ReferenceUsage', 'SatisfyRequirementUsage', 'BindingConnectorAsUsage', 'SuccessionAsUsage'])
+const REFERENTIAL = new Set(['AttributeUsage', 'EnumerationUsage', 'ReferenceUsage', 'SatisfyRequirementUsage', 'BindingConnectorAsUsage', 'SuccessionAsUsage', 'PerformActionUsage', 'ExhibitStateUsage'])
 
 export class Builder {
   readonly pendingNames: PendingName[] = []
@@ -77,6 +83,8 @@ export class Builder {
   /** Source ranges of built elements (for diagnostics). */
   readonly ranges = new Map<string, Range>()
   readonly created: string[] = []
+  /** Element built for each syntax node (for references to earlier unnamed members, e.g. `entry; then off;`). */
+  private readonly nodeIds = new Map<Member, string>()
 
   constructor(readonly model: Model) {}
 
@@ -140,6 +148,12 @@ export class Builder {
   }
 
   member(ownerId: string, m: Member): string | undefined {
+    const id = this.memberNode(ownerId, m)
+    if (id) this.nodeIds.set(m, id)
+    return id
+  }
+
+  private memberNode(ownerId: string, m: Member): string | undefined {
     const ownerIsType = isKindOf(this.model.get(ownerId)?.['@type'] ?? '', 'Type')
     const vis = m.visibility ? { visibility: m.visibility } : {}
     switch (m.kind) {
@@ -149,9 +163,16 @@ export class Builder {
         this.buildMembers(p['@id'], m.members)
         return p['@id']
       }
+      case 'first': {
+        if (m.target.parts.length !== 1) throw new Error('first: only simple names are supported')
+        const mem = this.add({ '@type': 'Membership', ownedRelatedElement: [], owningRelatedElement: ownerId }, m.range)
+        this.appendOwned(ownerId, mem['@id'])
+        this.pending('feature', mem['@id'], 'memberElement', m.target.parts[0], ownerId)
+        return mem['@id']
+      }
       case 'import': {
-        const type = m.isNamespace ? 'NamespaceImport' : 'MembershipImport'
-        const imp = this.relationship(ownerId, type, { visibility: m.visibility ?? 'private', isRecursive: m.isRecursive, isImportAll: m.isImportAll }, m.range)
+        const type = m.isExpose ? (m.isNamespace ? 'NamespaceExpose' : 'MembershipExpose') : m.isNamespace ? 'NamespaceImport' : 'MembershipImport'
+        const imp = this.relationship(ownerId, type, { visibility: m.visibility ?? (m.isExpose ? 'protected' : 'private'), isRecursive: m.isRecursive, isImportAll: m.isImportAll }, m.range)
         this.pending(m.isNamespace ? 'namespace' : 'membership', imp['@id'], m.isNamespace ? 'importedNamespace' : 'importedMembership', m.target, ownerId, { importContext: true })
         return imp['@id']
       }
@@ -211,6 +232,7 @@ export class Builder {
       this.pending('type', r['@id'], 'superclassifier', s, ownerId, { declaringId: d['@id'] })
     }
     if (m.metaclass === 'PortDefinition') this.conjugatedPortDefinition(d)
+    for (const q of m.prefixMetadata ?? []) this.metadata(d['@id'], { kind: 'metadata', type: q, about: [], members: [], range: q.range }, true)
     this.buildMembers(d['@id'], m.members)
     return d['@id']
   }
@@ -237,15 +259,23 @@ export class Builder {
       ...(m.isConstant ? { isConstant: true } : {}),
       ...(m.isOrdered ? { isOrdered: true } : {}),
       ...(m.isNonunique ? { isUnique: false } : {}),
+      ...(m.isNegated ? { isNegated: true } : {}),
       isComposite: composite,
     }
     const u = this.add(attrs as Element, m.range)
     if (m.nameRange) this.ranges.set(`${u['@id']}#name`, m.nameRange)
     const extra: Record<string, unknown> = m.visibility ? { visibility: m.visibility } : {}
     if (membership === 'require' || membership === 'assume') extra.kind = membership === 'require' ? 'requirement' : 'assumption'
+    if (membership === 'verify' || membership === 'frame') extra.kind = 'requirement'
     if (membership === 'entry' || membership === 'do' || membership === 'exit') extra.kind = membership
     this.own(ownerId, u, MEMBERSHIP_METACLASS[membership], extra)
     this.featureSpecializations(u['@id'], ownerId, m)
+    for (const q of m.prefixMetadata ?? []) this.metadata(u['@id'], { kind: 'metadata', type: q, about: [], members: [], range: q.range }, true)
+    if (m.performs) {
+      const rs = this.relationship(u['@id'], 'ReferenceSubsetting', { referencingFeature: u['@id'] }, m.performs.range)
+      this.referenceTo(rs, 'referencedFeature', m.performs, ownerId)
+    }
+    if (m.accept) this.acceptParts(u['@id'], ownerId, m.accept.payloadName, m.accept.payloadType, m.accept.via)
     if (m.multiplicity) this.multiplicity(u['@id'], m.multiplicity.lower, m.multiplicity.upper)
     if (m.value) {
       const fv = this.relationship(u['@id'], 'FeatureValue', { ...(m.value.isDefault ? { isDefault: true } : {}), ...(m.value.isInitial ? { isInitial: true } : {}) })
@@ -271,7 +301,7 @@ export class Builder {
     return u['@id']
   }
 
-  private featureSpecializations(id: string, ownerId: string, m: Pick<UsageNode, 'typing' | 'subsets' | 'redefines' | 'references'>) {
+  private featureSpecializations(id: string, ownerId: string, m: Pick<UsageNode, 'typing' | 'subsets' | 'redefines' | 'references' | 'chainSpecializations'>) {
     for (const t of m.typing) {
       if (t.conjugated) {
         const r = this.relationship(id, 'ConjugatedPortTyping', { typedFeature: id }, t.name.range)
@@ -292,6 +322,11 @@ export class Builder {
     if (m.references) {
       const r = this.relationship(id, 'ReferenceSubsetting', { referencingFeature: id }, m.references.range)
       this.pending('feature', r['@id'], 'referencedFeature', m.references, ownerId, { declaringId: id })
+    }
+    for (const c of (m as UsageNode).chainSpecializations ?? []) {
+      const [type, a, b] = c.kind === 'subsets' ? ['Subsetting', 'subsettingFeature', 'subsettedFeature'] : c.kind === 'redefines' ? ['Redefinition', 'redefiningFeature', 'redefinedFeature'] : ['ReferenceSubsetting', 'referencingFeature', 'referencedFeature']
+      const r = this.relationship(id, type, { [a]: id }, c.chain.range)
+      this.referenceTo(r, b, c.chain, ownerId)
     }
   }
 
@@ -319,6 +354,11 @@ export class Builder {
 
   /** Points `rel.prop` at a feature (simple name) or at an owned chain feature (`a.b.c`). */
   private referenceTo(rel: Element, prop: string, chain: Chain, scopeId: string) {
+    if (chain.nodeRef) {
+      const id = this.nodeIds.get(chain.nodeRef)
+      if (id) patch(this.model, rel['@id'], { [prop]: id })
+      return
+    }
     if (chain.parts.length === 1) {
       this.pending('feature', rel['@id'], prop, chain.parts[0], scopeId)
       return
@@ -357,15 +397,28 @@ export class Builder {
     if (tr.acceptType) {
       const accept = this.add({ '@type': 'AcceptActionUsage', isComposite: true })
       this.own(id, accept, 'TransitionFeatureMembership', { kind: 'trigger' })
-      const payload = this.add({ '@type': 'ReferenceUsage', direction: 'in', isComposite: false, ...nameProps(tr.acceptName) })
-      this.own(accept['@id'], payload, 'ParameterMembership')
-      const ft = this.relationship(payload['@id'], 'FeatureTyping', { typedFeature: payload['@id'] }, tr.acceptType.range)
-      this.pending('type', ft['@id'], 'type', tr.acceptType, ownerId)
+      this.acceptParts(accept['@id'], ownerId, tr.acceptName, tr.acceptType, tr.acceptVia)
     }
     if (tr.guard) this.own(id, this.expression(tr.guard, ownerId), 'TransitionFeatureMembership', { kind: 'guard' })
     const succ = this.add({ '@type': 'SuccessionAsUsage', isComposite: false })
     this.own(id, succ, 'FeatureMembership')
     this.connector(succ['@id'], ownerId, [tr.source ?? tr.target, tr.target])
+  }
+
+  /** Accept action parameters: the payload (`name : T`) and the receiver (`via port`). */
+  private acceptParts(acceptId: string, scopeId: string, payloadName?: string, payloadType?: QName, via?: Chain) {
+    const payload = this.add({ '@type': 'ReferenceUsage', direction: 'in', isComposite: false, ...nameProps(payloadName) })
+    this.own(acceptId, payload, 'ParameterMembership')
+    if (payloadType) {
+      const ft = this.relationship(payload['@id'], 'FeatureTyping', { typedFeature: payload['@id'] }, payloadType.range)
+      this.pending('type', ft['@id'], 'type', payloadType, scopeId)
+    }
+    if (via) {
+      const receiver = this.add({ '@type': 'ReferenceUsage', direction: 'in', isComposite: false })
+      this.own(acceptId, receiver, 'ParameterMembership')
+      const fv = this.relationship(receiver['@id'], 'FeatureValue', {})
+      this.ownRelated(fv, this.chainReference(via, scopeId))
+    }
   }
 
   // ---- expressions ------------------------------------------------------------------------------

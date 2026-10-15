@@ -28,6 +28,17 @@ const USAGE_KEYWORD: Record<string, string> = {
   SuccessionAsUsage: 'succession',
   TransitionUsage: 'transition',
   AcceptActionUsage: 'accept',
+  PerformActionUsage: 'perform action',
+  ExhibitStateUsage: 'exhibit state',
+  AssertConstraintUsage: 'assert constraint',
+  UseCaseUsage: 'use case',
+  VerificationCaseUsage: 'verification',
+  AnalysisCaseUsage: 'analysis',
+  ConcernUsage: 'concern',
+  ViewUsage: 'view',
+  ViewpointUsage: 'viewpoint',
+  CaseUsage: 'case',
+  RenderingUsage: 'rendering',
 }
 
 const DEFINITION_KEYWORD: Record<string, string> = {
@@ -47,7 +58,18 @@ const DEFINITION_KEYWORD: Record<string, string> = {
   OccurrenceDefinition: 'occurrence',
   EnumerationDefinition: 'enum',
   MetadataDefinition: 'metadata',
+  UseCaseDefinition: 'use case',
+  VerificationCaseDefinition: 'verification',
+  AnalysisCaseDefinition: 'analysis',
+  ConcernDefinition: 'concern',
+  ViewDefinition: 'view',
+  ViewpointDefinition: 'viewpoint',
+  CaseDefinition: 'case',
+  RenderingDefinition: 'rendering',
 }
+
+/** Usages that are written as a reference (`perform x;`) when they only reference a feature. */
+const REFERENCE_FORM: Record<string, string> = { PerformActionUsage: 'perform', ExhibitStateUsage: 'exhibit', AssertConstraintUsage: 'assert' }
 
 export function usageKeyword(metaclass: string): string | undefined {
   return USAGE_KEYWORD[metaclass]
@@ -103,20 +125,45 @@ class Writer {
     this.out.push(this.ind.repeat(depth) + text)
   }
 
+  /** Element of the previous member printed in the current body (target of a following `then`). */
+  private prev: string | undefined
+
   members(nsId: string, depth: number, skip: Set<string> = new Set()) {
+    const saved = this.prev
+    this.prev = undefined
     for (const rel of this.s.ownedRelationships(nsId)) {
       if (skip.has(rel['@id'])) continue
       const t = rel['@type']
       if (isKindOf(t, 'Import')) this.importDecl(rel, nsId, depth)
-      else if (isKindOf(t, 'Membership') && !isKindOf(t, 'FeatureValue')) this.member(rel, nsId, depth)
+      else if (isKindOf(t, 'Membership') && !isKindOf(t, 'FeatureValue')) {
+        this.member(rel, nsId, depth)
+        const el = isKindOf(t, 'OwningMembership') ? refId(rel, 'ownedRelatedElement') : refId(rel, 'memberElement')
+        const elT = this.get(el)?.['@type'] ?? ''
+        if (el && isKindOf(elT, 'Feature') && !isKindOf(elT, 'ConnectorAsUsage') && elT !== 'TransitionUsage' && elT !== 'SatisfyRequirementUsage') this.prev = el
+        else if (elT === 'SuccessionAsUsage') this.prev = this.successionTarget(el!)
+      }
     }
+    this.prev = saved
+  }
+
+  private successionTarget(id: string): string | undefined {
+    const ends = this.s.memberships(id).filter((x) => x['@type'] === 'EndFeatureMembership')
+    const last = ends[1] && this.get(refId(ends[1], 'ownedRelatedElement'))
+    const rs = last && this.s.ownedRelationships(last['@id']).find((r) => r['@type'] === 'ReferenceSubsetting')
+    return rs ? refId(rs, 'referencedFeature') : undefined
   }
 
   member(m: Element, nsId: string, depth: number) {
     const t = m['@type']
     const vis = m.visibility && m.visibility !== 'public' ? `${m.visibility} ` : ''
     if (!isKindOf(t, 'OwningMembership')) {
-      // Alias (a membership whose member is owned elsewhere). Transition sources are skipped.
+      // `first x;` (initial node): a nameless membership. Aliases have a member name.
+      if (typeof m.memberName !== 'string' && t === 'Membership') {
+        const target = refId(m, 'memberElement')
+        this.line(depth, `${vis}first ${target ? this.refName(nsId, target) : '?'};`)
+        return
+      }
+      // Alias (a membership whose member is owned elsewhere).
       if (typeof m.memberName === 'string') {
         const target = refId(m, 'memberElement')
         const short = typeof m.memberShortName === 'string' ? `<${quote(m.memberShortName)}> ` : ''
@@ -168,18 +215,20 @@ class Writer {
   }
 
   private importDecl(imp: Element, nsId: string, depth: number) {
-    const vis = (imp.visibility ?? 'private') === 'private' ? '' : `${imp.visibility} `
+    const expose = isKindOf(imp['@type'], 'Expose')
+    const kw = expose ? 'expose' : 'import'
+    const vis = (imp.visibility ?? (expose ? 'protected' : 'private')) === (expose ? 'protected' : 'private') ? '' : `${imp.visibility} `
     const all = imp.isImportAll ? 'all ' : ''
-    if (imp['@type'] === 'NamespaceImport') {
+    if (isKindOf(imp['@type'], 'NamespaceImport')) {
       const ns = refId(imp, 'importedNamespace')
-      this.line(depth, `${vis}import ${all}${ns ? this.absoluteName(ns) : '?'}::*${imp.isRecursive ? '::**' : ''};`)
+      this.line(depth, `${vis}${kw} ${all}${ns ? this.absoluteName(ns) : '?'}::*${imp.isRecursive ? '::**' : ''};`)
     } else {
       const mem = this.get(refId(imp, 'importedMembership'))
       const el = mem && this.s.memberElement(mem)
       const owner = mem && this.get(refId(mem, 'owningRelatedElement'))
       const name = mem ? this.s.memberName(mem) : undefined
       const prefix = owner && owner['@id'] !== this.s.model.rootId && owner['@id'] !== this.s.model.library?.rootId ? `${this.absoluteName(owner['@id'])}::` : ''
-      this.line(depth, `${vis}import ${all}${el && name ? `${prefix}${quote(name)}` : '?'}${imp.isRecursive ? '::**' : ''};`)
+      this.line(depth, `${vis}${kw} ${all}${el && name ? `${prefix}${quote(name)}` : '?'}${imp.isRecursive ? '::**' : ''};`)
     }
     void nsId
   }
@@ -209,12 +258,12 @@ class Writer {
         const original = conj && this.s.owner(conj['@id'])
         typing.push(`~${original ? this.refName(nsId, original['@id']) : '?'}`)
       } else if (t === 'FeatureTyping') typing.push(this.refName(nsId, refId(r, 'type')))
-      else if (t === 'Redefinition') redefines.push(this.refName(nsId, refId(r, 'redefinedFeature'), true))
+      else if (t === 'Redefinition') redefines.push(this.isOwnedChain(r, 'redefinedFeature') ? this.refOrChain(r, 'redefinedFeature', nsId) : this.refName(nsId, refId(r, 'redefinedFeature'), true))
       else if (t === 'ReferenceSubsetting') {
         if (el.isEnd && isKindOf(this.s.owner(el['@id'])?.['@type'] ?? '', 'Connector')) continue
         if (el['@type'] === 'SatisfyRequirementUsage') continue
         references = this.refOrChain(r, 'referencedFeature', nsId)
-      } else if (t === 'Subsetting') subsets.push(this.refName(nsId, refId(r, 'subsettedFeature')))
+      } else if (t === 'Subsetting') subsets.push(this.refOrChain(r, 'subsettedFeature', nsId))
       else continue
       skip.add(r['@id'])
     }
@@ -260,9 +309,28 @@ class Writer {
     else if (mt === 'ReturnParameterMembership') lead = 'return '
     else if (mt === 'RequirementConstraintMembership') lead = m.kind === 'assumption' ? 'assume ' : 'require '
     else if (mt === 'StateSubactionMembership') lead = `${m.kind} `
+    else if (mt === 'ObjectiveMembership') (lead = 'objective '), (keyword = '')
+    else if (mt === 'RequirementVerificationMembership') (lead = 'verify '), (keyword = 'requirement')
+    else if (mt === 'FramedConcernMembership') (lead = 'frame '), (keyword = 'concern')
+    else if (mt === 'ViewRenderingMembership') (lead = 'render '), (keyword = 'rendering')
+    else if (mt === 'ActorMembership') (lead = 'actor '), (keyword = '')
+    else if (mt === 'StakeholderMembership') (lead = 'stakeholder '), (keyword = '')
+    if (t === 'AssertConstraintUsage' && el.isNegated) keyword = 'assert not constraint'
     if (t === 'ReferenceUsage' && (lead === 'subject ' || lead === 'return ' || (redefines.length && el.declaredName === undefined) || el.isEnd || el.direction)) keyword = ''
+    // Reference forms: `perform x.y;`, `exhibit s;`, `assert c;`, `require c;`, `verify r;`, `frame c;`, `render r;`.
+    const refWord = REFERENCE_FORM[t] ?? (lead && t !== 'ReferenceUsage' ? lead.trim() : undefined)
+    if (refWord && references && el.declaredName === undefined && el.declaredShortName === undefined && !typing.length && !subsets.length && !redefines.length && (REFERENCE_FORM[t] || ['require', 'assume', 'verify', 'frame', 'render'].includes(lead.trim()))) {
+      const word = t === 'AssertConstraintUsage' ? (el.isNegated ? 'assert not' : 'assert') : REFERENCE_FORM[t] ?? lead.trim()
+      for (const mem of this.s.memberships(el['@id'])) if (this.get(refId(mem, 'ownedRelatedElement'))?.['@type'] === 'MultiplicityRange') skip.add(mem['@id'])
+      this.block(depth, `${vis}${word} ${references}`, el['@id'], skip)
+      return
+    }
+    if (t === 'AcceptActionUsage' && !isKindOf(mt, 'TransitionFeatureMembership')) {
+      this.block(depth, `${vis}${this.acceptText(el, nsId, skip)}`, el['@id'], skip)
+      return
+    }
     if (mt === 'VariantMembership' && t === 'EnumerationUsage') keyword = 'enum'
-    const isRefPrefix = !el.isComposite && isKindOf(t, 'OccurrenceUsage') && !['ReferenceUsage', 'SatisfyRequirementUsage', 'BindingConnectorAsUsage', 'SuccessionAsUsage', 'TransitionUsage', 'AcceptActionUsage', 'FlowUsage', 'ConnectionUsage', 'InterfaceUsage', 'AllocationUsage', 'ConstraintUsage', 'RequirementUsage', 'CalculationUsage'].includes(t)
+    const isRefPrefix = !el.isComposite && isKindOf(t, 'OccurrenceUsage') && !['ReferenceUsage', 'PerformActionUsage', 'ExhibitStateUsage', 'SatisfyRequirementUsage', 'BindingConnectorAsUsage', 'SuccessionAsUsage', 'TransitionUsage', 'AcceptActionUsage', 'FlowUsage', 'ConnectionUsage', 'InterfaceUsage', 'AllocationUsage', 'ConstraintUsage', 'RequirementUsage', 'CalculationUsage'].includes(t)
     const prefix = [
       el.direction ? `${el.direction} ` : '',
       el.isAbstract ? 'abstract ' : '',
@@ -310,6 +378,15 @@ class Writer {
         const rs = this.s.ownedRelationships(end['@id']).find((r) => r['@type'] === 'ReferenceSubsetting')
         if (!rs || end.declaredName !== undefined || this.s.ownedRelationships(end['@id']).some((r) => r['@type'] === 'FeatureTyping')) printable = false
         else endTexts.push(this.refOrChain(rs, 'referencedFeature', nsId))
+      }
+      if (printable && t === 'SuccessionAsUsage' && !parts.length && !prefix && this.prev) {
+        const first = this.get(refId(ends[0], 'ownedRelatedElement'))!
+        const rs0 = this.s.ownedRelationships(first['@id']).find((r) => r['@type'] === 'ReferenceSubsetting')
+        if (rs0 && refId(rs0, 'referencedFeature') === this.prev) {
+          for (const e of ends) skip.add(e['@id'])
+          this.block(depth, `${vis}then ${endTexts[1]}`, el['@id'], skip)
+          return
+        }
       }
       if (printable) {
         for (const e of ends) skip.add(e['@id'])
@@ -372,9 +449,7 @@ class Writer {
       if (r['@type'] === 'TransitionFeatureMembership') {
         const x = this.get(refId(r, 'ownedRelatedElement'))!
         if (r.kind === 'trigger' && x['@type'] === 'AcceptActionUsage') {
-          const p = this.s.ownedMembers(x['@id'])[0]
-          const ft = p && this.s.ownedRelationships(p['@id']).find((q) => q['@type'] === 'FeatureTyping')
-          text += ` accept ${p?.declaredName ? `${quote(String(p.declaredName))} : ` : ''}${ft ? this.refName(nsId, refId(ft, 'type')) : '?'}`
+          text += ` ${this.acceptText(x, nsId, new Set())}`
         } else if (r.kind === 'guard') text += ` if ${this.expr(x['@id'], nsId, 0)}`
         skip.add(r['@id'])
       } else if (r['@type'] === 'FeatureMembership') {
@@ -389,6 +464,19 @@ class Writer {
       }
     }
     this.block(depth, `${text} then ${target}`, el['@id'], skip)
+  }
+
+  /** `accept [name :] T [via x]` from an accept action's payload and receiver parameters. */
+  private acceptText(el: Element, nsId: string, skip: Set<string>): string {
+    const params = this.s.memberships(el['@id']).filter((p) => p['@type'] === 'ParameterMembership')
+    for (const p of params) skip.add(p['@id'])
+    const payload = params[0] && this.get(refId(params[0], 'ownedRelatedElement'))
+    const ft = payload && this.s.ownedRelationships(payload['@id']).find((q) => q['@type'] === 'FeatureTyping')
+    const receiver = params[1] && this.get(refId(params[1], 'ownedRelatedElement'))
+    const fv = receiver && this.s.ownedRelationships(receiver['@id']).find((q) => q['@type'] === 'FeatureValue')
+    const via = fv && refId(fv, 'ownedRelatedElement')
+    const name = payload && typeof payload.declaredName === 'string' ? `${quote(payload.declaredName)} : ` : ''
+    return `accept ${name}${ft ? this.refName(nsId, refId(ft, 'type')) : ''}${via ? ` via ${this.expr(via, nsId, 0)}` : ''}`.replace(/\s+$/, '')
   }
 
   // ---- references ---------------------------------------------------------------------------
@@ -409,6 +497,11 @@ class Writer {
 
   absoluteName(target: string): string {
     return this.s.qualifiedName(target) ?? quote(this.s.name(target) ?? '?')
+  }
+
+  private isOwnedChain(rel: Element, prop: string): boolean {
+    const target = refId(rel, prop)
+    return !!target && refIds(rel, 'ownedRelatedElement').includes(target)
   }
 
   /** A reference that may be a feature chain (owned chain feature with FeatureChainings). */
@@ -458,6 +551,7 @@ class Writer {
       case 'OperatorExpression': {
         const op = String(e.operator)
         const args = this.s.ownedMembers(id)
+        if (op === ',') return `(${args.map((a) => this.expr(a['@id'], scopeId, 0)).join(', ')})`
         if (op === '[') return `${this.expr(args[0]['@id'], scopeId, 11)} [${this.expr(args[1]['@id'], scopeId, 0)}]`
         if (op === 'if') {
           const text = `if ${this.expr(args[0]['@id'], scopeId, 0)} ? ${this.expr(args[1]['@id'], scopeId, 0)} else ${this.expr(args[2]['@id'], scopeId, 0)}`

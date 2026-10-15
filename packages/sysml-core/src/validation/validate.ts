@@ -56,6 +56,17 @@ const TYPE_KINDS: Record<string, string[]> = {
   CalculationUsage: ['Function'],
   OccurrenceUsage: ['Class'],
   MetadataUsage: ['Metaclass'],
+  PerformActionUsage: ['Behavior'],
+  ExhibitStateUsage: ['StateDefinition'],
+  AssertConstraintUsage: ['Predicate'],
+  CaseUsage: ['CaseDefinition'],
+  UseCaseUsage: ['UseCaseDefinition'],
+  VerificationCaseUsage: ['VerificationCaseDefinition'],
+  AnalysisCaseUsage: ['AnalysisCaseDefinition'],
+  ConcernUsage: ['ConcernDefinition'],
+  ViewpointUsage: ['ViewpointDefinition'],
+  ViewUsage: ['ViewDefinition'],
+  RenderingUsage: ['RenderingDefinition'],
 }
 
 const BINARY_CONNECTORS = ['ConnectionUsage', 'InterfaceUsage', 'AllocationUsage', 'FlowUsage', 'BindingConnectorAsUsage', 'SuccessionAsUsage']
