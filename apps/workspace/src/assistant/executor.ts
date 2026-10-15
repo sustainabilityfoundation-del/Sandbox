@@ -345,6 +345,7 @@ async function runToolAction(call: ToolCallRequest, ctx: ExecutionContext): Prom
   }
   if (result.kind === 'data') return { data: result.data, summary: result.summary, inspected: result.inspected ?? [] }
   if (result.kind === 'service-proposal') return proposeService(ctx, tool.entitlement, result)
+  if (result.kind === 'declarative-proposal') throw new ToolError('not-available', 'Declarative proposals (SDK 1.8) are not supported by this workspace build yet.')
   // Proposals go through the same validation as any other change.
   return propose(ctx, result.title, result.explanation, result.changes, undefined, result.inspected)
 }
