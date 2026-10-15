@@ -1,0 +1,27 @@
+# Browser flows (`@ews/e2e`)
+
+Committed end-to-end flows that drive the real workspace and API in Chrome with `playwright-core`
+(Apache-2.0; it does not download a browser). Plan: [integration milestone 1](../../docs/specifications/integration-milestone-1.md).
+
+```
+npm run dev            # workspace :5173 + API :8787 + embedded PostgreSQL
+npm run e2e            # every flow
+npm run e2e -- platform help    # selected flows
+```
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `E2E_BASE` | `http://localhost:5173/workspace/` | Workspace URL |
+| `E2E_API` / `API_PORT` | `http://127.0.0.1:8787` | API origin |
+| `CHROME_PATH` | Chrome's default install path | Browser executable |
+| `E2E_OUTPUT` | `tests/e2e/.output` (git-ignored) | Screenshots |
+| `E2E_HEADED` | unset | Show the browser |
+
+Flows (`flows/*.mjs`, one process each, exit code 0 = pass): `platform` (subscriptions, shared context, upgrade
+of version 0.1 data, CAD dimension mapping, detached windows, failure isolation, icons), `help`, `coverage`,
+`integration`, `vision`, `conceptualize`, `sysml-modeler`, `cad-modeler`. Several flows change the
+development database (the seeded `PRJ-ACT100` project); run them against a development database, not one
+holding real work.
+
+Module agents add their flows here. The milestone workflow (empty database, new project, restart) will be
+`flows/milestone-1.mjs` and starts its own API on a fresh database.

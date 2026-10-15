@@ -129,3 +129,9 @@ library (`packages/sysml-core/src/library/text.ts`) is written for this module a
 | Package | Version | Licence | Used by | Source |
 | --- | --- | --- | --- | --- |
 | mathjs | 15.2.0 (released 2026-04-07) | Apache-2.0 (runtime dependencies @babel/runtime, complex.js, decimal.js, escape-latex, fraction.js, javascript-natural-sort, seedrandom, tiny-emitter, typed-function: MIT) | engineering-calc (expression parsing only; evaluation and units are the package's own) | github.com/josdejong/mathjs |
+
+## Browser flows (added 15 October 2026, coordinator)
+
+| Package | Version | Licence | Used by | Source |
+| --- | --- | --- | --- | --- |
+| playwright-core | 1.55.0 | Apache-2.0 | tests/e2e (dev only; drives the installed Chrome, downloads no browser) | github.com/microsoft/playwright |

@@ -31,8 +31,8 @@ validated commands and recorded verification; one end-to-end cross-module workfl
 | SysML modelling, illustrative tool (subset: parts, requirement usages, connections, satisfy; not SysML v2 compliant) | Experimental |
 | CAD Modeler: Open CASCADE kernel, sketches with constraints, extrude, revolve, regeneration, STEP export | Experimental (Phase 1; [CAD roadmap](modules/cad/roadmap.md)) |
 | Mechanical CAD, mock tool (mock geometry kept for existing workflows) | Experimental |
-| Design reasoning layer: architecture and proposed ADRs 0039–0046 | Proposed (phase A approved; validation prototype in progress) |
-| AI connection: provider-neutral backend, own OpenAI account, Settings centre with AI access policy | In progress ([brief](specifications/ai-connection.md)) |
+| Design reasoning layer: architecture and proposed ADRs 0039–0046 | Proposed; libraries integrated: validation prototype (R1) and calculation engine (R3) in `packages/design-reasoning-core`, `packages/engineering-calc`; no service or UI yet |
+| AI connection: provider-neutral backend, own OpenAI account (API key, or Sign in with ChatGPT when run locally), Settings centre with server-enforced AI access policy | Integrated and tested against a fake provider; live provider not verified ([brief](specifications/ai-connection.md)) |
 | Shared identities, `represents` links, explicit cross-tool mapping | Implemented |
 | Module ownership and delegation, enforced in the repository | Implemented |
 | Typed relationship validation | Implemented |
@@ -41,8 +41,9 @@ validated commands and recorded verification; one end-to-end cross-module workfl
 | Change impact (links, dependent and referencing artifacts, baselines) | Implemented (minimal) |
 | Recorded verification (requirement revision, configured article, procedure/run) | Implemented (minimal) |
 | End-to-end cross-module workflow | Implemented (test: `apps/workspace/src/platform/platform.test.ts`) |
-| AI assistant through the same command boundary | Experimental (scripted demo; no provider) |
+| AI assistant through the same command boundary | Experimental (labelled demo planner by default; real model when the user connects an account); headless operation boundary in progress ([milestone 1](specifications/integration-milestone-1.md) C9) |
 | Subscriptions and entitlements | Prototype only (client side) |
+| One durable engineering project across the real modules | In progress ([integration milestone 1](specifications/integration-milestone-1.md)) |
 
 Remaining in Phase 1:
 
