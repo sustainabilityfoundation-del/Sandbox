@@ -372,7 +372,7 @@ export async function moduleStates(ctx: Ctx, projectId: string) {
   )
   return rows.map((r) => ({
     module: r.module,
-    name: r.name || r.module,
+    name: r.name || (r.module === 'settings' ? 'Project settings' : r.module),
     enabled: r.enabled,
     status: r.status === 'provisioned' ? 'ready' : r.status,
     ...(r.reason ? { reason: r.reason } : {}),
