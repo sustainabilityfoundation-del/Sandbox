@@ -1,3 +1,4 @@
+import type { CheckResult, QuantityOut } from '@ews/engineering-calc'
 import type { RequirementSummary } from '@ews/platform-sdk'
 import { createConceptualizeTestAdapter } from '../adapters/conceptualizeContractAdapter'
 import type { BatchItem, ConceptualizeKnowledgeApi, RequestContext } from '../contract/conceptualize'
@@ -195,12 +196,12 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
     { model: designRef('calculation-model', ids.model), recordAsEvidence: { subjects: [designRef('concept', ids.ballScrew), designRef('constraint', ids.cstLoad)], title: 'Rod buckling check, ACT-100 rod (Euler)' } },
     engineCtx,
   )
-  const calcOut = calc.result as { outputs: Record<string, { value: number; unit: string }>; checks: { text: string; margin: number; marginRatio?: number; unit: string; satisfied: boolean }[] }
+  const calcOut = calc.result as { outputs: Record<string, QuantityOut>; checks: CheckResult[] }
   const recorded = await apply(calc, editor)
   ids.evidence = recorded.results[0].ids.$ev
   step('Preliminary relationship evaluated deterministically', [
     `${await key('calculation-model', ids.model)}: P_cr = π²·E·I/(K·L)² with d, L from ROD-120 rev ${twin.objects.find((o) => o.id === 'ROD-120')!.revision} (client-attested), E, K, n, σy from assumptions, F from ${await key('constraint', ids.cstLoad)}`,
-    `P_cr = ${calcOut.outputs.P_cr.value.toFixed(1)} kN, λ = ${calcOut.outputs.lambda.value.toFixed(0)}; ${calcOut.checks[0].text}: ${calcOut.checks[0].satisfied ? 'satisfied' : 'violated'}, margin ${calcOut.checks[0].margin.toFixed(1)} kN (ratio ${calcOut.checks[0].marginRatio!.toFixed(2)})`,
+    `P_cr = ${calcOut.outputs.P_cr.value.toFixed(1)} kN, λ = ${calcOut.outputs.lambda.value.toFixed(0)}; ${calcOut.checks[0].text}: ${calcOut.checks[0].status} at the nominal point (point evaluation), margin ${calcOut.checks[0].margin.toFixed(1)} kN (ratio ${calcOut.checks[0].marginRatio!.toFixed(2)})`,
     `Basis ${calc.basis}; manifest output digest ${(calc.result as { manifest: { outputDigest: string } }).manifest.outputDigest.slice(0, 23)}…`,
     `Recorded as ${await key('evidence', ids.evidence)} after the adapter re-verified the manifest`,
   ])

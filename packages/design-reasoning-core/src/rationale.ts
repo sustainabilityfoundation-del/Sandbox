@@ -1,4 +1,4 @@
-import type { Basis } from '@ews/engineering-calc'
+import { describeRange, qualifyManifest, type Basis, type CalculationQualifications } from '@ews/engineering-calc'
 import type { ConceptualizeKnowledgeApi, RequestContext } from './contract/conceptualize'
 import { designRef, type DesignRef } from './refs'
 
@@ -21,13 +21,41 @@ export interface RationaleAnswer {
     recordedBy?: string
     alternatives: { key: string; name: string; outcome: string; rationale: string }[]
     tradeStudy?: { key: string; ranking: string; preliminary: boolean; scores: { key: string; score: number | null; rank: number | null }[] }
-    support: { key: string; title: string; basis: Basis; validationStatus: string; role: string; checks: string[] }[]
+    support: {
+      key: string
+      title: string
+      basis: Basis
+      validationStatus: string
+      role: string
+      checks: string[]
+      /** C11: the evidence's qualifications, unchanged (result kinds, proven statuses, limits). */
+      qualifications?: CalculationQualifications
+      /** C11: what this evidence does not establish. */
+      limits: string[]
+    }[]
     assumptions: { key: string; statement: string; validationStatus: string; basis: Basis }[]
     constraints: { key: string; statement: string; pinnedRevision: number; currentRevision: number; formalizes?: string }[]
     invalidationConditions: string[]
     reviewFlags: string[]
   }[]
   summary: string
+}
+
+function support(ev: { calculation?: { manifest: Parameters<typeof qualifyManifest>[0] }; qualifications?: CalculationQualifications } | undefined): { checks: string[]; qualifications?: CalculationQualifications; limits: string[] } {
+  if (!ev?.calculation) return { checks: [], limits: [] }
+  const q = ev.qualifications ?? qualifyManifest(ev.calculation.manifest)
+  const basis = (b: string) => (b === 'point' ? 'at the nominal point' : b === 'exact-bounds' ? 'proven over the input ranges with exact bounds' : b === 'enclosure' ? 'over the input ranges, from an enclosure' : 'sampled only, not proven')
+  return {
+    checks: [
+      ...q.checks.map((c) => `${c.text}: ${c.status} (${basis(c.statusBasis)}; nominal margin ${c.margin.toFixed(1)} ${c.unit})`),
+      ...q.outputs.filter((o) => o.range.kind !== 'point').map((o) => `${o.symbol}: ${describeRange(o.range)}`),
+    ],
+    qualifications: q,
+    limits: [
+      'Reproducible calculation: it does not establish that the model is valid for this design' + (q.limits.modelValidationStatus === 'validated' ? ' (the model was recorded as validated by a person)' : ` (model validation status: ${q.limits.modelValidationStatus})`),
+      'It does not establish that any requirement is satisfied',
+    ],
+  }
 }
 
 export async function explainSelection(knowledge: ConceptualizeKnowledgeApi, ctx: RequestContext, conceptId: string): Promise<RationaleAnswer> {
@@ -74,7 +102,7 @@ export async function explainSelection(knowledge: ConceptualizeKnowledgeApi, ctx
         basis: s.evidence?.basis ?? 'ai-hypothesis',
         validationStatus: s.evidence?.validationStatus ?? 'unknown',
         role: s.role,
-        checks: s.evidence?.calculation?.manifest.checks.map((c) => `${c.text}: ${c.satisfied ? 'satisfied' : 'violated'}, margin ${c.margin.toFixed(1)} ${c.unit}`) ?? [],
+        ...support(s.evidence),
       })),
       assumptions: r.assumptions.map((a) => ({ key: a.key, statement: a.statement, validationStatus: a.validationStatus, basis: a.basis })),
       constraints,

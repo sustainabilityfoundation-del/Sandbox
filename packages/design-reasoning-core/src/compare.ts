@@ -11,6 +11,8 @@ interface Interval {
   lo: number
   hi: number
   nominal: number
+  /** C11: true when the range is a sampled range from a calculation (not a bound). */
+  sampled: boolean
 }
 
 export interface ParetoResult {
@@ -31,7 +33,8 @@ function goodness(study: TradeStudyRecord, criterionId: string, conceptId: strin
   const nominal = s.qualitative ?? s.value ?? (lo !== undefined && hi !== undefined ? (lo + hi) / 2 : undefined)
   if (lo === undefined || hi === undefined || nominal === undefined) return undefined
   // Orient so that larger is better. Qualitative 1–5 already means very poor … very good.
-  return c.direction === 'maximize' || s.qualitative !== undefined ? { lo, hi, nominal } : { lo: -hi, hi: -lo, nominal: -nominal }
+  const sampled = s.qualification?.kind === 'sampled-range'
+  return c.direction === 'maximize' || s.qualitative !== undefined ? { lo, hi, nominal, sampled } : { lo: -hi, hi: -lo, nominal: -nominal, sampled }
 }
 
 export function paretoAnalysis(study: TradeStudyRecord, criterionIds: string[] = study.criteria.map((c) => c.id)): ParetoResult {
@@ -48,7 +51,8 @@ export function paretoAnalysis(study: TradeStudyRecord, criterionIds: string[] =
       }
       const nominalDominates = pairs.every(([x, y]) => x!.nominal >= y!.nominal) && pairs.some(([x, y]) => x!.nominal > y!.nominal)
       if (!nominalDominates) continue
-      const robust = pairs.every(([x, y]) => x!.lo >= y!.hi) && pairs.some(([x, y]) => x!.lo > y!.hi)
+      // C11: robust dominance needs bounds (or stated ranges); a sampled range is not a bound.
+      const robust = pairs.every(([x, y]) => !x!.sampled && !y!.sampled) && pairs.every(([x, y]) => x!.lo >= y!.hi) && pairs.some(([x, y]) => x!.lo > y!.hi)
       const prior = dominated.find((d) => d.conceptId === b)
       if (!prior) dominated.push({ conceptId: b, by: a, strength: robust ? 'robust' : 'possible' })
       else if (robust && prior.strength === 'possible') Object.assign(prior, { by: a, strength: 'robust' })
@@ -59,6 +63,6 @@ export function paretoAnalysis(study: TradeStudyRecord, criterionIds: string[] =
     paretoSet: options.filter((o) => !dominated.some((d) => d.conceptId === o)),
     dominated,
     undecided,
-    method: 'Pareto dominance on nominal scores; "robust" when it also holds for interval bounds. Weighted sums are reported alongside because they cannot find non-convex trade-offs.',
+    method: 'Pareto dominance on nominal scores; "robust" when it also holds for the score ranges and none of them is a sampled range (C11: sampled ranges are not bounds). Weighted sums are reported alongside because they cannot find non-convex trade-offs.',
   }
 }

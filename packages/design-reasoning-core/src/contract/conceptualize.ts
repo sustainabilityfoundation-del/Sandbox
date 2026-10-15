@@ -1,4 +1,4 @@
-import type { Basis, CalculationManifest, CalculationModelDefinition, CalculationParameter } from '@ews/engineering-calc'
+import type { Basis, CalculationManifest, CalculationModelDefinition, CalculationParameter, CalculationQualifications, ResultRange } from '@ews/engineering-calc'
 import type { LinkTypeDefinition } from '../linkTypes'
 import type { AnyRef, ArtifactRefX, DesignEntityType, DesignRef } from '../refs'
 
@@ -193,6 +193,11 @@ export interface EvidenceRecord extends RecordBase {
   applicability?: string
   /** Calculation model executed, with the manifest (CR-C8). */
   calculation?: { modelId: string; modelRevision: number; manifest: CalculationManifest }
+  /**
+   * C11: derived by Conceptualize from the VERIFIED manifest (qualifyManifest), never taken from the client.
+   * Stored and displayed unchanged: result kinds, bound quality, proven statuses and the manifest limits.
+   */
+  qualifications?: CalculationQualifications
   source?: ArtifactRefX
   supersedesId?: string
   version: number
@@ -274,6 +279,19 @@ export interface TradeScore {
   basis: Basis
   rationale: string
   evidenceId?: string
+  /** C11: the calculation output this score is taken from (with evidenceId). */
+  evidenceOutput?: string
+  /** C11: set by Conceptualize from the evidence's qualifications (client values are ignored). */
+  qualification?: ScoreQualification
+}
+
+/** C11 qualification of a trade-study score taken from calculated evidence. */
+export interface ScoreQualification {
+  source: 'calculation'
+  evidenceId: string
+  symbol: string
+  kind: ResultRange['kind']
+  quality?: 'exact' | 'enclosure'
 }
 
 export interface TradeStudyRecord extends RecordBase {
@@ -296,6 +314,11 @@ export interface TradeStudyResult {
   ranking: 'robust' | 'uncertain' | 'incomplete'
   preliminary: boolean
   method: string
+  /**
+   * C11: how the score ranges are qualified. A robust ranking needs ranges that are bounds (exact or enclosure)
+   * or stated ranges; a sampled range is not a bound, so it can never make a ranking robust.
+   */
+  qualifications: { points: number; exactBounds: number; enclosures: number; sampledRanges: number; statedRanges: number; robustnessNote?: string }
 }
 
 // ---- CR-C5 Decisions ----------------------------------------------------------------------------------------
