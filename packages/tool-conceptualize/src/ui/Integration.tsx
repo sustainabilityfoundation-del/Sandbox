@@ -89,6 +89,9 @@ const MODULE_LABEL: Record<ArtifactModule, string> = { requirements: 'Requiremen
 const MODULE_TYPES: Partial<Record<ArtifactModule, string[]>> = { sysml: ['sysml-element'], cad: ['cad-representation'], twin: ['assembly', 'part'] }
 
 /** Picks a version-aware artifact reference: twin objects from the model (pinned to their current revision), others typed. */
+const TYPED_LABEL: Partial<Record<ArtifactModule, string>> = { analysis: 'Test-adapter result ID', product: 'Product element UUID (Project Management)', projects: 'Project document UUID (Project Management)' }
+const TYPED_KIND: Partial<Record<ArtifactModule, string>> = { analysis: 'analysis-result', product: 'product-element', projects: 'document' }
+
 function ArtifactPicker({ onPick, busy, label }: { onPick: (ref: ArtifactRefInput) => void; busy?: boolean; label: string }) {
   const model = useModel()
   const [module, setModule] = useState<ArtifactModule>('cad')
@@ -97,13 +100,13 @@ function ArtifactPicker({ onPick, busy, label }: { onPick: (ref: ArtifactRefInpu
   const pick = (o: EngineeringObject) => onPick({ module, id: o.id, revision: o.revision, kind: o.type, label: `${o.id} ${o.name}` })
   return (
     <div className="con-inline-form" data-help-id="conceptualize.implementation.link">
-      <Select label="Artifact type" size="sm" value={module} onChange={(m) => setModule(m as ArtifactModule)} options={(['cad', 'sysml', 'twin', 'analysis', 'external'] as ArtifactModule[]).map((m) => ({ id: m, label: MODULE_LABEL[m] }))} />
+      <Select label="Artifact type" size="sm" value={module} onChange={(m) => setModule(m as ArtifactModule)} options={(['cad', 'sysml', 'twin', 'product', 'projects', 'analysis', 'external'] as ArtifactModule[]).map((m) => ({ id: m, label: MODULE_LABEL[m] }))} />
       {MODULE_TYPES[module] ? (
         <ComboBox label={label} placeholder="Search the model" options={objects.map((o) => ({ id: o.id, label: `${o.id} ${o.name}`, description: `revision ${o.revision}` }))} onSelect={(opt) => pick(objects.find((o) => o.id === opt.id)!)} />
       ) : (
         <>
-          <TextField label={module === 'analysis' ? 'Test-adapter result ID' : 'URL or document reference'} value={typed} onChange={setTyped} />
-          <Button size="sm" variant="outlined" icon="link" isPending={busy} isDisabled={!typed.trim()} onPress={() => onPick({ module, id: typed.trim(), label: typed.trim(), kind: module === 'analysis' ? 'analysis-result' : 'document' })}>
+          <TextField label={TYPED_LABEL[module] ?? 'URL or document reference'} value={typed} onChange={setTyped} />
+          <Button size="sm" variant="outlined" icon="link" isPending={busy} isDisabled={!typed.trim()} onPress={() => onPick({ module, id: typed.trim(), label: typed.trim(), kind: TYPED_KIND[module] ?? 'document' })}>
             {label}
           </Button>
         </>

@@ -108,6 +108,28 @@ Deviations 1–5 accepted.
   `R1_OPERATION` in `http/openapi.ts`), the v1 Concept-link `createLink` carries `x-r1-note`. Mapping in the
   API help page.
 
+### Project Management integration (CR-PM-REG-2, CR-PM-CON-1)
+
+- `createConceptsArtifactSource(pool, events)` (`services/conceptualize/src/artifactSource.ts`, exported
+  from `@ews/conceptualize-service`): SDK 1.7 `ArtifactSource`. Kinds: concept, function, constraint,
+  assumption, alternative-set, trade-study, decision, evidence, concept-implementation. `list` pages in a
+  stable order (kind, key, id; keyset cursor, max 500), `describe` omits unknown refs and other projects,
+  descriptors carry the module state verbatim, the §5 lifecycle mapping (`conceptsLifecycleOf`), version
+  (revision; evidence is immutable), container (set → parent Concept, study and decision → set) and
+  module-owned relations (relationships, design links, realizes, evidence subjects). `subscribe` reads the
+  outbox after commit through the new `EventHub.subscribeAll` and itemises each event: implementation events
+  name their Concept, so the Concept and its implementations are upserted, and link events upsert the link's
+  `from` record. Anything it cannot itemise is sent as `reconcile`. `provision` for a blank template answers
+  `not-needed` and creates nothing. Kinds are `navigable: false`, with no `open`, because tools have no
+  deep-link parameters yet. Tests: `test/artifactSource.test.ts` (5, real PostgreSQL), covering the §7 checks
+  and a new project that stays empty.
+- **Integration need**: the API host wires `createConceptsArtifactSource(options.pool, conceptEvents)` into the
+  Project Management plugin (coordinator).
+- `ArtifactRef.module` accepts `product` (kind `product-element`, UUID) and `projects` (kinds document, task,
+  issue, risk, milestone, project-baseline; UUID) in implementations, evidence and Concept links.
+  Migration `0004_pm_artifact_modules.sql` widens the CHECKs additively. SDK `ArtifactModule` widening plus the
+  Integration labels are in COORDINATOR REVIEW commit e54b302.
+
 ### Settings Conceptualize would contribute to a future SDK `SettingsContribution`
 
 | Setting | Scope | Today |

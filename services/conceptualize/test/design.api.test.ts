@@ -364,6 +364,26 @@ describe('atomic batch with placeholders (CR-C10, R1-1)', () => {
   })
 })
 
+describe('Project Management references (CR-PM-CON-1)', () => {
+  const PRODUCT = '7e57c0de-0000-4000-8000-00000000a001'
+  const DOC = '7e57c0de-0000-4000-8000-00000000d001'
+  it('accepts product elements in implementations and project documents as evidence', async () => {
+    const c = await concept('Housing for the product element')
+    const impl = await post('/implementations', { name: 'Housing as product element', conceptIds: [c.id], artifacts: [{ module: 'product', kind: 'product-element', id: PRODUCT, revision: 2, label: 'PE housing' }] })
+    expect(impl.status, JSON.stringify(impl.body)).toBe(201)
+    expect(impl.body.artifacts[0]).toMatchObject({ module: 'product', artifactId: PRODUCT, revision: 2 })
+    const ev = await post('/evidence', { subjects: [ref('concept', c.id)], kind: 'review', title: 'Design review minutes', basis: 'evidence', artifact: { module: 'projects', kind: 'document', id: DOC, revision: 1, label: 'DOC-004 Review minutes' } })
+    expect(ev.status, JSON.stringify(ev.body)).toBe(201)
+    expect(ev.body.artifact).toMatchObject({ module: 'projects', id: DOC })
+    const link = await post(`/concepts/${c.id}/links`, { relation: 'references', artifact: { module: 'projects', kind: 'document', id: DOC } })
+    expect(link.status).toBe(201)
+    // Shape checks: UUIDs and known kinds only.
+    expect((await post('/implementations', { name: 'Bad', conceptIds: [c.id], artifacts: [{ module: 'product', id: 'PE-1' }] })).status).toBe(422)
+    expect((await post('/implementations', { name: 'Bad', conceptIds: [c.id], artifacts: [{ module: 'product', kind: 'part', id: PRODUCT }] })).status).toBe(422)
+    expect((await post('/evidence', { subjects: [ref('concept', c.id)], kind: 'review', title: 'x', basis: 'estimate', artifact: { module: 'conceptualize', id: c.id } })).status).toBe(400)
+  })
+})
+
 describe('R1 refinements', () => {
   it('needs a reviewer to validate or invalidate an assumption a recorded decision rests on (R1-2)', async () => {
     const a = await concept('Pinned option')

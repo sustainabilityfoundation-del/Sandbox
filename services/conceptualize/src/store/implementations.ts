@@ -20,6 +20,16 @@ const ID_PATTERN: Record<ArtifactRefDto['module'], RegExp> = {
   twin: /^(?!SYS-|CAD-)[A-Z][A-Z0-9]*-[A-Za-z0-9._-]+$/,
   analysis: /^[A-Za-z][A-Za-z0-9._:-]{0,199}$/,
   external: /^(https?:\/\/\S+|[A-Za-z][\w.-]*:\S+|[\w .:/#-]{1,300})$/,
+  // CR-PM-CON-1: Project Management product elements (ADR-0063) and project entities (documents as
+  // evidence, work items, milestones, baselines), by UUID.
+  product: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  projects: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+}
+
+/** Kinds per module where the owner defines them; an omitted kind is the module's default. */
+const KINDS: Partial<Record<ArtifactRefDto['module'], string[]>> = {
+  product: ['product-element'],
+  projects: ['document', 'task', 'issue', 'risk', 'milestone', 'project-baseline'],
 }
 
 /**
@@ -31,8 +41,10 @@ const ID_PATTERN: Record<ArtifactRefDto['module'], RegExp> = {
 export function artifactProblem(a: ArtifactRefDto): string | null {
   if (!ID_PATTERN[a.module]) return `unknown module ${a.module}`
   if (!ID_PATTERN[a.module].test(a.id)) {
-    return a.module === 'requirements' ? 'a requirement is referenced by its canonical UUID (resolve keys such as REQ-001 first)' : `"${a.id}" is not a valid ${a.module} identifier`
+    return a.module === 'requirements' ? 'a requirement is referenced by its canonical UUID (resolve keys such as REQ-001 first)' : a.module === 'product' || a.module === 'projects' ? `${a.module} artifacts are referenced by their UUID` : `"${a.id}" is not a valid ${a.module} identifier`
   }
+  const kinds = KINDS[a.module]
+  if (kinds && a.kind && !kinds.includes(a.kind)) return `kind ${a.kind} is not a ${a.module} kind (${kinds.join(', ')})`
   return null
 }
 
