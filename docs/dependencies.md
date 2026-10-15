@@ -117,3 +117,9 @@ from tag 2026-04, earlier tags LGPL-3.0 and refused by the script), fetched with
 `npx tsx packages/sysml-core/scripts/fetch-official.ts` into `.data/sysml-release/<tag>` and used by
 the official-corpus conformance measurement (`npm run sysml:conformance`). The bundled platform model
 library (`packages/sysml-core/src/library/text.ts`) is written for this module and copies no OMG text.
+
+## Design reasoning layer (added 15 October 2026, design reasoning agent; ADR-0044)
+
+| Package | Version | Licence | Used by | Source |
+| --- | --- | --- | --- | --- |
+| mathjs | 15.2.0 (released 2026-04-07) | Apache-2.0 (runtime dependencies @babel/runtime, complex.js, decimal.js, escape-latex, fraction.js, javascript-natural-sort, seedrandom, tiny-emitter, typed-function: MIT) | engineering-calc (expression parsing only; evaluation and units are the package's own) | github.com/josdejong/mathjs |

@@ -51,6 +51,10 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/sysml-client': /^@ews\/sysml-core$/,
   'packages/sysml-core': /^$/,
   'services/sysml': /^@ews\/sysml-core$/,
+  // Design reasoning layer (docs/modules/design-reasoning/overview.md §3). Framework-free libraries;
+  // the core may use the SDK's testing fixtures (sample twin) in its scenario tests.
+  'packages/engineering-calc': /^@ews\/platform-sdk$/,
+  'packages/design-reasoning-core': /^@ews\/(platform-sdk(\/testing)?|engineering-calc)$/,
 }
 
 describe('package boundaries', () => {

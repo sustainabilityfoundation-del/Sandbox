@@ -38,6 +38,9 @@ Follow [the development workflow](docs/development-workflow.md) and use
 | Requirements tool | `packages/tool-requirements` | Requirements views, toolbar, commands, private view state, requirement domain logic, assistant actions |
 | SysML tool | `packages/tool-sysml` | Diagram, property panel, text notation, SysML domain logic, assistant actions |
 | CAD tool | `packages/tool-cad` | Mock geometry, dimensions, visibility, CAD domain logic, assistant actions |
+| Conceptualize | `packages/tool-conceptualize`, `packages/conceptualize-client`, `services/conceptualize` | Concepts, alternatives, trade studies, decisions, evidence, implementations ([contracts](docs/specifications/conceptualize-contracts.md)) |
+| CAD Modeler | `packages/cad-core`, `packages/cad-kernel`, `packages/tool-cad-modeler` | Native parametric model, commands, OCCT kernel adapter, modeler UI ([contracts](docs/specifications/cad-program-contracts.md)) |
+| SysML Modeler | `packages/sysml-core`, `services/sysml`, `packages/sysml-client`, `packages/tool-sysml-modeler` | SysML v2 semantic core, repository and API, modeler UI ([contracts](docs/specifications/sysml-program-contracts.md)) |
 | GLB viewer | `apps/glb-viewer` | Standalone viewer (not part of the platform) |
 
 Work on one area at a time. A tool change must not require changes in another tool. If it needs a
@@ -174,6 +177,7 @@ Preserve the current proposal-preview policy until its replacement is explicitly
 
 - Launch additional agents for routine work in this repository unless asked.
 - Delete or rewrite user data in migrations.
-- Claim SysML v2 compliance, a CAD kernel or real ChatGPT access in UI or docs.
+- Claim SysML v2 compliance or real ChatGPT access in UI or docs. The CAD Modeler uses a real kernel
+  (Open CASCADE); describe it with its documented limits, and never present the mock CAD tool as a kernel.
 - Present a planned capability as working. Keep `apps/workspace/src/platform/capabilities.ts`
   and `docs/roadmap.md` in step.

@@ -59,3 +59,9 @@ Phase B ownership is set in the approval message.
 Use authoritative publications, textbooks and standards; record what was read in full versus summaries
 or previews, never claim access that was not available, and do not reproduce substantial copyrighted text.
 User-supplied PDFs, if any, go to `docs/research/design-reasoning/sources/` (git-ignored).
+
+## Owner decisions
+
+- 15 October 2026: the owner confirmed, for now, the coordinator's answers to phase A questions 5 and 6:
+  operational autonomy only (read, calculate, draft; every durable change previewed and applied by a person) and
+  2-year, configurable retention of run records. Owner's words: "That sounds like reasonable assumptions for now".
