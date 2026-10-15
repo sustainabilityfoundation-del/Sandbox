@@ -13,7 +13,7 @@ Branch: `feature/cad`. Worktree: `C:\Users\kimge.000\Documents\Sandbox-cad`. Mai
 | --- | --- | --- |
 | 0 Research and architecture | **Done** (decisions Proposed) | Research: `docs/research/cad/` (competitive matrix, interoperability, open-source survey, source logs). ADRs 0020–0026 (numbers provisional). Specifications: `docs/modules/cad/` (architecture, requirements, kernel selection, native format and JSON Schema, API and `commands.json`, AI commands, interoperability matrix, testing, performance, roadmap, backlog, integration contracts, agent instructions) |
 | 1 Parametric foundation | **Implemented, ready for coordinator review** | Packages `cad-core`, `cad-kernel`, `tool-cad-modeler`; 39 CAD tests (core 23 incl. contracts, kernel 10 on real OCCT, tool/AI 6), plus platform inventory and help tests; browser flows in harness and workspace all passing; `npm run check`, `build`, `build:harnesses` green |
-| 1b Persistence and integration | **Sprint 2 implemented, ready for coordinator review** | `services/cad` + `@ews/cad-client` (CR-CAD-2), CR-CAD-1 scheme, Project Management artifact source (CR-PM-REG-4), mock replacement ADR-0027 (Proposed, CR-CAD-4). See *Sprint 2* below |
+| 1b Persistence and integration | **I1: C4 done; C5 (artifact source, read client) and C9 done; ready for coordinator review** | `services/cad` + `@ews/cad-client` (CR-CAD-2), CR-CAD-1 scheme, Project Management artifact source (CR-PM-REG-4), mock replacement ADR-0027 (Proposed, CR-CAD-4). See *Sprint 2* below |
 | 2 (part) Modeling depth | **Fillet, chamfer, datum planes and sketches on faces implemented**; regeneration in the worker | See *Sprint 2* |
 
 ### Phase 1 acceptance (brief §13, §15 steps 10–12)
@@ -27,6 +27,130 @@ Branch: `feature/cad`. Worktree: `C:\Users\kimge.000\Documents\Sandbox-cad`. Mai
 | Save and reopen the native model | Save (.ewscad) / Open | `export {format: ewscad}`, `open_document`, `query get_document` | kernel.test round trip; assistant.test; browser |
 | 3D viewport, geometry off the UI thread | three.js viewport; OCCT in a Web Worker | `get_entities` (stable face names) | browser pixel check; Diagnostics shows worker |
 | Export STEP | Export STEP (AP242 + structural report) | `export {format: step}` | kernel.test (inspection + re-import); browser |
+
+## Integration milestone 1 (binding, docs/specifications/integration-milestone-1.md)
+
+Priority per the milestone: persistence, shared references and regeneration integrity before more
+features. Fillet, chamfer and sketches on faces were already implemented in sprint 2 (below). No
+further modelling features are added until C4 and C5 are merged.
+
+### C4 CAD persistence: done (I1 checkpoint)
+
+| Requirement | Implementation | Test (real API host and PostgreSQL) |
+| --- | --- | --- |
+| Immutable document revisions | `cad.document_revisions`, append-only by trigger | `cad.api.test` immutability |
+| If-Match concurrency | 428 without a revision, 409 when stale (`details.currentRevision`), 400 when body and header disagree | `c4.integrity.test` stale If-Match |
+| Idempotency-Key recorded in the write transaction | key, request hash and response written in the commit transaction; replay after a lost response; reuse with different input → 422 | `c4.integrity.test` retry and 422; `cad.api.test` rollback forgets failures |
+| Transactional outbox | events written in the save transaction; pg_notify; SSE with resume | `cad.api.test`, artifact source tests |
+| `tool:cad` on the server | route guard before any work | `cad.api.test` access |
+| Project scoping (C13) | every query filters by the path project; the document UUID belongs to one project; reader and archived projects refused | `c4.integrity.test` cross-project writes (404/409/403); `cad.api.test` reader refusal |
+| File save/open as export/import | tool: Save file / Open file next to the project store | sprint2 browser flow |
+| Deterministic regeneration, no authoritative derived geometry | revisions hold the native model only; no geometry columns | `c4.integrity.test`: identical mass properties for a stored revision after a server restart, fresh engine and cache |
+
+### C5 cross-module resolution and registration
+
+- **ArtifactSource (CR-PM-REG-4):** `createCadArtifactSource(pool, events)` in `@ews/cad-service`
+  (see [service.md](../modules/cad/service.md)). Tested in `services/cad/test/artifacts.test.ts`.
+  Host wiring is the coordinator's.
+- **Read client (implemented as `createCadReadService` in `@ews/cad-client`, tested over the real
+  API in `services/cad/test/read.c5.test.ts`).** Proposed SDK 1.8 TypeScript, to be added to
+  `packages/platform-sdk/src/contract` (exact text):
+
+```ts
+/** CAD Modeler read access for other modules (SDK 1.8, contract C5). Read-only. */
+export interface CadArtifactRefInput {
+  module: string
+  kind: string
+  /** '<documentUuid>/<entityId>'; the document UUID twice for the whole document. */
+  id: string
+  /** Pinned revision; omitted = follow the latest. */
+  revision?: number
+}
+
+export type CadReadResult<T> =
+  | { status: 'resolved'; value: T }
+  | { status: 'missing'; reason: 'not-a-cad-reference' | 'document-not-found' | 'revision-not-found' | 'entity-not-found' | 'no-geometry'; message: string }
+  | { status: 'unavailable'; reason: 'forbidden' | 'unauthenticated' | 'service-unavailable' | 'kernel-unavailable'; message: string }
+
+export interface CadEntitySummary {
+  /** The reference with the revision it resolved at. */
+  ref: { module: 'cad'; kind: 'cad-modeler-entity'; id: string; revision: number }
+  documentId: string
+  entityId: string
+  /** 'document' | 'part' | 'face' | 'parameter' | a feature type ('extrude', 'fillet', …) | 'sketch-element' */
+  entityType: string
+  label: string
+  documentTitle: string
+  pinned: boolean
+  latestRevision: number
+  archived: boolean
+  /** False for face names: only regeneration can confirm a face exists. */
+  verifiedInGeometry: boolean
+}
+
+export interface CadBodyMassProperties {
+  bodyId: string
+  /** mm³ */
+  volume: number
+  /** mm² */
+  surfaceArea: number
+  /** mm */
+  centerOfMass: [number, number, number]
+  boundingBox: { min: [number, number, number]; max: [number, number, number]; size: [number, number, number] }
+  /** kg; null without a material. */
+  mass: number | null
+  material: { name: string; density: number } | null
+  /** OCCT BRepCheck validity of the solid. */
+  valid: boolean
+  units: { length: 'mm'; volume: 'mm³'; area: 'mm²'; mass: 'kg' }
+}
+
+export interface CadMassPropertiesResult {
+  ref: CadEntitySummary['ref']
+  parts: { partId: string; name: string; bodies: CadBodyMassProperties[] }[]
+  regeneration: { ok: boolean; failures: { partId: string; featureId: string; status: string; code?: string; message?: string }[]; kernel: string; location: string }
+  /** Recomputed from the stored native model of that revision; never stored. */
+  derivedFrom: 'regeneration'
+}
+
+export interface CadService {
+  summary(projectId: string, ref: CadArtifactRefInput): Promise<CadReadResult<CadEntitySummary>>
+  /** Parts and whole documents only; other entities give missing / 'no-geometry'. */
+  massProperties(projectId: string, ref: CadArtifactRefInput): Promise<CadReadResult<CadMassPropertiesResult>>
+}
+
+// PlatformServices gains:  cad?: CadService
+```
+
+  Host wiring for the workspace (coordinator):
+
+  ```ts
+  createCadReadService({ client: createHttpCadClient({ baseUrl: '/api/cad/v1', devUser }), regenerator: () => createWorkerKernel().createRegenerator() })
+  ```
+
+  The regenerator should be one kernel worker shared per window and created lazily. Results are
+  cached per (document, revision).
+
+### C9 headless AI boundary: done
+
+- Every `cad-modeler.*` operation works with no view mounted. It targets the named document, else
+  the open document of the captured project, else the project's only stored document; with
+  several, the caller must give `documentId`. A document that is not open is loaded from the
+  project's CAD service through the injected client (`PlatformServices.cad` once SDK 1.8 adds
+  writes, or the tool's own client until then).
+- Regeneration, dry runs and previews run in the kernel worker.
+- While no view is mounted, an applied change (commands, undo, new document) is saved as a revision
+  with the proposal's provenance, and the preview names the revision. A failed save reverts the
+  in-memory change.
+- Documents stored in another project are refused (C13).
+- Tests (`packages/tool-cad-modeler/src/assistant.headless.test.ts`, real OCCT):
+  - all 9 operations with no view;
+  - durable revisions;
+  - ambiguity and cross-project refusal;
+  - parity, where 4 invalid commands are refused with the same code and message by the UI executor
+    and the assistant.
+- Not verified in the browser with the tab closed. The AI connection agent's "all tabs closed" test
+  can now drop CAD Modeler from its known-failing list.
 
 ## Sprint 2 (2026-10-15): service, edge features, face sketches, worker regeneration
 
@@ -214,3 +338,4 @@ The top items are below; the full list is in [backlog.md](../modules/cad/backlog
 | 2026-10-15 | Final validation on the branch tip. `npm run check`: 483 passed, 1 skipped (the CAD suite alone: 39). `npm run build` and `npm run build:harnesses` green. Browser flows (Playwright, Chrome, scratchpad `pw/cad/`), all passing: `harness-flow` (23 checks: human workflow, save, export, reopen, responsive, dark theme); `workspace-flow` (AI workflow through the demo assistant and proposal cards, a human edit, version handling, operation log); `regression-flow` (default tabs, mock CAD selection, SysML, the mock CAD dimension proposal on the twin, Help listing). The coordinator's older scratch scripts (`platform-flow`, `assistant-flow`) use selectors and paths from before main's current UI, so they were not usable as evidence. One workspace dev server briefly bound port 5175 because npm did not pass the port flag; it was stopped. All servers are stopped. |
 | 2026-10-15 | Sprint 2. Merged main (eceba15), then services/cad and cad-client; fillet and chamfer; datum planes and face sketches (format 1.1); worker regeneration (af43158 and earlier). The browser flow found unnamed cap faces on the example plate, because a centred hole removed the probe point; cap probes now rank fallback points (regression test). |
 | 2026-10-15 | Project Management readiness (ae98423): part UUIDs, descriptive events (migration 0002), refusal for readers. Docs and ADR-0027 (cf55b88). Merged main at SDK 1.7.0 (69355eb), then CR-PM-REG-4 (artifact source) and CR-PM-CAD-1. |
+| 2026-10-15 | Integration milestone 1. Merged main (ccb5e61; conflicts in the services/api registration, root scripts and boundaries, both sides kept). C4/C13 tests (f454872), C5 read client (a271119), C9 headless operations (c8dca69). The sprint2 browser flow passed 20/20 on the merged code after an API restart; one run timed out on Vite's cold compile, and the rerun passed. |
