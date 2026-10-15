@@ -1,0 +1,279 @@
+{
+  "id": "d1-plumbing",
+  "description": "Recorded tool-call script for demonstration D1 (drill bit holder), replayed by the FAKE provider. Plumbing test only: it proves the operations, previews, Apply and persistence work end to end; it is not a model run and does not count as D1 acceptance. Steps whose operations do not exist yet are listed in tests/e2e/flows/demo-d1.mjs.",
+  "turns": [
+    {
+      "user": "^D1 concept:",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.create",
+              "arguments": {
+                "text": "Drill bit holder block for a Milwaukee-compatible cordless drill (compatibility description only). It holds 6 hex-shank bits with a 1/4 in hex shank of 6.35 mm and mounts to the drill's accessory interface. Assume the accessory interface uses two holes 25 mm apart; this spacing is an assumption, not a measurement. Should the bits be retained by friction or by magnets?"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared a Concept from your need statement (kept verbatim). Origins: the bit count and hex size are user constraints; the mounting-hole spacing is an assumption; the retention question stays open because it changes the pocket design. Apply the card to create it."
+        }
+      ]
+    },
+    {
+      "user": "^D1 functions and constraints",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Drill bit holder block"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.create_function",
+              "arguments": {
+                "name": "Hold the bits",
+                "performedBy": [
+                  "${conceptualize.search.data.concepts.0.key}"
+                ]
+              }
+            },
+            {
+              "name": "conceptualize.create_constraint",
+              "arguments": {
+                "subjectId": "${conceptualize.search.data.concepts.0.key}",
+                "statement": "Hex pocket width across flats, derived from the 6.35 mm hex shank plus 0.15 mm clearance",
+                "operator": ">=",
+                "value": 6.5,
+                "unit": "mm",
+                "kind": "dimensional"
+              }
+            },
+            {
+              "name": "conceptualize.create_constraint",
+              "arguments": {
+                "subjectId": "${conceptualize.search.data.concepts.0.key}",
+                "statement": "Wall thickness between pockets (AI-proposed)",
+                "operator": ">=",
+                "value": 1.5,
+                "unit": "mm",
+                "kind": "dimensional",
+                "strength": "soft"
+              }
+            },
+            {
+              "name": "conceptualize.record_assumption",
+              "arguments": {
+                "statement": "Accessory interface hole spacing of 25 mm (assumed, not measured)",
+                "subjectId": "${conceptualize.search.data.concepts.0.key}",
+                "value": 25,
+                "unit": "mm"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared a function, two constraints and one assumption for ${conceptualize.search.data.concepts.0.key}. The pocket width is derived (6.35 mm plus 0.15 mm clearance); the wall thickness is AI-proposed; the hole spacing is an assumption. Apply each card."
+        }
+      ]
+    },
+    {
+      "user": "^D1 requirements",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Drill bit holder block"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.propose_requirement",
+              "arguments": {
+                "conceptId": "${conceptualize.search.data.concepts.0.key}"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared draft requirements from the quantified constraints of ${conceptualize.search.data.concepts.0.key}, linked with “proposes”. They are drafts; approval stays in Requirements."
+        }
+      ]
+    },
+    {
+      "user": "^D1 alternatives",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.develop_alternatives",
+              "arguments": {
+                "text": "Bit holder block: compare pocket layouts for six bits",
+                "count": 2
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared two alternative layouts as AI hypotheses for comparison. Recording a decision on them needs named alternatives (pending)."
+        }
+      ]
+    },
+    {
+      "user": "^D1 CAD",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "cad-modeler.run_commands",
+              "arguments": {
+                "label": "Holder block 60 x 20 x 15 mm with one bit pocket (stand-in for hex pockets)",
+                "commands": [
+                  {
+                    "command": "create_part",
+                    "input": {
+                      "name": "Bit holder block",
+                      "ref": "$p"
+                    }
+                  },
+                  {
+                    "command": "create_parameter",
+                    "input": {
+                      "partId": "$p",
+                      "name": "length",
+                      "expression": "60"
+                    }
+                  },
+                  {
+                    "command": "create_parameter",
+                    "input": {
+                      "partId": "$p",
+                      "name": "width",
+                      "expression": "20"
+                    }
+                  },
+                  {
+                    "command": "create_parameter",
+                    "input": {
+                      "partId": "$p",
+                      "name": "height",
+                      "expression": "15"
+                    }
+                  },
+                  {
+                    "command": "create_sketch",
+                    "input": {
+                      "partId": "$p",
+                      "plane": "XY",
+                      "name": "Base sketch",
+                      "ref": "$s"
+                    }
+                  },
+                  {
+                    "command": "add_rectangle",
+                    "input": {
+                      "sketchId": "$s",
+                      "width": "length",
+                      "height": "width",
+                      "ref": "$r"
+                    }
+                  },
+                  {
+                    "command": "extrude_profile",
+                    "input": {
+                      "sketchId": "$s",
+                      "distance": "height",
+                      "name": "Base",
+                      "ref": "$e"
+                    }
+                  },
+                  {
+                    "command": "create_sketch",
+                    "input": {
+                      "partId": "$p",
+                      "plane": "XY",
+                      "name": "Pocket sketch",
+                      "ref": "$h"
+                    }
+                  },
+                  {
+                    "command": "add_circle",
+                    "input": {
+                      "sketchId": "$h",
+                      "center": [
+                        10,
+                        10
+                      ],
+                      "radius": 3.75,
+                      "ref": "$c"
+                    }
+                  },
+                  {
+                    "command": "extrude_profile",
+                    "input": {
+                      "sketchId": "$h",
+                      "distance": "height",
+                      "operation": "cut",
+                      "name": "Pocket",
+                      "ref": "$x"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared the block as native CAD commands. The hex pocket, the linear pattern and parameter bindings to the constraints are pending CAD commands; the round pocket is a labelled stand-in. Apply to build it."
+        }
+      ]
+    },
+    {
+      "user": "^D1 save",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "cad-modeler.save_document",
+              "arguments": {
+                "message": "D1 plumbing: holder block"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared saving the CAD document to the project (a new immutable revision in the CAD service)."
+        }
+      ]
+    },
+    {
+      "user": "^D1 export",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "cad-modeler.export",
+              "arguments": {
+                "format": "step"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared a STEP export of the active document (geometry only; the native model keeps the feature history)."
+        }
+      ]
+    }
+  ]
+}
