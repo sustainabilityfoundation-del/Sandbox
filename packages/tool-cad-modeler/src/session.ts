@@ -32,6 +32,8 @@ export interface OpenDocument {
   stored?: { projectId: string; revision: number }
   /** A newer revision saved elsewhere (from service events). */
   remoteRevision?: number
+  /** Project the document belongs to in this window (C13): its stored project, else the project current when it was created or opened. */
+  projectId?: string
 }
 
 export interface DownloadFile {
@@ -41,7 +43,10 @@ export interface DownloadFile {
 }
 
 export interface SessionSnapshot {
-  documents: { id: string; title: string; version: number; dirty: boolean; everSaved: boolean; fileName: string; stored: { projectId: string; revision: number } | null; remoteRevision: number | null }[]
+  /** Documents of the current project only (C13). */
+  documents: { id: string; title: string; version: number; dirty: boolean; everSaved: boolean; fileName: string; stored: { projectId: string; revision: number } | null; remoteRevision: number | null; projectId: string | null }[]
+  /** Current project of this window's CAD views (null: no project scoping, e.g. tests). */
+  projectId: string | null
   /** The CAD document service (API mode) or an explicit local store; null: files only. */
   store: { mode: CadClient['mode'] } | null
   activeId: string | null
@@ -121,7 +126,8 @@ export class CadSession {
 
   private build(): SessionSnapshot {
     return {
-      documents: [...this.docs.values()].map((d) => ({ id: d.id, title: d.engine.document.metadata.title, version: d.engine.document.version, dirty: this.isDirty(d), everSaved: d.savedVersion !== null, fileName: d.fileName, stored: d.stored ?? null, remoteRevision: d.remoteRevision ?? null })),
+      documents: [...this.docs.values()].filter((d) => this.inCurrentProject(d)).map((d) => ({ id: d.id, title: d.engine.document.metadata.title, version: d.engine.document.version, dirty: this.isDirty(d), everSaved: d.savedVersion !== null, fileName: d.fileName, stored: d.stored ?? null, remoteRevision: d.remoteRevision ?? null, projectId: d.projectId ?? null })),
+      projectId: this.project,
       store: this.store ? { mode: this.store.mode } : null,
       activeId: this.activeId,
       kernel: this.kernelState,
@@ -158,8 +164,40 @@ export class CadSession {
     return this.views > 0
   }
 
+  // ---- project scoping (C13) -----------------------------------------------------------------
+
+  private project: string | null = null
+  private lastActive = new Map<string | null, string>()
+  /** True when the document belongs to the current project (always true without a current project). */
+  inCurrentProject(d: OpenDocument): boolean {
+    return this.project === null || d.projectId === undefined || d.projectId === this.project
+  }
+  /**
+   * The project the CAD views show. Documents of other projects stay open in memory but are not
+   * listed or active; switching back restores that project's active document.
+   */
+  setProject(projectId: string) {
+    if (this.project === projectId) return
+    if (this.activeId) this.lastActive.set(this.project, this.activeId)
+    this.project = projectId
+    // Documents opened before any project was set belong to the first project the view sets.
+    for (const d of this.docs.values()) if (d.projectId === undefined) d.projectId = d.stored?.projectId ?? projectId
+    const back = this.lastActive.get(projectId)
+    const candidate = back ? this.docs.get(back) : undefined
+    this.activeId = candidate && this.inCurrentProject(candidate) ? candidate.id : ([...this.docs.values()].filter((d) => this.inCurrentProject(d)).at(-1)?.id ?? null)
+    this.emit()
+  }
+  get currentProject(): string | null {
+    return this.project
+  }
+  /** Every open document of this window, all projects (the assistant filters by its captured project). */
+  openDocuments(): OpenDocument[] {
+    return [...this.docs.values()]
+  }
+
   get active(): OpenDocument | undefined {
-    return this.activeId ? this.docs.get(this.activeId) : undefined
+    const d = this.activeId ? this.docs.get(this.activeId) : undefined
+    return d && this.inCurrentProject(d) ? d : undefined
   }
   document(id?: string | null): OpenDocument | undefined {
     return id ? this.docs.get(id) : this.active
@@ -178,8 +216,9 @@ export class CadSession {
     }
   }
 
-  private add(engine: CadEngine, fileName: string, savedVersion: number | null): OpenDocument {
-    const d: OpenDocument = { id: engine.document.documentId, engine, savedVersion, fileName }
+  private add(engine: CadEngine, fileName: string, savedVersion: number | null, projectId?: string): OpenDocument {
+    const p = projectId ?? this.project ?? undefined
+    const d: OpenDocument = { id: engine.document.documentId, engine, savedVersion, fileName, ...(p ? { projectId: p } : {}) }
     if (this.docs.has(d.id)) throw new CadError('precondition-failed', `A document with ID ${d.id} is already open.`)
     this.docs.set(d.id, d)
     engine.subscribe(this.emit)
@@ -189,10 +228,10 @@ export class CadSession {
   }
 
   /** New document with one empty part (the part is created by the create_part command). */
-  async newDocument(options: { title?: string; partName?: string; source?: 'user' | 'assistant'; empty?: boolean } = {}): Promise<OpenDocument> {
+  async newDocument(options: { title?: string; partName?: string; source?: 'user' | 'assistant'; empty?: boolean; projectId?: string } = {}): Promise<OpenDocument> {
     const title = options.title ?? `Untitled ${++this.untitled}`
     const engine = new CadEngine({ ...this.engineOptions(), document: createDocument({ title, createdAt: new Date().toISOString(), writer: WRITER }) })
-    const d = this.add(engine, `${fileStem(title)}${FILE_EXTENSION}`, null)
+    const d = this.add(engine, `${fileStem(title)}${FILE_EXTENSION}`, null, options.projectId)
     if (!options.empty) await engine.execute({ commands: [{ command: 'create_part', input: { name: options.partName ?? 'Part 1' } }], label: 'Create part', source: options.source ?? 'user' })
     return d
   }
@@ -220,7 +259,7 @@ export class CadSession {
     if (!d) return
     this.docs.delete(id)
     void d.engine.dispose()
-    if (this.activeId === id) this.activeId = [...this.docs.keys()].at(-1) ?? null
+    if (this.activeId === id) this.activeId = [...this.docs.values()].filter((x) => this.inCurrentProject(x)).at(-1)?.id ?? null
     this.emit()
   }
 
@@ -302,10 +341,12 @@ export class CadSession {
     const common = { idempotencyKey: newIdempotencyKey(), message: options.message, provenance: options.provenance }
     try {
       if (d.stored && d.stored.projectId !== projectId) throw new CadError('precondition-failed', `This document is stored in project ${d.stored.projectId}, not ${projectId}.`)
+      if (d.projectId && d.projectId !== projectId) throw new CadError('precondition-failed', `This document belongs to project ${d.projectId}, not ${projectId}.`)
       const out = d.stored
         ? await this.store.save(projectId, d.id, stamped, { ...common, expectedRevision: d.stored.revision })
         : { ...(await this.store.create(projectId, stamped, common)), unchanged: false }
       d.stored = { projectId, revision: out.summary.revision }
+      d.projectId = projectId
       d.remoteRevision = undefined
       d.savedVersion = doc.version
       this.watchProject(projectId)
@@ -330,7 +371,7 @@ export class CadSession {
     const engine = new CadEngine(this.engineOptions())
     await engine.open(got.document)
     const previous = this.activeId
-    const d = this.add(engine, `${fileStem(got.document.metadata.title)}${FILE_EXTENSION}`, got.document.version)
+    const d = this.add(engine, `${fileStem(got.document.metadata.title)}${FILE_EXTENSION}`, got.document.version, projectId)
     // Headless loads (assistant operations) keep the view's active document.
     if (options.activate === false && previous && this.docs.has(previous)) this.activeId = previous
     // An older revision opens as a read-back: saving it again needs the current revision as base.
@@ -343,6 +384,8 @@ export class CadSession {
   /** For tests. */
   async reset() {
     for (const id of [...this.docs.keys()]) this.close(id)
+    this.project = null
+    this.lastActive.clear()
     this.lastExport = null
     this.untitled = 0
     this.emit()

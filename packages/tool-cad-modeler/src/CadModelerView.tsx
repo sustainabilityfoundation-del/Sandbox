@@ -21,10 +21,13 @@ export default function CadModelerView() {
   const { projectId } = useSharedContext()
   // Assistant operations save their changes as revisions while no view is mounted (C9).
   useEffect(() => cadSession.attachView(), [])
+  // C13: the session shows this project's documents only.
+  useEffect(() => cadSession.setProject(projectId), [projectId])
   useEffect(() => {
     if (session.store) cadSession.watchProject(projectId)
   }, [projectId, session.store])
-  const open = cadSession.document(vs.documentId) ?? cadSession.document(session.activeId)
+  const own = cadSession.document(vs.documentId)
+  const open = (own && cadSession.inCurrentProject(own) ? own : undefined) ?? cadSession.active
   const state = useEngineState(open?.engine)
   const update = useCallback((u: Partial<CadModelerViewState>) => setVs(u), [setVs])
   const dirty = !!open && !!session.documents.find((d) => d.id === open.id)?.dirty

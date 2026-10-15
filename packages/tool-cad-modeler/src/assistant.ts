@@ -63,7 +63,7 @@ function predictionItems(dry: DryRunResult): ServiceProposalItem[] {
 export async function resolveDocument(args: Record<string, unknown>, ctx: AssistantActionContext, options: { allowNone?: boolean } = {}): Promise<OpenDocument | undefined> {
   const projectId = ctx.captured.projectId
   const id = typeof args.documentId === 'string' ? args.documentId : undefined
-  const inProject = (d: OpenDocument) => !d.stored || d.stored.projectId === projectId
+  const inProject = (d: OpenDocument) => (d.stored?.projectId ?? d.projectId ?? projectId) === projectId
   const store = cadSession.storeClient
   const load = async (docId: string) => {
     try {
@@ -76,7 +76,7 @@ export async function resolveDocument(args: Record<string, unknown>, ctx: Assist
   if (id) {
     const open = cadSession.document(id)
     if (open) {
-      if (!inProject(open)) throw new ActionError('not-allowed', `CAD document ${id} is stored in project ${open.stored!.projectId}, not in ${projectId}.`)
+      if (!inProject(open)) throw new ActionError('not-allowed', `CAD document ${id} is stored in project ${open.stored?.projectId ?? open.projectId}, not in ${projectId}.`)
       return open
     }
     if (!store) throw new ActionError('not-found', `CAD document ${id} is not open, and no CAD document service is connected in this window.`)
@@ -84,6 +84,9 @@ export async function resolveDocument(args: Record<string, unknown>, ctx: Assist
   }
   const active = cadSession.active
   if (active && inProject(active)) return active
+  // The window's views may show another project; look for this project's open documents too.
+  const openHere = cadSession.openDocuments().filter(inProject)
+  if (openHere.length === 1) return openHere[0]
   if (store) {
     let docs
     try {
@@ -228,7 +231,7 @@ const actions: AssistantActionDefinition[] = [
         assumptions: dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : undefined,
         inspected: open ? [{ id: open.id, detail: `CAD document version ${version}` }] : [],
         async apply(provenance) {
-          const d = target ? cadSession.require(target) : await cadSession.newDocument({ source: 'assistant', empty: true })
+          const d = target ? cadSession.require(target) : await cadSession.newDocument({ source: 'assistant', empty: true, projectId })
           target = d.id
           before = d.engine.document
           const expected = open ? version : d.engine.document.version
@@ -304,7 +307,7 @@ const actions: AssistantActionDefinition[] = [
         explanation: persist ? `Creates the document and stores it in ${ctx.captured.projectId} as revision 1.` : 'Creates a document in this window’s CAD Modeler session. Save it to keep it.',
         preview: [{ label: 'New document', proposed: `${title} with part “${partName}”${persist ? `, stored in ${ctx.captured.projectId}` : ''}` }],
         async apply(provenance) {
-          const d = await cadSession.newDocument({ title, partName, source: 'assistant' })
+          const d = await cadSession.newDocument({ title, partName, source: 'assistant', projectId: ctx.captured.projectId })
           const saved = persist ? await cadSession.saveToStore(ctx.captured.projectId, d.id, { message: 'Assistant: new document', provenance: { sourceKind: 'assistant', ...provenance } }) : null
           return { summary: `Created “${title}” (${d.id})${saved ? `, stored as revision ${saved.revision}` : ''}`, createdIds: [d.id] }
         },
