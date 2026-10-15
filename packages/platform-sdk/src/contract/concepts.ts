@@ -39,6 +39,17 @@ export interface ConceptSummary {
 export type ArtifactModule = 'requirements' | 'sysml' | 'cad' | 'analysis' | 'twin' | 'external'
 
 /**
+ * Every module that can own a referenced artifact (SDK 1.7): `ArtifactModule` plus 'projects' (Project
+ * Management entities: documents, work items, milestones, baselines), 'product' (product registry elements,
+ * ADR-0063) and 'conceptualize' (Conceptualize records referenced by other modules). Kept separate so code
+ * with exhaustive maps over `ArtifactModule` keeps compiling; `ArtifactModule` is widened to this union in a
+ * later minor version together with the consumers that accept the new values (CR-PM-CON-1).
+ */
+export type PlatformArtifactModule = ArtifactModule | 'projects' | 'product' | 'conceptualize'
+
+export const PLATFORM_ARTIFACT_MODULES: readonly PlatformArtifactModule[] = ['requirements', 'sysml', 'cad', 'analysis', 'twin', 'external', 'projects', 'product', 'conceptualize']
+
+/**
  * A version-aware reference to an artifact owned by another module. With `revision` it pins that
  * revision; without, it deliberately follows the latest. Authoritative data stays in the owning module.
  */

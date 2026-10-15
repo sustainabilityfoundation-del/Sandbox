@@ -1,4 +1,5 @@
 import type { PlatformServices } from './requirements'
+import type { CurrentProject } from './projects'
 import type { IconName } from '@ews/design-system/icon-names'
 import type {
   ActivityEntry,
@@ -60,6 +61,8 @@ export interface SharedContext {
   pinned: boolean
   /** The workspace's configuration, which may differ from a pinned view's. */
   workspaceConfigurationId: string
+  /** The open project as Project Management knows it (SDK 1.7); absent in hosts without Project Management. `projectId` stays authoritative. */
+  project?: CurrentProject
 }
 
 /** Fields a tool supplies when saving an artifact; the SDK fills in project, configuration and scenario. */
