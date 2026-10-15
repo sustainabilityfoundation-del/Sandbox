@@ -54,25 +54,25 @@ export function AiSettingsPage({ definitions }: { definitions: SettingDefinition
             <h3 className="ws-settings-h">What the AI may access</h3>
             <p className="ws-setting-help">Per module: off, read only, or read and propose changes. Modules outside your subscription are never offered, whatever you choose here.</p>
             <ModuleEntitlements />
-            <DefinitionList definitions={groupOf('ai.access.')} />
+            <DefinitionList definitions={groupOf('ai.access.')} groupHeadings={false} />
           </section>
           <section className="ws-settings-group" aria-label="Operation classes" data-help-id="ai.policy">
             <h3 className="ws-settings-h">Operation classes</h3>
-            <DefinitionList definitions={groupOf('ai.operations.')} />
+            <DefinitionList definitions={groupOf('ai.operations.')} groupHeadings={false} />
           </section>
           <section className="ws-settings-group" aria-label="Data sharing" data-help-id="ai.privacy">
             <h3 className="ws-settings-h">Data sharing</h3>
             <p className="ws-setting-help">Only the context and model information a request needs is sent. Anything else the model must ask for through the allowed operations.</p>
-            <DefinitionList definitions={groupOf('ai.sharing.')} />
+            <DefinitionList definitions={groupOf('ai.sharing.')} groupHeadings={false} />
             <SendPreview />
           </section>
           <section className="ws-settings-group" aria-label="Limits" data-help-id="ai.policy">
             <h3 className="ws-settings-h">Limits</h3>
-            <DefinitionList definitions={groupOf('ai.limits.')} />
+            <DefinitionList definitions={groupOf('ai.limits.')} groupHeadings={false} />
           </section>
           <section className="ws-settings-group" aria-label="Audit" data-help-id="ai.privacy">
             <h3 className="ws-settings-h">Audit</h3>
-            <DefinitionList definitions={groupOf('ai.audit.')} />
+            <DefinitionList definitions={groupOf('ai.audit.')} groupHeadings={false} />
             <AuditView />
           </section>
           <section className="ws-settings-group" aria-label="Project limits" data-help-id="ai.policy">
@@ -142,7 +142,6 @@ function ConnectForm({ provider }: { provider: ProviderInfo }) {
   }, [waiting, refresh])
   return (
     <div className="flex flex-col gap-4" data-testid="ai-connect-form">
-      <p className="ws-setting-help">{provider.description}</p>
       {provider.methods.map((m) =>
         m.kind === 'oauth' ? (
           <div key={m.id} className="ws-settings-card" data-help-id="ai.connect">

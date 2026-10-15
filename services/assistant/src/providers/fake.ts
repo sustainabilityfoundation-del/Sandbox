@@ -86,6 +86,17 @@ export function createFakeProvider(options: { id?: string; delayMs?: number } = 
       const forge = /forge\s+([\w.-]+)/i.exec(text)
       if (forge) return results.length ? final(`Forged call result: ${results[0].output.slice(0, 300)}`) : call(forge[1], {})
 
+      const quantity = /set\s+([A-Z]{2,4}-\d{3})\s+([a-zA-Z]+)\s+to\s+(\d+(?:\.\d+)?)\s*(mm|cm|m|N|kN)\b/i.exec(text)
+      if (quantity) {
+        const [, id, property, value, unit] = quantity
+        if (!results.length) {
+          if (!offered.has('propose_changes')) return final('I may not propose changes with your current AI access settings.')
+          return call('propose_changes', { title: `Set ${id} ${property} to ${value} ${unit}`, explanation: 'Requested in the conversation (fake provider).', changes: [{ kind: 'set-property', targetId: id.toUpperCase(), property, value: Number(value), unit }] })
+        }
+        const r = JSON.parse(results[0].output || '{}')
+        return r.ok ? final(`I prepared **${r.data?.proposalId}** to set the ${property} of [[${id.toUpperCase()}]] to ${value} ${unit}. Nothing changes until you choose **Apply**. (Fake provider.)`) : final(`The change could not be prepared: ${r.error}`)
+      }
+
       const status = /set\s+(REQ-\d{3})\s+status\s+to\s+(\w+)/i.exec(text)
       if (status) {
         if (!results.length) {

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { ASSISTANT_API, ApiError, api, backendInUse } from '../settings/api'
-import { useSettingsState } from '../settings/store'
+import { loadSettings, useSettingsState } from '../settings/store'
 import { DemoAssistantService } from './DemoAssistantService'
 import { RemoteAssistantService } from './RemoteAssistantService'
 import { useConversation } from './conversation'
@@ -68,7 +68,10 @@ export const useAiConnection = create<AiConnectionState>()((set) => ({
         api<{ connection: ConnectionStatus | null }>('GET', `${ASSISTANT_API}/connection`),
         api<PolicyView>('GET', `${ASSISTANT_API}/policy?projectId=${encodeURIComponent(projectId)}`),
       ])
+      const previous = useAiConnection.getState().connection?.id ?? null
       set({ status: 'ready', error: undefined, providers: providers.body.providers, connection: connection.body.connection, policy: policy.body })
+      // Connecting or disconnecting updates the connection reference setting on the server (new ETag).
+      if ((connection.body.connection?.id ?? null) !== previous) void loadSettings()
       usePolicyView.setState({ view: policy.body })
       applyService(connection.body.connection)
     } catch (e) {

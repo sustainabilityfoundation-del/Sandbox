@@ -192,7 +192,7 @@ function PlatformPage() {
 // ---- generic server-backed page --------------------------------------------------------------------
 
 /** Renders server-stored definitions grouped by `group`, saving each change (If-Match) and showing the server's verdict. */
-export function DefinitionList({ definitions, readOnly }: { definitions: SettingDefinition[]; readOnly?: boolean }) {
+export function DefinitionList({ definitions, readOnly, groupHeadings = true }: { definitions: SettingDefinition[]; readOnly?: boolean; groupHeadings?: boolean }) {
   const state = useSettingsState()
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState<string | null>(null)
@@ -216,7 +216,7 @@ export function DefinitionList({ definitions, readOnly }: { definitions: Setting
       )}
       {groups.map((g) => (
         <section key={g} className="ws-settings-group" aria-label={g || 'Settings'}>
-          {g && <h3 className="ws-settings-h">{g}</h3>}
+          {g && groupHeadings && <h3 className="ws-settings-h">{g}</h3>}
           {definitions
             .filter((d) => (d.group ?? '') === g)
             .map((d) => {
