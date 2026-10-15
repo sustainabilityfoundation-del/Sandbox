@@ -79,6 +79,22 @@ function seedDatabase(): DemoDatabase {
   }
 }
 
+/** Storage of the twin of a project other than PRJ-ACT100 (CR-PM-MS-1). */
+export const projectStorageKey = (projectId: string) => `ews.twin.${projectId}.v1`
+export const PROJECT_INDEX_KEY = 'ews.twin.projects.v1'
+
+/** The twin of a new project: genuinely empty (no sample data), one base configuration. */
+export function emptyDatabase(project: { id: string; name: string }): DemoDatabase {
+  return {
+    schema: 3,
+    model: { project: { id: project.id, name: project.name }, configurations: [{ id: 'CFG-BASE', name: 'Baseline', description: 'Base configuration' }], scenarios: [], objects: [], relationships: [], modelRevision: 0 },
+    outputs: [],
+    activity: [],
+    history: [],
+    baselines: [],
+  }
+}
+
 /** Records saved before artifacts were versioned are read as schema version 1. */
 function normalize(db: DemoDatabase): DemoDatabase {
   for (const o of db.outputs) if (typeof o.schemaVersion !== 'number') o.schemaVersion = 1
@@ -108,7 +124,10 @@ export class DemoRepository implements EngineeringRepository {
   /** Demo control: make every call fail as if the service were unreachable. */
   offline = false
 
+  /** The example project PRJ-ACT100 (storage key unchanged). */
   private db: DemoDatabase
+  /** Other projects (CR-PM-MS-1): one database each, under `ews.twin.<projectId>.v1`. Empty when created; never seeded. */
+  private extra = new Map<string, DemoDatabase>()
   private readonly storage: StorageLike | null
   private readonly latency: [number, number]
   private readonly storageKey: string
@@ -146,16 +165,45 @@ export class DemoRepository implements EngineeringRepository {
     this.write()
   }
 
+  /**
+   * Creates an empty twin for a project in this browser (CR-PM-MS-1). Idempotent. Never seeds: a new project has
+   * no objects, scenarios, relationships, outputs or baselines, and one base configuration. PRJ-ACT100 keeps its data.
+   */
+  async ensureProject(project: { id: string; name: string }): Promise<void> {
+    if (project.id === PROJECT_ID) return
+    if (!/^[A-Za-z0-9_.-]{1,100}$/.test(project.id)) throw new RepositoryError('invalid', `Invalid project ID ${project.id}.`)
+    await withStorageLock(() => {
+      if (!this.dbOf(project.id)) {
+        this.extra.set(project.id, emptyDatabase(project))
+        this.write(project.id)
+      }
+      try {
+        const raw = this.storage?.getItem(PROJECT_INDEX_KEY)
+        const listed = raw ? (JSON.parse(raw) as { id: string; name: string }[]) : []
+        if (!listed.some((p) => p.id === project.id)) this.storage?.setItem(PROJECT_INDEX_KEY, JSON.stringify([...listed, { id: project.id, name: project.name }]))
+      } catch {
+        // Storage blocked: the project works in memory for this session.
+      }
+    })
+  }
+
+  /** Projects with a twin in this browser: the example project first. */
+  async listProjects(): Promise<{ id: string; name: string }[]> {
+    const others = this.knownProjectIds()
+      .map((id) => this.dbOf(id))
+      .filter((d): d is DemoDatabase => !!d)
+      .map((d) => ({ id: d.model.project.id, name: d.model.project.name }))
+    return [{ id: PROJECT_ID, name: this.db.model.project.name }, ...others]
+  }
+
   loadModel(projectId: string) {
-    return this.call((db) => {
-      this.assertProject(projectId)
+    return this.call(projectId, (db) => {
       return db.model
     })
   }
 
   submitChanges(projectId: string, changes: ModelChange[], meta: ChangeMeta) {
-    return this.mutate((db): ChangeResult => {
-      this.assertProject(projectId)
+    return this.mutate(projectId, (db): ChangeResult => {
       const model = db.model
       const revision = model.modelRevision + 1
       const changedIds: string[] = []
@@ -258,7 +306,7 @@ export class DemoRepository implements EngineeringRepository {
   }
 
   listOutputs(projectId: string) {
-    return this.call((db) => db.outputs.filter((o) => o.projectId === projectId))
+    return this.call(projectId, (db) => db.outputs.filter((o) => o.projectId === projectId), [])
   }
 
   /** Replaces the set of externally owned objects twin data may reference (host-registered, not persisted). */
@@ -267,8 +315,7 @@ export class DemoRepository implements EngineeringRepository {
   }
 
   saveOutput(draft: OutputDraft, options: { source?: ActivitySource } = {}) {
-    return this.mutate((db) => {
-      this.assertProject(draft.projectId)
+    return this.mutate(draft.projectId, (db) => {
       const model = db.model
       if (!model.configurations.some((c) => c.id === draft.configurationId)) {
         throw new RepositoryError('invalid', `Unknown configuration ${draft.configurationId}.`)
@@ -314,7 +361,7 @@ export class DemoRepository implements EngineeringRepository {
   }
 
   setReviewStatus(outputId: string, status: ReviewStatus, meta: ChangeMeta) {
-    return this.mutate((db) => {
+    return this.mutate(this.projectOfOutput(outputId), (db) => {
       const output = db.outputs.find((o) => o.id === outputId)
       if (!output) throw new RepositoryError('not-found', `${outputId} does not exist.`)
       output.reviewStatus = status
@@ -332,15 +379,13 @@ export class DemoRepository implements EngineeringRepository {
   }
 
   listActivity(projectId: string, limit = 100) {
-    return this.call((db) => {
-      this.assertProject(projectId)
+    return this.call(projectId, (db) => {
       return db.activity.slice(0, limit)
     })
   }
 
   addActivity(projectId: string, entry: ActivityDraft) {
-    return this.mutate((db) => {
-      this.assertProject(projectId)
+    return this.mutate(projectId, (db) => {
       return this.log(db, entry)
     })
   }
@@ -349,8 +394,7 @@ export class DemoRepository implements EngineeringRepository {
 
   /** One exact revision of an object or scenario (revision-qualified reference). */
   getRevision(projectId: string, id: string, revision: number) {
-    return this.call((db) => {
-      this.assertProject(projectId)
+    return this.call(projectId, (db) => {
       const entry = db.history.find((h) => h.id === id && h.revision === revision)
       if (!entry) throw new RepositoryError('not-found', `${id} has no recorded revision ${revision}.`)
       return entry
@@ -359,20 +403,18 @@ export class DemoRepository implements EngineeringRepository {
 
   /** Revision history of an object or scenario, newest first. */
   listHistory(projectId: string, id: string) {
-    return this.call((db) => {
-      this.assertProject(projectId)
+    return this.call(projectId, (db) => {
       return db.history.filter((h) => h.id === id).sort((a, b) => b.revision - a.revision)
     })
   }
 
   listBaselines(projectId: string) {
-    return this.call((db) => db.baselines.filter((b) => b.projectId === projectId))
+    return this.call(projectId, (db) => db.baselines.filter((b) => b.projectId === projectId), [])
   }
 
   /** Pins the current revision of every object, scenario and relationship. */
   createBaseline(projectId: string, draft: BaselineDraft, meta: { toolId: string }) {
-    return this.mutate((db) => {
-      this.assertProject(projectId)
+    return this.mutate(projectId, (db) => {
       const name = draft.name.trim()
       if (!name) throw new RepositoryError('invalid', 'A baseline needs a name.')
       if (db.baselines.some((b) => b.name.toLowerCase() === name.toLowerCase())) {
@@ -424,8 +466,41 @@ export class DemoRepository implements EngineeringRepository {
     return { ok: false as const, message: `“${type}” links from ${from} are owned by the ${owner} module; ${modules.join(', ') || 'this writer'} may not change them.` }
   }
 
-  private assertProject(projectId: string) {
-    if (projectId !== PROJECT_ID) throw new RepositoryError('not-found', `Project ${projectId} not found.`)
+  /** The database of a project (re-read from storage), or undefined when this browser has no twin for it. */
+  private dbOf(projectId: string): DemoDatabase | undefined {
+    if (projectId === PROJECT_ID) return this.db
+    if (this.storage) {
+      const raw = this.storage.getItem(projectStorageKey(projectId))
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as DemoDatabase
+          if (parsed.schema === 3 && parsed.model && Array.isArray(parsed.outputs)) this.extra.set(projectId, normalize(parsed))
+        } catch {
+          // Corrupt entry: keep what is in memory (never replaced by sample data).
+        }
+      }
+    }
+    return this.extra.get(projectId)
+  }
+
+  private setDb(projectId: string, db: DemoDatabase) {
+    if (projectId === PROJECT_ID) this.db = db
+    else this.extra.set(projectId, db)
+  }
+
+  private projectOfOutput(outputId: string): string {
+    for (const id of [PROJECT_ID, ...this.knownProjectIds()]) if (this.dbOf(id)?.outputs.some((o) => o.id === outputId)) return id
+    return PROJECT_ID
+  }
+
+  private knownProjectIds(): string[] {
+    try {
+      const raw = this.storage?.getItem(PROJECT_INDEX_KEY)
+      const listed = raw ? (JSON.parse(raw) as { id: string }[]).map((p) => p.id) : []
+      return [...new Set([...listed, ...this.extra.keys()])]
+    } catch {
+      return [...this.extra.keys()]
+    }
   }
 
   private log(db: DemoDatabase, entry: ActivityDraft): ActivityEntry {
@@ -445,11 +520,16 @@ export class DemoRepository implements EngineeringRepository {
     if (this.offline) throw new RepositoryError('unavailable', 'Demo repository is unreachable (simulated outage).')
   }
 
-  /** Read-only call: results are copied so callers can't mutate stored data. */
-  private async call<T>(read: (db: DemoDatabase) => T): Promise<T> {
+  /** Read-only call: results are copied so callers can't mutate stored data. `fallback`: result for a project this browser has no twin for. */
+  private async call<T>(projectId: string, read: (db: DemoDatabase) => T, fallback?: T): Promise<T> {
     await this.delay()
     this.refresh()
-    return structuredClone(read(this.db))
+    const db = this.dbOf(projectId)
+    if (!db) {
+      if (fallback !== undefined) return fallback
+      throw new RepositoryError('not-found', `Project ${projectId} not found.`)
+    }
+    return structuredClone(read(db))
   }
 
   /**
@@ -457,14 +537,16 @@ export class DemoRepository implements EngineeringRepository {
    * Other windows share the same storage, so the latest data is reread inside a
    * cross-window lock first; revision checks then see edits made elsewhere.
    */
-  private async mutate<T>(write: (db: DemoDatabase) => T): Promise<T> {
+  private async mutate<T>(projectId: string, write: (db: DemoDatabase) => T): Promise<T> {
     await this.delay()
     return withStorageLock(() => {
       this.refresh()
-      const draft = structuredClone(this.db)
+      const current = this.dbOf(projectId)
+      if (!current) throw new RepositoryError('not-found', `Project ${projectId} not found.`)
+      const draft = structuredClone(current)
       const result = write(draft)
-      this.db = draft
-      this.write()
+      this.setDb(projectId, draft)
+      this.write(projectId)
       return structuredClone(result)
     })
   }
@@ -498,9 +580,10 @@ export class DemoRepository implements EngineeringRepository {
     return seedDatabase()
   }
 
-  private write() {
+  private write(projectId: string = PROJECT_ID) {
     try {
-      this.storage?.setItem(this.storageKey, JSON.stringify(this.db))
+      if (projectId === PROJECT_ID) this.storage?.setItem(this.storageKey, JSON.stringify(this.db))
+      else this.storage?.setItem(projectStorageKey(projectId), JSON.stringify(this.extra.get(projectId)))
     } catch {
       // Storage full or blocked; the session keeps working in memory.
     }

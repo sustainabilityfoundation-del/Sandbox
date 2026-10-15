@@ -5,9 +5,13 @@ import { useWorkspaceStore } from './store'
 import { workspaceServices } from './services'
 import { workspaceSettings } from '../settings/store'
 import { toolIdOfView } from './views'
+import { useCurrentProject } from '../projects/bootstrap'
 
 
 type State = ReturnType<typeof useWorkspaceStore.getState>
+
+/** The open project as Project Management reported it (SDK 1.7 SharedContext.project). */
+const currentProject = () => useCurrentProject.getState().opened?.current
 
 /** The context as a particular view instance sees it (pinned views keep their objects and configuration). */
 export function sharedContextOf(state: State, viewId?: string): SharedContext {
@@ -20,6 +24,7 @@ export function sharedContextOf(state: State, viewId?: string): SharedContext {
     modelRevision: state.model?.revision ?? 0,
     pinned: !!pin,
     workspaceConfigurationId: state.context.configurationId,
+    ...(currentProject() ? { project: currentProject() } : {}),
   }
 }
 

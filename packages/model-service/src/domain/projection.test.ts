@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { seedModel } from '../repository/seed'
 import { resolveRepresentation } from './entities'
 import { buildModelIndex } from './modelIndex'
-import { composeSnapshot, type ExternalProjection } from './projection'
+import { composeSnapshot, mergeProjections, type ExternalProjection } from './projection'
 
 const UUID = '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001'
 
@@ -52,5 +52,23 @@ describe('representation reasons name requirements by key', () => {
     const model = buildModelIndex(composeSnapshot(twin, projection), projection.aliases)
     const resolution = resolveRepresentation(model, uuid, 'sysml')
     expect(resolution).toMatchObject({ status: 'none', reason: 'REQ-003 is not referenced in the SysML model.' })
+  })
+})
+
+describe('merging projections (requirements and product elements, CR-PM-MS-2)', () => {
+  it('combines objects, aliases, relationships and owned types without changing the inputs', () => {
+    const a: ExternalProjection = { objects: [{ id: 'r1', type: 'requirement', name: 'R', properties: {}, revision: 1 }], aliases: new Map([['REQ-001', 'r1']]), relationships: [{ id: 'svc:1', type: 'allocated-to', from: 'r1', to: 'p1', revision: 1 }], ownedRelationshipTypes: ['allocated-to'] }
+    const b: ExternalProjection = { objects: [{ id: 'p1', type: 'part', name: 'Bracket', properties: {}, revision: 2 }], aliases: new Map(), relationships: [], ownedRelationshipTypes: [] }
+    const merged = mergeProjections(a, null, b)!
+    expect(merged.objects.map((o) => o.id)).toEqual(['r1', 'p1'])
+    expect([...merged.aliases]).toEqual([['REQ-001', 'r1']])
+    expect(merged.relationships).toHaveLength(1)
+    expect(merged.ownedRelationshipTypes).toEqual(['allocated-to'])
+    expect(mergeProjections(null, undefined)).toBeNull()
+    expect(mergeProjections(a)).toBe(a)
+    const empty = { project: { id: 'P', name: 'P' }, configurations: [{ id: 'CFG-BASE', name: 'B', description: '' }], scenarios: [], objects: [], relationships: [], modelRevision: 0 }
+    const model = buildModelIndex(composeSnapshot(empty, merged), merged.aliases)
+    expect(model.get('p1')?.name).toBe('Bracket')
+    expect(model.linked('r1', 'allocated-to', 'out')).toEqual(['p1'])
   })
 })
