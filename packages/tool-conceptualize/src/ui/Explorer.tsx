@@ -74,10 +74,12 @@ function TreeView({ nodes, openId, onOpen }: { nodes: TreeNode[]; openId: string
           ) : (
             <span className="con-tree-group">{n.kind === 'set' ? 'Alternatives: ' : 'Decomposition: '}{n.label}</span>
           )}
+          <span className="con-tree-badges">
           {n.concept && <MaturityBadge maturity={n.concept.maturity} />}
           {n.status && n.kind === 'concept' && n.status !== 'candidate' && <Badge tone={n.status === 'selected' ? 'success' : n.status === 'rejected' ? 'danger' : 'neutral'}>{n.status}</Badge>}
           {n.shared && <Badge tone="neutral" title="This Concept is part of more than one parent">shared</Badge>}
           {n.concept?.sourceKind === 'assistant' && <Badge tone="warning" icon="assistant" title="Created from an assistant proposal; contents are AI hypotheses until confirmed">AI</Badge>}
+          </span>
         </div>
         {n.children.length > 0 && open && <ul role="group">{n.children.map((c) => render(c, depth + 1))}</ul>}
       </li>

@@ -1,5 +1,5 @@
 import './conceptualize.css'
-import { Badge, EmptyState, LoadingState, Notice, SegmentedControl, Select } from '@ews/design-system'
+import { Badge, EmptyState, LoadingState, Notice, SegmentedControl } from '@ews/design-system'
 import type { ConceptSummary, ConceptsService } from '@ews/platform-sdk'
 import { usePlatformServices, useSharedContext, useToolViewState } from '@ews/platform-sdk/react'
 import { getConceptsModuleClient } from '@ews/conceptualize-client'
@@ -35,11 +35,14 @@ function ApiView() {
   const { client, permissions, permissionsError } = useModuleData()
   const [state, setState] = useToolViewState<ConceptualizeViewState>()
   const graph = useResource(() => client.graph(), [client])
+  const readOnly = !!permissions && !permissions.permissions.includes('author')
+  useEffect(() => {
+    if (permissions && state.readOnly !== readOnly) setState({ readOnly })
+  }, [permissions, readOnly, state.readOnly, setState])
   return (
     <div className="con-shell">
       <div className="con-topbar">
-        <SegmentedControl label="Conceptualize page" size="sm" value={state.page} onChange={(page) => setState({ page })} options={PAGES} className="con-pages-wide" />
-        <Select ariaLabel="Conceptualize page" size="sm" value={state.page} onChange={(page) => setState({ page: page as ConceptPage })} options={PAGES.map((p) => ({ id: p.value, label: p.label }))} className="con-pages-narrow" />
+        <SegmentedControl label="Conceptualize page" size="sm" value={state.page} onChange={(page) => setState({ page })} options={PAGES} />
         {permissions && <Badge tone="neutral" title={`Permissions: ${permissions.permissions.join(', ')}`}>{permissions.role}</Badge>}
         {permissions && !permissions.permissions.includes('author') && <Badge tone="info">Read only</Badge>}
       </div>
@@ -48,7 +51,7 @@ function ApiView() {
       {state.page === 'explorer' && (
         <div className={`con-root${state.conceptId ? ' has-detail' : ''}`}>
           <ExplorerPanel graph={graph.data} loading={graph.loading} />
-          <ConceptWorkspace graph={graph.data} />
+          {state.conceptId && <ConceptWorkspace graph={graph.data} />}
         </div>
       )}
       {state.page === 'alternatives' && <AlternativesPage />}

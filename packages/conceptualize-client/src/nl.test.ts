@@ -22,6 +22,7 @@ describe('natural-language Concept drafts', () => {
     const d = draftConcept('A gripper that holds parts of at least 2 kg and opens in no more than 0.5 s. Stroke 10–20 mm. Assume compressed air at 6 bar is available. Should it be electric?')
     expect(d.quantities.map((q) => q.quantity)).toEqual([{ min: 2, unit: 'kg' }, { max: 0.5, unit: 's' }, { min: 10, max: 20, unit: 'mm' }, { value: 6, unit: 'bar' }])
     expect(d.quantities[2].label).toBe('Stroke')
+    expect(d.statements.filter((s) => s.kind === 'function').map((s) => s.text)).toEqual(['Hold parts'])
     expect(d.statements.filter((s) => s.kind === 'question').map((s) => s.text)).toEqual(['Should it be electric?'])
     expect(d.statements.find((s) => s.kind === 'assumption')?.basis).toBe('assumption')
   })

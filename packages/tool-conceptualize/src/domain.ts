@@ -17,6 +17,8 @@ export interface ConceptualizeViewState {
   /** Dialogs opened from the toolbar. */
   dialog: null | 'new' | 'child' | 'branch'
   tab: 'intent' | 'structure' | 'decisions' | 'implementations' | 'evidence' | 'history'
+  /** Set from the caller's permissions (UX only; the server enforces): disables authoring in the toolbar. */
+  readOnly?: boolean
 }
 
 export const INITIAL_VIEW_STATE: ConceptualizeViewState = { page: 'explorer', conceptId: null, explorerMode: 'tree', search: '', maturity: 'all', setId: null, dialog: null, tab: 'intent' }

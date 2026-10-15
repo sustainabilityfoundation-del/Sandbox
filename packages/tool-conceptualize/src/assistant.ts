@@ -109,7 +109,7 @@ const actions: AssistantActionDefinition[] = [
         async apply(p) {
           const c = await client.createConcept(
             { name: d.name, summary: d.summary, description: d.description, abstraction: d.abstraction, classifications: d.classifications, statements: d.statements, maturity: 'idea', parentId: parent?.id, reason: `Assistant proposal ${p.proposalId}` },
-            { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:create` },
+            { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:create` },
           )
           createdId = c.id
           return { summary: `Created ${c.key} ${c.name}`, createdIds: [c.id] }
@@ -152,7 +152,7 @@ const actions: AssistantActionDefinition[] = [
         assumptions,
         inspected: [{ id: 'request', detail: 'interpreted deterministically (no language model)' }],
         async apply(p) {
-          const e = await client.createExploration({ ...exploration, generator: GENERATOR }, { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:explore` })
+          const e = await client.createExploration({ ...exploration, generator: GENERATOR }, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:explore` })
           explorationId = e.id
           const parent = e.created.concepts.find((c) => c.role === 'parent')
           return { summary: `Created ${parent ? `${parent.key} ` : ''}with ${e.created.concepts.filter((c) => c.role === 'alternative').map((c) => c.key).join(', ')} (alternatives) and their decomposition`, createdIds: e.created.concepts.map((c) => c.id) }
@@ -182,7 +182,7 @@ const actions: AssistantActionDefinition[] = [
         preview: children.map((c) => ({ label: 'New child Concept', proposed: c, basis: 'ai-hypothesis', current: undefined })),
         async apply(p) {
           for (const [i, name] of children.entries()) {
-            const c = await client.createConcept({ name, abstraction: 'function', parentId: parent.id, maturity: 'idea', statements: [{ kind: 'function', text: name, basis: 'ai-hypothesis' }], reason: `Assistant proposal ${p.proposalId}` }, { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:child:${i}` })
+            const c = await client.createConcept({ name, abstraction: 'function', parentId: parent.id, maturity: 'idea', statements: [{ kind: 'function', text: name, basis: 'ai-hypothesis' }], reason: `Assistant proposal ${p.proposalId}` }, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:child:${i}` })
             created.push(c.id)
           }
           return { summary: `Added ${created.length} child Concept(s) to ${parent.key}`, createdIds: [...created] }
@@ -245,7 +245,7 @@ const actions: AssistantActionDefinition[] = [
         async apply(p) {
           const d = await client.createDecision(
             { title: `Pursue ${chosen.name}`, rationale, setId: set.id, question: set.question, outcomes: set.members.filter((m) => m.status !== 'withdrawn').map((m) => ({ conceptId: m.conceptId, outcome: m.conceptId === chosen.id ? 'accepted' : 'deferred' })) },
-            { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:decision` },
+            { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:decision` },
           )
           decisionId = d.id
           return { summary: `Proposed ${d.key} (waiting for a reviewer)`, createdIds: [d.id] }
@@ -284,7 +284,7 @@ const actions: AssistantActionDefinition[] = [
         async apply(p) {
           const impl = await client.createImplementation(
             { name: `${c.name}: ${object?.name ?? artifactId}`, conceptIds: [c.id], artifacts: [{ module, id: artifactId, ...(object ? { revision: object.revision, kind: object.type, label: `${object.id} ${object.name}` } : { label: artifactId }) }], reason: `Assistant proposal ${p.proposalId}` },
-            { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:link` },
+            { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:link` },
           )
           implementationId = impl.id
           return { summary: `Created ${impl.key} linking ${c.key} to ${artifactId}`, createdIds: [impl.id] }
@@ -319,8 +319,8 @@ const actions: AssistantActionDefinition[] = [
         assumptions: ['Requirement wording is generated from the Concept’s statements; edit it in Requirements before review.'],
         async apply(p) {
           for (const [i, d] of drafts.entries()) {
-            const r = await requirements.create({ projectId, title: d.title, statement: d.statement, type: 'performance', rationale: `Proposed from ${c.key} (assistant proposal ${p.proposalId})` }, { idempotencyKey: `${p.proposalId}:req:${i}`, reason: `Proposed from Conceptualize ${c.key}` })
-            const l = await client.createLink(c.id, { relation: 'proposes', artifact: { module: 'requirements', id: r.id, revision: r.revision, kind: 'requirement', label: `${r.key} ${r.title}` } }, { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:link:${i}` })
+            const r = await requirements.create({ projectId, title: d.title, statement: d.statement, type: 'performance', rationale: `Proposed from ${c.key} (assistant proposal ${p.proposalId})` }, { idempotencyKey: `${p.conversationId}:${p.proposalId}:req:${i}`, reason: `Proposed from Conceptualize ${c.key}` })
+            const l = await client.createLink(c.id, { relation: 'proposes', artifact: { module: 'requirements', id: r.id, revision: r.revision, kind: 'requirement', label: `${r.key} ${r.title}` } }, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:link:${i}` })
             links.push(l.id)
           }
           return { summary: `Created ${drafts.length} draft requirement(s) and linked them to ${c.key}`, createdIds: [...links] }
@@ -350,8 +350,8 @@ const actions: AssistantActionDefinition[] = [
         async apply(p) {
           const prov = { provenance: assistantProvenance(p) }
           const existing = (await client.implementations(c.id)).find((i) => i.status !== 'retired')
-          const impl = existing ?? (await client.createImplementation({ name: `Realization of ${c.name}`, conceptIds: [c.id] }, { ...prov, idempotencyKey: `${p.proposalId}:impl` }))
-          const after = await client.requestRealization(impl.id, { targetModule: target, requestKind: target === 'cad' ? 'generate-geometry' : 'formalize-structure', description, parameters: params }, { ...prov, expectedRevision: impl.revision, idempotencyKey: `${p.proposalId}:request` })
+          const impl = existing ?? (await client.createImplementation({ name: `Realization of ${c.name}`, conceptIds: [c.id] }, { ...prov, idempotencyKey: `${p.conversationId}:${p.proposalId}:impl` }))
+          const after = await client.requestRealization(impl.id, { targetModule: target, requestKind: target === 'cad' ? 'generate-geometry' : 'formalize-structure', description, parameters: params }, { ...prov, expectedRevision: impl.revision, idempotencyKey: `${p.conversationId}:${p.proposalId}:request` })
           const req = after.realizationRequests[after.realizationRequests.length - 1]
           return { summary: `Recorded a pending ${target.toUpperCase()} realization request on ${after.key}`, createdIds: [req.id] }
         },
@@ -390,7 +390,7 @@ const CON = /\b(CON-\d{3,})\b/i
  */
 export const conceptsDemo: DemoPlanner = (text) => {
   const t = text.trim()
-  const note = '\n\n_Scripted demo assistant: no language model is connected; the interpretation and estimates are deterministic and labelled as AI hypotheses._'
+  const note = '\n\nScripted demo assistant: no language model is connected; the interpretation and estimates are deterministic and labelled as AI hypotheses.'
   let m: RegExpExecArray | null
   if ((m = /\b(?:create|new|capture|add|record)\s+(?:a\s+)?concept\b\s*(?:for|from|:)?\s*:?\s*(.+)$/i.exec(t)) && m[1].trim().length > 3) {
     return { reply: `I prepared a new Concept from your description. The text is kept verbatim; what I interpreted from it is marked as AI hypotheses.${note}`, calls: [{ name: 'conceptualize.create', arguments: { text: m[1].trim() } }] }

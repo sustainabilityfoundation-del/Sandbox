@@ -170,9 +170,18 @@ export function extractName(text: string): string {
 export function extractFunctions(text: string): string[] {
   const out: string[] = []
   // "capable of delivering 500 N of linear force", "that holds parts", "to transmit power"
-  for (const m of clean(text).matchAll(/\b(?:capable of|able to|that|which|to)\s+(deliver(?:ing)?|provid(?:e|ing)|generat(?:e|ing)|transmit(?:ting)?|convert(?:ing)?|hold(?:ing|s)?|mov(?:e|ing|es)|lift(?:ing|s)?|carr(?:y|ying|ies)|protect(?:ing|s)?|cool(?:ing|s)?|heat(?:ing|s)?|measur(?:e|ing|es)|control(?:ling|s)?|position(?:ing|s)?|store?s?|storing|support(?:ing|s)?|guid(?:e|ing|es)|grip(?:ping|s)?|clamp(?:ing|s)?|seal(?:ing|s)?|pump(?:ing|s)?|rotat(?:e|ing|es)|push(?:ing|es)?|pull(?:ing|s)?)\s+([^,.;]+)/gi)) {
+  for (const m of clean(text).matchAll(/\b(?:capable of|able to|that|which|to)\s+(deliver(?:ing)?|provid(?:e|ing)|generat(?:e|ing)|transmit(?:ting)?|convert(?:ing)?|hold(?:ing|s)?|mov(?:e|ing|es)|lift(?:ing|s)?|carr(?:y|ying|ies)|protect(?:ing|s)?|cool(?:ing|s)?|heat(?:ing|s)?|measur(?:e|ing|es)|control(?:ling|s)?|position(?:ing|s)?|store?s?|storing|support(?:ing|s)?|guid(?:e|ing|es)|grip(?:ping|s)?|clamp(?:ing|s)?|seal(?:ing|s)?|pump(?:ing|s)?|rotat(?:e|ing|es)|push(?:ing|es)?|pull(?:ing|s)?)\s+((?:[^,;.]|\.(?=\d))+)/gi)) {
     const verb = m[1].toLowerCase().replace(/(ing|es|s)$/, '').replace(/^(deliver|provid|generat|convert|mov|measur|position|guid|rotat|stor)$/, (v) => ({ deliver: 'deliver', provid: 'provide', generat: 'generate', convert: 'convert', mov: 'move', measur: 'measure', position: 'position', guid: 'guide', rotat: 'rotate', stor: 'store' })[v] ?? v)
-    const object = m[2].replace(QUANTITY, '').replace(/\b(of|within|in)\b\s*$/i, '').replace(/\s+/g, ' ').replace(/^\s*(of\s+)/i, '').trim()
+    // One clause ("holds parts of up to 2 kg and opens …" → "holds parts of up to 2 kg"); bounds and
+    // quantities belong to constraints, not to the function's name.
+    const clause = m[2].split(/\s+(?:and|which|that|while|but)\s+/i)[0]
+    const object = clause
+      .replace(/\b(?:of\s+)?(?:up to|at least|at most|no more than|not more than|within|less than|more than|below|above|under)\b.*$/i, '')
+      .replace(QUANTITY, '')
+      .replace(/\s+/g, ' ')
+      .replace(/^\s*(of\s+)/i, '')
+      .replace(/\b(of|within|in)\s*$/i, '')
+      .trim()
     const phrase = clean(`${verb} ${object}`).replace(/\s+(within|in|with|for|at)\s*(an?|the)?\s*(envelope|space)?$/i, '')
     if (phrase.split(' ').length >= 2) out.push(cap(phrase))
   }

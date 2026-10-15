@@ -1,0 +1,91 @@
+import { describe, expect, it } from 'vitest'
+import type { AssistantActionContext, ServiceProposal } from '@ews/platform-sdk'
+import { sampleModel } from '@ews/platform-sdk/testing'
+import { createDemoConceptsService, createHttpConceptsService } from '@ews/conceptualize-client'
+import { generateExploration } from './ai/generator'
+import { conceptsAssistant, conceptsDemo } from './assistant'
+
+const OWNER = 'Develop three alternative concepts for a compact mechanical actuator capable of delivering 500 N of linear force within a 100 mm envelope.'
+const ASSISTANT_BASES = ['ai-hypothesis', 'assumption', 'estimate']
+
+describe('demo planner (scripted, demo only)', () => {
+  it('maps the owner’s example and similar prompts to conceptualize.* actions', () => {
+    expect(conceptsDemo(OWNER, { selectionIds: [] })?.calls).toEqual([{ name: 'conceptualize.develop_alternatives', arguments: { text: OWNER } }])
+    expect(conceptsDemo('Create a concept: a bracket that holds a camera', { selectionIds: [] })?.calls[0]).toEqual({ name: 'conceptualize.create', arguments: { text: 'a bracket that holds a camera' } })
+    expect(conceptsDemo('What are the next steps for CON-001?', { selectionIds: [] })?.calls[0].name).toBe('conceptualize.next_steps')
+    expect(conceptsDemo('Link CON-019 to CAD-120', { selectionIds: [] })?.calls[0]).toEqual({ name: 'conceptualize.link_artifact', arguments: { conceptId: 'CON-019', artifactId: 'CAD-120' } })
+    expect(conceptsDemo('Decompose CON-018 into drive, guide and housing', { selectionIds: [] })?.calls[0].arguments).toEqual({ conceptId: 'CON-018', children: ['drive', 'guide', 'housing'] })
+    expect(conceptsDemo('Propose requirements for CON-018', { selectionIds: [] })?.calls[0].name).toBe('conceptualize.propose_requirement')
+    expect(conceptsDemo('Change the rod diameter to 28 mm.', { selectionIds: [] })).toBeNull()
+    expect(conceptsDemo(OWNER, { selectionIds: [] })?.reply).toMatch(/Scripted demo assistant/)
+  })
+
+  it('plans only registered actions', () => {
+    const names = new Set(conceptsAssistant.actions.map((a) => a.name))
+    for (const p of [OWNER, 'Create a concept: x y z', 'Compare the alternatives of CON-005', 'Pursue CON-019', 'Request CAD generation for CON-019', 'Show CON-001', 'Find concepts for gripper']) {
+      for (const c of conceptsDemo(p, { selectionIds: [] })?.calls ?? []) expect(names.has(c.name)).toBe(true)
+    }
+    expect([...names].every((n) => n.startsWith('conceptualize.'))).toBe(true)
+  })
+})
+
+describe('scripted generator', () => {
+  it('builds labelled alternatives with computed (not invented) estimates', () => {
+    const { exploration, draft, family } = generateExploration(OWNER)
+    expect(family).toBe('linear actuation')
+    expect(draft.quantities.map((q) => q.quantity)).toEqual([{ value: 500, unit: 'N' }, { max: 100, unit: 'mm' }])
+    expect(exploration.alternatives).toHaveLength(3)
+    const all = [...(exploration.parent?.statements ?? []), ...exploration.alternatives.flatMap((a) => [...(a.statements ?? []), ...(a.children ?? []).flatMap((c) => c.statements ?? [])])]
+    expect(all.every((s) => ASSISTANT_BASES.includes(s.basis!))).toBe(true)
+    const torque = exploration.alternatives[0].evidence![0]
+    expect(torque).toMatchObject({ basis: 'estimate', method: 'T = F·l / (2π·η)' })
+    expect(torque.outputs![0].value).toBeCloseTo((500 * 0.005) / (2 * Math.PI * 0.9), 3)
+    const bore = exploration.alternatives[1].evidence![0].outputs!.find((o) => o.name === 'd')!
+    expect(bore.value).toBeCloseTo(Math.sqrt((4 * (500 / 0.6)) / Math.PI), 1)
+    expect(exploration.tradeStudy!.scores!.every((s) => s.basis !== 'user-assertion' && s.basis !== 'evidence')).toBe(true)
+  })
+
+  it('gives honest placeholders for unknown kinds of request', () => {
+    const { exploration, family, assumptions } = generateExploration('Develop two alternative concepts for a birthday greeting.')
+    expect(family).toBeNull()
+    expect(exploration.alternatives).toHaveLength(2)
+    expect(exploration.tradeStudy).toBeUndefined()
+    expect(assumptions.join(' ')).toMatch(/placeholders/)
+  })
+})
+
+function context(services: AssistantActionContext['services']): AssistantActionContext {
+  const model = sampleModel()
+  return { model, artifacts: [], captured: { projectId: 'PRJ-ACT100', configurationId: 'CFG-BASE', scenarioId: 'SCN-NOM', modelRevision: model.revision, selectionIds: [] }, services }
+}
+const action = (name: string) => conceptsAssistant.actions.find((a) => a.name === name)!
+
+describe('service proposals', () => {
+  it('previews without writing, then applies through the API with idempotency and assistant provenance', async () => {
+    const calls: { method: string; url: string; headers: Record<string, string>; body: unknown }[] = []
+    const fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      calls.push({ method: init.method ?? 'GET', url: String(input), headers: init.headers as Record<string, string>, body: init.body ? JSON.parse(String(init.body)) : undefined })
+      const body = { id: 'e1', created: { concepts: [{ id: 'p', key: 'CON-100', name: 'x', role: 'parent' }, { id: 'a', key: 'CON-101', name: 'y', role: 'alternative' }], relationships: [], evidence: [] } }
+      return new Response(JSON.stringify(body), { status: 201, headers: { 'Content-Type': 'application/json' } })
+    }) as typeof globalThis.fetch
+    const concepts = createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch })
+    const result = (await action('conceptualize.develop_alternatives').run({ text: OWNER }, context({ concepts }))) as ServiceProposal
+    expect(result.kind).toBe('service-proposal')
+    expect(result.module).toBe('conceptualize')
+    expect(calls).toEqual([])
+    expect(result.preview.find((p) => p.label === 'Objective (your words)')?.basis).toBe('user-statement')
+    expect(result.preview.filter((p) => p.label.startsWith('Alternative')).every((p) => p.basis === 'ai-hypothesis')).toBe(true)
+    expect(result.preview.some((p) => p.basis === 'estimate')).toBe(true)
+    const applied = await result.apply({ conversationId: 'C-1', proposalId: 'CP-1', messageId: 'M2' })
+    expect(applied.createdIds).toEqual(['p', 'a'])
+    expect(calls[0]).toMatchObject({ method: 'POST', url: 'http://api.test/api/concepts/v1/projects/PRJ-ACT100/explorations' })
+    expect(calls[0].headers).toMatchObject({ 'X-Source-Kind': 'assistant', 'X-Conversation-Id': 'C-1', 'X-Proposal-Id': 'CP-1', 'Idempotency-Key': 'C-1:CP-1:explore' })
+    await result.undo!({})
+    expect(calls[1]).toMatchObject({ method: 'POST', url: 'http://api.test/api/concepts/v1/projects/PRJ-ACT100/explorations/e1/undo' })
+  })
+
+  it('refuses to propose changes in demo mode instead of pretending', async () => {
+    await expect(action('conceptualize.create').run({ text: 'A gripper' }, context({ concepts: createDemoConceptsService() }))).rejects.toThrow(/API mode/)
+    await expect(action('conceptualize.create').run({ text: 'A gripper' }, context({}))).rejects.toThrow(/not available/)
+  })
+})
