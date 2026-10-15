@@ -25,6 +25,7 @@ export const platformHelp: HelpManifest = {
     { control: 'platform.header.subscription', helpId: 'platform.subscriptions' },
     { control: 'platform.header.services', helpId: 'platform.subscriptions' },
     { control: 'platform.header.help', helpId: 'platform.help' },
+    { control: 'platform.header.settings', helpId: 'platform.settings' },
     { operation: 'select_objects', helpId: 'platform.getting-started' },
     { operation: 'open_tool', helpId: 'platform.getting-started' },
   ],
