@@ -24,7 +24,7 @@ as evidence text. The platform roadmap places a Mathematics module in phase 3; n
 - **Results**: executions produce a reproducibility manifest (engine and library versions, model revision and
   digest, inputs with sources and bases, outputs, checks, digests). Stored as Evidence with basis `calculated`
   (or lower by input basis); Conceptualize **re-evaluates** manifests before accepting them.
-- **Staging**: phase 1 explicit assignments, constraint checks and interval vertices; phase 2 sensitivity,
+- **Staging**: phase 1 explicit assignments, constraint checks and interval bounds (R3: exact where monotonicity is proven by symbolic derivatives, sound enclosures otherwise; worker isolation with resource limits; manifest version 2 verified with a numeric tolerance across platforms; a library of agent-checked relations awaiting engineering review); phase 2 sensitivity,
   1-D root finding, linear/polynomial solves; phase 3 sampling-based multiobjective search and, if needed, an
   external Python worker (SciPy, OpenMDAO, SymPy) behind the same port, by a separate ADR.
 
