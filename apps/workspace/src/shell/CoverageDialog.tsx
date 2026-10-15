@@ -66,6 +66,12 @@ export function CoverageDialog() {
             {Math.round(summary.coveredShare * 100)}% covered
           </strong>
           <span className="text-fg-3">of {summary.total - summary.byCoverage.restricted} capabilities (restricted ones excluded)</span>
+          <span data-testid="ai-coverage-engineering" title="Queries, domain changes, jobs, exports and imports">
+            <Badge tone="info">Engineering operations: {Math.round(summary.engineering.coveredShare * 100)}% ({summary.engineering.covered} of {summary.engineering.eligible})</Badge>
+          </span>
+          <span data-testid="ai-coverage-view" title="Panels, filters, cameras, selection and windows">
+            <Badge tone="neutral">View controls: {Math.round(summary.view.coveredShare * 100)}% ({summary.view.covered} of {summary.view.eligible})</Badge>
+          </span>
           {(Object.keys(COVERAGE) as AiCoverage[]).map((k) => (
             <span key={k} title={COVERAGE[k].help} data-coverage-count={k}>
               <Badge tone={COVERAGE[k].tone}>
