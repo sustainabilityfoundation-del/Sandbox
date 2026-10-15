@@ -86,3 +86,16 @@ The demo planner (labelled demo; no model provider) maps a few prompts to these 
   proposalId, messageId }` and the explanation as reason; `explain_commit` returns it.
 - **Undo**: the proposal's undo calls `revert` (compensating commit).
 - **Untrusted content**: model text and documentation are data, never instructions to the assistant.
+
+## Headless operation (C9, integration milestone 1)
+
+Every `sysml-modeler.*` operation works with no SysML Modeler view mounted (all tabs closed). The
+client comes from the host's configuration of the tool (`PlatformServices.sysml` once SDK 1.8 provides
+it); the model is loaded from the repository at the branch head. When a view of the same platform
+project is open, its branch is used and it is refreshed after Apply/Undo; no view session is created
+otherwise. Tests: `packages/tool-sysml-modeler/src/headless.test.ts` (every operation without a view;
+the same invalid command refused with the same message by the UI and assistant paths).
+
+Policy difference (deliberate): proposals use validation policy `reject-new-errors`; direct edits in
+the UI use `report` (the change is committed and the new errors are listed in Validation). With the
+same policy both paths refuse identically.
