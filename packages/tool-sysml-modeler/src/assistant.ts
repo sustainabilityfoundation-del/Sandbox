@@ -259,6 +259,26 @@ const proposeText: AssistantActionDefinition = {
   },
 }
 
+const linkRequirement: AssistantActionDefinition = {
+  name: 'sysml-modeler.link_requirement',
+  label: 'Link a SysML requirement to a managed requirement',
+  description: 'Propose linking a SysML requirement definition or usage to a requirement managed by Requirements Management (by key such as REQ-001, resolved to its canonical UUID and pinned to its current revision). The requirement text stays in Requirements.',
+  parameters: { type: 'object', properties: { element: { type: 'string', description: 'Qualified name or ID of the SysML requirement' }, requirement: { type: 'string', description: 'Requirement key (REQ-001) or UUID' }, ...projectArg }, required: ['element', 'requirement'], additionalProperties: false },
+  run: async (args, ctx) => {
+    const service = ctx.services?.requirements
+    if (!service) throw new ActionError('not-allowed', 'The Requirements service is not available (not provided or not in the subscription).')
+    const t = await target(ctx, argOptionalString(args, 'projectId'))
+    const el = element(t.model, argString(args, 'element'))
+    if (!/Requirement(Definition|Usage)$/.test(el['@type'])) throw new ActionError('invalid-arguments', `${semanticsOf(t.model).label(el['@id'])} is a ${el['@type']}, not a requirement definition or usage.`)
+    const key = argString(args, 'requirement')
+    const scope = { projectId: ctx.captured.projectId, configurationId: ctx.captured.configurationId }
+    const req = /^[0-9a-f-]{36}$/i.test(key) ? await service.get(key, scope) : await service.resolve(key, scope)
+    if (!req) throw new ActionError('not-found', `No managed requirement ${key} in ${ctx.captured.projectId}.`)
+    const name = semanticsOf(t.model).qualifiedName(el['@id']) ?? el['@id']
+    return propose(ctx, args, [{ op: 'setMetadata', elementId: el['@id'], metadata: 'ManagedRequirement', values: { requirementId: req.id, revision: req.revision } }], `Link ${name} to ${req.key}`, `${name} stands for the managed requirement ${req.key} “${req.title}” (revision ${req.revision}); its text stays in Requirements Management.`)
+  },
+}
+
 // ---- scripted demo planning (DEMO ONLY; no model provider) -----------------------------------
 const THERMAL = `package Thermal {
     doc /* Demo elaboration: thermal management of the motor (heat sink and temperature monitoring). */
@@ -299,11 +319,12 @@ export const sysmlModelerDemo: AssistantContribution['demo'] = (text) => {
       calls: [{ name: 'sysml-modeler.propose_text', arguments: { namespace: 'ActuatorSystem', mode: 'append', title: 'Add a cooling subsystem (demo elaboration)', explanation: 'Elaborates thermal management for the motor as a new package; values are assumptions to be refined.', text: THERMAL, assumptions: ['Thermal resistance 1.2 K/W, heat sink mass 0.15 kg and a 423 K (150 °C) sensor limit are assumed placeholder values.'] } }],
     }
   }
+  if ((m = /link (?:the )?(?:sysml )?(?:requirement )?([w:]+) (?:to|with) (REQ-d+)/i.exec(t))) return { reply: `I prepared a proposal to link ${m[1]} to the managed requirement ${m[2]}.`, calls: [{ name: 'sysml-modeler.link_requirement', arguments: { element: m[1], requirement: m[2] } }] }
   if ((m = /find (?:the )?(?:sysml )?(?:element|part|definition)s? (?:named |called )?([\w']+)/i.exec(t))) return { reply: `Elements matching “${m[1]}”:`, calls: [{ name: 'sysml-modeler.find_elements', arguments: { text: m[1] } }] }
   return null
 }
 
 export const sysmlModelerAssistant: AssistantContribution = {
-  actions: [describeCommands, findElementsAction, readElement, validateAction, impactAction, explainCommit, proposeCommands, proposeText],
+  actions: [describeCommands, findElementsAction, readElement, validateAction, impactAction, explainCommit, proposeCommands, proposeText, linkRequirement],
   demo: sysmlModelerDemo,
 }

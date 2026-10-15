@@ -136,3 +136,23 @@ describe('assistant operations (same commands, previewed proposals, provenance, 
     expect(plan('Hello there')).toBeUndefined()
   })
 })
+
+describe('managed requirement link (Requirements stays authoritative)', () => {
+  it('link_requirement resolves the key through the Requirements service and proposes setMetadata with UUID and revision', async () => {
+    const tool = createSysmlModelerTool({ client: createLocalSysmlClient({ seed: true }) })
+    const req = { id: '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001', key: 'REQ-001', revision: 3, title: 'Operating load', statement: 'The actuator shall deliver 500 N.', projectId: 'PRJ-ACT100', type: 'functional', status: 'approved', archived: false, applicability: [], verificationMethods: [], updatedAt: '' }
+    const services = { requirements: { resolve: async (k: string) => (k === 'REQ-001' ? req : undefined), get: async () => req } } as never
+    const ctx = { model: undefined as never, artifacts: [], services, captured: { projectId: 'PRJ-ACT100', configurationId: 'CFG', scenarioId: 'SCN', modelRevision: 1, selectionIds: [] } } satisfies AssistantActionContext
+    const action = tool.assistant!.actions.find((a) => a.name === 'sysml-modeler.link_requirement')!
+    const p = (await action.run({ element: 'ActuatorSystem::Requirements::load', requirement: 'REQ-001' }, ctx)) as ServiceProposal
+    expect(p.title).toBe('Link ActuatorSystem::Requirements::load to REQ-001')
+    await p.apply({ conversationId: 'c', proposalId: 'p', messageId: 'm' })
+    const client = getClient()!
+    const project = await client.getProject(LOCAL_SEED_PROJECT_ID)
+    const head = (await client.getBranch(project.id, project.defaultBranchId)).headCommitId!
+    const text = serialize(await client.loadModel(project.id, head))
+    expect(text).toContain('requirementId = "5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001";')
+    expect(text).toContain('revision = 3;')
+    await expect(action.run({ element: 'ActuatorSystem::Product::act100', requirement: 'REQ-001' }, ctx)).rejects.toThrow(/not a requirement/)
+  })
+})

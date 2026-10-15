@@ -132,6 +132,8 @@
   .smod-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-1); }
   .smod-chip { display: inline-flex; align-items: center; }
   .smod-links { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+  .smod-req { display: flex; flex-direction: column; gap: var(--ws-space-2); padding: var(--ws-space-2); border: 1px solid var(--ws-info-border); border-radius: var(--ws-radius); background: var(--ws-info-soft); }
+  .smod-req-statement { margin: 0; color: var(--ws-text); font-size: var(--ws-font-size-sm); }
   .smod-links li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); }
 
   /* ---- panels ---- */

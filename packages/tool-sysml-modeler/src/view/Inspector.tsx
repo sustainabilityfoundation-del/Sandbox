@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { interconnectionContext, keywordOf } from '../projection/graph'
 import { message, type ModelerSession } from '../session'
 import { iconFor } from './Browser'
+import { RequirementLink } from './RequirementLink'
 import { useViewState } from './hooks'
 
 /**
@@ -182,6 +183,7 @@ export function Inspector({ session, model }: { session: ModelerSession; model: 
           <Select label="Direction" value={typeof el.direction === 'string' ? el.direction : 'none'} options={[{ id: 'none', label: 'None' }, { id: 'in', label: 'in' }, { id: 'out', label: 'out' }, { id: 'inout', label: 'inout' }]} onChange={(v) => void run([{ op: 'setDirection', elementId: id, direction: v === 'none' ? null : (v as 'in') }])} />
         </>
       )}
+      {(isKindOf(el['@type'], 'RequirementDefinition') || isKindOf(el['@type'], 'RequirementUsage')) && el['@type'] !== 'SatisfyRequirementUsage' && <RequirementLink session={session} model={model} elementId={id} readOnly={readOnly} />}
       {isKindOf(el['@type'], 'Type') && !readOnly && (
         <Checkbox isSelected={el.isAbstract === true} onChange={(v) => void run([{ op: 'setAbstract', elementId: id, isAbstract: v }])}>
           Abstract
