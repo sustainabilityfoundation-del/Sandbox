@@ -66,6 +66,12 @@ ratio) agree within 1e-9 relative; dimensional analysis test corpus (≥ 50 rela
 interval vertex results checked against analytic bounds for monotonic cases; worker timeout and AST limits
 tested; Conceptualize refuses a tampered manifest.
 
+### C11 follow-up (integration milestone 1)
+
+Status (15 October 2026): engine and reasoning core **implemented and tested** against the contract test adapter;
+Conceptualize storage and display open (it implements the CR-C8/C11 storage contract). Evidence:
+[progress file, C11](../../specifications/design-reasoning-progress.md#c11-uncertainty-semantics-end-to-end-checkpoint).
+
 ### R4 Reasoning service
 Runs with manifests and invocations persisted; cancel/resume/replay tested; budgets enforced; reads as the
 user (unauthorized items omitted); drafts expire on input change; OpenAPI validated against responses.

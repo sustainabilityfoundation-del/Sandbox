@@ -35,6 +35,7 @@ export const RULES: RuleInfo[] = [
   { id: 'SYSML-TRANSITION-STATES', severity: 'warning', title: 'Transitions connect states' },
   { id: 'SYSML-COMPOSITION-CYCLE', severity: 'warning', title: 'A definition does not compose itself with a mandatory part (infinite structure)' },
   { id: 'SYSML-MANAGED-REQUIREMENT', severity: 'error', title: 'Managed requirement metadata carries a canonical requirement UUID' },
+  { id: 'SYSML-PRODUCT-REFERENCE', severity: 'error', title: 'Product element metadata refers to a product element UUID with an integer revision' },
   { id: 'SYSML-CAD-REFERENCE', severity: 'error', title: 'CAD representation metadata refers to a CAD Modeler entity as <documentUuid>/<entityId> with an integer document revision' },
   { id: 'SYSML-CONSTRAINT-FALSE', severity: 'warning', title: 'A constraint whose expression can be evaluated holds (evaluates to true)' },
   { id: 'SYSML-UNSUPPORTED-METACLASS', severity: 'info', title: 'Element of a metaclass this version does not interpret (preserved unchanged)' },
@@ -255,6 +256,14 @@ function checkElement(s: Semantics, el: Element, out: Diagnostic[]) {
     }
   }
 
+  // Product element metadata (CR-PM-SYS-1).
+  if (t === 'MetadataUsage' && s.featureTypes(id).some((x) => s.qualifiedName(x) === 'EWS::ProductElement')) {
+    const v = readMetadataValues(s, id)
+    const pid = typeof v.productElementId === 'string' ? v.productElementId : undefined
+    if (!pid || !UUID.test(pid)) d(out, 'SYSML-PRODUCT-REFERENCE', s.owner(id)?.['@id'] ?? id, 'ProductElement needs productElementId = "<product element UUID>" (keys and names are display text, not identity).')
+    else if (v.revision !== undefined && !(typeof v.revision === 'number' && Number.isInteger(v.revision) && v.revision >= 1)) d(out, 'SYSML-PRODUCT-REFERENCE', s.owner(id)?.['@id'] ?? id, 'ProductElement revision must be an integer from 1, or absent to follow the latest revision.')
+  }
+
   // Constraints that evaluate to false.
   if (t === 'ConstraintUsage' && s.owningMembership(id)?.['@type'] !== 'RequirementConstraintMembership') {
     const res = s.memberships(id).find((m) => m['@type'] === 'ResultExpressionMembership')
@@ -340,6 +349,68 @@ export function cadRepresentations(model: Model, elementId?: string): { elementI
       const v = readCadMetadata(s, m['@id'])
       const valid = !!v.cadRef && CAD_REF.test(v.cadRef) && (v.revision === undefined || (Number.isInteger(v.revision) && v.revision >= 1))
       out.push({ elementId: owner, metadataId: m['@id'], ref: { module: 'cad', kind: 'cad-modeler-entity', id: v.cadRef ?? '', ...(v.revision !== undefined && Number.isInteger(v.revision) ? { revision: v.revision } : {}) }, ...(v.role ? { role: v.role } : {}), valid })
+    }
+  }
+  return out
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** String and integer values of a metadata usage (no evaluation). A non-integer `revision` reads as NaN. */
+export function readMetadataValues(s: Semantics, metadataId: string): Record<string, string | number> {
+  const out: Record<string, string | number> = {}
+  for (const f of s.ownedMembers(metadataId)) {
+    const fv = s.ownedRelationships(f['@id']).find((r) => r['@type'] === 'FeatureValue')
+    const v = fv ? s.get(refId(fv, 'ownedRelatedElement')) : undefined
+    const name = s.name(f['@id'])
+    if (!v || !name) continue
+    if (v['@type'] === 'LiteralString') out[name] = String(v.value)
+    else if (v['@type'] === 'LiteralInteger') out[name] = Number(v.value)
+    else out[name] = NaN
+  }
+  return out
+}
+
+/** A product element of Project Management's product registry (CR-PM-SYS-1), as an ArtifactRef. */
+export interface ProductElementRef {
+  module: 'product'
+  kind: 'product-element'
+  /** Product element UUID. */
+  id: string
+  revision?: number
+}
+
+export interface Representation {
+  elementId: string
+  metadataId: string
+  ref: CadEntityRef | ProductElementRef
+  role?: string
+  valid: boolean
+}
+
+/**
+ * Everything a SysML element `represents` (CAD Modeler entities and product elements): references owned
+ * by SysML, never copies. All non-library elements, or one element.
+ */
+export function representations(model: Model, elementId?: string): Representation[] {
+  const s = semanticsOf(model)
+  const out: Representation[] = []
+  const owners = elementId ? [elementId] : [...model.elements()].filter((e) => !model.isLibrary(e['@id'])).map((e) => e['@id'])
+  for (const owner of owners) {
+    for (const m of s.ownedMembers(owner)) {
+      if (m['@type'] !== 'MetadataUsage') continue
+      const types = s.featureTypes(m['@id']).map((x) => s.qualifiedName(x))
+      if (types.includes('EWS::CadRepresentation')) {
+        const v = readCadMetadata(s, m['@id'])
+        const valid = !!v.cadRef && CAD_REF.test(v.cadRef) && (v.revision === undefined || (Number.isInteger(v.revision) && v.revision >= 1))
+        out.push({ elementId: owner, metadataId: m['@id'], ref: { module: 'cad', kind: 'cad-modeler-entity', id: v.cadRef ?? '', ...(v.revision !== undefined && Number.isInteger(v.revision) ? { revision: v.revision } : {}) }, ...(v.role ? { role: v.role } : {}), valid })
+      } else if (types.includes('EWS::ProductElement')) {
+        const v = readMetadataValues(s, m['@id'])
+        const pid = typeof v.productElementId === 'string' ? v.productElementId : ''
+        const rev = typeof v.revision === 'number' && Number.isInteger(v.revision) ? v.revision : undefined
+        const valid = UUID.test(pid) && (v.revision === undefined || (rev !== undefined && rev >= 1))
+        out.push({ elementId: owner, metadataId: m['@id'], ref: { module: 'product', kind: 'product-element', id: pid, ...(rev !== undefined ? { revision: rev } : {}) }, valid })
+      }
     }
   }
   return out

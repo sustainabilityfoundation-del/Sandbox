@@ -8,6 +8,7 @@ import type { ViewPreset } from '../viewState'
 export interface ViewportSelection {
   bodyId: string
   face?: string
+  edge?: string
 }
 
 interface Props {
@@ -16,7 +17,9 @@ interface Props {
   selected: ViewportSelection[]
   showEdges: boolean
   viewRequest: { kind: ViewPreset; seq: number } | null
-  onPick: (pick: { bodyId: string; face: string } | null) => void
+  onPick: (pick: { bodyId: string; face?: string; edge?: string } | null) => void
+  /** Edge names highlighted (fillet and chamfer forms, picked edges). */
+  highlightEdges?: string[]
   onView: (kind: ViewPreset) => void
   onToggleEdges: () => void
 }
@@ -28,6 +31,10 @@ interface BodyView {
   edges: THREE.LineSegments
   faceNames: string[]
   ranges: MeshData['faceRanges']
+  edgeNames: string[]
+  edgeRanges: MeshData['edgeRanges']
+  edgeData: Float32Array
+  highlight: THREE.LineSegments
 }
 
 const DIRECTIONS: Record<Exclude<ViewPreset, 'fit'>, THREE.Vector3> = {
@@ -53,7 +60,7 @@ function tokens(el: HTMLElement) {
  * face picking and highlighting. Geometry is tessellated in the kernel worker; this component only
  * renders it (WebGL through three.js).
  */
-export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPick, onView, onToggleEdges }: Props) {
+export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPick, onView, onToggleEdges, highlightEdges = [] }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const ctx = useRef<{
     renderer: THREE.WebGLRenderer
@@ -62,7 +69,7 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
     controls: OrbitControls
     group: THREE.Group
     bodies: Map<string, BodyView>
-    materials: { body: THREE.MeshStandardMaterial; selected: THREE.MeshStandardMaterial; edge: THREE.LineBasicMaterial }
+    materials: { body: THREE.MeshStandardMaterial; selected: THREE.MeshStandardMaterial; edge: THREE.LineBasicMaterial; edgeSelected: THREE.LineBasicMaterial }
     render: () => void
     fitted: boolean
   } | null>(null)
@@ -105,6 +112,7 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
       body: new THREE.MeshStandardMaterial({ color: new THREE.Color(c.body), metalness: 0.1, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
       selected: new THREE.MeshStandardMaterial({ color: new THREE.Color(c.selected), metalness: 0.1, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
       edge: new THREE.LineBasicMaterial({ color: new THREE.Color(c.edge) }),
+      edgeSelected: new THREE.LineBasicMaterial({ color: new THREE.Color(c.selected), depthTest: false }),
     }
     let frame = 0
     const render = () => {
@@ -132,6 +140,7 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
       materials.body.color.set(t.body)
       materials.selected.color.set(t.selected)
       materials.edge.color.set(t.edge)
+      materials.edgeSelected.color.set(t.selected)
       render()
     })
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] })
@@ -144,6 +153,7 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
       for (const b of ctx.current?.bodies.values() ?? []) {
         b.mesh.geometry.dispose()
         b.edges.geometry.dispose()
+        b.highlight.geometry.dispose()
       }
       Object.values(materials).forEach((m) => m.dispose())
       renderer.dispose()
@@ -161,9 +171,10 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
     const wanted = new Map(bodies.map((b) => [b.bodyId, b]))
     for (const [id, view] of c.bodies) {
       if (!wanted.has(id) || wanted.get(id)!.key !== view.key) {
-        c.group.remove(view.mesh, view.edges)
+        c.group.remove(view.mesh, view.edges, view.highlight)
         view.mesh.geometry.dispose()
         view.edges.geometry.dispose()
+        view.highlight.geometry.dispose()
         c.bodies.delete(id)
       }
     }
@@ -193,8 +204,11 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
           eg.setAttribute('position', new THREE.BufferAttribute(m.edgePositions, 3))
           const edges = new THREE.LineSegments(eg, c.materials.edge)
           edges.visible = showEdges
-          c.group.add(mesh, edges)
-          c.bodies.set(b.bodyId, { bodyId: b.bodyId, key: b.key, mesh, edges, faceNames: b.analysis.faces.map((f) => f.name), ranges: m.faceRanges })
+          edges.userData.bodyId = b.bodyId
+          const highlight = new THREE.LineSegments(new THREE.BufferGeometry(), c.materials.edgeSelected)
+          highlight.renderOrder = 2
+          c.group.add(mesh, edges, highlight)
+          c.bodies.set(b.bodyId, { bodyId: b.bodyId, key: b.key, mesh, edges, faceNames: b.analysis.faces.map((f) => f.name), ranges: m.faceRanges, edgeNames: b.analysis.edges.map((x) => x.name), edgeRanges: m.edgeRanges, edgeData: m.edgePositions, highlight })
         }
         if (!c.fitted) {
           fit(c)
@@ -223,6 +237,16 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
         const on = selected.some((s) => s.bodyId === view.bodyId && (s.face === undefined || s.face === name))
         g.materialIndex = on ? 1 : 0
       })
+      const names = new Set([...highlightEdges, ...selected.filter((s) => s.bodyId === view.bodyId && s.edge).map((s) => s.edge!)])
+      const parts: number[] = []
+      for (const r of view.edgeRanges) {
+        if (r.edge < 0 || !names.has(view.edgeNames[r.edge])) continue
+        for (let k = r.start; k < r.start + r.count; k++) for (let j = 0; j < 6; j++) parts.push(view.edgeData[k * 6 + j])
+      }
+      view.highlight.geometry.dispose()
+      const g = new THREE.BufferGeometry()
+      g.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(parts), 3))
+      view.highlight.geometry = g
     }
     c.render()
   }
@@ -306,7 +330,22 @@ export function Viewport({ engine, regen, selected, showEdges, viewRequest, onPi
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1)
     const ray = new THREE.Raycaster()
     ray.setFromCamera(ndc, c.camera)
-    const hit = ray.intersectObjects([...c.bodies.values()].map((b) => b.mesh), false)[0]
+    const pixel = (2 * c.camera.position.distanceTo(c.controls.target) * Math.tan(THREE.MathUtils.degToRad(c.camera.fov / 2))) / Math.max(1, rect.height)
+    ray.params.Line = { threshold: pixel * 5 }
+    const views = [...c.bodies.values()]
+    const hit = ray.intersectObjects(views.map((b) => b.mesh), false)[0]
+    const edgeHit = showEdges ? ray.intersectObjects(views.map((b) => b.edges), false)[0] : undefined
+    if (edgeHit && edgeHit.index !== undefined && (!hit || edgeHit.distance <= hit.distance + pixel * 10)) {
+      const view = c.bodies.get(edgeHit.object.userData.bodyId as string)!
+      const segment = Math.floor(edgeHit.index / 2)
+      const range = view.edgeRanges.find((r) => segment >= r.start && segment < r.start + r.count)
+      const edge = range && range.edge >= 0 ? view.edgeNames[range.edge] : undefined
+      if (edge) {
+        setPicked(edge)
+        onPick({ bodyId: view.bodyId, edge })
+        return
+      }
+    }
     if (!hit || hit.faceIndex === undefined || hit.faceIndex === null) {
       setPicked(null)
       onPick(null)

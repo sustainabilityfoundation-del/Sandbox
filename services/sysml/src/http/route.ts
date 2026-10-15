@@ -159,7 +159,8 @@ export function registerRoute(app: FastifyInstance, ctx: Ctx, spec: RouteSpec, r
           // A concurrent request with this key may have committed first (this one then fails with a
           // conflict or an IdempotencyRace): the retry gets the first outcome, as if it arrived later.
           const winner = await stored().catch(() => undefined)
-          if (winner && winner.request_hash === hash) return replay(winner)
+          // Same key, different input, committed concurrently: refused like a sequential reuse (422), nothing applied twice.
+          if (winner) return replay(winner)
           throw e
         }
         // Reads and dry runs write nothing in the database: record them after the fact.

@@ -5,7 +5,7 @@
  */
 import opencascade from 'replicad-opencascadejs'
 import wasmUrl from 'replicad-opencascadejs/wasm?url'
-import type { MeshData } from '@ews/cad-core'
+import { regenerate, RegenerationCache, type CadDocument, type MeshData, type RegenerateOptions } from '@ews/cad-core'
 import { OcctKernel } from '../occt/OcctKernel'
 import type { KernelRequest, KernelResponse } from './protocol'
 
@@ -22,12 +22,25 @@ const kernel: Promise<OcctKernel> = (opencascade as unknown as (o: Record<string
   return k
 })
 
+// Regeneration runs here too (sketch solving, features, analysis), with one cache per engine (open
+// document), so the UI thread only applies commands. Shape handles in results refer to this worker's shapes.
+const caches = new Map<string, RegenerationCache>()
+const cacheOf = (id: string) => caches.get(id) ?? (caches.set(id, new RegenerationCache()), caches.get(id)!)
+
 self.onmessage = async (event: MessageEvent<KernelRequest>) => {
   const { id, method, args } = event.data
   try {
     const k = await kernel
-    const fn = k[method] as (...a: unknown[]) => Promise<unknown>
-    const result = await fn.apply(k, args)
+    let result: unknown
+    if (method === 'regenerate') result = { ...(await regenerate(args[1] as CadDocument, k, cacheOf(args[0] as string), args[2] as RegenerateOptions | undefined)), location: 'worker' }
+    else if (method === 'clearRegeneration') {
+      await caches.get(args[0] as string)?.clear(k)
+      caches.delete(args[0] as string)
+    }
+    else {
+      const fn = k[method] as (...a: unknown[]) => Promise<unknown>
+      result = await fn.apply(k, args)
+    }
     const transfer: Transferable[] = []
     if (method === 'mesh') {
       const m = result as MeshData

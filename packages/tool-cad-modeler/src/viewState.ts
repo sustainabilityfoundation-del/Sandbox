@@ -7,6 +7,9 @@ export type Editing =
   | { kind: 'sketch'; sketchId: string }
   | { kind: 'extrude'; featureId?: string }
   | { kind: 'revolve'; featureId?: string }
+  | { kind: 'fillet'; featureId?: string }
+  | { kind: 'chamfer'; featureId?: string }
+  | { kind: 'datum-plane'; featureId?: string }
 
 export type SelectionItem =
   | { kind: 'face' | 'edge'; id: string; bodyId: string }
@@ -24,6 +27,10 @@ export interface CadModelerViewState {
   editing: Editing | null
   selection: SelectionItem[]
   showEdges: boolean
+  /** Edges highlighted in the 3D view (fillet and chamfer forms). */
+  highlightEdges?: string[]
+  /** Open dialog (documents of the project in the CAD service). */
+  dialog?: 'open' | null
   viewRequest: { kind: ViewPreset; seq: number } | null
   /** Mirror of session flags so the toolbar re-renders when they change. */
   status: { hasDoc: boolean; canUndo: boolean; canRedo: boolean; hasBody: boolean; dirty: boolean; busy: boolean }

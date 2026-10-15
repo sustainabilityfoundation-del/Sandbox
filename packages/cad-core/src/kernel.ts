@@ -112,10 +112,32 @@ export interface KernelInfo {
   execution: 'worker' | 'in-process'
 }
 
+/** Fillet or chamfer of edges selected by stable edge names (ADR-0024). */
+export interface EdgeBlendRequest {
+  kind: 'fillet' | 'chamfer'
+  target: ShapeHandle
+  /** Stable edge names (`edge(<faceA>|<faceB>)[#n]`) as computed with `probes`. */
+  edges: string[]
+  /** Fillet radius or chamfer distance (mm). */
+  size: number
+  /** Naming probes of the target body (to resolve the edge names). */
+  probes: FaceProbe[]
+  /** Feature ID, for the names of the generated faces (`<featureId>/blend:<edge name>`). */
+  featureId: string
+}
+
+export interface EdgeBlendResult {
+  shape: ShapeHandle
+  /** Probes naming the faces the operation created. */
+  probes: FaceProbe[]
+}
+
 export interface GeometryKernel {
   readonly info: KernelInfo
   makeSolid: (request: SolidRequest) => Promise<ShapeHandle>
   boolean: (kind: 'fuse' | 'cut', target: ShapeHandle, tool: ShapeHandle) => Promise<ShapeHandle>
+  /** Fillets or chamfers named edges; fails with code `reference-lost` when a name does not resolve. */
+  blendEdges: (request: EdgeBlendRequest) => Promise<EdgeBlendResult>
   analyze: (shape: ShapeHandle, probes: FaceProbe[]) => Promise<ShapeAnalysis>
   mesh: (shape: ShapeHandle, options?: { tolerance?: number; angularTolerance?: number }) => Promise<MeshData>
   exportStep: (bodies: StepExportBody[], options?: StepExportOptions) => Promise<string>

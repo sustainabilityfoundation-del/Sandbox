@@ -24,10 +24,15 @@ Every statement has a **basis**:
 | User statement | Stated by a person; not verified |
 | AI hypothesis | Proposed by the assistant; unverified until a person confirms it |
 | Assumption | Engineering assumption to be confirmed |
+| Assessment | Qualitative engineering judgement by a person; not a calculation |
 | Estimate | Preliminary calculation with stated assumptions |
+| Calculated | Result of a reproducible calculation: the evidence record carries a manifest; not independently verified |
 | Verified evidence | Linked to a verified evidence record |
 | Decision | Established by a recorded design decision |
 
-The assistant can only record AI hypotheses, assumptions and estimates. Turning an AI hypothesis into
+The ladder runs from AI hypothesis (weakest) through assumption or user statement, assessment, estimate,
+calculated and verified evidence to decision. A statement marked **Calculated** must cite a calculated or
+verified evidence record. The assistant can only record AI hypotheses, assumptions, assessments and
+estimates; it cannot record calculated results yet. Turning an AI hypothesis into
 a user statement needs an explicit **Confirm**, which records who confirmed it. Every edit creates an
 immutable **revision** with its provenance (person, or assistant proposal and conversation).

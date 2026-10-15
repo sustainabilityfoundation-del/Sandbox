@@ -1,0 +1,48 @@
+import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { chromium } from 'playwright-core'
+const base = env.base
+const shots = shotsDir('coverage')
+const b = await chromium.launch({ ...launchOptions })
+let failures = 0
+const check = (tag, cond, msg) => { console.log(`[${tag}] ${cond ? 'PASS' : 'FAIL'} ${msg}`); if (!cond) failures++ }
+const problems = []
+const page = await (await b.newContext({ viewport: { width: 1600, height: 1000 } })).newPage()
+page.on('pageerror', (e) => problems.push(e.message))
+page.on('console', (m) => m.type() === 'error' && !/favicon|DevTools/.test(m.text()) && problems.push(m.text().slice(0, 200)))
+await page.goto(base); await page.waitForSelector('.ws-app'); await page.evaluate(() => localStorage.clear()); await page.goto(base); await page.waitForSelector('.ws-app'); await page.waitForTimeout(1500)
+await page.keyboard.press('Control+k'); await page.waitForSelector('.ws-launcher'); await page.keyboard.type('AI capability coverage'); await page.keyboard.press('Enter')
+await page.waitForSelector('[data-testid="ai-coverage"]')
+const summary = await page.locator('[data-testid="ai-coverage-summary"]').textContent()
+check('open', /% covered/.test(summary) && /No AI path: \d+/.test(summary), `summary shown: ${summary.replace(/\s+/g, ' ').slice(0, 160)}`)
+const total = await page.locator('[data-capability-id]').count()
+check('table', total > 50, `all capabilities listed (${total})`)
+await page.screenshot({ path: `${shots}/cov-1.png` })
+await page.getByRole('button', { name: /AI coverage/ }).click(); await page.getByRole('option', { name: /^No AI path/ }).click(); await page.waitForTimeout(200)
+const gaps = await page.locator('[data-capability-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-coverage')))
+check('filter', gaps.length > 0 && gaps.every((c) => c === 'none'), `coverage filter shows only gaps (${gaps.length})`)
+await page.getByRole('searchbox', { name: 'Search capabilities' }).fill('baseline')
+await page.waitForTimeout(200)
+const found = await page.locator('[data-capability-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-capability-id')))
+check('search', found.includes('platform.baseline-create'), `search finds baseline gaps (${found.join(', ')})`)
+await page.locator('[role="dialog"]').getByRole('button', { name: /^Close/ }).first().click(); await page.waitForTimeout(300)
+// From the assistant panel
+await page.locator('[data-dock-tab="assistant"]').first().click().catch((e) => console.log('tab', e.message)); await page.screenshot({ path: shots + '/cov-dock.png' })
+await page.waitForTimeout(300)
+await page.getByRole('button', { name: 'What can the assistant do?' }).click()
+check('panel', (await page.locator('[data-testid="ai-coverage"]').count()) === 1, 'opens from the assistant panel')
+await page.keyboard.press('Escape')
+// Phone width
+const phone = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage()
+await phone.goto(base); await phone.waitForSelector('.ws-app'); await phone.waitForTimeout(1500)
+await phone.locator('.ws-mobile-nav').getByText('ChatGPT').click().catch((e) => console.log('phone nav', e.message))
+await phone.waitForTimeout(400)
+await phone.getByRole('button', { name: 'What can the assistant do?' }).click().catch((e) => console.log('phone open', e.message))
+await phone.waitForSelector('[data-testid="ai-coverage"]', { timeout: 5000 }).catch(() => {})
+await phone.waitForTimeout(800)
+const overflow = await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)
+check('phone', (await phone.locator('[data-testid="ai-coverage"]').count()) === 1 && !overflow, `phone: dialog opens, no horizontal overflow (${overflow})`)
+await phone.screenshot({ path: `${shots}/cov-phone.png` })
+check('console', problems.length === 0, `no console errors ${problems.join(' | ')}`)
+console.log(`${failures} failure(s)`)
+await b.close()
+process.exit(failures ? 1 : 0)

@@ -4,14 +4,14 @@ Maintained by the SysML agent. Brief: [sysml-program.md](sysml-program.md) (do n
 Contracts and governance: [sysml-program-contracts.md](sysml-program-contracts.md).
 
 Branch: `feature/sysml` (sprint 1 merged into `main` as 5a43297; sprint 2 based on `main` eceba15).
-Worktree: `C:\Users\kimge.000\Documents\Sandbox-sysml`. Sprint 2 status: **ready for coordinator review**.
+Worktree: `C:\Users\kimge.000\Documents\Sandbox-sysml`. Sprint 2 accepted and merged (97c64cb). Sprint 3 (integration milestone 1) status: **ready for coordinator review**.
 
 ## Phase status
 
 | Phase | Status | Evidence |
 | --- | --- | --- |
 | Research and architecture (brief §14 items 1–10) | Done (proposed) | `docs/research/sysml/*` (11 files, sources S-01…S-77), `docs/modules/sysml/*`, ADR-0030…0038 (Proposed) |
-| 1 Foundation | Done (subset), merged | `packages/sysml-core` (metamodel subset, store, parser/serializer, resolution with implicit library specializations, library subset, 18 validation rules, units, typed commands, transactions, queries, matrices and coverage), `services/sysml` (schema `sysml`, API, events, idempotency atomic with the commit), `packages/sysml-client`, 12 assistant operations |
+| 1 Foundation | Done (subset), merged | `packages/sysml-core` (metamodel subset, store, parser/serializer, resolution with implicit library specializations, library subset, 19 validation rules, units, typed commands, transactions, queries, matrices and coverage), `services/sysml` (schema `sysml`, API, events, idempotency atomic with the commit), `packages/sysml-client`, 12 assistant operations |
 | 2 Modeling environment | Usable; sprint 2 added matrices, coverage, behaviour views and a code editor | `packages/tool-sysml-modeler`: browser, CodeMirror text editor (highlighting, completion, in-place diagnostics), General, Interconnection, Action Flow and State Transition views, relationship matrices, requirement coverage, inspector, validation and history with undo, help (20 topics) |
 | 3 Engineering integration | Partly done | Managed-requirement link and coverage; Conceptualize scheme approved (CR-SYSML-02); CAD references decided and validated (CR-SYSML-03), no picker or mass read yet |
 | 4–6 | Not started (behaviour, cases and views are parsed, stored and now shown; nothing executes) | |
@@ -26,6 +26,104 @@ Worktree: `C:\Users\kimge.000\Documents\Sandbox-sysml`. Sprint 2 status: **ready
 | 4 | Implicit library specializations; more of the official library; new measurement | Done: derived implied generals; parser additions; measurement against the official library (below) | 0fe81b6 |
 | 5 | Editor with highlighting and completion (CodeMirror 6) | Done | cb7aba1, 6fe7121 |
 | — | CR-SYSML-03 CAD reference scheme | Done in the model and docs (metadata, rule `SYSML-CAD-REFERENCE`, `cadRepresentations()`) | see handoff log |
+
+## Sprint 3 (15 October 2026, integration milestone 1): scope and result
+
+Order set by the coordinator after `docs/specifications/integration-milestone-1.md` (d628556): semantic
+correctness, persistence and cross-module references before more diagram types. Branch/diff UI and
+control nodes are deferred.
+
+| # | Item | Result | Commits |
+| --- | --- | --- | --- |
+| C10 | Retry safety | Re-inspected every mutating endpoint (create project, branch, tag, raw commit, transaction, undo): the response record, the mutation and the outbox event are written in one transaction (`OnCommit` hook). Fixed: a concurrent request with the **same key and different input** could surface as 500; it is now refused with 422 like a sequential reuse. 30 tests (`services/sysml/test/retry-safety.test.ts`): concurrent duplicates, retry after a lost response, failure injected just before and just after COMMIT (test-only `SysmlRepository.faults`), key reuse with different input (sequential and concurrent) — each for all 6 endpoints; exactly one semantic operation in every case | 241d040 |
+| C9 | Headless AI boundary | Assistant operations never use a view session: the client comes from the host configuration, the model is loaded at the branch head; an open view is only refreshed. Tests: every `sysml-modeler.*` operation (12) runs with no view mounted and applies its proposals; the same invalid command is refused with the same message by the UI and assistant paths. Documented policy difference: proposals use `reject-new-errors`, direct UI edits `report` | 112a1f0 |
+| CR-PM-REG-3 | ArtifactSource | `createSysmlArtifactSource(repo, events)` in `@ews/sysml-service`: `sysml-project`, `sysml-model-element` (named definitions/usages at default-branch heads), `sysml-tag`; events → upserted/retired; relations `satisfies`, `allocated-to`, `represents`, `stands-for`; `provision` → `not-needed`. Contract tests on real PostgreSQL (paging, unknown project/refs, kinds and lifecycles, blank provisioning creates nothing, changes only after commit, other branches not registered, deletions retired, tags). A new platform project has no SysML project; the modeler creates one lazily (**Start modelling** / **Add**) | 1eda4a1, 0871ece |
+| CR-PM-SYS-1 | Product-element references | `@EWS::ProductElement { productElementId; revision }` (SysML-owned, no copy), rule `SYSML-PRODUCT-REFERENCE`, `representations()` returns CAD and product refs as `ArtifactRef`s; **Represents** panel picks product elements from `services.projects.artifacts(…, { category: 'product-element' })`, shows title/availability, pin and unlink | 1eda4a1 |
+| C13 | Project scoping | Tests with two platform projects (`services/sysml/test/scoping.test.ts`): membership per platform project; writes on A with B's branch, base commit, commit to revert, tag/branch target or raw-commit branch refused (404) and nothing written in either; reads refused; commands cannot reach B's elements; events per project; an Idempotency-Key used on A cannot apply on B. Client: sessions per platform project; the assistant refuses a SysML project of another platform project | 92817f7 |
+| CR-SYSML-01 | Read client for SDK 1.8 | `createSysmlModelService(client)` in `@ews/sysml-client` implements the proposed `PlatformServices.sysml` (below), with tests | 7912c72 |
+
+### Proposed SDK 1.8 contract: `packages/platform-sdk/src/contract/sysml.ts` (CR-SYSML-01)
+
+Exact TypeScript (implemented and tested in `packages/sysml-client/src/service.ts`; the coordinator adds
+it to the SDK and `PlatformServices` gains `sysml?: SysmlModelService`):
+
+```ts
+export const SYSML_SERVICE_CONTRACT_VERSION = '1.0.0'
+
+export interface SysmlElementRef {
+  module: 'sysml'
+  kind: 'sysml-model-element'
+  /** `<sysmlProjectId>/<elementId>` */
+  id: string
+  /** Commit number on the project's default branch; absent = follow the latest. */
+  revision?: number
+}
+
+export interface SysmlProjectSummary {
+  /** SysML project UUID. */
+  id: string
+  name: string
+  platformProjectId: string
+  /** Head commit number of the default branch. */
+  revision: number
+}
+
+export interface SysmlElementSummary {
+  ref: SysmlElementRef
+  sysmlProjectId: string
+  elementId: string
+  /** KerML/SysML metaclass, e.g. 'PartDefinition'. */
+  metaclass: string
+  name?: string
+  shortName?: string
+  /** Display text, not identity. */
+  qualifiedName?: string
+  /** Types (usages) or generals (definitions), by qualified name. */
+  types: string[]
+  documentation?: string
+  /** Commit number the summary was read at. */
+  revision: number
+  /** Head commit number of the default branch now. */
+  latestRevision: number
+}
+
+export type SysmlResolution =
+  | { status: 'resolved'; ref: SysmlElementRef; element: SysmlElementSummary }
+  /** The project, commit or element does not exist (any more) in this platform project. */
+  | { status: 'missing'; ref: SysmlElementRef }
+  /** The caller may not read it (no tool:sysml, or not a member). */
+  | { status: 'forbidden'; ref: SysmlElementRef }
+
+export interface SysmlModelEvent {
+  eventId: string
+  sysmlProjectId: string
+  type: 'project-created' | 'commit-created' | 'tag-created' | 'branch-created'
+  /** Commit number for commit events. */
+  revision?: number
+  occurredAt: string
+}
+
+export interface SysmlModelService {
+  readonly contractVersion: string
+  /** 'api': the PostgreSQL-backed service. 'demo': the explicit in-browser repository. */
+  readonly mode: 'api' | 'demo'
+  /** SysML projects of a platform project. */
+  listProjects(platformProjectId: string): Promise<SysmlProjectSummary[]>
+  /** Resolves references; never throws for missing or forbidden ones. Refs of other platform projects are 'missing'. */
+  resolve(platformProjectId: string, refs: SysmlElementRef[]): Promise<SysmlResolution[]>
+  /** Element search at the default-branch heads (by name, qualified name or short name; optional metaclass). */
+  find(platformProjectId: string, query: { text?: string; metaclass?: string; sysmlProjectId?: string; limit?: number }): Promise<SysmlElementSummary[]>
+  /** Committed changes of the platform project's SysML projects (after commit, at least once; dedupe by eventId). */
+  subscribe(platformProjectId: string, listener: (event: SysmlModelEvent) => void): () => void
+}
+
+// PlatformServices (requirements.ts): add
+//   /** SysML Modeler read service (SDK 1.8). */
+//   sysml?: SysmlModelService
+```
+
+Host wiring: `services.sysml = createSysmlModelService(<the same client the SysML Modeler tool uses>)`.
+The tool then reads its client from the host when `services.sysml` exists (tool change after SDK 1.8).
 
 ## Major architectural decisions
 
@@ -58,7 +156,7 @@ loops/assign, include, dependency, filter, `new`, chains after `( … )`.
 | Abstract-syntax model store, standard JSON, text parse/serialize (subset) | Implemented |
 | Name resolution (inheritance, redefinition, imports, aliases, visibility, chains, conjugation, implicit library specializations) | Implemented (implied generals derived, not stored; typed usages do not also subset the base feature) |
 | Model library | Partial (platform subset shipped; official library used for measurement only) |
-| Validation (18 rules), units and quantity checks, expression evaluation | Implemented (subset) |
+| Validation (19 rules), units and quantity checks, expression evaluation | Implemented (subset) |
 | Typed commands (16), transactions, dry run, diagnostics delta, undo, provenance, idempotency (atomic), element-level concurrency | Implemented |
 | Repository: projects, commits, branches, tags, history, diff, impact, events (SSE) | Implemented (no merge) |
 | Browser, General View, Interconnection View, inspector, validation, history | Implemented |
@@ -67,7 +165,11 @@ loops/assign, include, dependency, filter, `new`, chains after `( … )`.
 | Requirement coverage (satisfied, verified, managed link, gaps) | Implemented |
 | Action Flow and State Transition views | Implemented (no control nodes, swimlanes or nested-state drawing) |
 | Requirements link (ManagedRequirement) | Implemented |
-| CAD representation references (`cad-modeler-entity`) | Partial: stored, validated, readable (`cadRepresentations`); no CAD picker, no mass read |
+| CAD representation references (`cad-modeler-entity`) | Partial: stored, validated, readable (`representations`); no CAD picker, no mass read |
+| Product-element references (`product-element`, CR-PM-SYS-1) | Implemented (Represents panel; picker needs `services.projects`) |
+| Project Management artifact source (CR-PM-REG-3), lazy SysML projects | Implemented (contract-tested); host wiring pending |
+| Retry safety (C10), project scoping (C13), headless assistant (C9) | Implemented and tested |
+| Read client for other modules (CR-SYSML-01, SDK 1.8 proposal) | Implemented in `@ews/sysml-client`; SDK field pending |
 | AI: 12 operations (describe commands, find, read, validate, impact, explain commit, matrix, coverage, behavior, propose commands, propose text, link requirement) | Implemented (scripted demo planner; no model provider) |
 | Sequence views, v1 presentations, execution/simulation, parametric solving, merge, review, XMI | Planned |
 
@@ -75,15 +177,27 @@ loops/assign, include, dependency, filter, `new`, chains after `( … )`.
 
 | ID | Request | Status |
 | --- | --- | --- |
-| CR-SYSML-01 | SDK `PlatformServices.sysml` | Approved in principle for SDK 1.6; the coordinator makes the SDK change. The tool keeps its local client until then |
+| CR-SYSML-01 | SDK `PlatformServices.sysml` | Approved for SDK 1.8. Exact TypeScript in the sprint 3 section; read client `createSysmlModelService` implemented and tested (7912c72). The tool keeps its local client until the SDK field exists |
 | CR-SYSML-02 | `{ module: 'sysml', kind: 'sysml-model-element', id: '<projectId>/<elementId>', revision: <commit number> }` | **Approved** (api-and-integration.md §5.2) |
 | CR-SYSML-03 | Part-to-CAD mapping references `{ module: 'cad', kind: 'cad-modeler-entity', id: '<documentUuid>/<entityId>', revision: <document revision> }`, stored in SysML as SysML-owned references, no CAD copies, mass read on demand | **Decided**; implemented in the model (EWS::CadRepresentation doc, rule SYSML-CAD-REFERENCE, `cadRepresentations`) and documented (§5.3). Picker and mass read wait for a CAD read service in `PlatformServices` |
 | CR-SYSML-04 | boundaries entries | Accepted (on main) |
 | CR-SYSML-05 | `CapabilityModule` gains `'sysml-modeler'` | Accepted (on main) |
 | CR-SYSML-06 | Shared service infrastructure | Deferred |
 | CR-SYSML-07 | Entitlement exception | Accepted: `shared` map (cad-modeler→tool:cad, sysml-modeler→tool:sysml) |
+| CR-PM-REG-3 | SysML `ArtifactSource` (Project Management) | Implemented (1eda4a1); boundary rule `services/sysml` → `@ews/platform-sdk` in COORDINATOR REVIEW 0871ece. The host wires it into the Project Management plugin |
+| CR-PM-SYS-1 | SysML elements `represent` product elements | Implemented (1eda4a1) |
 
 ## Integration needs for the coordinator
+
+Sprint 3:
+
+- Review COORDINATOR REVIEW 0871ece: `boundaries.test.ts` lets `services/sysml` import `@ews/platform-sdk` (ArtifactSource types); lockfile; append-only capability entries `sysml-modeler.represents` and `sysml-modeler.start-modelling`.
+- Wire `createSysmlArtifactSource(repo, events)` into the Project Management plugin in `services/api` (the plugin exposes `repo`/`events` through `onReady`).
+- SDK 1.8: add `contract/sysml.ts` as written in the sprint 3 section and `PlatformServices.sysml`; host: `createSysmlModelService(client)`.
+- The capability entry `sysml-modeler.validate` says 18 rules; there are now 19 (SYSML-PRODUCT-REFERENCE). Not edited (append-only).
+
+Sprint 2 (done):
+
 
 1. Review the sprint 2 COORDINATOR REVIEW commits: 3ca1977 (capability entries `sysml-modeler.matrix`,
    `.coverage`, `.action-flow`, `.state-transition`; append-only) and 6fe7121 (CodeMirror 6
@@ -158,6 +272,7 @@ Recommended next increments: (1) CAD entity picker and on-demand mass once a CAD
 - 2026-10-14: research and architecture committed (c66a899, 48bf1ff).
 - 2026-10-15 (sprint 1): foundation, modeling environment, workspace registration, requirements
   link, parser round 2; merged into `main` as 5a43297.
+- 2026-10-15 (sprint 3): merged main (edd7353, then d628556); REG-3, lazy projects and product references 1eda4a1 (+ COORDINATOR REVIEW 0871ece); C10 241d040; C9 112a1f0; C13 92817f7; SDK 1.8 read client 7912c72; this file in the following commit.
 - 2026-10-15 (sprint 2): `git merge main` (eceba15); idempotency 4807ad8; matrices, coverage and
   behaviour views 759a2e8 (+ COORDINATOR REVIEW 3ca1977); implied specializations, parser and
   official-library measurement 0fe81b6; CodeMirror editor cb7aba1 (+ COORDINATOR REVIEW 6fe7121);

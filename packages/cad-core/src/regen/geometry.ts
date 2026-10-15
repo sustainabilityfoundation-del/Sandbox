@@ -11,7 +11,7 @@ export const STANDARD_PLANES: Record<StandardPlane, KernelPlane> = {
   YZ: { origin: [0, 0, 0], xDir: [0, 1, 0], normal: [1, 0, 0] },
 }
 
-export function planeOf(ref: PlaneRef, scope: ParameterScope): KernelPlane {
+export function planeOf(ref: Extract<PlaneRef, { kind: 'standard' }>, scope: ParameterScope): KernelPlane {
   const base = STANDARD_PLANES[ref.plane]
   if (!base) throw new CadError('invalid-input', `Unknown plane “${ref.plane}”.`)
   const offset = ref.offset === undefined ? 0 : evaluateIn(scope, ref.offset)
@@ -29,16 +29,88 @@ export function toKernelRegions(regions: ProfileRegion[]): KernelRegion[] {
 }
 
 /** A point inside the region (inside the outer loop, outside every hole). */
+/**
+ * A point inside the region (inside the outer loop, outside every hole), as far from the boundary as
+ * the candidates allow, so that later edge treatments (fillets, chamfers) near the boundary do not
+ * move the probe onto another face. Deterministic for a given region.
+ */
 export function regionSample(region: ProfileRegion): Point2 {
+  return regionSamples(region)[0]
+}
+
+/**
+ * Interior points of a region ranked by distance from the boundary (deepest first), spread over the
+ * region. Cap probes use them as fallbacks: later features (a centred hole, a pocket) may remove the
+ * deepest point, and the next candidate still names the cap. Deterministic for a given region.
+ */
+export function regionSamples(region: ProfileRegion, count = 8): Point2[] {
   const outer = polygon(region.outer.segments)
   const holes = region.holes.map((h) => polygon(h.segments))
-  const candidates: Point2[] = [interiorSample(outer)]
-  // Try points near the middle of each outer edge as fallbacks.
-  for (let i = 0; i < outer.length; i += Math.max(1, Math.floor(outer.length / 16))) {
-    const rotated = [...outer.slice(i), ...outer.slice(0, i)]
-    candidates.push(interiorSample(rotated))
+  const loops = [outer, ...holes]
+  const inside = (p: Point2) => pointInPolygon(p, outer) && !holes.some((h) => pointInPolygon(p, h))
+  const clearance = (p: Point2) => Math.min(...loops.map((l) => distanceToPolygon(p, l)))
+  const size = Math.sqrt(Math.abs(signedAreaOf(outer))) || 1
+  const candidates: Point2[] = [centroid(outer)]
+  const step = Math.max(1, Math.floor(outer.length / 24))
+  const ccw = signedAreaOf(outer) >= 0 ? 1 : -1
+  for (let i = 0; i < outer.length; i += step) {
+    const a = outer[i]
+    const b = outer[(i + 1) % outer.length]
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+    if (len < 1e-9) continue
+    const n: Point2 = [(-(b[1] - a[1]) / len) * ccw, ((b[0] - a[0]) / len) * ccw]
+    const m: Point2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+    for (const f of [0.05, 0.15, 0.3, 0.45]) candidates.push([m[0] + n[0] * f * size, m[1] + n[1] * f * size])
   }
-  return candidates.find((p) => pointInPolygon(p, outer) && !holes.some((h) => pointInPolygon(p, h))) ?? candidates[0]
+  const ranked = candidates
+    .filter(inside)
+    .map((p, i) => ({ p, c: clearance(p), i }))
+    .sort((a, b) => b.c - a.c || a.i - b.i)
+  const picked: Point2[] = []
+  for (const { p } of ranked) {
+    if (picked.length >= count) break
+    if (picked.every((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.02 * size)) picked.push(p)
+  }
+  return picked.length ? picked : [interiorSample(outer)]
+}
+
+function signedAreaOf(poly: Point2[]): number {
+  let s = 0
+  for (let i = 0; i < poly.length; i++) {
+    const [x1, y1] = poly[i]
+    const [x2, y2] = poly[(i + 1) % poly.length]
+    s += x1 * y2 - x2 * y1
+  }
+  return s / 2
+}
+
+function centroid(poly: Point2[]): Point2 {
+  const a = signedAreaOf(poly)
+  if (Math.abs(a) < 1e-12) return poly[0]
+  let cx = 0
+  let cy = 0
+  for (let i = 0; i < poly.length; i++) {
+    const [x1, y1] = poly[i]
+    const [x2, y2] = poly[(i + 1) % poly.length]
+    const k = x1 * y2 - x2 * y1
+    cx += (x1 + x2) * k
+    cy += (y1 + y2) * k
+  }
+  return [cx / (6 * a), cy / (6 * a)]
+}
+
+function distanceToPolygon(p: Point2, poly: Point2[]): number {
+  let d = Infinity
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i]
+    const b = poly[(i + 1) % poly.length]
+    const vx = b[0] - a[0]
+    const vy = b[1] - a[1]
+    const l2 = vx * vx + vy * vy || 1e-300
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / l2))
+    d = Math.min(d, Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vy)))
+  }
+  return d
 }
 
 const FRACTIONS = [0.5, 0.25, 0.75, 0.1, 0.9]
@@ -56,9 +128,9 @@ export function extrudeProbes(featureId: string, plane: KernelPlane, regions: Pr
         probes.push({ name: `${featureId}/side:${seg.entityId}`, points: FRACTIONS.map((f) => v3.add(p0, v3.scale(vector, f))) })
       }
     }
-    const inside = v3.add(toModel(plane, regionSample(region)), startOffset)
-    probes.push({ name: `${featureId}/cap-start${suffix(ri, regions.length)}`, points: [inside] })
-    probes.push({ name: `${featureId}/cap-end${suffix(ri, regions.length)}`, points: [v3.add(inside, vector)] })
+    const inside = regionSamples(region).map((p) => v3.add(toModel(plane, p), startOffset))
+    probes.push({ name: `${featureId}/cap-start${suffix(ri, regions.length)}`, points: inside })
+    probes.push({ name: `${featureId}/cap-end${suffix(ri, regions.length)}`, points: inside.map((p) => v3.add(p, vector)) })
   })
   return probes
 }
@@ -77,9 +149,9 @@ export function revolveProbes(featureId: string, plane: KernelPlane, regions: Pr
       }
     }
     if (angle < 360 - 1e-9) {
-      const inside = toModel(plane, regionSample(region))
-      probes.push({ name: `${featureId}/start${suffix(ri, regions.length)}`, points: [inside] })
-      probes.push({ name: `${featureId}/end${suffix(ri, regions.length)}`, points: [rotateAbout(inside, axisOrigin, axisDirection, angle)] })
+      const inside = regionSamples(region).map((p) => toModel(plane, p))
+      probes.push({ name: `${featureId}/start${suffix(ri, regions.length)}`, points: inside })
+      probes.push({ name: `${featureId}/end${suffix(ri, regions.length)}`, points: inside.map((p) => rotateAbout(p, axisOrigin, axisDirection, angle)) })
     }
   })
   return probes

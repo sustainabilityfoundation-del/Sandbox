@@ -254,3 +254,155 @@ interface ConceptsService {                         // additions, SDK 1.7 when C
 | R1-8 | Graph API returns **derived edges** (not stored, `derived: true`): `realizes`, `realized-as`, `selected-through`, `decides`, `member`, `decision-assumes`, `decision-constrained-by`, `binds`, `produced-by`, `subject`, `affects`, `watches`. Their impact propagation is in `linkTypes.ts` (`DERIVED_EDGE_TYPES`) | C9 |
 | R1-9 | Trade-study results use Conceptualize's existing computation unchanged (qualitative 1–5 is "very poor … very good" regardless of direction); Pareto dominance is computed by the reasoning core, not required from Conceptualize | C7 |
 | R1-10 | `asOf` on traversal stays in the contract; the test adapter answers `not-implemented` for it | C9 |
+
+## CR-C8 and C11: storage contract for calculation qualifications (exact, 15 October 2026)
+
+Binding context: integration milestone 1, contract **C11** (uncertainty semantics end to end). The
+Conceptualize agent implements this section. The reference implementation is the test adapter
+(`packages/design-reasoning-core/src/adapters/conceptualizeContractAdapter.ts`, operations `createEvidence`,
+`putScores`, `tradeStudyResult`) and its tests (`src/c11.test.ts`). Conceptualize depends on
+`@ews/engineering-calc` ^0.3.0 (boundary rule of CR-C8) and uses `verifyManifest`, `qualifyManifest` and
+`describeRange` from it; it never re-implements their semantics.
+
+### 1. Types (from `@ews/engineering-calc` 0.3.0; stored as JSON exactly as typed)
+
+```ts
+interface SampledRange { kind: 'sampled-range'; min: number; max: number; method: 'vertices' | 'vertices-and-nominal'; samples: number; note: string }
+interface BoundsRange  { kind: 'bounds'; quality: 'exact' | 'enclosure'; min: number; max: number; sampled?: SampledRange; note?: string }
+interface PointResult  { kind: 'point' }
+type ResultRange = PointResult | SampledRange | BoundsRange
+type StatusBasis = 'point' | 'exact-bounds' | 'enclosure' | 'sampled'
+interface ValidityResult { satisfied: boolean; violated: string[]; uncertain: string[]; over: 'point' | 'range' }
+interface ManifestLimits {
+  establishesModelValidity: false
+  establishesRequirementSatisfaction: false
+  modelValidationStatus: 'unvalidated' | 'validated' | 'deprecated' | 'not-recorded'
+  modelBasis: Basis | 'not-recorded'
+}
+interface CalculationQualifications {
+  manifestVersion: 1 | 2 | 3
+  uncertainty: 'point' | 'interval' | 'interval-vertices'
+  outputs: { symbol: string; unit: string; value: number; range: ResultRange }[]
+  checks: { relationId: string; text: string; unit: string; margin: number; nominalSatisfied: boolean
+            status: 'satisfied' | 'violated' | 'uncertain'; statusBasis: StatusBasis; marginRange: ResultRange }[]
+  validity: ValidityResult
+  limits: ManifestLimits
+}
+interface CalculationVerification { verifiedAt: string; engineVersion: string; manifestVersion: 1 | 2 | 3; ok: true; exactDigestMatch?: boolean }
+interface ScoreQualification { source: 'calculation'; evidenceId: string; symbol: string; kind: ResultRange['kind']; quality?: 'exact' | 'enclosure' }
+```
+
+Record additions (to CR-C6 and CR-C7):
+
+```ts
+EvidenceRecord.calculation = { modelId, modelRevision, manifest: CalculationManifest, verification?: CalculationVerification }
+EvidenceRecord.qualifications?: CalculationQualifications
+TradeScore.evidenceOutput?: string
+TradeScore.qualification?: ScoreQualification
+TradeStudyResult.qualifications = { points: number; exactBounds: number; enclosures: number; sampledRanges: number; statedRanges: number; robustnessNote?: string }
+```
+
+### 2. Storage (additive, ADR-0009)
+
+```sql
+ALTER TABLE conceptualize.evidence
+  ADD COLUMN calculation jsonb,        -- { modelId, modelRevision, manifest (verbatim), verification }
+  ADD COLUMN qualifications jsonb;     -- CalculationQualifications, derived at insert
+ALTER TABLE conceptualize.trade_scores
+  ADD COLUMN evidence_output text,
+  ADD COLUMN qualification jsonb;      -- ScoreQualification, derived at insert
+```
+
+Both tables are immutable: triggers refuse UPDATE. Rows that exist before this migration are therefore **not
+backfilled**. For evidence that has a calculation but no stored `qualifications`, the API computes them on read
+with `qualifyManifest` and marks the response `qualificationsSource: 'computed-on-read'`; stored ones are marked
+`'stored'`. Evidence without a calculation has no qualifications. Existing trade scores have no qualification and
+are shown as stated values or stated ranges.
+
+### 3. Rules
+
+Each rule is a test in the adapter suite; Conceptualize reproduces them on PostgreSQL.
+
+| # | Rule | Adapter test |
+| --- | --- | --- |
+| Q1 | Evidence with `calculation` (or basis `calculated`) is accepted only if `verifyManifest(model at modelRevision, manifest).ok`. The basis may not exceed `manifest.basis`. `verification` records the outcome | R1 scenario; `c11.test.ts` |
+| Q2 | `qualifications` = `qualifyManifest(manifest)`, computed by Conceptualize at insert. A `qualifications` field supplied by a client is **ignored and replaced** | "ignores qualifications supplied by a client" |
+| Q3 | Stored and returned unchanged: no rounding, no relabelling, no merging of kinds. A `sampled-range` is never shown or exported as bounds; `bounds.sampled` stays a separate, labelled field | "evidence drafts … stored evidence keeps them unchanged" |
+| Q4 | A status over a range is `satisfied` or `violated` only with `statusBasis` `exact-bounds` or `enclosure`. Sampled statuses (manifest v1) are stored as `uncertain`; `qualifyManifest` does this | engineering-calc `manifest.test.ts` |
+| Q5 | A trade score with `evidenceId` and `evidenceOutput` must equal the evidence output: `value` to a relative 1e-9, and `low`/`high` equal to the range bounds when given. A range cannot be taken from a point output. `qualification` is copied from the evidence; a client-supplied one is replaced. A mismatch gives 422 `invalid` with a message naming the evidence and output | "trade-study scores taken from calculated evidence …" |
+| Q6 | `TradeStudyResult.ranking` may be `robust` only if no score range is a `sampled-range`; otherwise it is at most `uncertain`, with `robustnessNote`. Enclosures may support robustness, because they are sound bounds | "a sampled range is not a bound" |
+| Q7 | Evidence never changes a requirement's status, a verification status or a Concept's verification status. `limits` is stored with the manifest and displayed wherever the evidence supports a decision | rationale test |
+| Q8 | Decisions that cite calculated evidence display, for each check, the status and its basis, and the manifest limits | rationale test |
+
+### 4. Display vocabulary (Conceptualize UI, help text, exports)
+
+| Data | Label |
+| --- | --- |
+| `range.kind = 'point'` | "point value" |
+| `bounds`, `quality = 'exact'` | "exact bounds min–max" |
+| `bounds`, `quality = 'enclosure'` | "enclosure min–max (true range may be narrower)" |
+| `bounds.sampled` or `sampled-range` | "sampled values min–max (n samples; not a bound)" |
+| `status` with `statusBasis = 'point'` | "satisfied/violated at the nominal point" |
+| `statusBasis = 'exact-bounds'` | "satisfied/violated over the input ranges (proven, exact bounds)" |
+| `statusBasis = 'enclosure'` | "satisfied/violated over the input ranges (proven from an enclosure)", or "uncertain: not proven over the input ranges" |
+| `limits` | "Reproducible calculation. It does not establish that the model is valid for this design (validation status: …) or that any requirement is satisfied." |
+
+`describeRange(range)` returns the short form of the first four rows.
+
+### 5. API
+
+- `POST …/evidence` and batch `createEvidence`: body as in CR-C6, plus `calculation`. Any `qualifications` or
+  `verification` in the body is ignored. A manifest that does not reproduce gives 422 `invalid` with
+  `details.reasons` from `verifyManifest`.
+- `GET …/evidence/{id}` and lists: return `calculation` (with `verification`), `qualifications` and
+  `qualificationsSource`.
+- `PUT …/trade-studies/{id}/scores` and batch `putScores`: accept `evidenceOutput` and ignore `qualification`;
+  return the stored scores with `qualification`.
+- `GET …/trade-studies/{id}/result`: includes `qualifications`.
+
+### 6. What a reproducible manifest does not establish
+
+A manifest that verifies shows only that its outputs follow from that model revision and those inputs with this
+engine. It does **not** establish that the model is valid for the design: a person records model validation, and
+`limits.modelValidationStatus` only repeats what the definition said at evaluation time. It does **not** establish
+that any requirement is satisfied: requirement verification is a separate record in Requirements. Conceptualize
+must never derive either from a verified manifest.
+
+## Real service versus contract adapter (15 October 2026)
+
+The reasoning core now binds the real Conceptualize API (`createConceptualizeHttpAdapter`,
+`packages/design-reasoning-core/src/adapters/conceptualizeHttpAdapter.ts`) as well as the in-memory contract
+adapter. Every implementation declares `capabilities` (`KnowledgeCapabilities` in `contract/conceptualize.ts`);
+the engine and the scenarios check them instead of guessing. On the real service all seven are `false` today:
+`functionAlternativeSets`, `calculationModels`, `calculatedEvidenceVerification`, `realizedConceptRevision`,
+`reasoningSourceKind`, `scoreQualifications`, `events`. The binding uses the v1 operation names (`x-r1-operation`
+mapping) and IDs.
+
+`npm run reasoning:test:db` runs the same calls against both implementations
+(`packages/design-reasoning-core/test/scenarios.db.test.ts`, "contract probes") and asserts each side's actual
+behaviour, so a change on either side fails a probe.
+
+**Agree** (probed): batch atomicity (a failing item leaves nothing); idempotency-key replay; stale
+`expectedRevision` is a conflict; an assumption scope must name its subjects; an editor cannot record a decision,
+a reviewer can.
+
+**Differ** (each is either a pending CR or an adapter correction):
+
+| # | Invariant | Real service | Adapter | Resolution |
+| --- | --- | --- | --- | --- |
+| D1 | Assumption `scope` | `scope.subjects` required (422) | accepted any scope | Adapter aligned this sprint (probed: agree) |
+| D2 | List query parameters | `limit` accepted on concepts only; other lists reject query strings | not applicable | HTTP binding sends none except on concepts; request: accept `limit`/cursor on every list (pagination) |
+| D3 | `POST /graph/traverse`, `/graph/paths` | read-only POSTs; assistant write headers are refused | not applicable | HTTP binding sends no provenance headers on these |
+| D4 | Source kind `reasoning`, run and step IDs | not available; mapped to `assistant` | recorded | CR-C13 |
+| D5 | Alternative set owned by a Function, members must perform it | `functionId` → 501; sets need a parent Concept and do not check members | enforced | CR-C7. Scenarios create a parent Concept when the capability is missing |
+| D6 | Calculation models; evidence `calculation`; manifest re-verification | `createCalculationModel` and `calculation` → 501; a bare `manifest` is stored **without verification** (probe: a forged manifest is accepted) | stored and re-verified | CR-C8. Until then the engine evaluates locally on inputs read from the service and labels the step |
+| D7 | Realized concept revision on implementations | 501 | supported | CR-C11 |
+| D8 | DesignRef type `calculation-model` | not in the enum | supported | with CR-C8 |
+| D9 | `selected-through` derived edges | only for recorded accepted/rejected outcomes | also deferred and proposed | Open: decide in CR-C4 whether deferred outcomes propagate; the reasoning core tolerates both |
+| D10 | Trade scores `evidenceOutput`, `qualification`; assistant `calculated` scores | rejected | supported | C11 storage contract (above) |
+| D11 | Trade-study result `qualifications` | absent | present | C11 storage contract |
+| D12 | Link registry | more types, including derived ones (affects, alternatives-for, applies-to, decides, decision-assumes, decision-constrained-by, member, realized-as, realizes, requirement-link, selected-through, subject, watches) and fields `impact`, `stored` | built-in subset | Reasoning core uses the service registry plus its built-ins; no change requested |
+| D13 | Impact through other modules' artifacts | (reasoning-core side) propagation went through REQ-001 into unrelated seed designs | — | Fixed: other-module artifacts are terminal in propagation |
+| D14 | Evidence reached by impact | in both scenarios on the real service, impact did not reach the calculated evidence (the registry has a derived `subject` type; cause not yet isolated) | reached through its subjects | Investigate with Conceptualize next sprint; matters once CR-C8 lets impact re-evaluate stored models |
+| D15 | Events | 501 | supported | CR-C13 |
+

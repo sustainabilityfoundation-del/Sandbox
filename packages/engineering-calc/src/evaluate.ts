@@ -9,10 +9,10 @@ import { compileModel, type CalculationModelDefinition, type CompiledModel, type
 import { calcUnit, fromSI, sameDims, siUnitOf, toSI } from './units'
 
 export const ENGINE_NAME = '@ews/engineering-calc'
-export const ENGINE_VERSION = '0.2.0'
+export const ENGINE_VERSION = '0.3.0'
 /** Manifest format written by this engine; versions it can verify. */
-export const MANIFEST_VERSION = 2
-export const SUPPORTED_MANIFEST_VERSIONS = [1, 2] as const
+export const MANIFEST_VERSION = 3
+export const SUPPORTED_MANIFEST_VERSIONS = [1, 2, 3] as const
 export const DIGEST_SPEC = 'ews-digest/1'
 
 /** Where an input value came from. Refs are opaque to the engine (DesignRef / ArtifactRef shapes). */
@@ -35,10 +35,13 @@ export interface InputValue {
 }
 
 /**
- * 'point': nominal values. 'interval': exact bounds where monotonicity is proven, enclosures otherwise.
- * 'interval-vertices': the R1 (manifest v1) vertex enumeration, kept to verify v1 manifests.
+ * 'point': nominal values only. 'interval': ranges are propagated as bounds (exact where monotonicity is
+ * proven, enclosures otherwise). The R1 vertex method is not offered any more; it exists internally only to
+ * verify version 1 manifests.
  */
-export type UncertaintyMode = 'point' | 'interval' | 'interval-vertices'
+export type UncertaintyMode = 'point' | 'interval'
+/** Mode recorded in manifests; 'interval-vertices' appears only in version 1 manifests. */
+export type ManifestUncertaintyMode = UncertaintyMode | 'interval-vertices'
 
 export interface EvaluateOptions {
   uncertainty?: UncertaintyMode
@@ -50,29 +53,49 @@ export interface EvaluateOptions {
   now?: () => Date
 }
 
-export interface Bounds {
+// ---- C11 result kinds ------------------------------------------------------------------------------------
+
+/** Values evaluated at sample points. NOT a bound: the true range may be wider. */
+export interface SampledRange {
+  kind: 'sampled-range'
   min: number
   max: number
-  /**
-   * exact: the range is attained (monotonic in every ranged input, proven by the derivative's sign).
-   * enclosure: the true range lies inside [min, max] (interval arithmetic), and contains `inner`.
-   * vertices: v1 vertex enumeration (exact for monotonic relations only; not proven).
-   */
-  quality: 'exact' | 'enclosure' | 'vertices'
-  /** For enclosures: values actually attained (inner bound of the range). */
-  inner?: { min: number; max: number }
+  method: 'vertices' | 'vertices-and-nominal'
+  samples: number
+  note: string
+}
+
+/**
+ * Bounds over the input ranges. exact: the range is attained (monotonicity proven in every ranged input).
+ * enclosure: the true range lies inside [min, max] (sound interval arithmetic) and may be narrower.
+ * `sampled` lists values actually attained at sample points; it is typed separately and never a bound.
+ */
+export interface BoundsRange {
+  kind: 'bounds'
+  quality: 'exact' | 'enclosure'
+  min: number
+  max: number
+  sampled?: SampledRange
   note?: string
 }
 
+export interface PointResult {
+  kind: 'point'
+}
+
+/** C11 (integration milestone 1): every value says whether it is a point, a sampled range or bounds. */
+export type ResultRange = PointResult | SampledRange | BoundsRange
+
 export interface QuantityOut {
   symbol: string
+  /** Value at the nominal inputs. */
   value: number
-  /** = bounds.min / bounds.max (kept for manifest v1 readers). */
-  min?: number
-  max?: number
   unit: string
-  bounds?: Bounds
+  range: ResultRange
 }
+
+/** How a check's status was established. Only point evaluation and bounds can prove anything. */
+export type StatusBasis = 'point' | 'exact-bounds' | 'enclosure' | 'sampled'
 
 export interface CheckResult {
   relationId: string
@@ -82,29 +105,57 @@ export interface CheckResult {
   lhs: number
   rhs: number
   unit: string
-  /** Positive when satisfied with room; negative when violated (in `unit`). */
+  /** Margin at the nominal inputs: positive when satisfied with room, negative when violated (in `unit`). */
   margin: number
   /** lhs/rhs for ≥, rhs/lhs for ≤ (dimensionless), when defined. */
   marginRatio?: number
-  satisfied: boolean
-  /** With ranges: satisfied everywhere, violated everywhere, or not decided for the whole range. */
+  /** Whether the comparison holds at the nominal inputs (a point result, never a statement about a range). */
+  nominalSatisfied: boolean
+  /**
+   * Over the inputs considered: point → the nominal result; ranges → `satisfied` or `violated` only when proven
+   * for the whole range by bounds, otherwise `uncertain`.
+   */
   status: 'satisfied' | 'violated' | 'uncertain'
-  /** Margin bounds over the input ranges (interval mode). */
-  marginBounds?: Bounds
+  statusBasis: StatusBasis
+  /** Range of the margin (same kinds as outputs). */
+  marginRange: ResultRange
+}
+
+export interface ValidityResult {
+  /** True only when every condition holds (at the point, or proven over the whole range). */
+  satisfied: boolean
+  violated: string[]
+  /** Conditions not proven over the range (range evaluations only). */
+  uncertain: string[]
+  over: 'point' | 'range'
+}
+
+/**
+ * What a manifest does NOT establish (C11). A reproducible computation shows that these outputs follow from
+ * this model revision and these inputs; it says nothing about whether the model is valid for the design or
+ * whether any requirement is satisfied. Model validation is a separate record made by a person.
+ */
+export interface ManifestLimits {
+  establishesModelValidity: false
+  establishesRequirementSatisfaction: false
+  /** The model's validation status recorded in its definition at evaluation time (not established here). */
+  modelValidationStatus: CalculationModelDefinition['validationStatus'] | 'not-recorded'
+  modelBasis: Basis | 'not-recorded'
 }
 
 export interface CalculationManifest {
-  /** Absent in v1 manifests (R1). */
-  manifestVersion?: 2
+  /** 3 (C11); 2 for R3 manifests; absent in v1 (R1). */
+  manifestVersion?: 2 | 3
   digestSpec?: typeof DIGEST_SPEC
   engine: { name: string; version: string; mathjs: string; grammar: typeof GRAMMAR }
   model: { id: string; revision: number; digest: string }
   inputs: { symbol: string; value: number | null; min?: number; max?: number; unit: string; source: InputSource }[]
   outputs: QuantityOut[]
   checks: CheckResult[]
-  validity: { satisfied: boolean; violated: string[]; uncertain?: string[] }
-  uncertainty: UncertaintyMode
+  validity: ValidityResult
+  uncertainty: ManifestUncertaintyMode
   basis: 'calculated' | 'estimate'
+  limits: ManifestLimits
   inputDigest: string
   outputDigest: string
   evaluatedAt: string
@@ -115,7 +166,7 @@ export interface CalculationManifest {
 export interface CalculationResult {
   outputs: Record<string, QuantityOut>
   checks: CheckResult[]
-  validity: CalculationManifest['validity']
+  validity: ValidityResult
   basis: 'calculated' | 'estimate'
   warnings: string[]
   manifest: CalculationManifest
@@ -218,13 +269,13 @@ function evaluatePoint(model: CompiledModel, inputsSI: Map<string, number>, run:
   const env = new Map(inputsSI)
   for (const a of model.assignments) {
     const v = run.eval(a.expr!, env)
-    if (!Number.isFinite(v)) throw new CalcError('domain-error', `${a.target} is not a finite number (${a.text}); check the inputs.`, { relationId: a.id, symbol: a.target })
+    if (!Number.isFinite(v)) throw new CalcError('domain-error', `${a.target} is not a finite number (${a.text}) at the given inputs; check the inputs and the relation's domain.`, { relationId: a.id, symbol: a.target })
     env.set(a.target!, v)
   }
   const checks = model.constraints.map((rel) => {
     const l = run.eval(rel.lhs!, env)
     const r = run.eval(rel.rhs!, env)
-    if (!Number.isFinite(l) || !Number.isFinite(r)) throw new CalcError('domain-error', `Constraint ${rel.id} is not finite.`, { relationId: rel.id })
+    if (!Number.isFinite(l) || !Number.isFinite(r)) throw new CalcError('domain-error', `Constraint ${rel.id} is not finite at the given inputs.`, { relationId: rel.id })
     return { rel, l, r, ok: compare(rel.op!, l, r) }
   })
   const validity = model.validity.map((rel) => ({ rel, ok: compare(rel.op!, run.eval(rel.lhs!, env), run.eval(rel.rhs!, env)) }))
@@ -242,20 +293,24 @@ interface BoundsSI {
   min: number
   max: number
   quality: 'exact' | 'enclosure'
-  inner?: { min: number; max: number }
+  sampled?: { min: number; max: number; samples: number }
   monotonicity: Record<string, Monotonicity>
 }
 
 /**
- * Bounds of an inlined expression (inputs only) over the box. Exact when the derivative's sign is
- * proven constant in every ranged input; otherwise a sound enclosure plus an inner bound from vertices.
+ * Bounds of an inlined expression (inputs only) over the box. Exact when the derivative's sign is proven in
+ * every ranged input; otherwise a sound enclosure, with the values attained at the vertices and the nominal
+ * point recorded separately as a sampled range. An unbounded enclosure (a divisor range containing zero) is a
+ * domain error: the relation may be singular in the range.
  */
-function boundsOf(expr: Expr, box: Map<string, Interval>, ranged: string[], nominal: Map<string, number>, run: Interpreter): BoundsSI {
+function boundsOf(expr: Expr, box: Map<string, Interval>, ranged: string[], nominal: Map<string, number>, run: Interpreter, where: { relationId: string; symbol?: string }): BoundsSI {
   const relevant = ranged.filter((v) => symbols(expr).has(v))
   const mono: Record<string, Monotonicity> = {}
   const tooBig = nodeCount(expr) > MAX_ANALYSIS_NODES
   for (const v of relevant) mono[v] = tooBig ? 'unknown' : monotonicity(expr, v, box, MAX_ANALYSIS_NODES)
   run.checkDeadline()
+  const singular = () =>
+    new CalcError('domain-error', `${where.symbol ?? `Relation ${where.relationId}`} is unbounded or undefined over the input ranges: a divisor or a function argument reaches a singular value (for example division by a range containing zero).`, { ...where, reason: 'singularity' })
   const at = (pick: (v: string, m: Monotonicity) => number) => {
     const env = new Map(nominal)
     for (const v of relevant) env.set(v, pick(v, mono[v]))
@@ -264,17 +319,17 @@ function boundsOf(expr: Expr, box: Map<string, Interval>, ranged: string[], nomi
   if (relevant.every((v) => mono[v] !== 'unknown')) {
     const lo = at((v, m) => (m === 'decreasing' ? box.get(v)!.hi : box.get(v)!.lo))
     const hi = at((v, m) => (m === 'decreasing' ? box.get(v)!.lo : box.get(v)!.hi))
-    if (!Number.isFinite(lo) || !Number.isFinite(hi)) throw new CalcError('domain-error', 'The relation is not finite over the input ranges.')
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) throw singular()
     return { min: Math.min(lo, hi), max: Math.max(lo, hi), quality: 'exact', monotonicity: mono }
   }
   let enclosure: Interval
   try {
     enclosure = evalInterval(expr, box)
   } catch (e) {
-    if (e instanceof CalcError && e.code === 'domain-error') throw new CalcError('domain-error', `Over the input ranges: ${e.message}`)
+    if (e instanceof CalcError && e.code === 'domain-error') throw new CalcError('domain-error', `Over the input ranges: ${e.message}`, { ...where, reason: 'domain' })
     throw e
   }
-  // Inner bound: values attained at the vertices of the ranged inputs (and at the nominal point).
+  if (!Number.isFinite(enclosure.lo) || !Number.isFinite(enclosure.hi)) throw singular()
   const values = [run.eval(expr, nominal)]
   if (relevant.length <= MAX_INTERVAL_INPUTS) {
     for (let mask = 0; mask < 1 << relevant.length; mask++) {
@@ -284,14 +339,20 @@ function boundsOf(expr: Expr, box: Map<string, Interval>, ranged: string[], nomi
     }
   }
   const finite = values.filter(Number.isFinite)
-  const inner = { min: Math.min(...finite), max: Math.max(...finite) }
-  return { min: Math.min(enclosure.lo, inner.min), max: Math.max(enclosure.hi, inner.max), quality: 'enclosure', inner, monotonicity: mono }
+  if (finite.length < values.length) throw singular()
+  const sampled = { min: Math.min(...finite), max: Math.max(...finite), samples: finite.length }
+  return { min: Math.min(enclosure.lo, sampled.min), max: Math.max(enclosure.hi, sampled.max), quality: 'enclosure', sampled, monotonicity: mono }
+}
+
+interface InternalOptions extends EvaluateOptions {
+  /** Internal: re-evaluate with the R1 vertex method to verify a version 1 manifest. */
+  legacyVertexMode?: boolean
 }
 
 /**
- * Evaluates a calculation model deterministically (mathematics.md §6). Inputs are given per symbol in
- * any unit of the right dimension; constants come from the model. Returns outputs in their declared
- * units, constraint checks with margins, validity, the result basis and a reproducibility manifest.
+ * Evaluates a calculation model deterministically (mathematics.md §6). Inputs are given per symbol in any
+ * unit of the right dimension; constants come from the model. Returns outputs in their declared units with
+ * their result kind (C11), constraint checks, validity, the result basis and a reproducibility manifest.
  */
 export function evaluateModel(definitionOrCompiled: CalculationModelDefinition | CompiledModel, inputs: Record<string, InputValue>, options: EvaluateOptions = {}): CalculationResult {
   try {
@@ -301,12 +362,13 @@ export function evaluateModel(definitionOrCompiled: CalculationModelDefinition |
   }
 }
 
-function evaluateUnsafe(definitionOrCompiled: CalculationModelDefinition | CompiledModel, inputs: Record<string, InputValue>, options: EvaluateOptions): CalculationResult {
+function evaluateUnsafe(definitionOrCompiled: CalculationModelDefinition | CompiledModel, inputs: Record<string, InputValue>, options: InternalOptions): CalculationResult {
   const started = Date.now()
   const run = new Interpreter(options.maxOperations ?? DEFAULT_MAX_OPERATIONS, started + (options.timeoutMs ?? DEFAULT_TIMEOUT_MS))
   const model = 'digest' in definitionOrCompiled ? definitionOrCompiled : compileModel(definitionOrCompiled)
   const def = model.definition
-  const mode = options.uncertainty ?? 'point'
+  if ((options.uncertainty as string) === 'interval-vertices') throw new CalcError('input', 'The vertex-sampling mode is no longer offered (it does not give bounds); use "interval".')
+  const mode: ManifestUncertaintyMode = options.legacyVertexMode ? 'interval-vertices' : (options.uncertainty ?? 'point')
   const warnings: string[] = []
 
   const nominal = new Map<string, number>()
@@ -348,19 +410,22 @@ function evaluateUnsafe(definitionOrCompiled: CalculationModelDefinition | Compi
   }
 
   const point = evaluatePoint(model, nominal, run)
+  const POINT: PointResult = { kind: 'point' }
   const outputs: Record<string, QuantityOut> = {}
   for (const a of model.assignments) {
     const p = def.parameters.find((x) => x.symbol === a.target)!
-    outputs[a.target!] = { symbol: a.target!, value: fromSI(point.env.get(a.target!)!, model.units.get(a.target!)!), unit: p.unit }
+    outputs[a.target!] = { symbol: a.target!, value: fromSI(point.env.get(a.target!)!, model.units.get(a.target!)!), unit: p.unit, range: POINT }
   }
   const checkUnits = point.checks.map((c) => displayUnit(model, c.rel))
   const checkStatus: CheckResult['status'][] = point.checks.map((c) => (c.ok ? 'satisfied' : 'violated'))
-  const marginBounds: (Bounds | undefined)[] = point.checks.map(() => undefined)
+  const statusBasis: StatusBasis[] = point.checks.map(() => 'point')
+  const marginRanges: ResultRange[] = point.checks.map(() => POINT)
   const violated = point.validity.filter((v) => !v.ok).map((v) => v.rel.text)
   const uncertain: string[] = []
+  const overRange = mode !== 'point' && ranges.length > 0
 
   if (mode === 'interval-vertices' && ranges.length) {
-    // v1 algorithm (R1): vertex enumeration of the whole model.
+    // R1 algorithm, only to verify v1 manifests: results are SAMPLED ranges, statuses are sampled (not proven).
     if (ranges.length > MAX_INTERVAL_INPUTS) throw new CalcError('limit', `Interval evaluation supports at most ${MAX_INTERVAL_INPUTS} inputs with ranges (got ${ranges.length}).`, { limit: MAX_INTERVAL_INPUTS })
     const corners: PointOutcome[] = []
     for (let mask = 0; mask < 1 << ranges.length; mask++) {
@@ -371,14 +436,14 @@ function evaluateUnsafe(definitionOrCompiled: CalculationModelDefinition | Compi
     for (const a of model.assignments) {
       const u = model.units.get(a.target!)!
       const vals = corners.map((c) => fromSI(c.env.get(a.target!)!, u))
-      Object.assign(outputs[a.target!], { min: Math.min(...vals), max: Math.max(...vals) })
+      outputs[a.target!].range = { kind: 'sampled-range', min: Math.min(...vals), max: Math.max(...vals), method: 'vertices', samples: vals.length, note: 'Vertex sampling (manifest v1 method): not a bound.' }
     }
     point.checks.forEach((c, i) => {
       const oks = corners.map((k) => k.checks[i].ok)
       checkStatus[i] = oks.every(Boolean) && c.ok ? 'satisfied' : oks.some(Boolean) || c.ok ? 'uncertain' : 'violated'
+      statusBasis[i] = 'sampled'
     })
     for (const k of corners) for (const v of k.validity) if (!v.ok && !violated.includes(v.rel.text)) violated.push(v.rel.text)
-    warnings.push('Bounds by vertex enumeration (manifest v1 method): exact for monotonic relations, possibly too narrow otherwise.')
   } else if (mode === 'interval' && ranges.length) {
     // Inline assignments so every expression depends on inputs and constants only.
     const inlined = new Map<string, Expr>()
@@ -392,29 +457,31 @@ function evaluateUnsafe(definitionOrCompiled: CalculationModelDefinition | Compi
     for (const [s, v] of nominal) box.set(s, { lo: v, hi: v })
     for (const r of ranges) box.set(r.symbol, { lo: r.lo, hi: r.hi })
     const rangedNames = ranges.map((r) => r.symbol)
-    const toUnit = (b: BoundsSI, factor: (x: number) => number, note?: string): Bounds => {
-      const lo = factor(b.min)
-      const hi = factor(b.max)
-      const out: Bounds = { min: Math.min(lo, hi), max: Math.max(lo, hi), quality: b.quality }
-      if (b.inner) out.inner = { min: Math.min(factor(b.inner.min), factor(b.inner.max)), max: Math.max(factor(b.inner.min), factor(b.inner.max)) }
+    const toRange = (b: BoundsSI, conv: (x: number) => number, note?: string): BoundsRange => {
+      const a = conv(b.min)
+      const z = conv(b.max)
+      const out: BoundsRange = { kind: 'bounds', quality: b.quality, min: Math.min(a, z), max: Math.max(a, z) }
+      if (b.sampled) {
+        const sa = conv(b.sampled.min)
+        const sz = conv(b.sampled.max)
+        out.sampled = { kind: 'sampled-range', min: Math.min(sa, sz), max: Math.max(sa, sz), method: 'vertices-and-nominal', samples: b.sampled.samples, note: 'Values attained at the range vertices and the nominal point; not a bound.' }
+      }
       if (note) out.note = note
       return out
     }
     let enclosures = 0
     for (const a of model.assignments) {
       const u = model.units.get(a.target!)!
-      const b = boundsOf(inlined.get(a.target!)!, box, rangedNames, nominal, run)
+      const b = boundsOf(inlined.get(a.target!)!, box, rangedNames, nominal, run, { relationId: a.id, symbol: a.target })
       if (b.quality === 'enclosure') enclosures++
       const nonMono = Object.entries(b.monotonicity).filter(([, m]) => m === 'unknown').map(([v]) => v)
-      const bounds = toUnit(b, (x) => fromSI(x, u), b.quality === 'enclosure' ? `Not proven monotonic in ${nonMono.join(', ')}: the true range lies between inner and [min, max].` : undefined)
-      Object.assign(outputs[a.target!], { min: bounds.min, max: bounds.max, bounds })
+      outputs[a.target!].range = toRange(b, (x) => fromSI(x, u), b.quality === 'enclosure' ? `Not proven monotonic in ${nonMono.join(', ')}: the true range lies inside [min, max] and contains the sampled values.` : undefined)
     }
     model.constraints.forEach((rel, i) => {
-      const g = substitute(slack(rel), inlined)
-      const b = boundsOf(g, box, rangedNames, nominal, run)
+      const b = boundsOf(substitute(slack(rel), inlined), box, rangedNames, nominal, run, { relationId: rel.id })
       const u = calcUnit(checkUnits[i], 'display unit')
-      const mb = toUnit(b, (x) => fromSI(x, u))
-      marginBounds[i] = mb
+      marginRanges[i] = toRange(b, (x) => fromSI(x, u))
+      statusBasis[i] = b.quality === 'exact' ? 'exact-bounds' : 'enclosure'
       if (rel.op === '=') checkStatus[i] = Math.abs(b.min) <= EQUAL_TOLERANCE && Math.abs(b.max) <= EQUAL_TOLERANCE ? 'satisfied' : 'uncertain'
       else {
         const strict = rel.op === '>' || rel.op === '<'
@@ -425,13 +492,13 @@ function evaluateUnsafe(definitionOrCompiled: CalculationModelDefinition | Compi
       if (b.quality === 'enclosure') enclosures++
     })
     for (const rel of model.validity) {
-      const b = boundsOf(substitute(slack(rel), inlined), box, rangedNames, nominal, run)
+      const b = boundsOf(substitute(slack(rel), inlined), box, rangedNames, nominal, run, { relationId: rel.id })
       const strict = rel.op === '>' || rel.op === '<'
       const holds = rel.op === '=' ? false : strict ? b.min > 0 : b.min >= 0
       const fails = strict ? b.max <= 0 : b.max < 0
       if (!holds && !violated.includes(rel.text)) (fails ? violated : uncertain).push(rel.text)
     }
-    if (enclosures) warnings.push(`${enclosures} bound${enclosures === 1 ? ' is an enclosure' : 's are enclosures'}: monotonicity could not be proven, so the true range may be narrower than reported (see bounds.inner).`)
+    if (enclosures) warnings.push(`${enclosures} bound${enclosures === 1 ? ' is an enclosure' : 's are enclosures'}: monotonicity could not be proven, so the true range may be narrower than reported; sampled values are recorded separately.`)
   } else if (mode !== 'point' && !ranges.length) {
     warnings.push('No input has a range; point values only.')
   }
@@ -444,18 +511,16 @@ function evaluateUnsafe(definitionOrCompiled: CalculationModelDefinition | Compi
     const op = c.rel.op!
     const margin = op === '>=' || op === '>' ? lhs - rhs : op === '<=' || op === '<' ? rhs - lhs : -Math.abs(lhs - rhs)
     const ratio = op === '>=' || op === '>' ? (rhs !== 0 ? lhs / rhs : undefined) : op === '<=' || op === '<' ? (lhs !== 0 ? rhs / lhs : undefined) : undefined
-    const out: CheckResult = { relationId: c.rel.id, text: c.rel.text, op, lhs, rhs, unit, margin, marginRatio: ratio, satisfied: c.ok, status: checkStatus[i] }
-    if (marginBounds[i]) out.marginBounds = marginBounds[i]
-    return out
+    return { relationId: c.rel.id, text: c.rel.text, op, lhs, rhs, unit, margin, marginRatio: ratio, nominalSatisfied: c.ok, status: checkStatus[i], statusBasis: statusBasis[i], marginRange: marginRanges[i] }
   })
-  const validity: CalculationManifest['validity'] = { satisfied: violated.length === 0 && uncertain.length === 0, violated }
-  if (mode === 'interval') validity.uncertain = uncertain
+  const validity: ValidityResult = { satisfied: violated.length === 0 && uncertain.length === 0, violated, uncertain, over: overRange ? 'range' : 'point' }
   if (violated.length) warnings.push(`domain-warning: outside the model's validity (${violated.join('; ')}).`)
   if (uncertain.length) warnings.push(`domain-warning: validity not shown for the whole input range (${uncertain.join('; ')}).`)
 
   const basis = calculationBasis(def, inputBases)
   const manifest: CalculationManifest = {
-    ...(mode === 'interval-vertices' ? {} : { manifestVersion: 2 as const, digestSpec: DIGEST_SPEC }),
+    manifestVersion: 3,
+    digestSpec: DIGEST_SPEC,
     engine: { name: ENGINE_NAME, version: ENGINE_VERSION, mathjs: mathjsVersion, grammar: GRAMMAR },
     model: { id: def.id, revision: def.revision, digest: model.digest },
     inputs: manifestInputs,
@@ -464,6 +529,7 @@ function evaluateUnsafe(definitionOrCompiled: CalculationModelDefinition | Compi
     validity,
     uncertainty: mode,
     basis,
+    limits: { establishesModelValidity: false, establishesRequirementSatisfaction: false, modelValidationStatus: def.validationStatus, modelBasis: def.basis },
     inputDigest: inputDigestOf(model.digest, manifestInputs, mode),
     outputDigest: '',
     evaluatedAt: (options.now ?? (() => new Date()))().toISOString(),
@@ -474,39 +540,38 @@ function evaluateUnsafe(definitionOrCompiled: CalculationModelDefinition | Compi
   return { outputs, checks, validity, basis, warnings, manifest }
 }
 
-/** Input digest: model digest, inputs exactly as given (canonical numbers), uncertainty mode. */
-function inputDigestOf(modelDigest: string, inputs: CalculationManifest['inputs'], mode: UncertaintyMode): string {
+/** Input digest: model digest, inputs exactly as given (canonical numbers), uncertainty mode. Unchanged since v1. */
+function inputDigestOf(modelDigest: string, inputs: CalculationManifest['inputs'], mode: ManifestUncertaintyMode): string {
   return digestOf({ model: modelDigest, inputs: inputs.map((i) => ({ symbol: i.symbol, value: i.value, min: i.min, max: i.max, unit: i.unit })), uncertainty: mode })
 }
 
+const r12 = (v: number | undefined) => (v === undefined ? undefined : canonicalNumber(v, 12))
+const rangeDigest = (r: ResultRange): unknown =>
+  r.kind === 'point'
+    ? { kind: 'point' }
+    : r.kind === 'sampled-range'
+      ? { kind: r.kind, min: r12(r.min), max: r12(r.max), method: r.method, samples: r.samples }
+      : { kind: r.kind, quality: r.quality, min: r12(r.min), max: r12(r.max), sampled: r.sampled ? rangeDigest(r.sampled) : undefined }
+
 /**
- * Output digest (digest spec ews-digest/1): computed numbers at 12 significant digits, so that last-bit
- * differences of Math functions between JavaScript engines rarely change it. Verification does not rely
- * on it across platforms; it compares values with a relative tolerance (verifyManifest).
+ * Output digest (digest spec ews-digest/1, manifest v3 layout): computed numbers at 12 significant digits.
+ * It matches on the same runtime and almost always across runtimes; verification compares values with a
+ * relative tolerance instead (verifyManifest).
  */
-function outputDigestOf(m: Pick<CalculationManifest, 'manifestVersion' | 'outputs' | 'checks' | 'validity'>): string {
-  const r = (v: number | undefined) => (v === undefined ? undefined : canonicalNumber(v, 12))
-  if (!m.manifestVersion) {
-    // v1 layout (R1), kept so v1 manifests verify.
-    return digestOf({
-      outputs: m.outputs.map((o) => ({ symbol: o.symbol, value: r(o.value), min: r(o.min), max: r(o.max), unit: o.unit })),
-      checks: m.checks.map((c) => ({ id: c.relationId, satisfied: c.satisfied, status: c.status, lhs: r(c.lhs), rhs: r(c.rhs), unit: c.unit })),
-      validity: { satisfied: m.validity.satisfied, violated: m.validity.violated },
-    })
-  }
-  const b = (x?: Bounds) => (x ? { min: r(x.min), max: r(x.max), quality: x.quality, inner: x.inner ? { min: r(x.inner.min), max: r(x.inner.max) } : undefined } : undefined)
+function outputDigestOf(m: Pick<CalculationManifest, 'outputs' | 'checks' | 'validity' | 'limits'>): string {
   return digestOf({
-    v: 2,
-    outputs: m.outputs.map((o) => ({ symbol: o.symbol, value: r(o.value), unit: o.unit, bounds: b(o.bounds) })),
-    checks: m.checks.map((c) => ({ id: c.relationId, satisfied: c.satisfied, status: c.status, lhs: r(c.lhs), rhs: r(c.rhs), unit: c.unit, margin: b(c.marginBounds) })),
+    v: 3,
+    outputs: m.outputs.map((o) => ({ symbol: o.symbol, value: r12(o.value), unit: o.unit, range: rangeDigest(o.range) })),
+    checks: m.checks.map((c) => ({ id: c.relationId, nominal: c.nominalSatisfied, status: c.status, basis: c.statusBasis, lhs: r12(c.lhs), rhs: r12(c.rhs), unit: c.unit, margin: rangeDigest(c.marginRange) })),
     validity: m.validity,
+    limits: m.limits,
   })
 }
 
 export interface VerificationResult {
   ok: boolean
   reasons: string[]
-  /** Whether the output digest matched exactly (expected on the same runtime; informational across runtimes). */
+  /** Whether the output digest matched exactly (same manifest version and runtime expected; informational). */
   exactDigestMatch?: boolean
 }
 
@@ -516,11 +581,18 @@ export const VERIFY_RELATIVE_TOLERANCE = 1e-10
 const close = (a: number | undefined, b: number | undefined) =>
   a === undefined || b === undefined ? a === b : a === b || Math.abs(a - b) <= VERIFY_RELATIVE_TOLERANCE * Math.max(Math.abs(a), Math.abs(b), 1e-300)
 
+/** Reads value range and statuses from a manifest of any supported version (v1/v2 used other field names). */
+type AnyOutput = { symbol: string; value: number; unit: string; range?: ResultRange; bounds?: { min: number; max: number }; min?: number; max?: number }
+type AnyCheck = { relationId: string; lhs: number; rhs: number; status: string; nominalSatisfied?: boolean; satisfied?: boolean }
+const rangeOf = (o: AnyOutput): { min: number; max: number } | undefined =>
+  o.range ? (o.range.kind === 'point' ? undefined : { min: o.range.min, max: o.range.max }) : (o.bounds ?? (o.min !== undefined && o.max !== undefined ? { min: o.min, max: o.max } : undefined))
+
 /**
  * Re-evaluates a manifest against the model definition (CR-C8: Conceptualize accepts evidence with basis
  * `calculated` only if this passes). Detects a different model, changed inputs and fabricated outputs.
- * Supports manifest versions 1 (R1) and 2. Numbers are compared with a relative tolerance, statuses
- * exactly, so verification works across JavaScript engines.
+ * Supports manifest versions 1 (R1), 2 (R3) and 3 (C11). Numbers are compared with a relative tolerance,
+ * statuses and the basis exactly, so verification works across JavaScript engines. Verification shows that the
+ * outputs are reproducible; it does not validate the model or establish any requirement (manifest `limits`).
  */
 export function verifyManifest(definition: CalculationModelDefinition, manifest: CalculationManifest): VerificationResult {
   const reasons: string[] = []
@@ -541,17 +613,23 @@ export function verifyManifest(definition: CalculationModelDefinition, manifest:
   for (const i of manifest.inputs) inputs[i.symbol] = { value: i.value, min: i.min, max: i.max, unit: i.unit, source: i.source }
   let exactDigestMatch: boolean | undefined
   try {
-    const again = evaluateModel(model, inputs, { uncertainty: version === 1 && manifest.uncertainty !== 'point' ? 'interval-vertices' : manifest.uncertainty })
-    exactDigestMatch = again.manifest.outputDigest === manifest.outputDigest
+    const legacy = manifest.uncertainty === 'interval-vertices'
+    const again = evaluateUnsafe(model, inputs, legacy ? { legacyVertexMode: true } : { uncertainty: manifest.uncertainty as UncertaintyMode })
+    if (version === 3) exactDigestMatch = again.manifest.outputDigest === manifest.outputDigest
     const mismatch: string[] = []
+    const given = manifest.outputs as AnyOutput[]
     for (const o of again.manifest.outputs) {
-      const m = manifest.outputs.find((x) => x.symbol === o.symbol)
-      if (!m || m.unit !== o.unit || !close(m.value, o.value) || !close(m.min, o.min) || !close(m.max, o.max)) mismatch.push(o.symbol)
+      const m = given.find((x) => x.symbol === o.symbol)
+      const ra = rangeOf(o)
+      const rb = m ? rangeOf(m) : undefined
+      if (!m || m.unit !== o.unit || !close(m.value, o.value) || !close(ra?.min, rb?.min) || !close(ra?.max, rb?.max)) mismatch.push(o.symbol)
+      if (version === 3 && m && m.range && (m.range.kind !== o.range.kind || (m.range.kind === 'bounds' && o.range.kind === 'bounds' && m.range.quality !== o.range.quality))) mismatch.push(`${o.symbol} result kind`)
     }
-    if (manifest.outputs.length !== again.manifest.outputs.length) mismatch.push('output list')
+    if (given.length !== again.manifest.outputs.length) mismatch.push('output list')
     for (const c of again.manifest.checks) {
-      const m = manifest.checks.find((x) => x.relationId === c.relationId)
-      if (!m || m.satisfied !== c.satisfied || m.status !== c.status || !close(m.lhs, c.lhs) || !close(m.rhs, c.rhs)) mismatch.push(`check ${c.relationId}`)
+      const m = (manifest.checks as AnyCheck[]).find((x) => x.relationId === c.relationId)
+      const nominal = m ? (m.nominalSatisfied ?? m.satisfied) : undefined
+      if (!m || nominal !== c.nominalSatisfied || m.status !== c.status || !close(m.lhs, c.lhs) || !close(m.rhs, c.rhs)) mismatch.push(`check ${c.relationId}`)
     }
     if (manifest.validity.satisfied !== again.validity.satisfied) mismatch.push('validity')
     if (mismatch.length) reasons.push(`Re-evaluation gives different results (${mismatch.join(', ')}): the outputs were not produced by this model and these inputs.`)
@@ -560,4 +638,11 @@ export function verifyManifest(definition: CalculationModelDefinition, manifest:
     reasons.push(`Re-evaluation failed: ${(e as Error).message}`)
   }
   return { ok: reasons.length === 0, reasons, exactDigestMatch }
+}
+
+/** Short, display-ready qualification of a result (C11), e.g. "exact bounds", "enclosure (may be narrower)". */
+export function describeRange(r: ResultRange): string {
+  if (r.kind === 'point') return 'point value'
+  if (r.kind === 'sampled-range') return `sampled range (${r.samples} samples; not a bound)`
+  return r.quality === 'exact' ? 'exact bounds' : 'enclosure (true range may be narrower)'
 }

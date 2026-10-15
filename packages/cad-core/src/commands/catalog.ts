@@ -59,7 +59,7 @@ export const QUERIES: QuerySpec[] = [
 export function commandCatalog() {
   return {
     catalog: 'ews-cad-commands',
-    catalogVersion: '1.0.0',
+    catalogVersion: '1.1.0',
     format: 'ews-cad 1.x',
     conventions: {
       transaction: 'Commands run in transactions: all commit or none. Optional expectedVersion fails with version-conflict when the document changed.',

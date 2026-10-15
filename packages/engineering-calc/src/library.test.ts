@@ -59,7 +59,7 @@ describe('engineering relations library', () => {
             expect(r.outputs[s].unit).toBe(e.unit)
             expect(Math.abs(r.outputs[s].value - e.value) / Math.abs(e.value)).toBeLessThan(c.relativeTolerance)
           }
-          for (const [id, ok] of Object.entries(c.checks ?? {})) expect(r.checks.find((x) => x.relationId === id)!.satisfied).toBe(ok)
+          for (const [id, ok] of Object.entries(c.checks ?? {})) expect(r.checks.find((x) => x.relationId === id)!.nominalSatisfied).toBe(ok)
           expect(r.validity.satisfied).toBe(true)
           // Agent-authored and not engineering-reviewed: results are estimates (ADR-0043).
           expect(r.basis).toBe('estimate')
