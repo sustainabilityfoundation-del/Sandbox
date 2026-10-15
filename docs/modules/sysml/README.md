@@ -59,6 +59,16 @@ interchange, (4) query and validation, (5) commands and transactions: `sysml-cor
 Phase 4, separate package); (8) AI interface: assistant contribution in the tool over the same client
 commands; (9) cross-module adapters: `tool-sysml-modeler/src/integration` over SDK services.
 
+## Running and testing
+
+| Command | Use |
+| --- | --- |
+| `npm run sysml:dev` | Standalone harness (port 5200): local in-browser repository by default; `?mode=api&user=eli` uses the API |
+| `npm run dev:api` | API host incl. `/api/sysml/v1` (migrates schema `sysml`, seeds the actuator example outside production); docs at `/api/sysml/v1/docs` |
+| `npm run sysml:test` | Core, client and tool tests |
+| `npm run req:test:db` | Includes `services/sysml/test` (real PostgreSQL) and the HTTP client contract suite |
+| `npm run sysml:library` / `npm run sysml:conformance` | Fetch the official SysML-v2-Release (EPL-2.0, ≥ 2026-04) into `.data/` and measure parser coverage |
+
 ## Placement recommendation (brief §15)
 
 Keep SysML as **a clearly isolated module inside this monorepo** (four packages, ADR-0030), not a separate

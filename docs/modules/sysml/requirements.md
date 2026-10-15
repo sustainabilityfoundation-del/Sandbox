@@ -21,9 +21,9 @@ model element in the sense of the specifications (relationships are elements too
 | SYS-FR-CORE-05 | The module shall serialize the semantic model to textual notation such that parse(serialize(m)) is semantically equal to m for the supported subset. | B§4, B§13 | 1 | Implemented (subset) |
 | SYS-FR-CORE-06 | The module shall serialize and deserialize elements in the Systems Modeling API JSON form (`@id`, `@type`, references as `{"@id": …}`). | B§11 | 1 | Implemented (subset of attributes) |
 | SYS-FR-CORE-07 | The module shall resolve names per KerML rules: owned and inherited memberships, visibility, aliases, namespace and membership imports (including recursive), enclosing namespaces, global scope and model libraries; and feature chains (`a.b.c`). | B§4 | 1 | Implemented (subset) |
-| SYS-FR-CORE-08 | The module shall load a model library: a bundled platform subset of standard library names, and the official OMG library when it is provided locally under its licence. | B§4 | 1 | Partial (platform subset; official library loading tested when fetched) |
+| SYS-FR-CORE-08 | The module shall load a model library: a bundled platform subset of standard library names, and the official OMG library when it is provided locally under its licence. | B§4 | 1 | Partial (platform subset with KerML 9.1 name-based IDs; the official library is only syntax-measured: 64% of its files parse; it is not loaded for resolution) |
 | SYS-FR-CORE-09 | The module shall represent attributes with values, quantities and units, and check unit/quantity-kind consistency of literal quantity values. | B§5.A, B§5.D | 1 | Implemented (SI subset) |
-| SYS-FR-CORE-10 | The module shall support specialization, subsetting, redefinition and conjugation semantics for name resolution and validation. | B§5.A | 1 | Partial (conjugation planned) |
+| SYS-FR-CORE-10 | The module shall support specialization, subsetting, redefinition and conjugation semantics for name resolution and validation. | B§5.A | 1 | Implemented (subset; implicit library specializations not created) |
 | SYS-FR-CORE-11 | The module shall support SysML v1.7 import and migration per the v1-to-v2 transformation specification. | B§4, B§11 | 5 | Planned |
 
 ## VAL: validation and queries
@@ -59,7 +59,7 @@ model element in the sense of the specifications (relationships are elements too
 | --- | --- | --- | --- | --- |
 | SYS-FR-REPO-01 | The module shall persist models in PostgreSQL schema `sysml` as immutable element versions per commit, preserving the full abstract syntax of each element. | B§4, contracts §3 | 1 | Implemented |
 | SYS-FR-REPO-02 | The repository shall support projects, branches, tags and commits aligned with the Systems Modeling API resource model. | B§10, B§11 | 1 | Implemented (subset) |
-| SYS-FR-REPO-03 | Reads shall be possible at any commit and at branch heads, with paging and per-owner lazy loading. | B§9 | 1 | Implemented |
+| SYS-FR-REPO-03 | Reads shall be possible at any commit and at branch heads, with paging and per-owner lazy loading. | B§9 | 1 | Implemented in the API (children endpoint, paging); the tool still loads the whole model |
 | SYS-FR-REPO-04 | Committed changes shall be announced through a transactional outbox and an SSE stream. | platform convention | 1 | Implemented |
 | SYS-FR-REPO-05 | Access shall require the `tool:sysml` entitlement and project membership; writes need an editor (or higher) role; enforcement is server-side. | B§10 | 1 | Implemented |
 | SYS-FR-REPO-06 | The module shall provide semantic diff between two commits (element-level). | B§10 | 1 | Implemented (element-level, no merge) |
@@ -73,7 +73,7 @@ model element in the sense of the specifications (relationships are elements too
 | ID | Requirement | Source | Phase | Status |
 | --- | --- | --- | --- | --- |
 | SYS-FR-UI-01 | Hierarchical model browser (containment) with search and metaclass filter, keyboard operable. | B§5.E | 2 | Implemented |
-| SYS-FR-UI-02 | Textual editor for a selected namespace with diagnostics, dry-run preview and apply. | B§5.E | 2 | Implemented (plain text area, no highlighting) |
+| SYS-FR-UI-02 | Textual editor for a selected namespace with diagnostics, dry-run preview and apply. | B§5.E | 2 | Implemented (plain text area: no highlighting or completion) |
 | SYS-FR-UI-03 | Graphical views projected from the semantic model; at least a General View and an Interconnection View; automatic layout. | B§5.E | 2 | Implemented (General, Interconnection) |
 | SYS-FR-UI-04 | Property inspector editing name, short name, typing, specialization, multiplicity, value, direction and documentation through commands. | B§5.E | 2 | Implemented |
 | SYS-FR-UI-05 | Contextual creation of owned elements (add part, port, attribute, …) without dragging. | B§5.E | 2 | Implemented |
@@ -87,7 +87,7 @@ model element in the sense of the specifications (relationships are elements too
 
 | ID | Requirement | Source | Phase | Status |
 | --- | --- | --- | --- | --- |
-| SYS-FR-INT-01 | Requirement usages that stand for managed requirements shall reference them by canonical UUID and revision via `RequirementsService`; SysML shall store no competing requirement text. | B§5.C, contracts §5 | 3 | Planned (metadata scheme designed) |
+| SYS-FR-INT-01 | Requirement usages that stand for managed requirements shall reference them by canonical UUID and revision via `RequirementsService`; SysML shall store no competing requirement text. | B§5.C, contracts §5 | 3 | Implemented (link with pinned revision, live text, stale pin, update pin, unlink, assistant link_requirement); coverage analysis planned |
 | SYS-FR-INT-02 | Concepts shall link to SysML Modeler elements through `ArtifactRef` with element UUID and commit number. | B§7, contracts §5 | 3 | Planned (scheme proposed: contract change request) |
 | SYS-FR-INT-03 | Part usages shall link to CAD parts/assemblies with interface traceability and mass properties through an agreed contract. | B§8 | 3 | Planned (proposal; coordinator reconciles) |
 | SYS-FR-INT-04 | Traceability matrices, coverage and gap analysis across requirements and model. | B§5.C | 3 | Planned |
@@ -97,7 +97,7 @@ model element in the sense of the specifications (relationships are elements too
 
 | ID | Requirement | Source | Phase | Status |
 | --- | --- | --- | --- | --- |
-| SYS-FR-BEH-01 | Actions, successions (`first … then …`), states and transitions (`accept … then …`) in the semantic model and text. | B§5.B | 1 (syntax), 4 (views) | Partial (parse, store, resolve) |
+| SYS-FR-BEH-01 | Actions, successions (`first … then …`), states and transitions (`accept … then …`) in the semantic model and text. | B§5.B | 1 (syntax), 4 (views) | Partial (parse, store, resolve, serialize: successions, then, perform, exhibit, accept, transitions; no behaviour views, no execution) |
 | SYS-FR-BEH-02 | Action flow, state transition and sequence views. | B§5.B, B§5.E | 4 | Planned |
 | SYS-FR-PAR-01 | Evaluate attribute value expressions with units (arithmetic, references, unit conversion). | B§5.D | 1 | Implemented (subset) |
 | SYS-FR-PAR-02 | Constraint checking, parametric solving, trade studies, sensitivity, external solvers. | B§5.D | 4 | Planned |
@@ -108,7 +108,7 @@ model element in the sense of the specifications (relationships are elements too
 | ID | Requirement | Source | Phase | Status |
 | --- | --- | --- | --- | --- |
 | SYS-FR-XCH-01 | Native textual notation import/export of whole projects or namespaces. | B§11 | 1 | Implemented (subset) |
-| SYS-FR-XCH-02 | Systems Modeling API JSON element export/import (project snapshot). | B§11 | 1 | Implemented (subset) |
+| SYS-FR-XCH-02 | Systems Modeling API JSON element export/import (project snapshot). | B§11 | 1 | Implemented (subset: model snapshot and elements endpoints; import through raw API commits, validated) |
 | SYS-FR-XCH-03 | SysML v1 XMI import/export where feasible; no claim of universal compatibility without round-trip tests. | B§11 | 5 | Planned |
 | SYS-FR-XCH-04 | Document and report export. | B§11 | 5 | Planned |
 

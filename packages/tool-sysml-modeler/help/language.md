@@ -24,21 +24,33 @@ and never dropped silently.
   `derived`, `constant`, feature values `=`, `:=`, `default`.
 - Connections: `connect a.p to b.q`, `interface i : I connect …`, `flow of T from … to …`,
   `bind x = y`, `first a then b`, `allocate a to b`, `satisfy R by x`.
-- Behaviour: action parameters and successions; states with `entry`/`do`/`exit`; transitions
-  `transition t first s1 accept T if guard then s2`.
-- Requirements: `subject`, `require constraint { … }`, `assume constraint { … }`.
+- Behaviour: action parameters; `first x;` and `then` successions (`then action b;`, `then done;`);
+  `perform` and `exhibit`; accept actions `accept s : Signal via port`; states with
+  `entry`/`do`/`exit`; transitions `transition t first s1 accept T via p if guard then s2` and the
+  shorthand `accept T then s2;`.
+- Requirements and constraints: `subject`, `require constraint { … }`, `assume constraint { … }`,
+  `require c;`, `assert constraint`, `assert not constraint`, `satisfy`, `not satisfy`.
+- Cases, concerns and views (structure only, nothing executes or renders): `use case`,
+  `verification` with `objective { verify r; }`, `analysis`, `case`, `concern` with
+  `stakeholder`, `viewpoint` with `frame`, `view` with `expose` and `render`, `rendering`, `actor`.
 - Expressions: literals, arithmetic, comparison, boolean operators, `if … ? … else …`, invocation,
-  feature chains `a.b.c`, quantities with units `12 [kg]`, `3 [m/s]`, `9.81 [m/s^2]`.
-- Metadata usages `@T { name = value; }`.
+  sequences `(a, b, c)`, feature chains `a.b.c`, quantities with units `12 [kg]`, `3 [m/s]`,
+  `9.81 [m/s^2]`.
+- Metadata usages `@T { name = value; }` and prefixes `#T part x;`; specializing feature chains
+  (`ref part x :> a.b;`).
 
 ## Not supported yet
 
-Use cases, verification cases and `verify`, analysis cases, views and viewpoints (`view`, `render`,
-`expose`), concerns and stakeholders, `perform` and `exhibit`, `send`, messages and events,
-individuals, snapshots and time slices, variation points with `variant`, decision, merge, fork and
-join nodes and loops, `assert`, dependencies, and the `then` shorthand after a member. Several
-details of the abstract syntax are simplified (for example operator arguments, flow ends and the
-binding of `satisfy … by`); the developer conformance list records each one.
+`send`, messages and events, individuals, snapshots and time slices, variation points with
+`variant`, decision, merge, fork and join nodes, loops and assignments, `include use case`,
+`filter`, dependencies, `new` (constructor expressions), `meta` and `as` casts, `->` invocations, and
+multiplicities written before `end` features. Several details of the abstract syntax are simplified
+(for example operator arguments, flow ends and the binding of `satisfy … by`); the developer
+conformance list records each one.
+
+Measured against the official SysML v2 release examples and training models (196 files), 18% load
+with no diagnostics and 46% load with no errors other than standard-library names outside the
+platform subset.
 
 ## Model library
 
