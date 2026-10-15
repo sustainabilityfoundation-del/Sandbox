@@ -24,7 +24,7 @@ apps/workspace          Common shell: navigation, tool registry, subscriptions, 
 apps/glb-viewer         Standalone GLB viewer (not part of the platform)
 packages/model-service  Domain model, ownership and relationship rules, revision history,
                         baselines, change impact, DemoRepository (no React)
-packages/platform-sdk   Versioned tool contract (1.7.0), PlatformHost, React hooks, harness, testing
+packages/platform-sdk   Versioned tool contract (1.8.0), PlatformHost, React hooks, harness, testing
 packages/design-system  React Aria + Tailwind components, tokens, semantic icons
 packages/tool-requirements | tool-sysml | tool-cad   The three Phase 1 modules
 ```

@@ -135,4 +135,30 @@ export interface ConceptsService {
   conceptsForArtifact: (artifact: ArtifactRef, scope: { projectId: string }) => Promise<{ concept: ConceptSummary; implementation: ConceptImplementationSummary }[]>
   implementations: (conceptId: ConceptId, scope: { projectId: string }) => Promise<ConceptImplementationSummary[]>
   subscribe: (projectId: string, listener: (event: ConceptsEvent) => void) => () => void
+  /**
+   * A design constraint at a revision (SDK 1.8, demonstration D1). Bounds are authoritative here: other modules
+   * (for example CAD checks) read them instead of trusting values supplied by a caller. Optional: absent in
+   * hosts whose Conceptualize does not provide it yet.
+   */
+  getConstraint?: (id: string, scope: { projectId: string; revision?: number }) => Promise<ConstraintSummary | undefined>
+}
+
+/** Design constraint as other modules read it (SDK 1.8). Mirrors Conceptualize's record; display text is not identity. */
+export interface ConstraintSummary {
+  id: string
+  /** Human key, e.g. 'CST-004'. */
+  key: string
+  projectId: string
+  /** Revision returned (the requested one, or the latest). */
+  revision: number
+  latestRevision: number
+  kind: 'qualitative' | 'logical' | 'mathematical' | 'dimensional' | 'interface'
+  statement: string
+  bound: { symbol?: string; operator: '<=' | '<' | '=' | '>=' | '>' | 'in-range'; quantity: { value?: number | null; min?: number | null; max?: number | null; unit: string } } | null
+  strength: 'hard' | 'soft' | 'preference'
+  status: 'proposed' | 'active' | 'relaxed' | 'retired'
+  /** Basis of knowledge (ADR-0043), e.g. 'user-assertion', 'assumption', 'ai-hypothesis'. */
+  basis: string
+  /** The requirement it formalizes, pinned, if any. */
+  formalizes: ArtifactRef | null
 }
