@@ -36,5 +36,6 @@ export { diffModels, applyChanges, invertChanges, summarizeChanges, describeSumm
 export { COMMAND_SCHEMAS, checkCommandShape, type CommandSchema } from './commands/schemas'
 export { structuralKeys, preserveIdentity } from './commands/reconcile'
 export { findElements, summarize, incomingReferences, impact, children, type ElementQuery, type ElementSummary, type IncomingReference, type ChildSummary } from './query/query'
+export { relationshipMatrix, requirementCoverage, requirementUsages, satisfyingChain, referencedRequirement, type MatrixKind, type RelationshipMatrix, type MatrixAxisItem, type MatrixCell, type CoverageReport, type CoverageStatus, type RequirementCoverage } from './query/matrix'
 export { canonicalForm } from './conformance/canonical'
 export { ACTUATOR_EXAMPLE, ACTUATOR_EXAMPLE_NAME } from './examples/actuator'

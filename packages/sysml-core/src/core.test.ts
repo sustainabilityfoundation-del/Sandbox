@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { relationshipMatrix, requirementCoverage } from './query/matrix'
 import { applyChanges, diffModels, invertChanges } from './commands/changes'
 import { COMMAND_SCHEMAS } from './commands/schemas'
 import { applyTransaction } from './commands/transaction'
@@ -336,5 +337,41 @@ describe('element references', () => {
     expect(r.ok).toBe(true)
     const amb = applyTransaction(m, { commands: [{ op: 'rename', elementId: 'Pump', name: 'P2' }] })
     expect(!amb.ok && amb.error.message).toMatch(/ambiguous: A::Pump, B::Pump/)
+  })
+})
+
+describe('relationship matrices and requirement coverage', () => {
+  it('satisfy matrix: every requirement is a row (also unsatisfied ones); satisfying features are columns', async () => {
+    const m = model(ACTUATOR_EXAMPLE)
+    const mx = relationshipMatrix(m, 'satisfy')
+    expect(mx.rows.map((r) => r.label)).toEqual(['ActuatorSystem::Requirements::load', 'ActuatorSystem::Requirements::massLimit', 'ActuatorSystem::Requirements::stroke'])
+    expect(mx.cols.map((c) => c.label)).toEqual(['ActuatorSystem::Product::act100'])
+    expect(mx.cells).toHaveLength(3)
+  })
+
+  it('allocate matrix uses feature chains as axis labels; connect matrix is part-by-part', async () => {
+    const m = model(ACTUATOR_EXAMPLE)
+    const alloc = relationshipMatrix(m, 'allocate')
+    expect(alloc.rows.map((r) => r.label)).toEqual(['ActuatorSystem::Software::controlLoop'])
+    expect(alloc.cols.map((c) => c.label)).toEqual(['act100.controller'])
+    const conn = relationshipMatrix(m, 'connect', id(m, 'ActuatorSystem::Architecture::LinearActuator'))
+    expect(conn.rows.map((r) => r.label)).toEqual(conn.cols.map((c) => c.label))
+    const driverSupply = conn.cells.find((c) => conn.rows.find((r) => r.key === c.row)?.label.endsWith('supply') && conn.cols.find((x) => x.key === c.col)?.label.endsWith('driver'))
+    expect(driverSupply?.relationships.map((r) => r.metaclass)).toEqual(['InterfaceUsage'])
+  })
+
+  it('coverage: satisfied, verified, both or not covered; managed links counted', async () => {
+    const m = model(ACTUATOR_EXAMPLE)
+    const r = applyTransaction(m, { commands: [{ op: 'createElement', ownerId: 'ActuatorSystem::Requirements', kind: 'RequirementUsage', name: 'noise', typeIds: ['ActuatorSystem::Requirements::StrokeRequirement'] }, { op: 'setMetadata', elementId: 'ActuatorSystem::Requirements::load', metadata: 'ManagedRequirement', values: { requirementId: '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001', revision: 2 } }] })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const cov = requirementCoverage(r.model)
+    const by = Object.fromEntries(cov.requirements.map((x) => [x.label.split('::').pop()!, x] as const))
+    expect(by.massLimit.status).toBe('satisfied-and-verified')
+    expect(by.massLimit.verifiedBy.map((v) => v.label)).toContain('ActuatorSystem::Requirements::massTest')
+    expect(by.load.status).toBe('satisfied')
+    expect(by.load.managed).toEqual({ requirementId: '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001', revision: 2 })
+    expect(by.noise.status).toBe('not-covered')
+    expect(cov.counts).toMatchObject({ total: 4, 'satisfied-and-verified': 1, satisfied: 2, 'not-covered': 1, linkedToManaged: 1 })
   })
 })

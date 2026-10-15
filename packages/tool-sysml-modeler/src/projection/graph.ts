@@ -35,9 +35,11 @@ export interface GraphNode {
   isContext?: boolean
   /** Shown because a member refers to it; owned by another namespace. */
   isExternal?: boolean
+  /** Pseudo-node shape (behaviour views): the initial node or initial-state marker. */
+  shape?: 'initial'
 }
 
-export type EdgeKind = 'specialization' | 'composition' | 'typing' | 'satisfy' | 'allocate' | 'connection' | 'interface' | 'flow' | 'binding' | 'succession'
+export type EdgeKind = 'specialization' | 'composition' | 'typing' | 'satisfy' | 'allocate' | 'connection' | 'interface' | 'flow' | 'binding' | 'succession' | 'transition'
 
 export interface GraphEdge {
   id: string

@@ -96,6 +96,8 @@
   .smod-edge.is-selected path:not(.smod-edge-hit) { stroke: var(--ws-accent); stroke-width: 2.5; }
   .smod-edge:focus-visible path:not(.smod-edge-hit) { stroke: var(--ws-focus); stroke-width: 3; }
   .smod-edge-label { fill: var(--ws-text-2); font-size: 11px; font-family: var(--ws-font-sans); }
+  .smod-initial circle { fill: var(--ws-text); stroke: none; }
+  .smod-edge.is-transition path:not(.smod-edge-hit) { stroke: var(--ws-text); }
   .smod-marker-hollow { fill: var(--ws-surface); stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.2; }
   .smod-marker-filled { fill: var(--ws-diagram-stroke-strong); }
   .smod-marker-open { fill: none; stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.4; }
@@ -144,6 +146,16 @@
   .smod-commit-head { display: flex; gap: var(--ws-space-2); align-items: baseline; }
   .smod-commit-summary { overflow-wrap: anywhere; }
   .smod-commit-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); color: var(--ws-text-3); font-size: var(--ws-font-size-xs); }
+
+  /* ---- grid views: matrices and coverage ---- */
+  .smod-matrix-scroll { overflow: auto; max-width: 100%; border: 1px solid var(--ws-border); border-radius: var(--ws-radius); }
+  .smod-matrix { border-collapse: collapse; font-size: var(--ws-font-size-sm); background: var(--ws-surface); }
+  .smod-matrix th, .smod-matrix td { border: 1px solid var(--ws-border); padding: var(--ws-space-1) var(--ws-space-2); text-align: left; vertical-align: top; }
+  .smod-matrix thead th { position: sticky; top: 0; z-index: 1; background: var(--ws-surface-2); }
+  .smod-matrix tbody th { position: sticky; left: 0; background: var(--ws-surface-2); font-weight: var(--ws-weight-regular); }
+  .smod-matrix td.is-filled { background: var(--ws-selected); }
+  .smod-matrix-corner { color: var(--ws-text-3); font-weight: var(--ws-weight-regular); }
+  .smod-coverage td, .smod-coverage th { min-width: 8rem; }
 
   /* ---- tablet: properties below the view ---- */
   @container tool (max-width: 900px) {

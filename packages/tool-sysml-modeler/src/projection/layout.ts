@@ -38,7 +38,10 @@ export const HEADER_H = 44
 const PAD = 12
 const PORT = 12
 
+export type DiagramMode = 'general' | 'interconnection' | 'action-flow' | 'state-transition'
+
 export function nodeSize(n: GraphNode): { width: number; height: number } {
+  if (n.shape === 'initial') return { width: 22, height: 22 }
   const lines = n.compartments.flatMap((c) => [c.title, ...c.items.map((i) => i.text)])
   const widest = Math.max(n.name.length * 8, n.keyword.length * CHAR_W + 16, ...lines.map((l) => Math.min(l.length, 60) * CHAR_W))
   const width = Math.min(Math.max(widest + PAD * 2, 140), 520)
@@ -102,7 +105,7 @@ function toElk(n: GraphNode, nested: boolean): ElkNode {
   }
 }
 
-export async function layoutGraph(graph: Graph, mode: 'general' | 'interconnection'): Promise<Layout> {
+export async function layoutGraph(graph: Graph, mode: DiagramMode): Promise<Layout> {
   const engine = await elk()
   const labelOf = (text?: string) => (text ? [{ text, width: Math.min(text.length, 40) * CHAR_W + 8, height: 16 }] : undefined)
   const root: ElkNode = {
@@ -111,7 +114,7 @@ export async function layoutGraph(graph: Graph, mode: 'general' | 'interconnecti
       'elk.algorithm': 'layered',
       'elk.direction': 'RIGHT',
       // Hierarchy only for interconnection (nested parts); the General View packs disconnected groups.
-      ...(mode === 'interconnection' ? { 'elk.hierarchyHandling': 'INCLUDE_CHILDREN' } : { 'elk.separateConnectedComponents': 'true', 'elk.aspectRatio': '1.4', 'elk.spacing.componentComponent': '40' }),
+      ...(mode !== 'general' ? { 'elk.hierarchyHandling': 'INCLUDE_CHILDREN' } : { 'elk.separateConnectedComponents': 'true', 'elk.aspectRatio': '1.4', 'elk.spacing.componentComponent': '40' }),
       'elk.layered.spacing.nodeNodeBetweenLayers': mode === 'general' ? '110' : '90',
       'elk.spacing.nodeNode': '40',
       'elk.edgeRouting': 'ORTHOGONAL',

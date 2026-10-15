@@ -19,7 +19,7 @@ text are different ways of looking at the same elements.
 
 - Browse and search the containment tree ([Model browser](help:sysml-modeler.browser)).
 - Edit packages and definitions as SysML v2 text, with a preview before applying ([Textual editor](help:sysml-modeler.text)).
-- See General and Interconnection Views laid out automatically ([Views](help:sysml-modeler.views)).
+- See General and Interconnection Views laid out automatically ([Views](help:sysml-modeler.views)), Action Flow and State Transition views ([Behaviour views](help:sysml-modeler.behavior-views)), relationship matrices and requirement coverage ([Matrices](help:sysml-modeler.matrix), [Coverage](help:sysml-modeler.coverage)).
 - Edit names, types, multiplicities, values and documentation ([Properties](help:sysml-modeler.properties)).
 - Validate the model against 17 rules, including unit and quantity checks ([Validation](help:sysml-modeler.validation)).
 - Review every change as a commit with its author and reason, and undo it ([History and versions](help:sysml-modeler.history)).
