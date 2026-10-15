@@ -2,7 +2,8 @@
 
 Status: Proposed (2026-10-15, CAD agent, change request CR-CAD-4). Number provisional. Needs
 coordinator approval. Nothing in this ADR is implemented. The mock tool stays registered and
-unchanged until the coordinator accepts this ADR and each phase's gate is met.
+unchanged until the coordinator accepts this ADR and each phase's gate is met. The coordinator
+answered the open questions on 2026-10-15 (see *Coordinator answers*); the ADR stays Proposed.
 
 ## Context
 
@@ -42,26 +43,22 @@ a flag back.
    - parameters taken from the dimensions (for example `diameter = 25 mm`, `length = 600 mm`);
    - features matching the mock shape (`rod`: circle sketch and extrude; `housing`: tube; `motor`:
      cylinder);
-   - two outbound references (ADR-0026) on the part:
-     - `represents` the same component (`ROD-120`);
+   - two outbound references (ADR-0026) on the part, both CAD-side only:
+     - `represents`: in new projects the product element (`{ module: 'product', kind:
+       'product-element', id }`, CR-PM-CAD-1). In PRJ-ACT100 it stays the twin component
+       (`ROD-120`) as the labelled legacy path;
      - `derivedFrom` `{ module: 'cad', id: 'CAD-120', revision: <the twin revision read> }`.
 
    The conversion writes nothing to the twin. The mock object remains the record of what was there.
    The conversion runs through the same command and proposal path as other CAD Modeler commands, so
    the assistant can offer it and the user approves it. A conversion report lists dimensions that
    could not be mapped.
-3. **Dimension mapping moves to an explicit mapping (separate decision).**
-   - A CAD Modeler part that `represents` a component may declare a mapping such as
-     "parameter `diameter` → component property `diameter`".
-   - Applying the mapping is a proposal the user approves, submitted with `submitChanges` against the
-     component revision it was based on. The repository already permits the `cad` module to write
-     these properties.
+3. **No twin delegation for the CAD Modeler.**
+   - The ADR-0006 delegation stays with the mock tool (`cad`) and the twin only.
+   - If a parameter-to-property mapping is ever needed, it will be a separate, explicit mapping
+     against Project Management product elements, proposed as its own ADR. It is not part of this
+     ADR and will not be built now.
    - Nothing synchronises in the background.
-   - This needs either a delegation entry for the tool ID `cad-modeler`, or a decision that the
-     existing `cad` delegation covers both tools. Changing `DELEGATIONS` requires its own ADR
-     (AGENTS.md).
-
-   Until then, the delegation stays with the mock tool.
 4. **Retirement of the mock tool (after every gate below).**
    - The mock tool is hidden from the launcher behind a disabled-by-default flag.
    - `cad-representation` stays a known type, readable through the inspector and in baselines, but
@@ -76,8 +73,8 @@ a flag back.
 
 | Phase | Gate |
 | --- | --- |
-| 2 | Conversion works for each mock shape in the seed. Tests: the parameters reproduce the mock dimensions within 1e-6 mm; the twin is unchanged (same revision); the conversion is idempotent per (representation, revision), so a repeat proposes nothing new |
-| 3 | Delegation ADR accepted. Mapping proposals carry the base revision and are refused when stale. Tests for unit conversion and refused writes |
+| 2 | Starts after Project Management's I1 is on main. Conversion works for each mock shape in the seed, and `represents` targets product elements (twin components only in PRJ-ACT100). Tests: the parameters reproduce the mock dimensions within 1e-6 mm; the twin is unchanged (same revision); the conversion is idempotent per (representation, revision), so a repeat proposes nothing new |
+| 3 | None in this ADR: no delegation and no mapping (coordinator answer 2). A later mapping ADR defines its own gates |
 | 4 | A migration test with a fixture of a project holding `cad-representation` objects, baselines and Conceptualize references to `CAD-…`. After retirement: every object, relationship, baseline and reference reads the same; nothing is deleted; the flag restores the mock tool |
 
 ## Consequences
@@ -85,19 +82,20 @@ a flag back.
 - Users keep all mock data and history. Retirement only hides an authoring path.
 - The twin keeps an object type whose author is retired. The inspector must label it read-only, as
   it does for retired modules.
-- Phases 2 and 3 add CAD Modeler commands and help pages; phase 4 is a platform change owned by the
+- Phase 2 adds a CAD Modeler command and help pages; phase 3 adds nothing; phase 4 is a platform change owned by the
   coordinator (`apps/workspace`, `model-service` ownership).
 - Rejected alternative: migrate `cad-representation` objects into CAD documents in place, deleting
   the twin objects and rewriting references. That would rewrite user data (violating ADR-0009) and
   would break baselines that pin `CAD-…` revisions.
 
-## Open questions for the coordinator
+## Coordinator answers (2026-10-15)
 
-1. Should conversion record a twin relationship (for example a new `derivedFrom` relationship type
-   owned by `cad`), or only the CAD-side reference proposed here? A twin relationship makes the link
-   visible to every module, but it is a `RELATIONSHIP_RULES` change.
-2. Should the delegation cover both tool IDs under module `cad`, or should `cad-modeler` get its own
-   entry?
-3. The order relative to Project Management. The planned product-structure references
-   (CR-PM-CAD-1, ArtifactRef module `product`) may replace `represents` targets in a later version;
-   phase 2 should then target product items instead of twin components.
+1. **CAD-side reference only.** No twin relationship type is added. The twin is becoming a
+   projection of the Project Management product registry (milestone C2), so cross-module visibility
+   comes from the artifact registry and C3 references (the CAD artifact source reports the
+   references as relations).
+2. **No twin delegation for the CAD Modeler.** The delegation stays with the mock tool (`cad`) and
+   the twin. A parameter-to-product-property mapping, if needed, will be a separate explicit mapping
+   against product elements, in its own ADR later. It is not built now.
+3. **Phase 2 targets product elements** (CR-PM-CAD-1), after Project Management's I1 is on main. The
+   PRJ-ACT100 conversion keeps twin `represents` targets as the labelled legacy path.
