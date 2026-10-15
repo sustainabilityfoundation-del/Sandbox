@@ -20,3 +20,7 @@ related: [conceptualize.explorer]
 
 Self links and duplicates (either direction for symmetric types) are refused. Removing a relationship
 is recorded, not deleted. Relationships can cross abstraction levels.
+
+**Decompositions** (Structure tab): add a named decomposition (for example *Hybrid-electric*), mark it
+candidate, preferred or rejected, and choose it when adding a *contains* relationship. The tree groups
+children by decomposition when a Concept has more than one.

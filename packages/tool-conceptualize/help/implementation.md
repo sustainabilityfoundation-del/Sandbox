@@ -27,3 +27,6 @@ after you reviewed the change), *Not found* (broken), *Follows latest*, *Test ad
 
 **Request CAD generation** records a pending realization request: no CAD generation API exists yet,
 and Conceptualize has no CAD kernel.
+
+A pending realization request can be **cancelled**, or marked **fulfilled by** the artifact that
+realizes it (the artifact is then linked to the implementation).

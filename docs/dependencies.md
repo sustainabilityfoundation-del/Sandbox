@@ -74,3 +74,9 @@ interoperability tests (`npm run req:reqif:samples`, pinned commit).
 | @scalar/api-reference | 1.72.3 | MIT | api (interactive OpenAPI reference, served from the local package; hosted features off) | github.com/scalar/scalar |
 
 Planned (ADR-0014), not installed: Docusaurus, Storybook, TypeDoc.
+
+## Conceptualize (added 14 October 2026, Conceptualize agent)
+
+No new third-party packages. `@ews/conceptualize-service` uses the versions already recorded for the
+Requirements service: @sinclair/typebox 0.34.52 (MIT), fastify 5.12.5 (MIT), pg 8.23.0 (MIT),
+ajv 8.20.0 (MIT), ajv-formats 3.0.1 (MIT), @types/pg 8.23.1 (MIT). The graph view is plain SVG.

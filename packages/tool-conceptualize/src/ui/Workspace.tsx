@@ -157,16 +157,17 @@ function IntentEditor({ concept, onDone }: { concept: Concept; onDone: () => voi
   )
 }
 
-function MaturityControl({ concept }: { concept: Concept }) {
+function MaturityControl({ concept, graph }: { concept: Concept; graph: Graph | undefined }) {
   const { client, invalidate, can } = useModuleData()
   const [to, setTo] = useState<ConceptMaturity>(concept.maturity)
   const [reason, setReason] = useState('')
+  const [replacedBy, setReplacedBy] = useState<string | null>(null)
   const [error, setError] = useState<unknown>(null)
   if (!can('author') && !can('decide')) return null
   const apply = async () => {
     setError(null)
     try {
-      await client.changeMaturity(concept.id, to, { expectedRevision: concept.revision, reason: reason.trim() || `Set to ${to}` })
+      await client.changeMaturity(concept.id, to, { expectedRevision: concept.revision, reason: reason.trim() || `Set to ${to}`, ...(to === 'superseded' && replacedBy ? { replacedBy } : {}) })
       setReason('')
       invalidate()
     } catch (e) {
@@ -176,6 +177,9 @@ function MaturityControl({ concept }: { concept: Concept }) {
   return (
     <div className="con-inline-form" data-help-id="conceptualize.maturity.change">
       <Select label="Maturity" size="sm" value={to} onChange={(v) => setTo(v as ConceptMaturity)} options={MATURITIES.map((m) => ({ id: m, label: MATURITY[m].label }))} />
+      {to === 'superseded' && (
+        <Select label="Replaced by" size="sm" value={replacedBy} placeholder="Optional" onChange={setReplacedBy} options={(graph?.nodes ?? []).filter((n) => n.id !== concept.id).map((n) => ({ id: n.id, label: `${n.key} ${n.name}` }))} />
+      )}
       <TextField label="Reason" value={reason} onChange={setReason} />
       <Button size="sm" variant="outlined" isDisabled={to === concept.maturity} onPress={() => void apply()}>
         Change maturity
@@ -196,7 +200,7 @@ function StructureView({ concept, graph }: { concept: Concept; graph: Graph | un
     if (!target) return
     setError(null)
     try {
-      await client.createRelationship({ type, fromId: concept.id, toId: target })
+      await client.createRelationship({ type, fromId: concept.id, toId: target, ...(type === 'contains' && decomposition ? { decompositionId: decomposition } : {}) })
       setTarget(null)
       invalidate()
     } catch (e) {
@@ -213,13 +217,45 @@ function StructureView({ concept, graph }: { concept: Concept; graph: Graph | un
     }
   }
   const decs = (graph?.decompositions ?? []).filter((d) => d.parentId === concept.id)
+  const [decName, setDecName] = useState('')
+  const [decomposition, setDecomposition] = useState<string | null>(null)
+  const children = (graph?.edges ?? []).filter((e) => e.type === 'contains' && e.fromId === concept.id)
+  const run = async (fn: () => Promise<unknown>) => {
+    setError(null)
+    try {
+      await fn()
+      invalidate()
+    } catch (e) {
+      setError(e)
+    }
+  }
   return (
     <div className="con-stack" data-help-id="conceptualize.structure">
-      {decs.length > 0 && (
-        <p className="con-muted">
-          Decompositions: {decs.map((d) => `${d.name} (${d.status})`).join(', ')}. Concept decomposition need not match a CAD assembly or SysML containment.
-        </p>
-      )}
+      <Section title="Decompositions" helpId="conceptualize.structure">
+        <p className="con-muted">Alternative decomposition structures of this Concept. Children may be shared; the decomposition need not match a CAD assembly or SysML containment.</p>
+        <ul className="con-rel-list">
+          {decs.map((d) => (
+            <li key={d.id}>
+              <strong>{d.name}</strong>
+              <span className="con-muted">{children.filter((e) => e.decompositionId === d.id).length} children</span>
+              {can('author') ? (
+                <Select ariaLabel={`Status of ${d.name}`} size="sm" value={d.status} onChange={(s) => void run(() => client.updateDecomposition(d.id, { status: s as typeof d.status }, { expectedRevision: d.recordVersion }))} options={['candidate', 'preferred', 'rejected'].map((s) => ({ id: s, label: s }))} />
+              ) : (
+                <Badge tone="neutral">{d.status}</Badge>
+              )}
+            </li>
+          ))}
+          {!decs.length && <li className="con-muted">No named decomposition; children are linked directly.</li>}
+        </ul>
+        {can('author') && (
+          <div className="con-inline-form">
+            <TextField label="New decomposition" placeholder="e.g. Hybrid-electric" value={decName} onChange={setDecName} />
+            <Button size="sm" variant="outlined" icon="add" isDisabled={!decName.trim()} onPress={() => void run(async () => { await client.createDecomposition({ parentId: concept.id, name: decName.trim() }); setDecName('') })}>
+              Add decomposition
+            </Button>
+          </div>
+        )}
+      </Section>
       <ul className="con-rel-list">
         {edges.map((e) => {
           const out = e.fromId === concept.id
@@ -241,6 +277,9 @@ function StructureView({ concept, graph }: { concept: Concept; graph: Graph | un
         <div className="con-inline-form" data-help-id="conceptualize.relationship.create">
           <Select label="Relationship" size="sm" value={type} onChange={(v) => setType(v as typeof type)} options={Object.entries(RELATION_LABEL).map(([k, v]) => ({ id: k, label: v.out }))} />
           <Select label="Concept" size="sm" value={target} placeholder="Choose a Concept" onChange={setTarget} options={(graph?.nodes ?? []).filter((n) => n.id !== concept.id).map((n) => ({ id: n.id, label: `${n.key} ${n.name}` }))} />
+          {type === 'contains' && decs.length > 0 && (
+            <Select label="In decomposition" size="sm" value={decomposition} placeholder="None" onChange={setDecomposition} options={decs.map((d) => ({ id: d.id, label: d.name }))} />
+          )}
           <Button size="sm" variant="outlined" icon="link" isDisabled={!target} onPress={() => void add()}>
             Add relationship
           </Button>
@@ -402,7 +441,7 @@ export function ConceptWorkspace({ graph }: { graph: Graph | undefined }) {
                 </div>
               )}
               <IntentView concept={c} />
-              <MaturityControl concept={c} />
+              <MaturityControl concept={c} graph={graph} />
             </>
           )}
         </TabPanel>

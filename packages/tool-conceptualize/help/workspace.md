@@ -22,3 +22,11 @@ Tabs:
 
 Header badges keep three things apart: **maturity**, **implementation status** (derived from
 implementations) and **verification status** (needs verified evidence).
+
+**Record evidence** (Evidence tab) stores a preliminary estimate (method, inputs and outputs with units,
+assumptions) or verified evidence, which must reference the authoritative result (a saved result
+`OUT-…`, an analysis test-adapter result or an external document). Reviewers set the **verification
+status** there, choosing the verified evidence that supports it.
+
+To supersede a Concept, set maturity *superseded* and choose **Replaced by**: a *replaces* relationship
+is recorded and the old Concept stays readable.

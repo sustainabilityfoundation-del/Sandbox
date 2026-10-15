@@ -16,3 +16,7 @@ scores map 1–5 to 0–1, and the weighted sum is computed over the scored crit
 score range. **Coverage** shows the share of weight that was scored; missing scores are listed, not
 guessed. The ranking is *robust* only when the best option's range does not overlap the others.
 Results are **preliminary** unless every score is verified evidence.
+
+**Edit criteria and weights** (below the table): add a criterion (category, scale, unit, better is
+higher or lower, weight), set a new weight with **Set**, or remove a criterion. Every change creates a
+new study revision; scores already given stay in the history.

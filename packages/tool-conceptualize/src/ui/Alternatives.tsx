@@ -57,6 +57,80 @@ function ScoreEditor({ study, criterion, conceptId, current, onClose }: { study:
   )
 }
 
+const CATEGORIES = ['performance', 'mass', 'cost', 'complexity', 'manufacturability', 'risk', 'custom'] as const
+
+function WeightField({ label, initial, onSet }: { label: string; initial: number; onSet: (w: number) => void }) {
+  const [value, setValue] = useState(String(initial))
+  const n = Number(value)
+  const valid = value.trim() !== '' && Number.isFinite(n) && n >= 0
+  return (
+    <span className="con-row">
+      <TextField aria-label={label} className="con-num" value={value} onChange={setValue} errorMessage={valid ? undefined : 'weight ≥ 0'} />
+      <Button size="sm" variant="text" isDisabled={!valid || n === initial} onPress={() => onSet(n)}>
+        Set
+      </Button>
+    </span>
+  )
+}
+
+/** Criteria of a trade study: add (with unit or qualitative scale), reweight, remove. Each change is a new study revision. */
+function CriteriaEditor({ study }: { study: TradeStudy }) {
+  const { client, invalidate } = useModuleData()
+  const [name, setName] = useState('')
+  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>('custom')
+  const [scale, setScale] = useState<'quantity' | 'qualitative'>('qualitative')
+  const [unit, setUnit] = useState('')
+  const [direction, setDirection] = useState<'maximize' | 'minimize'>('maximize')
+  const [weight, setWeight] = useState('1')
+  const [error, setError] = useState<unknown>(null)
+  const run = async (fn: () => Promise<unknown>) => {
+    setError(null)
+    try {
+      await fn()
+      invalidate()
+    } catch (e) {
+      setError(e)
+    }
+  }
+  return (
+    <details className="con-card">
+      <summary>Edit criteria and weights</summary>
+      <ul className="con-rel-list">
+        {study.criteria.map((c) => (
+          <li key={c.id}>
+            <span>{c.name}</span>
+            <WeightField key={`${c.id}-${c.weight}`} label={`Weight of ${c.name}`} initial={c.weight} onSet={(w) => void run(() => client.updateTradeStudy(study.id, { updateCriteria: [{ id: c.id, weight: w }] }, { expectedRevision: study.revision }))} />
+            <Button size="sm" variant="text" icon="close" onPress={() => void run(() => client.updateTradeStudy(study.id, { removeCriteria: [c.id] }, { expectedRevision: study.revision }))}>
+              Remove
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <div className="con-inline-form">
+        <TextField label="Criterion" value={name} onChange={setName} />
+        <Select label="Category" size="sm" value={category} onChange={(v) => setCategory(v as typeof category)} options={CATEGORIES.map((c) => ({ id: c, label: c }))} />
+        <Select label="Scale" size="sm" value={scale} onChange={(v) => setScale(v as typeof scale)} options={[{ id: 'qualitative', label: 'Qualitative 1–5' }, { id: 'quantity', label: 'Quantity with unit' }]} />
+        {scale === 'quantity' && <TextField label="Unit" className="con-num" value={unit} onChange={setUnit} />}
+        <Select label="Better is" size="sm" value={direction} onChange={(v) => setDirection(v as typeof direction)} options={[{ id: 'maximize', label: 'higher' }, { id: 'minimize', label: 'lower' }]} />
+        <TextField label="Weight" className="con-num" value={weight} onChange={setWeight} />
+        <Button
+          size="sm"
+          variant="outlined"
+          icon="add"
+          isDisabled={!name.trim()}
+          onPress={() => void run(async () => {
+            await client.updateTradeStudy(study.id, { addCriteria: [{ name: name.trim(), category, scale, direction, weight: Number(weight) || 0, ...(scale === 'quantity' ? { unit } : {}) }] }, { expectedRevision: study.revision })
+            setName('')
+          })}
+        >
+          Add criterion
+        </Button>
+      </div>
+      {error ? <ApiErrorNotice error={error} /> : null}
+    </details>
+  )
+}
+
 function TradeStudyTable({ study, concepts }: { study: TradeStudy; concepts: Map<string, Concept> }) {
   const { can } = useModuleData()
   const [editing, setEditing] = useState<{ criterion: Criterion; conceptId: string } | null>(null)
@@ -119,6 +193,7 @@ function TradeStudyTable({ study, concepts }: { study: TradeStudy; concepts: Map
         </table>
       </div>
       <p className="con-muted">{study.result.method}</p>
+      {can('author') && <CriteriaEditor study={study} />}
       {editing && <ScoreEditor study={study} criterion={editing.criterion} conceptId={editing.conceptId} current={score(editing.criterion.id, editing.conceptId)} onClose={() => setEditing(null)} />}
     </Section>
   )

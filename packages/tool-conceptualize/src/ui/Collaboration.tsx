@@ -82,6 +82,51 @@ function Hypotheses({ concept }: { concept: Concept }) {
   )
 }
 
+/** Explorations (generated alternative sets) involving the Concept, with a compensating undo. */
+function Explorations({ conceptId }: { conceptId: string }) {
+  const { client, invalidate, can } = useModuleData()
+  const list = useResource(() => client.explorations(conceptId), [client, conceptId])
+  const [error, setError] = useState<unknown>(null)
+  if (!list.data?.length) return null
+  const undo = async (eid: string) => {
+    setError(null)
+    try {
+      await client.undoExploration(eid, { reason: 'Undone in AI collaboration' })
+      invalidate()
+    } catch (e) {
+      setError(e)
+    }
+  }
+  return (
+    <Section title="Explorations" helpId="conceptualize.ai">
+      <ul className="con-history">
+        {list.data.map((e) => (
+          <li key={e.id}>
+            <span>
+              {e.created.concepts.filter((c) => c.role === 'alternative').length} alternatives: “{e.objective.length > 90 ? `${e.objective.slice(0, 89)}…` : e.objective}”
+            </span>{' '}
+            <span className="con-muted">
+              {formatDate(e.createdAt)} by {e.createdBy}
+              {e.generator ? `, ${e.generator}` : ''}
+              {e.provenance.proposalId ? `, proposal ${e.provenance.proposalId}` : ''}
+            </span>{' '}
+            {e.undone ? (
+              <Badge tone="neutral">undone {formatDate(e.undoneAt)}</Badge>
+            ) : (
+              can('author') && (
+                <Button size="sm" variant="text" icon="undo" onPress={() => void undo(e.id)}>
+                  Undo (archive generated Concepts)
+                </Button>
+              )
+            )}
+          </li>
+        ))}
+      </ul>
+      {error ? <ApiErrorNotice error={error} /> : null}
+    </Section>
+  )
+}
+
 /** AI collaboration: context, review of AI-generated content, suggested next steps and AI provenance. */
 export function CollaborationPage() {
   const { client } = useModuleData()
@@ -128,6 +173,7 @@ export function CollaborationPage() {
           <p className="con-muted">{assessment.data.note}</p>
         </Section>
       )}
+      {id && <Explorations conceptId={id} />}
       {id && (
         <Section title="Changes applied from the assistant (traceability)" helpId="conceptualize.ai.provenance">
           <ul className="con-history">

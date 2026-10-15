@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useModuleData, useResource } from '../data'
 import { formatDate, formatQuantity } from '../domain'
 import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, Section } from './common'
+import { EvidenceForm, VerificationControl } from './EvidenceForm'
 
 // ---- stale and broken link detection (contracts §9: client-side through the SDK and the model index) ----
 
@@ -50,7 +51,17 @@ function useStatuses(refs: { key: string; module: ArtifactModule; id: string; re
   const services = usePlatformServices()
   const { projectId } = useSharedContext()
   const [statuses, setStatuses] = useState<Record<string, LinkStatus>>({})
+  const [nonce, setNonce] = useState(0)
   const sig = refs.map((r) => `${r.key}:${r.module}:${r.id}:${r.revision ?? ''}`).join('|')
+  // Change notifications: a committed change of a linked requirement re-checks the references.
+  useEffect(() => {
+    const svc = services.requirements
+    if (!svc) return
+    const ids = new Set(refs.filter((r) => r.module === 'requirements').map((r) => r.id))
+    if (!ids.size) return
+    return svc.subscribe(projectId, (e) => ids.has(e.entityId) && setNonce((n) => n + 1))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig, services, projectId])
   useEffect(() => {
     let alive = true
     void Promise.all(refs.map(async (r) => [r.key, await checkArtifact(r, { model, services, projectId })] as const)).then((pairs) => alive && setStatuses(Object.fromEntries(pairs)))
@@ -58,7 +69,7 @@ function useStatuses(refs: { key: string; module: ArtifactModule; id: string; re
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sig, model, services, projectId])
+  }, [sig, model, services, projectId, nonce])
   return statuses
 }
 
@@ -189,6 +200,15 @@ function ImplementationCard({ impl }: { impl: Implementation }) {
         <Notice key={r.id} tone={r.status === 'pending' ? 'info' : 'neutral'} title={`Realization request (${r.targetModule}): ${r.status}`}>
           {r.requestKind}
           {r.description ? `: ${r.description}` : ''}. {r.targetModule === 'cad' && r.status === 'pending' ? 'No CAD generation API exists yet; the request is recorded and stays pending until the CAD module offers one.' : ''}
+          {r.fulfilledBy ? ` Fulfilled by ${r.fulfilledBy.module}:${r.fulfilledBy.id}.` : ''}
+          {r.status === 'pending' && can('author') && (
+            <span className="con-row">
+              <Button size="sm" variant="text" onPress={() => void run(() => client.setRealizationStatus(r.id, 'cancelled', { reason: 'Cancelled in Conceptualize' }))}>
+                Cancel request
+              </Button>
+              <ArtifactPicker label="Fulfilled by" onPick={(ref) => void run(() => client.setRealizationStatus(r.id, 'fulfilled', { fulfilledBy: ref, reason: 'Realized by the linked artifact' }))} />
+            </span>
+          )}
         </Notice>
       ))}
       {can('author') && (
@@ -314,11 +334,25 @@ export function RequirementLinks({ concept }: { concept: Concept }) {
 }
 
 export function EvidenceList({ concept }: { concept: Concept }) {
-  const { client } = useModuleData()
+  const { client, can } = useModuleData()
   const evidence = useResource(() => client.evidence(concept.id), [client, concept.id])
+  const [adding, setAdding] = useState(false)
   return (
-    <Section title="Engineering evidence" helpId="conceptualize.evidence">
+    <Section
+      title="Engineering evidence"
+      helpId="conceptualize.evidence"
+      actions={
+        can('author') &&
+        !adding && (
+          <Button size="sm" variant="outlined" icon="add" onPress={() => setAdding(true)}>
+            Record evidence
+          </Button>
+        )
+      }
+    >
       <p className="con-muted">Preliminary estimates show their method, inputs, units and assumptions. Only records labelled “Verified evidence” reference an authoritative result.</p>
+      {adding && <EvidenceForm concept={concept} onDone={() => setAdding(false)} />}
+      <VerificationControl concept={concept} evidence={evidence.data ?? []} />
       <ul className="con-cards">
         {(evidence.data ?? []).map((e) => (
           <li key={e.id} className="con-card">
