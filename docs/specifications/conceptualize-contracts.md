@@ -45,7 +45,8 @@ The Requirements module is idle; do not edit its packages. Request what you need
 | --- | --- | --- |
 | Requirement | `requirements` | requirement UUID (Requirements service) |
 | SysML element | `sysml` | twin object ID (`SYS-…`) |
-| CAD representation, part or assembly | `cad` / `twin` | twin object ID |
+| CAD representation | `cad` | twin object ID (`CAD-…`) |
+| Physical component (part, assembly) | `twin` | twin object ID (`ROD-120`, `ACT-100`) |
 | Saved result, calculation, verification record | `twin` | artifact ID (`OUT-…`) |
 | Analysis model or study | `analysis` | no Analysis module exists today (retired): use a test adapter, label it |
 | Anything else | `external` | URL or document reference |

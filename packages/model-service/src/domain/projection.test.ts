@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { seedModel } from '../repository/seed'
+import { resolveRepresentation } from './entities'
 import { buildModelIndex } from './modelIndex'
 import { composeSnapshot, type ExternalProjection } from './projection'
 
@@ -35,5 +36,21 @@ describe('external projection (requirements owned by the Requirements service)',
     expect(twin.objects.some((o) => o.id === 'REQ-001')).toBe(true)
     expect(twin.relationships.some((r) => r.to === 'REQ-001')).toBe(true)
     expect(composeSnapshot(twin, null)).toBe(twin)
+  })
+})
+
+describe('representation reasons name requirements by key', () => {
+  it('uses the key, not the canonical UUID', () => {
+    const twin = seedModel()
+    const uuid = '5b1c7e2a-0003-4e6a-9c1d-6f0a3d2b1003'
+    const projection: ExternalProjection = {
+      objects: [{ id: uuid, type: 'requirement', name: 'Ingress protection', properties: { key: 'REQ-003', statement: 'IP65.' }, revision: 1 }],
+      aliases: new Map([['REQ-003', uuid]]),
+      relationships: [],
+      ownedRelationshipTypes: ['allocated-to'],
+    }
+    const model = buildModelIndex(composeSnapshot(twin, projection), projection.aliases)
+    const resolution = resolveRepresentation(model, uuid, 'sysml')
+    expect(resolution).toMatchObject({ status: 'none', reason: 'REQ-003 is not referenced in the SysML model.' })
   })
 })

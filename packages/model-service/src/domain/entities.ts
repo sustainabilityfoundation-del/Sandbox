@@ -155,6 +155,8 @@ export type Resolution =
 export function resolveRepresentation(model: ModelIndex, id: string, kind: RepresentationKind): Resolution {
   const object = model.get(id)
   if (!object) return { status: 'none', reason: `${id} does not exist.` }
+  // People see keys, not canonical UUIDs (requirements owned by the Requirements service).
+  const shown = displayId(object)
   const type = REPRESENTATION_TYPE[kind]
   const label = kind === 'sysml' ? 'SysML' : 'CAD'
   if (object.type === type) return { status: 'resolved', ids: [object.id], via: 'selected directly' }
@@ -163,7 +165,7 @@ export function resolveRepresentation(model: ModelIndex, id: string, kind: Repre
   if (component) {
     const reps = representationsOf(model, component.id, kind)
     if (reps.length) {
-      return { status: 'resolved', ids: reps.map((r) => r.id), via: component.id === id ? `represents ${id}` : `${id} → ${component.id}` }
+      return { status: 'resolved', ids: reps.map((r) => r.id), via: component.id === id ? `represents ${shown}` : `${shown} → ${component.id}` }
     }
     return { status: 'none', reason: `${component.id} ${component.name} has no ${label} representation yet.` }
   }
@@ -171,17 +173,17 @@ export function resolveRepresentation(model: ModelIndex, id: string, kind: Repre
   if (object.type === 'requirement') {
     if (kind === 'sysml') {
       const refs = model.linkedObjects(id, 'references', 'in').filter((o) => o.type === type)
-      if (refs.length) return { status: 'resolved', ids: refs.map((r) => r.id), via: `references ${id}` }
-      return { status: 'none', reason: `${id} is not referenced in the SysML model.` }
+      if (refs.length) return { status: 'resolved', ids: refs.map((r) => r.id), via: `references ${shown}` }
+      return { status: 'none', reason: `${shown} is not referenced in the SysML model.` }
     }
     const reps = model
       .linkedObjects(id, 'allocated-to', 'out')
       .flatMap((c) => representationsOf(model, c.id, kind))
-    if (reps.length) return { status: 'resolved', ids: reps.map((r) => r.id), via: `${id} is allocated to these components` }
-    return { status: 'none', reason: `${id} is not allocated to a component with a ${label} representation.` }
+    if (reps.length) return { status: 'resolved', ids: reps.map((r) => r.id), via: `${shown} is allocated to these components` }
+    return { status: 'none', reason: `${shown} is not allocated to a component with a ${label} representation.` }
   }
 
-  return { status: 'none', reason: `${id} is a ${object.type}, which has no ${label} representation.` }
+  return { status: 'none', reason: `${shown} is a ${object.type}, which has no ${label} representation.` }
 }
 
 /** Requirements allocated to a component, directly or to one of its parent assemblies. */

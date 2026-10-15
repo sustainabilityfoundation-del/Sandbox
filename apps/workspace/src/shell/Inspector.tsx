@@ -19,6 +19,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { selectInView, sharedContextOf } from '../platform/api'
 import { RETIRED_TOOLS, toolName } from '../platform/registry'
 import { useWorkspaceStore } from '../platform/store'
+import { workspaceServices } from '../platform/services'
+import type { ArtifactModule } from '@ews/platform-sdk'
 import { ViewControls } from './WorkArea'
 
 /** Properties shown in their own sections instead of the generic property list. */
@@ -192,6 +194,51 @@ function Representations({ object }: { object: EngineeringObject }) {
 }
 
 /** What a change to this object would affect (traceability and change impact). */
+/** ArtifactRef.module for a twin object (contracts §3, docs/specifications/conceptualize-contracts.md). */
+function artifactModuleOf(type: EngineeringObject['type']): ArtifactModule {
+  return type === 'requirement' ? 'requirements' : type === 'sysml-element' ? 'sysml' : type === 'cad-representation' ? 'cad' : 'twin'
+}
+
+/** Concepts this object realizes, through Conceptualize implementations (SDK 1.5). Hidden without the service. */
+function ConceptsSection({ object }: { object: EngineeringObject }) {
+  const projectId = useWorkspaceStore((s) => s.context.projectId)
+  const concepts = workspaceServices.concepts
+  const [state, setState] = useState<{ items: { name: string; key: string; maturity: string; implementation: string }[] } | { error: string } | null>(null)
+  useEffect(() => {
+    if (!concepts) return
+    let live = true
+    setState(null)
+    concepts
+      .conceptsForArtifact({ module: artifactModuleOf(object.type), id: object.id }, { projectId })
+      .then((found) => live && setState({ items: found.map((f) => ({ name: f.concept.name, key: f.concept.key, maturity: f.concept.maturity, implementation: f.implementation.name })) }))
+      .catch((e: unknown) => live && setState({ error: e instanceof Error ? e.message : String(e) }))
+    return () => {
+      live = false
+    }
+  }, [concepts, object.id, object.type, object.revision, projectId])
+  if (!concepts) return null
+  return (
+    <Section title="Concepts" count={state && 'items' in state ? state.items.length : undefined}>
+      {state === null ? (
+        <p className="text-fg-3">Loading…</p>
+      ) : 'error' in state ? (
+        <p className="text-fg-3">Concepts are not available: {state.error}</p>
+      ) : state.items.length === 0 ? (
+        <p className="text-fg-3">{displayId(object)} does not realize a Concept yet.</p>
+      ) : (
+        <ul className="ws-impact" data-testid="inspector-concepts">
+          {state.items.map((c) => (
+            <li key={c.key + c.implementation}>
+              <span className="font-mono">{c.key}</span> {c.name} <Badge>{c.maturity}</Badge>
+              <span className="text-ui-xs text-fg-3"> via {c.implementation}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  )
+}
+
 function ChangeImpactSection({ object }: { object: EngineeringObject }) {
   const model = useWorkspaceStore((s) => s.model)!
   const outputs = useWorkspaceStore((s) => s.outputs)
@@ -370,6 +417,7 @@ function ObjectDetails({ object, configurationId }: { object: EngineeringObject;
       <Representations object={object} />
       <Relationships object={object} />
       <Artifacts object={object} configurationId={configurationId} />
+      <ConceptsSection object={object} />
       <ChangeImpactSection object={object} />
       <RevisionHistory object={object} />
     </div>
