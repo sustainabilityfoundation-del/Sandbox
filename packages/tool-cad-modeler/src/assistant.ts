@@ -455,6 +455,10 @@ export const cadModelerDemo: DemoPlanner = (text) => {
   }
   if (/\b(cad|part|model)\b/.test(t) && /\b(describe|summari[sz]e|what is|show|volume|mass|status|failures?)\b/.test(t) && /\bcad\b|\bvolume\b|\bpart\b/.test(t))
     return { reply: '(Demo planner.) Here is the CAD Modeler model as structured data: features, parameters, bodies and failures.', calls: [{ name: 'cad-modeler.describe_model', arguments: {} }] }
+  if (/\bsave\b/.test(t) && /\bcad\b/.test(t) && cadSession.storeClient && open) {
+    const message = /["“](.+?)["”]/.exec(text)?.[1] ?? ''
+    return { reply: '(Demo planner.) I prepared saving the active CAD document as a new revision in this project; the revision records this conversation.', calls: [{ name: 'cad-modeler.save_document', arguments: message ? { message } : {} }] }
+  }
   if (/\bexport\b.*\bstep\b|\bstep\b.*\bexport\b/.test(t)) return { reply: '(Demo planner.) I prepared a STEP AP242 export of the active CAD document.', calls: [{ name: 'cad-modeler.export', arguments: { format: 'step' } }] }
   if (/\bundo\b.*\bcad\b|\bcad\b.*\bundo\b/.test(t)) return { reply: '(Demo planner.) I prepared undoing the last CAD change.', calls: [{ name: 'cad-modeler.undo', arguments: {} }] }
   return null

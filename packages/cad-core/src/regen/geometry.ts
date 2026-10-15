@@ -35,6 +35,15 @@ export function toKernelRegions(regions: ProfileRegion[]): KernelRegion[] {
  * move the probe onto another face. Deterministic for a given region.
  */
 export function regionSample(region: ProfileRegion): Point2 {
+  return regionSamples(region)[0]
+}
+
+/**
+ * Interior points of a region ranked by distance from the boundary (deepest first), spread over the
+ * region. Cap probes use them as fallbacks: later features (a centred hole, a pocket) may remove the
+ * deepest point, and the next candidate still names the cap. Deterministic for a given region.
+ */
+export function regionSamples(region: ProfileRegion, count = 8): Point2[] {
   const outer = polygon(region.outer.segments)
   const holes = region.holes.map((h) => polygon(h.segments))
   const loops = [outer, ...holes]
@@ -53,17 +62,16 @@ export function regionSample(region: ProfileRegion): Point2 {
     const m: Point2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
     for (const f of [0.05, 0.15, 0.3, 0.45]) candidates.push([m[0] + n[0] * f * size, m[1] + n[1] * f * size])
   }
-  let best: Point2 | undefined
-  let bestClear = -1
-  for (const p of candidates) {
-    if (!inside(p)) continue
-    const c = clearance(p)
-    if (c > bestClear + 1e-12) {
-      best = p
-      bestClear = c
-    }
+  const ranked = candidates
+    .filter(inside)
+    .map((p, i) => ({ p, c: clearance(p), i }))
+    .sort((a, b) => b.c - a.c || a.i - b.i)
+  const picked: Point2[] = []
+  for (const { p } of ranked) {
+    if (picked.length >= count) break
+    if (picked.every((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.02 * size)) picked.push(p)
   }
-  return best ?? interiorSample(outer)
+  return picked.length ? picked : [interiorSample(outer)]
 }
 
 function signedAreaOf(poly: Point2[]): number {
@@ -120,9 +128,9 @@ export function extrudeProbes(featureId: string, plane: KernelPlane, regions: Pr
         probes.push({ name: `${featureId}/side:${seg.entityId}`, points: FRACTIONS.map((f) => v3.add(p0, v3.scale(vector, f))) })
       }
     }
-    const inside = v3.add(toModel(plane, regionSample(region)), startOffset)
-    probes.push({ name: `${featureId}/cap-start${suffix(ri, regions.length)}`, points: [inside] })
-    probes.push({ name: `${featureId}/cap-end${suffix(ri, regions.length)}`, points: [v3.add(inside, vector)] })
+    const inside = regionSamples(region).map((p) => v3.add(toModel(plane, p), startOffset))
+    probes.push({ name: `${featureId}/cap-start${suffix(ri, regions.length)}`, points: inside })
+    probes.push({ name: `${featureId}/cap-end${suffix(ri, regions.length)}`, points: inside.map((p) => v3.add(p, vector)) })
   })
   return probes
 }
@@ -141,9 +149,9 @@ export function revolveProbes(featureId: string, plane: KernelPlane, regions: Pr
       }
     }
     if (angle < 360 - 1e-9) {
-      const inside = toModel(plane, regionSample(region))
-      probes.push({ name: `${featureId}/start${suffix(ri, regions.length)}`, points: [inside] })
-      probes.push({ name: `${featureId}/end${suffix(ri, regions.length)}`, points: [rotateAbout(inside, axisOrigin, axisDirection, angle)] })
+      const inside = regionSamples(region).map((p) => toModel(plane, p))
+      probes.push({ name: `${featureId}/start${suffix(ri, regions.length)}`, points: inside })
+      probes.push({ name: `${featureId}/end${suffix(ri, regions.length)}`, points: inside.map((p) => rotateAbout(p, axisOrigin, axisDirection, angle)) })
     }
   })
   return probes

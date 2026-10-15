@@ -93,6 +93,34 @@ describe('fillet and chamfer on stable edge names', () => {
   })
 })
 
+describe('cap names survive features at the deepest point', () => {
+  it('keeps cap-start and cap-end named with a centred through hole and a centred boss', async () => {
+    const e = await box()
+    const E = ext(e)
+    await e.execute({
+      commands: [
+        { command: 'create_sketch', input: { partId: 'part-1', plane: 'XY', ref: '$h' } },
+        { command: 'add_circle', input: { sketchId: '$h', center: [40, 20], radius: 6 } },
+        { command: 'extrude_profile', input: { sketchId: '$h', distance: 'thickness', operation: 'cut' } },
+      ],
+    })
+    let names = body(e.regeneration).faces.map((f) => f.name)
+    expect(names).toEqual(expect.arrayContaining([`${E}/cap-start`, `${E}/cap-end`]))
+    expect(names.some((n) => n.startsWith('face#'))).toBe(false)
+    await e.undo()
+    await e.execute({
+      commands: [
+        { command: 'create_sketch', input: { partId: 'part-1', face: `${E}/cap-end`, ref: '$t' } },
+        { command: 'add_circle', input: { sketchId: '$t', center: [40, 20], radius: 6 } },
+        { command: 'extrude_profile', input: { sketchId: '$t', distance: 4, operation: 'join' } },
+      ],
+    })
+    names = body(e.regeneration).faces.map((f) => f.name)
+    expect(names).toContain(`${E}/cap-end`)
+    expect(names.some((n) => n.startsWith('face#'))).toBe(false)
+  })
+})
+
 describe('datum planes and sketches on planes and faces', () => {
   it('sketches on a planar face; the sketch follows the face when the thickness changes', async () => {
     const e = await box()
