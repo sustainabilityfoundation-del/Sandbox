@@ -118,6 +118,22 @@ describe('typed transactions', () => {
     expect(clash.body.error.message).toMatch(/ActuatorSystem::Mechanical::Rod::mass/)
   })
 
+  it('idempotency is atomic with the commit: concurrent retries with one key create one commit and replay its outcome', async () => {
+    const h = await head()
+    const headers = idem()
+    const body = { baseCommitId: h.commitId, commands: [{ op: 'setDocumentation', elementId: 'ActuatorSystem::Interfaces', text: `Retry-safe ${Date.now()}` }] }
+    const results = await Promise.all([0, 1, 2].map(() => env.call('eli', 'POST', `${P}/branches/${h.branchId}/transactions`, body, headers)))
+    expect(results.map((r) => r.status)).toEqual([200, 200, 200])
+    const ids = new Set(results.map((r) => r.body.commit['@id']))
+    expect(ids.size).toBe(1)
+    expect(results.filter((r) => r.headers['idempotency-replayed'] === 'true')).toHaveLength(2)
+    const after = await env.pool.query(`SELECT count(*)::int AS n FROM sysml.commits WHERE description = $1`, [results[0].body.commit.description])
+    expect(after.rows[0].n).toBe(1)
+    // The stored record lives in the same transaction as the commit: both exist or neither.
+    const rec = await env.pool.query(`SELECT response_body FROM sysml.idempotency_keys WHERE actor = 'eli' AND key = $1`, [headers['idempotency-key']])
+    expect(rec.rows[0].response_body.commit['@id']).toBe([...ids][0])
+  })
+
   it('parallel transactions on one branch never lose updates', async () => {
     const h = await head()
     const results = await Promise.all(

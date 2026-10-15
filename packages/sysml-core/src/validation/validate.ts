@@ -35,6 +35,7 @@ export const RULES: RuleInfo[] = [
   { id: 'SYSML-TRANSITION-STATES', severity: 'warning', title: 'Transitions connect states' },
   { id: 'SYSML-COMPOSITION-CYCLE', severity: 'warning', title: 'A definition does not compose itself with a mandatory part (infinite structure)' },
   { id: 'SYSML-MANAGED-REQUIREMENT', severity: 'error', title: 'Managed requirement metadata carries a canonical requirement UUID' },
+  { id: 'SYSML-CAD-REFERENCE', severity: 'error', title: 'CAD representation metadata refers to a CAD Modeler entity as <documentUuid>/<entityId> with an integer document revision' },
   { id: 'SYSML-CONSTRAINT-FALSE', severity: 'warning', title: 'A constraint whose expression can be evaluated holds (evaluates to true)' },
   { id: 'SYSML-UNSUPPORTED-METACLASS', severity: 'info', title: 'Element of a metaclass this version does not interpret (preserved unchanged)' },
 ]
@@ -244,6 +245,16 @@ function checkElement(s: Semantics, el: Element, out: Diagnostic[]) {
     }
   }
 
+  // CAD representation metadata (CR-SYSML-03).
+  if (t === 'MetadataUsage' && s.featureTypes(id).some((x) => s.qualifiedName(x) === 'EWS::CadRepresentation')) {
+    const ref = readCadMetadata(s, id)
+    if (!ref.cadRef || !CAD_REF.test(ref.cadRef)) {
+      d(out, 'SYSML-CAD-REFERENCE', s.owner(id)?.['@id'] ?? id, 'CadRepresentation needs cadRef = "<CAD document UUID>/<entity ID>" (a CAD Modeler entity; names are display text, not identity).')
+    } else if (ref.revision !== undefined && !(Number.isInteger(ref.revision) && ref.revision >= 1)) {
+      d(out, 'SYSML-CAD-REFERENCE', s.owner(id)?.['@id'] ?? id, 'CadRepresentation revision must be a CAD document revision number (an integer from 1), or absent to follow the latest revision.')
+    }
+  }
+
   // Constraints that evaluate to false.
   if (t === 'ConstraintUsage' && s.owningMembership(id)?.['@type'] !== 'RequirementConstraintMembership') {
     const res = s.memberships(id).find((m) => m['@type'] === 'ResultExpressionMembership')
@@ -285,4 +296,51 @@ function lowerBound(s: Semantics, featureId: string): number {
 export function expectedTypeKinds(metaclass: string): string[] | undefined {
   if (metaclass === 'ReferenceUsage') return ['Type']
   return TYPE_KINDS[metaclass] ?? Object.entries(TYPE_KINDS).find(([k]) => isKindOf(metaclass, k))?.[1]
+}
+
+/** `<documentUuid>/<entityId>`: a CAD Modeler entity (CR-SYSML-03). */
+export const CAD_REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[^\s/][^\s]*$/i
+
+/** Values of an EWS::CadRepresentation metadata usage (strings and integers only; no evaluation). */
+export function readCadMetadata(s: Semantics, metadataId: string): { cadRef?: string; revision?: number; role?: string } {
+  const out: { cadRef?: string; revision?: number; role?: string } = {}
+  for (const f of s.ownedMembers(metadataId)) {
+    const fv = s.ownedRelationships(f['@id']).find((r) => r['@type'] === 'FeatureValue')
+    const v = fv ? s.get(refId(fv, 'ownedRelatedElement')) : undefined
+    const name = s.name(f['@id'])
+    if (!v) continue
+    if (name === 'cadRef' && v['@type'] === 'LiteralString') out.cadRef = String(v.value)
+    else if (name === 'role' && v['@type'] === 'LiteralString') out.role = String(v.value)
+    else if (name === 'revision') out.revision = v['@type'] === 'LiteralInteger' ? Number(v.value) : NaN
+  }
+  return out
+}
+
+/** A CAD Modeler entity reference held by a SysML element (CR-SYSML-03): the platform ArtifactRef shape. */
+export interface CadEntityRef {
+  module: 'cad'
+  kind: 'cad-modeler-entity'
+  /** `<documentUuid>/<entityId>` */
+  id: string
+  /** CAD document revision; absent = follow the latest revision. */
+  revision?: number
+}
+
+/**
+ * CAD representations of SysML elements (all, or of one element): references owned by SysML, never
+ * copies of CAD data. Mass properties are read on demand from CAD by the caller, not synchronised.
+ */
+export function cadRepresentations(model: Model, elementId?: string): { elementId: string; metadataId: string; ref: CadEntityRef; role?: string; valid: boolean }[] {
+  const s = semanticsOf(model)
+  const out: { elementId: string; metadataId: string; ref: CadEntityRef; role?: string; valid: boolean }[] = []
+  const owners = elementId ? [elementId] : [...model.elements()].filter((e) => !model.isLibrary(e['@id'])).map((e) => e['@id'])
+  for (const owner of owners) {
+    for (const m of s.ownedMembers(owner)) {
+      if (m['@type'] !== 'MetadataUsage' || !s.featureTypes(m['@id']).some((x) => s.qualifiedName(x) === 'EWS::CadRepresentation')) continue
+      const v = readCadMetadata(s, m['@id'])
+      const valid = !!v.cadRef && CAD_REF.test(v.cadRef) && (v.revision === undefined || (Number.isInteger(v.revision) && v.revision >= 1))
+      out.push({ elementId: owner, metadataId: m['@id'], ref: { module: 'cad', kind: 'cad-modeler-entity', id: v.cadRef ?? '', ...(v.revision !== undefined && Number.isInteger(v.revision) ? { revision: v.revision } : {}) }, ...(v.role ? { role: v.role } : {}), valid })
+    }
+  }
+  return out
 }

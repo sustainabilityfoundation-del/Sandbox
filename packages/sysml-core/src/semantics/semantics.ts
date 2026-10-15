@@ -43,6 +43,43 @@ export function generalProperty(metaclass: string): string | undefined {
   return undefined
 }
 
+/**
+ * Implicit specializations (SysML 2.0 §8.3 semantic constraints `checkPartDefinitionSpecialization`,
+ * `checkPartUsageSpecialization` …, subset): a definition with no explicit general specializes the
+ * library base type of its kind, and a usage with no explicit general subsets the library base
+ * feature. They are derived here (never stored, `isImplied` relationships are not created), and are
+ * used for name resolution and conformance checks only. Most specific kind first.
+ */
+export const IMPLIED_GENERALS: { kind: string; general: [string, string] }[] = [
+  { kind: 'InterfaceDefinition', general: ['Interfaces', 'Interface'] },
+  { kind: 'AllocationDefinition', general: ['Allocations', 'Allocation'] },
+  { kind: 'FlowDefinition', general: ['Connections', 'Flow'] },
+  { kind: 'ConnectionDefinition', general: ['Connections', 'Connection'] },
+  { kind: 'PortDefinition', general: ['Ports', 'Port'] },
+  { kind: 'StateDefinition', general: ['States', 'StateAction'] },
+  { kind: 'RequirementDefinition', general: ['Requirements', 'RequirementCheck'] },
+  { kind: 'ConstraintDefinition', general: ['Constraints', 'ConstraintCheck'] },
+  { kind: 'CalculationDefinition', general: ['Calculations', 'Calculation'] },
+  { kind: 'ActionDefinition', general: ['Actions', 'Action'] },
+  { kind: 'PartDefinition', general: ['Parts', 'Part'] },
+  { kind: 'ItemDefinition', general: ['Items', 'Item'] },
+  { kind: 'AttributeDefinition', general: ['Base', 'DataValue'] },
+  { kind: 'InterfaceUsage', general: ['Interfaces', 'interfaces'] },
+  { kind: 'AllocationUsage', general: ['Allocations', 'allocations'] },
+  { kind: 'FlowUsage', general: ['Connections', 'flows'] },
+  { kind: 'ConnectionUsage', general: ['Connections', 'connections'] },
+  { kind: 'PortUsage', general: ['Ports', 'ports'] },
+  { kind: 'StateUsage', general: ['States', 'stateActions'] },
+  { kind: 'RequirementUsage', general: ['Requirements', 'requirementChecks'] },
+  { kind: 'ConstraintUsage', general: ['Constraints', 'constraintChecks'] },
+  { kind: 'CalculationUsage', general: ['Calculations', 'calculations'] },
+  { kind: 'ActionUsage', general: ['Actions', 'actions'] },
+  { kind: 'PartUsage', general: ['Parts', 'parts'] },
+  { kind: 'ItemUsage', general: ['Items', 'items'] },
+]
+/** Kinds that never get an implied general here (connector-shaped behaviour, metadata). */
+const NO_IMPLIED = ['TransitionUsage', 'SuccessionAsUsage', 'BindingConnectorAsUsage', 'MetadataDefinition', 'MetadataUsage']
+
 const cache = new WeakMap<Model, { version: number; s: Semantics }>()
 
 /** Cached semantics of a fully resolved model (recomputed when the model changes). */
@@ -56,6 +93,7 @@ export function semanticsOf(model: Model): Semantics {
 
 export class Semantics {
   private qnames = new Map<string, string | null>()
+  private impliedCache = new Map<string, string | null>()
   private nameIndex = new Map<string, Map<string, Element[]>>()
   constructor(
     readonly model: Model,
@@ -187,8 +225,39 @@ export class Semantics {
   }
 
   // ---- specialization ---------------------------------------------------------------------
-  /** Direct generals: superclassifiers, types, subsetted/redefined/referenced features, conjugation originals. */
+  /** Direct generals including the implied one (see IMPLIED_GENERALS). */
   generals(id: string): string[] {
+    const explicit = this.explicitGenerals(id)
+    if (explicit.length) return explicit
+    const implied = this.impliedGeneral(id)
+    return implied ? [implied] : []
+  }
+
+  /** The library base type or feature an element implicitly specializes, if it has no explicit general. */
+  impliedGeneral(id: string): string | undefined {
+    const hit = this.impliedCache.get(id)
+    if (hit !== undefined) return hit ?? undefined
+    let out: string | null = null
+    const t = this.get(id)?.['@type']
+    if (t && !NO_IMPLIED.some((k) => isKindOf(t, k))) {
+      const entry = IMPLIED_GENERALS.find((e) => isKindOf(t, e.kind))
+      if (entry) {
+        const libRoot = this.model.library?.rootId ?? this.model.rootId
+        const pkg = this.membersNamed(libRoot, entry.general[0])[0]
+        const pkgEl = pkg ? this.memberElement(pkg) : undefined
+        const m = pkgEl ? this.memberships(pkgEl['@id']).find((x) => this.memberName(x) === entry.general[1]) : undefined
+        const g = m ? this.memberElement(m)?.['@id'] : undefined
+        if (g && g !== id) out = g
+        // While the library itself is being built, its package may not exist yet: do not cache a miss.
+        if (!pkgEl) return undefined
+      }
+    }
+    this.impliedCache.set(id, out)
+    return out ?? undefined
+  }
+
+  /** Direct explicit generals: superclassifiers, types, subsetted/redefined/referenced features, conjugation originals. */
+  explicitGenerals(id: string): string[] {
     const out: string[] = []
     for (const r of this.ownedRelationships(id)) {
       const prop = generalProperty(r['@type'])
@@ -393,7 +462,9 @@ export class Semantics {
   featureOf(ownerFeatureOrType: string, name: string): Resolved | undefined {
     const el = this.get(ownerFeatureOrType)
     if (!el) return undefined
-    const candidates = [ownerFeatureOrType, ...this.featureTypes(ownerFeatureOrType)]
+    const types = this.featureTypes(ownerFeatureOrType)
+    const implied = types.length ? undefined : this.impliedGeneral(ownerFeatureOrType)
+    const candidates = [ownerFeatureOrType, ...types, ...(implied ? [implied, ...this.featureTypes(implied)] : [])]
     for (const c of candidates) {
       const m = this.membersNamed(c, name)[0]
       if (m) return this.resolved(m)

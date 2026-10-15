@@ -38,7 +38,10 @@ export const HEADER_H = 44
 const PAD = 12
 const PORT = 12
 
+export type DiagramMode = 'general' | 'interconnection' | 'action-flow' | 'state-transition'
+
 export function nodeSize(n: GraphNode): { width: number; height: number } {
+  if (n.shape) return { width: 22, height: 22 }
   const lines = n.compartments.flatMap((c) => [c.title, ...c.items.map((i) => i.text)])
   const widest = Math.max(n.name.length * 8, n.keyword.length * CHAR_W + 16, ...lines.map((l) => Math.min(l.length, 60) * CHAR_W))
   const width = Math.min(Math.max(widest + PAD * 2, 140), 520)
@@ -90,19 +93,23 @@ function portSide(direction?: string): 'WEST' | 'EAST' {
 
 function toElk(n: GraphNode, nested: boolean): ElkNode {
   const size = nested && n.children.length ? undefined : nodeSize(n)
+  // Room inside a context for the labels of its border ports (drawn inside the frame).
+  const sideOf = (p: GraphNode['ports'][number], k: number) => (n.isContext && !p.direction ? (k % 2 ? 'EAST' : 'WEST') : portSide(p.direction))
+  const labelRoom = (side: string) => Math.max(40, ...n.ports.filter((p, k) => sideOf(p, k) === side).map((p) => Math.min(p.name.length, 40) * CHAR_W + 28))
   return {
     id: n.id,
     ...(size ?? {}),
     layoutOptions: {
       'elk.portConstraints': 'FIXED_SIDE',
-      ...(n.children.length ? { 'elk.padding': `[top=${HEADER_H + 16},left=40,bottom=32,right=40]`, 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT', 'elk.layered.spacing.nodeNodeBetweenLayers': '90', 'elk.spacing.nodeNode': '50', 'elk.edgeRouting': 'ORTHOGONAL' } : {}),
+      ...(n.isContext ? { 'elk.portAlignment.default': 'CENTER' } : {}),
+      ...(n.children.length ? { 'elk.padding': `[top=${HEADER_H + 16},left=${n.isContext ? labelRoom('WEST') : 40},bottom=32,right=${n.isContext ? labelRoom('EAST') : 40}]`, 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT', 'elk.layered.spacing.nodeNodeBetweenLayers': '90', 'elk.spacing.nodeNode': '50', 'elk.edgeRouting': 'ORTHOGONAL' } : {}),
     },
-    ports: n.ports.map((p, k) => ({ id: p.id, width: PORT, height: PORT, layoutOptions: { 'elk.port.side': n.isContext ? (k % 2 ? 'EAST' : 'WEST') : portSide(p.direction), 'elk.port.index': String(k) } })),
+    ports: n.ports.map((p, k) => ({ id: p.id, width: PORT, height: PORT, layoutOptions: { 'elk.port.side': sideOf(p, k), 'elk.port.index': String(k) } })),
     children: n.children.map((c) => toElk(c, true)),
   }
 }
 
-export async function layoutGraph(graph: Graph, mode: 'general' | 'interconnection'): Promise<Layout> {
+export async function layoutGraph(graph: Graph, mode: DiagramMode): Promise<Layout> {
   const engine = await elk()
   const labelOf = (text?: string) => (text ? [{ text, width: Math.min(text.length, 40) * CHAR_W + 8, height: 16 }] : undefined)
   const root: ElkNode = {
@@ -111,7 +118,7 @@ export async function layoutGraph(graph: Graph, mode: 'general' | 'interconnecti
       'elk.algorithm': 'layered',
       'elk.direction': 'RIGHT',
       // Hierarchy only for interconnection (nested parts); the General View packs disconnected groups.
-      ...(mode === 'interconnection' ? { 'elk.hierarchyHandling': 'INCLUDE_CHILDREN' } : { 'elk.separateConnectedComponents': 'true', 'elk.aspectRatio': '1.4', 'elk.spacing.componentComponent': '40' }),
+      ...(mode !== 'general' ? { 'elk.hierarchyHandling': 'INCLUDE_CHILDREN' } : { 'elk.separateConnectedComponents': 'true', 'elk.aspectRatio': '1.4', 'elk.spacing.componentComponent': '40' }),
       'elk.layered.spacing.nodeNodeBetweenLayers': mode === 'general' ? '110' : '90',
       'elk.spacing.nodeNode': '40',
       'elk.edgeRouting': 'ORTHOGONAL',

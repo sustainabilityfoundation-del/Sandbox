@@ -13,13 +13,28 @@ Corpus: `Systems-Modeling/SysML-v2-Release` tag **2026-08** (EPL-2.0), examples 
 (`npm run sysml:library`; measurement `npm run sysml:conformance`, report in
 `.data/sysml-release/2026-08/conformance-report.md`).
 
-| Measure | Before parser round 2 | Now |
-| --- | --- | --- |
-| Example/training files with **no diagnostics** | 28 (14.3%) | 35 (17.9%) |
-| Files whose only problems are names missing from the platform library subset | 27 | 55 |
-| Parse-clean including those (no syntax/unsupported errors) | 55 (28.1%) | 90 (45.9%) |
-| Library files that parse (syntax only) | 18 (31.0%) | 37 (63.8%) |
-| Parser crashes | 0 | 0 |
+| Measure | Before parser round 2 | Sprint 1 end | Sprint 2 (now) |
+| --- | --- | --- | --- |
+| Example/training files with **no diagnostics** (platform library) | 28 (14.3%) | 35 (17.9%) | 38 (19.4%) |
+| Files whose only problems are names missing from the platform library subset | 27 | 55 | 54 |
+| Parse-clean including those (no syntax/unsupported errors) | 55 (28.1%) | 90 (45.9%) | 92 (46.9%) |
+| Files with **no diagnostics resolved against the official library** (measurement only) | n/a | n/a | 49 (25.0%) |
+| Library files that parse with no diagnostics | 18 (31.0%) | 37 (63.8%) | 43 (74.1%) |
+| Parser crashes | 0 | 0 | 0 |
+
+Sprint 2 changes behind the numbers: implicit library specializations (§4), `start`/`done` in the
+platform `Actions::Action`, indexing `#(i)`, ranges `a..b`, classification and casts (`istype`,
+`hastype`, `@`, `as`, `meta`), arrow invocations `x->f(y)`, and end / connector-end multiplicities
+and alias bodies that are now read and reported instead of stopping the parser.
+
+**Official library resolution (measurement only).** `npm run sysml:conformance` also loads every
+example against a library built from the 58 official SysML library files (EPL-2.0, read from the
+local corpus, never bundled or committed) plus the platform subset for the packages that the
+official SysML files do not define (`Base`, `ScalarValues`, `EWS`; the kernel libraries are KerML
+files, which this parser does not read). The official library loads with 1114 problems (syntax in
+15 files and resolution of kernel names). Bundling the official library in the product is not done:
+it is large, would need the EPL-2.0 notices and source offer, and the kernel (`.kerml`) part cannot
+be read yet; see the progress file (proposal).
 
 Resolution failures in the official corpus are expected: the models import standard library
 packages (ISQ, SI, spatial items, analysis domain libraries …) beyond the platform subset (§4).
@@ -42,7 +57,7 @@ API JSON → model.
 | Behaviour | action parameters, `first x;`, `then x;`, `then action a;`, `perform action`, `perform x.y;`, `exhibit state`, `accept [name :] T [via p]`, states, `entry`/`do`/`exit`, `transition t first s accept T via p if g then s2`, shorthand `accept T then s2;` |
 | Requirements | `subject`, `require constraint { }`, `assume constraint { }`, `require c;`, `satisfy R by x`, `not satisfy`, `assert constraint`, `assert not constraint`, `verify r;` in objectives, `frame c;` |
 | Views | `view` / `view def` with `expose X::*` / `expose X::**`, `render r;`, `rendering` (structure only) |
-| Expressions | integer, decimal, string, boolean, `null`, `*` literals; `+ - * / % ** ^`; comparisons; `and or xor not implies`; `if … ? … else …`; invocation `F(a, b)`; sequences `(a, b, c)`; feature chains; quantities `12 [kg]`, `9.81 [m/s^2]` |
+| Expressions | integer, decimal, string, boolean, `null`, `*` literals; `+ - * / % ** ^`; comparisons; `and or xor not implies`; `if … ? … else …`; invocation `F(a, b)`; sequences `(a, b, c)`; feature chains; quantities `12 [kg]`, `9.81 [m/s^2]`; indexing `v#(1)`; ranges `1..3`; `istype`, `hastype`, `@`, `as`, `meta`; arrow invocation `x->F(y)` (case `expr-index-range-cast`) |
 | Metadata | `@T;`, `@T { name = value; }`, `metadata m : T about x;`, prefix `#T` (also after `end`, `ref` …) |
 
 ## 3. Not supported yet (reported as `SYSML-SYNTAX-UNSUPPORTED`, never dropped silently)
@@ -50,9 +65,13 @@ API JSON → model.
 `send`, `message`, `event`, `snapshot`, `timeslice`, `individual`, `variant` members, `filter`,
 control nodes (`decide`, `merge`, `fork`, `join`), loops and `assign`, `include use case`,
 `dependency`, `language`/`rep` textual representations, `after`/`at`/`when` triggers, `crosses`,
-`meta`. Also not parsed (syntax errors): `new` constructor expressions, `as`/`meta` casts, `->`
-invocation, `@` classification operators, multiplicities written before `end` features, named
-invocation arguments, `then` after an unsupported member. Cases: `cases.ts` (`supported: false`).
+`meta` (as a member). Read but not represented (reported as `SYSML-SYNTAX-UNSUPPORTED` with the
+construct `end multiplicity`, `named end`, `connector end multiplicity`, `alias body`, `expression
+body argument`): `end [0..1] item x`, `end e[*] item x`, `connect [1] a to [*] b`,
+`first [0..1] a then [*] b`, `alias A for B { doc … }`, `x->forAll { in y; … }`. Also not parsed
+(syntax errors): `new` constructor expressions, feature chains after a parenthesized expression
+(`(x as T).y`), named invocation arguments, `then` after an unsupported member. Cases: `cases.ts`
+(`supported: false`).
 
 ## 4. Abstract syntax: simplifications and deviations (stated explicitly)
 
@@ -63,7 +82,10 @@ invocation arguments, `then` after an unsupported member. Cases: `cases.ts` (`su
 | Flow ends | Connector ends with reference subsetting; payload as `PayloadFeature` | `FlowEnd` with redefinitions of `sourceOutput`/`targetInput` |
 | `satisfy R by x` | Subject parameter with a feature value referencing `x` | Binding connector between subject and `x` |
 | Transitions | Source as a non-owning membership, trigger accept action, owned succession | Same structure; guard and effect partly (effect `do` not parsed) |
-| Implicit specializations | Not created (e.g. a part definition does not implicitly specialize `Parts::Part`) | Required by the library semantics |
+| Implicit specializations | Derived, not stored (`Semantics.impliedGeneral`, table `IMPLIED_GENERALS`): a definition or usage with no explicit general specializes / subsets the library base of its kind (`Parts::Part`, `Parts::parts`, `Actions::Action`, `Actions::actions`, `States::StateAction` …), used for name resolution and conformance; no `isImplied` relationships are created and serialization is unchanged. Usages with an explicit typing do not also get the base feature | Implied `Specialization` relationships (`isImplied = true`) for every definition and usage, including typed usages |
+| Classification and casts | `OperatorExpression` (`istype`, `hastype`, `@`, `as`, `meta`) whose second argument is a `FeatureReferenceExpression` to the type | `ClassificationExpression` / `MetaclassificationExpression` with a typed parameter |
+| Arrow invocation | `x->F(y)` is stored and printed as `F(x, y)` | `InvocationExpression` with the same arguments (semantically equal); body forms are `CollectExpression`/`SelectExpression` |
+| Indexing and ranges | `OperatorExpression` `#` and `..` | `IndexExpression`, `OperatorExpression` `..` |
 | Model library | Platform subset written for this module (`library/text.ts`): Base, ScalarValues, Parts, Items, Ports, Connections, Interfaces, Allocations, Actions, States, Constraints, Requirements, Calculations, Quantities, MeasurementReferences, ISQ subset, SI subset, EWS metadata. Library IDs follow the KerML §9.1 name-based UUID scheme | The OMG standard library |
 | Derived properties | Computed on demand; added to API JSON only with `?derived=true` | API "full" level |
 | Unknown metaclasses (JSON import) | Preserved opaquely, reported as `SYSML-UNSUPPORTED-METACLASS` | n/a |
@@ -71,11 +93,11 @@ invocation arguments, `then` after an unsupported member. Cases: `cases.ts` (`su
 
 ## 5. Validation rules
 
-Implemented in `packages/sysml-core/src/validation/validate.ts` (17 rules), each tested in
+Implemented in `packages/sysml-core/src/validation/validate.ts` (18 rules), each tested in
 `core.test.ts`: SYSML-REF-DANGLING, SYSML-OWNERSHIP, SYSML-TYPING-KIND, SYSML-SPECIALIZATION-KIND,
 SYSML-SPECIALIZATION-CYCLE, SYSML-MULTIPLICITY, SYSML-DUPLICATE-NAME, SYSML-REDEFINITION-TARGET,
 SYSML-UNIT-DIMENSION, SYSML-UNIT-MISSING, SYSML-CONNECTOR-ENDS, SYSML-SATISFY-TARGET,
-SYSML-TRANSITION-STATES, SYSML-COMPOSITION-CYCLE, SYSML-MANAGED-REQUIREMENT, SYSML-CONSTRAINT-FALSE,
+SYSML-TRANSITION-STATES, SYSML-COMPOSITION-CYCLE, SYSML-MANAGED-REQUIREMENT, SYSML-CAD-REFERENCE, SYSML-CONSTRAINT-FALSE,
 SYSML-UNSUPPORTED-METACLASS. They approximate (not reproduce) specification constraints; most KerML
 and SysML `validate…` constraints are not checked.
 
