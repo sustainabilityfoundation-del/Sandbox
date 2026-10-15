@@ -70,6 +70,8 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   'requirements.search': 'search',
   'requirements.explain_quality': 'calculate',
   'requirements.update': 'propose',
+  'requirements.create': 'propose',
+  'requirements.allocate': 'propose',
   'conceptualize.search': 'search',
   'conceptualize.read': 'read',
   'conceptualize.create': 'propose',
