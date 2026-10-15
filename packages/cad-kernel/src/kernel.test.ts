@@ -1,5 +1,6 @@
 import { CadEngine, createDocument, parseDocument, serializeDocument, type CommandCall, type RegenerationResult } from '@ews/cad-core'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { perforatedPlate } from './benchmarks'
 import { detectFormat } from './detect'
 import { sharedNodeKernel, type OcctKernel } from './node'
 import { inspectStep } from './step'
@@ -211,6 +212,27 @@ describe('parametric part on the OCCT kernel', () => {
     expect(body(e.regeneration).analysis.volume).toBeCloseTo(32000 - Math.PI * 360, 6)
     const stale = await e.dryRun({ commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'thickness', expression: '20' } }], expectedVersion: version - 1 })
     expect(stale.error?.code).toBe('version-conflict')
+  })
+
+  it('benchmark model: exact volume, downstream edits rebuild two features, within generous time limits', async () => {
+    const model = perforatedPlate(3, 3)
+    const e = new CadEngine({ kernel, document: createDocument({ documentId: model.name }) })
+    const t0 = performance.now()
+    expect((await e.execute({ commands: model.commands })).ok).toBe(true)
+    const full = performance.now() - t0
+    expect(body(e.regeneration).analysis.volume).toBeCloseTo(model.expectedVolume, 6)
+    expect(body(e.regeneration).analysis.counts.faces).toBe(6 + 9)
+    const part = e.document.parts[0]
+    const last = part.features.filter((f) => f.type === 'sketch').at(-1)!
+    const circle = last.type === 'sketch' ? last.entities.find((x) => x.type === 'circle')!.id : ''
+    const t1 = performance.now()
+    await e.execute({ commands: [model.downstreamEdit({ lastSketch: last.id, lastCircle: circle })] })
+    const downstream = performance.now() - t1
+    expect(e.regeneration?.parts[0].rebuilt).toHaveLength(2)
+    // Regression guard (machine-dependent; typical: ~250 ms full, ~50 ms downstream on a laptop).
+    expect(full).toBeLessThan(15_000)
+    expect(downstream).toBeLessThan(5_000)
+    await e.dispose()
   })
 
   it('tessellates bodies with face ranges mapped to stable names, and releases kernel memory', async () => {

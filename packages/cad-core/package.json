@@ -10,5 +10,9 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "tsx": "4.23.15"
   }
 }

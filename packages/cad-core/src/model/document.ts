@@ -89,7 +89,13 @@ export function validateDocument(doc: unknown): string[] {
     else if (seen.has(id)) problems.push(`Duplicate ID ${id}.`)
     seen.add(id)
   }
-  for (const part of d.parts) problems.push(...validatePart(part))
+  for (const part of d.parts) {
+    try {
+      problems.push(...validatePart(part))
+    } catch (e) {
+      problems.push(`Part ${String((part as Part | undefined)?.id)} is malformed: ${(e as Error).message}`)
+    }
+  }
   const known = new Set(ids)
   for (const r of d.references) {
     const featureNames = new Set(d.parts.flatMap((p) => p.features.map((f) => f.id)))
@@ -112,7 +118,12 @@ function validatePart(part: Part): string[] {
     }
   }
   const sketchesSoFar = new Map<string, SketchFeature>()
+  if (!Array.isArray(part.parameters) || !Array.isArray(part.features) || !Array.isArray(part.semantics)) return [`Part ${part.id}: parameters, features and semantics must be lists.`]
   for (const f of part.features) {
+    if (!f || !['sketch', 'extrude', 'revolve'].includes((f as Feature).type)) {
+      problems.push(`Feature ${String((f as Feature | undefined)?.id)} has an unknown type “${String((f as Feature | undefined)?.type)}” (format 1.0 supports sketch, extrude, revolve).`)
+      continue
+    }
     if (f.type === 'sketch') {
       const entities = new Map(f.entities.map((e) => [e.id, e]))
       for (const e of f.entities) {
