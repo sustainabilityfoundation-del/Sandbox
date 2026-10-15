@@ -139,6 +139,50 @@ Merged main d628556 (docs/specifications/integration-milestone-1.md).
 - **COORDINATOR REVIEW** commit 9bae3e9: `apps/workspace/src/assistant/assistant.test.ts` runs its twin demo flow without a Requirements service (it passed before only because no view was mounted). Test-only.
 - Limitation: proposals are still closures (`apply`/`undo`) held by the workspace, not persisted declarative data (C9 §3); that needs `services/assistant` persistence and a declarative proposal contract from the coordinator. The Requirements Apply is already a pure function of (requirement ID, patch, expected revision, project), so it can be expressed declaratively when that contract exists.
 
+## D1-REQ: requirements.create and requirements.allocate, 15 Oct 2026
+
+Merged main (SDK 1.8.0); `@ews/requirements-service`, `@ews/requirements-client` and `@ews/tool-requirements` depend on `@ews/platform-sdk ^1.8.0`.
+
+- **Migration `0003_origin_and_allocation_targets.sql`** (additive):
+  - `requirement_revisions.origin` (`stakeholder` | `ai-proposed` | `derived`, NULL = not recorded). Neither `source` (free text naming a document) nor custom attributes (project-defined; absent in a new project) fit.
+  - `relationships.target_kind` (`twin` | `sysml-model-element`, default `twin`; only allocations may be non-twin).
+  - `relationship_revisions.to_target_revision`: the SysML commit the allocation was made against.
+- **API (additive):**
+  - `origin` on requirement read, create and patch. It is a content field, so changing it creates a revision.
+  - Create accepts `derivesFrom`; `origin: 'derived'` requires it, and it is refused otherwise. The derives-from link is created in the same transaction.
+  - Relationship create accepts `toSysmlElement` (`<sysmlProjectId>/<elementId>`) and `expectedFromRevision` (409 if the requirement changed).
+  - Relationship reads return `targetKind` and `toTargetRevision`; `toTwinId` remains the target ID for every allocation.
+- **SysML targets** are validated through a new host port, `SysmlElementDirectory` (`HostServices.sysml`). The host adapter is `services/api/src/sysmlDirectory.ts`: it uses the SysML module's own `describe()`, so only named definitions and usages at the default-branch head are allowed. It is wired in `server.ts` (COORDINATOR REVIEW 21aa3a8). Without the port, SysML allocations are refused with an explanation.
+- **Artifact source:** SysML allocations are reported as `{ module: 'sysml', kind: 'sysml-model-element', id }` with `toRevision`.
+- **Assistant** (headless service proposals; API mode only, refused with an explanation for the demo service):
+  - `requirements.create`:
+    - Takes title, statement, rationale, type, verification methods, acceptance criteria, origin and `derivesFrom` (key or ID).
+    - Preview basis: `user-statement` for stakeholder, `ai-hypothesis` otherwise, with an assumption note.
+    - Provenance: the change reason is `Assistant proposal <id> (conversation <id>)`, and the actor is the person.
+    - One idempotency key per proposal. Undo archives.
+  - `requirements.allocate`:
+    - Adds allocations (product element, component or SysML element) and removes existing ones by target ID.
+    - Additions carry the previewed requirement revision; removals carry the relationship revision.
+    - Undo restores.
+    - Removals and additions are separate API calls, so a failure part-way leaves the earlier ones applied. The summary says what was done; additions are safe to retry.
+- **UI:**
+  - The editor has an Origin select and, for a new derived requirement, "Derived from (key)".
+  - In the Trace tab, "Allocate to" offers a component, a product element (by ID) or a SysML element (searched through `PlatformServices.sysml`; definitions and usages only).
+  - Both use the same request builder as the assistant (`src/allocations.ts`).
+- **Tests:**
+  - `services/api/test/d1.test.ts` (5 tests, real API, PostgreSQL and the SysML seed, no view):
+    - create with every origin, the derived link, provenance, a double Apply that creates one requirement, and Undo;
+    - allocate to all three target kinds, the relations reported, removal and Undo;
+    - UI/assistant parity for create (title too long, derived without a parent, unknown type, reader);
+    - UI/assistant parity for allocate (unknown product element, a twin SysML element used as a component, unknown SysML element, stale revision, reader).
+  - Unit tests: `src/allocations.test.ts`, and the demo-mode refusals in `src/assistant.test.ts`.
+  - Browser (workspace :5191, API :8797): create a derived requirement with the editor (origin stored, derives-from link to REQ-001), the origin shown after saving, allocation to a seeded SysML element from the Trace tab (commit recorded and shown), no console errors.
+- **COORDINATOR REVIEW** 21aa3a8: `server.ts` wiring; `capabilities.ts` (`requirements.add` and `requirements.allocate` now name the new operations); `services/assistant/src/policy.ts` (both operations `propose`).
+- **Limitations:**
+  - Origin is not exported to ReqIF.
+  - Product elements are entered by ID in the UI, because the SDK has no product-element search.
+  - JSON re-import of a SysML allocation needs the SysML directory, which the import path does not pass, so such allocations are reported as skipped.
+
 ## Open links and allocation relations, 15 Oct 2026
 
 - `openLinkViewState(params)` (`packages/tool-requirements/src/domain.ts`) maps the artifact source's open params to view state: `id` → detail panel of the requirement, `collectionId` → collection in the table page, `baselineId` → historical baseline view. Non-UUID or unknown params are ignored.
@@ -287,6 +331,8 @@ Decided on 14 Oct 2026 (contracts §13): 1 and 2 approved (SDK 1.3.0, adopted in
 - History is append-only through the API (DB triggers); not tamper-proof.
 
 ## Handoff log
+
+- 2026-10-15 (D1-REQ): requirements.create and requirements.allocate, migration 0003 (additive), SysML directory port. Commits 9915575, b47c126, 21aa3a8 (review), 5491fba.
 
 - 2026-10-15 (after aa2550f): allocation relations (C3 ref), open-link mapping, API help page rules (empty statement allowed in a draft, refused at request-review). No migrations.
 
