@@ -3,8 +3,11 @@
  * /api/concepts/v1/openapi.json (source: services/conceptualize/src/http/schemas.ts).
  */
 import type { ArtifactModule, ConceptAbstraction, ConceptMaturity } from '@ews/platform-sdk'
+import type { AnyRef, DecisionValidity, DesignRef, EvidenceReview, InvalidationCondition, ReviewFlagRecord, SupportRef } from './designTypes'
+export type * from './designTypes'
 
-export type Basis = 'user-assertion' | 'ai-hypothesis' | 'assumption' | 'estimate' | 'evidence' | 'decision'
+/** Basis ladder (ADR-0043), lowest to highest: ai-hypothesis, assumption / user-assertion, assessment, estimate, calculated, evidence, decision. */
+export type Basis = 'user-assertion' | 'ai-hypothesis' | 'assumption' | 'assessment' | 'estimate' | 'calculated' | 'evidence' | 'decision'
 export type StatementKind =
   | 'function'
   | 'behavior'
@@ -311,6 +314,14 @@ export interface Decision {
   recordedAt: string | null
   recordVersion: number
   provenance: ProvenanceInfo
+  /** CR-C5 extensions (empty on decisions recorded before them). */
+  support?: SupportRef[]
+  assumptionIds?: DesignRef[]
+  constraintIds?: DesignRef[]
+  affected?: AnyRef[]
+  invalidationConditions?: InvalidationCondition[]
+  validity?: DecisionValidity
+  reviewFlags?: ReviewFlagRecord[]
 }
 
 export interface DecisionCreate {
@@ -323,6 +334,11 @@ export interface DecisionCreate {
   outcomes: DecisionOutcome[]
   record?: boolean
   supersedesId?: string
+  support?: SupportRef[]
+  assumptionIds?: DesignRef[]
+  constraintIds?: DesignRef[]
+  affected?: AnyRef[]
+  invalidationConditions?: InvalidationCondition[]
 }
 
 export type CriterionCategory = 'performance' | 'mass' | 'cost' | 'complexity' | 'manufacturability' | 'risk' | 'custom'
@@ -428,12 +444,12 @@ export type EvidenceKind = 'calculation' | 'analysis' | 'simulation' | 'test' | 
 export interface Evidence {
   id: string
   key: string
-  conceptId: string
-  conceptRevision: number
+  conceptId: string | null
+  conceptRevision: number | null
   kind: EvidenceKind
   title: string
   summary: string
-  basis: 'ai-hypothesis' | 'assumption' | 'estimate' | 'evidence'
+  basis: EvidenceBasis
   method: string
   inputs: NamedQuantity[]
   outputs: NamedQuantity[]
@@ -443,10 +459,19 @@ export interface Evidence {
   createdAt: string
   createdBy: string
   provenance: ProvenanceInfo
+  /** CR-C6 extensions. */
+  subjects?: DesignRef[]
+  applicability?: Record<string, unknown>
+  manifest?: Record<string, unknown> | null
+  source?: AnyRef | null
+  assumptionIds?: string[]
+  reviews?: EvidenceReview[]
+  validationStatus?: 'unreviewed' | 'accepted' | 'rejected'
 }
 
+export type EvidenceBasis = 'ai-hypothesis' | 'assumption' | 'assessment' | 'estimate' | 'calculated' | 'evidence'
 export interface EvidenceCreate {
-  conceptId: string
+  conceptId?: string
   kind: EvidenceKind
   title: string
   summary?: string
@@ -457,6 +482,12 @@ export interface EvidenceCreate {
   assumptions?: string[]
   artifact?: ArtifactRefInput
   supersedesId?: string
+  subjects?: DesignRef[]
+  applicability?: Record<string, unknown>
+  /** Required for basis calculated (reproducibility manifest). */
+  manifest?: Record<string, unknown>
+  source?: AnyRef
+  assumptionIds?: string[]
 }
 
 export interface ImplementationArtifact {
@@ -567,7 +598,7 @@ export interface ConceptSeed {
   statements?: StatementInput[]
 }
 
-export type EvidenceSeed = Omit<EvidenceCreate, 'conceptId' | 'artifact' | 'supersedesId' | 'basis'> & { basis: 'ai-hypothesis' | 'assumption' | 'estimate' }
+export type EvidenceSeed = Omit<EvidenceCreate, 'conceptId' | 'artifact' | 'supersedesId' | 'basis' | 'subjects' | 'applicability' | 'manifest' | 'source' | 'assumptionIds'> & { basis: 'ai-hypothesis' | 'assumption' | 'estimate' }
 
 export interface ExplorationCreate {
   objective: string

@@ -215,6 +215,136 @@ export class ConceptsModuleClient {
     return this.send<T.Exploration>('POST', `/explorations/${id}/undo`, opts.reason ? { reason: opts.reason } : {}, opts)
   }
 
+  // ---- functions (CR-C1) ----------------------------------------------------------------------------------
+  functions(q: { text?: string; status?: string; ids?: string } = {}) {
+    return this.get<T.DesignFunction[]>('/functions', q)
+  }
+  function(id: string, revision?: number) {
+    return this.get<T.DesignFunction>(`/functions/${id}`, { revision })
+  }
+  createFunction(input: T.FunctionCreate, opts: WriteOpts = {}) {
+    return this.create<T.DesignFunction>('/functions', input, opts)
+  }
+  updateFunction(id: string, patch: T.FunctionPatch, opts: WriteOpts & { expectedRevision: number }) {
+    return this.send<T.DesignFunction>('PATCH', `/functions/${id}`, { ...patch, expectedRevision: opts.expectedRevision, ...(opts.reason ? { reason: opts.reason } : {}) }, opts)
+  }
+  functionRevisions(id: string) {
+    return this.get<T.RevisionSummary[]>(`/functions/${id}/revisions`)
+  }
+  createFunctionDecomposition(functionId: string, input: { name: string; description?: string }, opts: WriteOpts = {}) {
+    return this.create<T.Decomposition>(`/functions/${functionId}/decompositions`, input, opts)
+  }
+  /** Explicit conversion of a function-Concept (CR-C1 step 3); the Concept stays as history. */
+  convertToFunction(conceptId: string, opts: WriteOpts & { expectedRevision: number }) {
+    return this.create<T.Conversion>(`/concepts/${conceptId}/convert-to-function`, { expectedRevision: opts.expectedRevision, ...(opts.reason ? { reason: opts.reason } : {}) }, opts)
+  }
+
+  // ---- constraints (CR-C2) --------------------------------------------------------------------------------
+  constraints(q: { subjectId?: string; status?: string; text?: string } = {}) {
+    return this.get<T.DesignConstraint[]>('/constraints', q)
+  }
+  constraint(id: string, revision?: number) {
+    return this.get<T.DesignConstraint>(`/constraints/${id}`, { revision })
+  }
+  createConstraint(input: T.ConstraintCreate, opts: WriteOpts = {}) {
+    return this.create<T.DesignConstraint>('/constraints', input, opts)
+  }
+  updateConstraint(id: string, patch: T.ConstraintPatch, opts: WriteOpts & { expectedRevision: number }) {
+    return this.send<T.DesignConstraint>('PATCH', `/constraints/${id}`, { ...patch, expectedRevision: opts.expectedRevision }, opts)
+  }
+  changeConstraintStatus(id: string, status: T.ConstraintStatus, opts: WriteOpts & { expectedRevision: number; reason: string }) {
+    return this.send<T.DesignConstraint>('POST', `/constraints/${id}/status`, { status, expectedRevision: opts.expectedRevision, reason: opts.reason }, opts)
+  }
+  constraintRevisions(id: string) {
+    return this.get<T.RevisionSummary[]>(`/constraints/${id}/revisions`)
+  }
+  /** User-invoked promotion of a constraint statement with a quantity (CR-C2); the statement stays unchanged. */
+  promoteStatement(conceptId: string, input: { statementId: string; kind?: T.ConstraintKind; strength?: T.ConstraintStrength; operator?: T.Bound['operator']; reason?: string }, opts: WriteOpts = {}) {
+    return this.create<T.DesignConstraint>(`/concepts/${conceptId}/promote-statement`, input, opts)
+  }
+
+  // ---- assumptions (CR-C3) ----------------------------------------------------------------------------------
+  assumptions(q: { subjectId?: string; statementId?: string; status?: string; text?: string } = {}) {
+    return this.get<T.Assumption[]>('/assumptions', q)
+  }
+  assumption(id: string, revision?: number) {
+    return this.get<T.Assumption>(`/assumptions/${id}`, { revision })
+  }
+  createAssumption(input: T.AssumptionCreate, opts: WriteOpts = {}) {
+    return this.create<T.Assumption>('/assumptions', input, opts)
+  }
+  updateAssumption(id: string, patch: T.AssumptionPatch, opts: WriteOpts & { expectedRevision: number }) {
+    return this.send<T.Assumption>('PATCH', `/assumptions/${id}`, { ...patch, expectedRevision: opts.expectedRevision }, opts)
+  }
+  changeAssumptionValidation(id: string, status: T.AssumptionStatus, opts: WriteOpts & { expectedRevision: number; reason: string; evidenceIds?: string[] }) {
+    return this.send<T.Assumption>('POST', `/assumptions/${id}/validation`, { status, expectedRevision: opts.expectedRevision, reason: opts.reason, ...(opts.evidenceIds ? { evidenceIds: opts.evidenceIds } : {}) }, opts)
+  }
+  assumptionRevisions(id: string) {
+    return this.get<T.RevisionSummary[]>(`/assumptions/${id}/revisions`)
+  }
+  assumptionsFromStatements(conceptId: string, opts: WriteOpts = {}) {
+    return this.send<T.Assumption[]>('POST', `/concepts/${conceptId}/assumptions-from-statements`, {}, opts)
+  }
+
+  // ---- link registry and design links (CR-C4) --------------------------------------------------------------------
+  linkTypes() {
+    return this.get<T.LinkType[]>('/link-types')
+  }
+  registerLinkType(input: T.LinkTypeCreate, opts: WriteOpts = {}) {
+    return this.create<T.LinkType>('/link-types', input, opts)
+  }
+  /** Design links touching a record (id), optionally of one type. Served at /design-links (/links are Concept→artifact links). */
+  designLinks(q: { id?: string; type?: string; includeRemoved?: boolean } = {}) {
+    return this.get<T.DesignLink[]>('/design-links', q)
+  }
+  designLink(id: string) {
+    return this.get<T.DesignLink>(`/design-links/${id}`)
+  }
+  createDesignLink(input: T.DesignLinkCreate, opts: WriteOpts = {}) {
+    return this.create<T.DesignLink>('/design-links', input, opts)
+  }
+  removeDesignLink(id: string, opts: WriteOpts & { expectedRevision: number }) {
+    return this.send<T.DesignLink>('POST', `/design-links/${id}/remove`, { expectedRevision: opts.expectedRevision, ...(opts.reason ? { reason: opts.reason } : {}) }, opts)
+  }
+
+  // ---- decision and evidence extensions (CR-C5, CR-C6) ----------------------------------------------------------
+  flagDecision(id: string, input: { reason: string; conditionId?: string; impactReportRef?: T.ArtifactRefInput }, opts: WriteOpts = {}) {
+    return this.send<T.Decision>('POST', `/decisions/${id}/review-flag`, input, opts)
+  }
+  changeDecisionValidity(id: string, validity: 'valid' | 'invalidated', opts: WriteOpts & { expectedRevision: number; reason: string; invalidatedBy?: T.AnyRef }) {
+    return this.send<T.Decision>('POST', `/decisions/${id}/validity`, { validity, expectedRevision: opts.expectedRevision, reason: opts.reason, ...(opts.invalidatedBy ? { invalidatedBy: opts.invalidatedBy } : {}) }, opts)
+  }
+  rationale(decisionId: string) {
+    return this.get<T.Rationale>(`/decisions/${decisionId}/rationale`)
+  }
+  evidenceRecord(id: string) {
+    return this.get<T.Evidence>(`/evidence/${id}`)
+  }
+  reviewEvidence(id: string, input: { outcome: 'accepted' | 'rejected'; method?: string; note?: string }, opts: WriteOpts = {}) {
+    return this.send<T.Evidence>('POST', `/evidence/${id}/reviews`, input, opts)
+  }
+
+  // ---- batch, graph and search (CR-C10, CR-C9) ---------------------------------------------------------------------
+  /** All or nothing, with placeholders ("$name") resolved across operations. */
+  batch(operations: T.BatchOperation[], opts: WriteOpts = {}) {
+    return this.create<T.BatchResult>('/batch', { operations, ...(opts.reason ? { reason: opts.reason } : {}) }, opts)
+  }
+  traverse(request: T.TraverseRequest) {
+    return this.send<T.TraverseResult>('POST', '/graph/traverse', request)
+  }
+  neighbourhood(type: T.DesignEntityType, id: string, depth = 1, asOf?: string) {
+    return this.get<T.TraverseResult>('/graph/neighbourhood', { type, id, depth, asOf })
+  }
+  paths(from: T.AnyRef, to: T.AnyRef, q: { maxDepth?: number; follow?: string[]; limit?: number; asOf?: string } = {}) {
+    return this.send<T.PathsResult>('POST', '/graph/paths', { from, to, ...q })
+  }
+  search(q: string, types?: T.DesignEntityType[], limit?: number) {
+    return this.get<T.SearchResult>('/search', { q, types: types?.join(','), limit })
+  }
+  entityHistory(entityId: string) {
+    return this.get<T.AuditEvent[]>('/entity-history', { entityId })
+  }
+
   // ---- utilities ------------------------------------------------------------------------------------------------------------------------
   permissions() {
     return this.get<T.MyPermissions>('/me/permissions')
