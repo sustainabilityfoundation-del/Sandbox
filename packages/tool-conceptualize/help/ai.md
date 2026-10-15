@@ -22,3 +22,8 @@ conversation and proposal; the AI collaboration page lists them per Concept.
 Generated content is labelled **AI hypothesis** or **Estimate**. Estimates are computed from your
 quantities with textbook formulas and stated assumptions, never invented, and never verified. Review
 them under **AI hypotheses to review** (Confirm or Remove).
+
+**Explorations** (AI collaboration page) lists the alternative sets generated for the open Concept.
+**Undo** archives the generated Concepts, removes their relationships and withdraws the alternatives;
+nothing is deleted. Undo is refused once a decision has been recorded on those alternatives or one of
+them has passed an approval gate.
