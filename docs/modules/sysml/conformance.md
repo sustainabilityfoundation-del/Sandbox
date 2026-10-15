@@ -93,11 +93,11 @@ body argument`): `end [0..1] item x`, `end e[*] item x`, `connect [1] a to [*] b
 
 ## 5. Validation rules
 
-Implemented in `packages/sysml-core/src/validation/validate.ts` (17 rules), each tested in
+Implemented in `packages/sysml-core/src/validation/validate.ts` (18 rules), each tested in
 `core.test.ts`: SYSML-REF-DANGLING, SYSML-OWNERSHIP, SYSML-TYPING-KIND, SYSML-SPECIALIZATION-KIND,
 SYSML-SPECIALIZATION-CYCLE, SYSML-MULTIPLICITY, SYSML-DUPLICATE-NAME, SYSML-REDEFINITION-TARGET,
 SYSML-UNIT-DIMENSION, SYSML-UNIT-MISSING, SYSML-CONNECTOR-ENDS, SYSML-SATISFY-TARGET,
-SYSML-TRANSITION-STATES, SYSML-COMPOSITION-CYCLE, SYSML-MANAGED-REQUIREMENT, SYSML-CONSTRAINT-FALSE,
+SYSML-TRANSITION-STATES, SYSML-COMPOSITION-CYCLE, SYSML-MANAGED-REQUIREMENT, SYSML-CAD-REFERENCE, SYSML-CONSTRAINT-FALSE,
 SYSML-UNSUPPORTED-METACLASS. They approximate (not reproduce) specification constraints; most KerML
 and SysML `validate…` constraints are not checked.
 

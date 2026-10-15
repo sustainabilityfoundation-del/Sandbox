@@ -16,7 +16,7 @@ import { parse } from './syntax/parser'
 import { serialize } from './syntax/serializer'
 import { loadText } from './syntax/text'
 import { evaluate, featureValue, formatValue } from './units/evaluate'
-import { validate } from './validation/validate'
+import { cadRepresentations, validate } from './validation/validate'
 
 const P = (body: string) => `package P {\n    private import ScalarValues::*;\n    private import ISQ::*;\n    private import SI::*;\n${body}\n}`
 
@@ -147,6 +147,14 @@ describe('validation rules', () => {
   })
   it('SYSML-MANAGED-REQUIREMENT', () => {
     expect(rules(model('package A { requirement def R { @EWS::ManagedRequirement { requirementId = "REQ-001"; } } }'))).toEqual(['SYSML-MANAGED-REQUIREMENT'])
+  })
+  it('SYSML-CAD-REFERENCE and CAD representation refs (CR-SYSML-03)', () => {
+    expect(rules(model('package A { part def R { @EWS::CadRepresentation { cadRef = "CAD-120"; } } }'))).toEqual(['SYSML-CAD-REFERENCE'])
+    expect(rules(model('package A { part def R { @EWS::CadRepresentation { cadRef = "0e7c2c1a-4b7d-4f7e-9a51-2f3c6c1d9a10/e12"; revision = 0; } } }'))).toEqual(['SYSML-CAD-REFERENCE'])
+    const m = model('package A { part def R { @EWS::CadRepresentation { cadRef = "0e7c2c1a-4b7d-4f7e-9a51-2f3c6c1d9a10/e12"; revision = 4; role = "part"; } } part def S; }')
+    expect(rules(m)).toEqual([])
+    expect(cadRepresentations(m)).toEqual([{ elementId: id(m, 'A::R'), metadataId: expect.any(String), ref: { module: 'cad', kind: 'cad-modeler-entity', id: '0e7c2c1a-4b7d-4f7e-9a51-2f3c6c1d9a10/e12', revision: 4 }, role: 'part', valid: true }])
+    expect(cadRepresentations(m, id(m, 'A::S'))).toEqual([])
   })
   it('SYSML-CONSTRAINT-FALSE', () => {
     expect(rules(model(P('    part def S { attribute x : Real = 2; constraint { x > 3 } }')))).toEqual(['SYSML-CONSTRAINT-FALSE'])
