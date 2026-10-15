@@ -1,5 +1,5 @@
 import { Badge, IconButton, LoadingState, Notice, cx } from '@ews/design-system'
-import { useEffect, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { Graph, GraphEdge } from '../projection/graph'
 import { CHAR_W, HEADER_H, LINE_H, layoutGraph, type LaidOutNode, type Layout } from '../projection/layout'
 import { useViewState } from './hooks'
@@ -37,7 +37,7 @@ function wrap(text: string, width: number): string[] {
   return out
 }
 
-export function Diagram({ graph, mode, revision, title }: { graph: Graph; mode: 'general' | 'interconnection'; revision: number; title: string }) {
+export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph: Graph; mode: 'general' | 'interconnection'; revision: number; title: string; onOpen?: (elementId: string) => void; onUp?: () => void }) {
   const [vs, update] = useViewState()
   const [layout, setLayout] = useState<Layout | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -53,6 +53,21 @@ export function Diagram({ graph, mode, revision, title }: { graph: Graph; mode: 
     }
   }, [graph, mode, revision])
 
+  const scroller = useRef<HTMLDivElement>(null)
+  const fittedFor = useRef<string | null>(null)
+  const fit = (l: Layout) => {
+    const w = scroller.current?.clientWidth ?? 0
+    return w > 0 ? Math.max(0.6, Math.min(1, Math.floor(((w - 24) / (l.width + 40)) * 20) / 20)) : 1
+  }
+  // Fit wide diagrams to the available width when a different diagram is shown.
+  useEffect(() => {
+    const key = `${mode}:${title}`
+    if (layout && fittedFor.current !== key) {
+      fittedFor.current = key
+      update({ zoom: fit(layout) })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, mode, title])
   const select = (id: string) => update({ selectedId: id })
   const key = (id: string) => (e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -88,12 +103,13 @@ export function Diagram({ graph, mode, revision, title }: { graph: Graph; mode: 
     return (
       <g key={node.id}>
         <g
-          className={cx('smod-node', node.isContext && 'is-context', selected && 'is-selected', node.metaclass.includes('Requirement') && 'is-requirement', node.keyword.endsWith('def') && 'is-definition')}
+          className={cx('smod-node', node.isContext && 'is-context', selected && 'is-selected', node.metaclass.includes('Requirement') && 'is-requirement', node.keyword.endsWith('def') && 'is-definition', node.isExternal && 'is-external', node.keyword.endsWith('package') && 'is-package')}
           role="button"
           tabIndex={0}
           aria-label={`${node.keyword} ${node.name}`}
           aria-pressed={selected}
           onClick={() => select(node.elementId)}
+          onDoubleClick={() => !node.isContext && onOpen?.(node.elementId)}
           onKeyDown={key(node.elementId)}
         >
           <rect x={n.x} y={n.y} width={n.width} height={n.height} rx={node.isContext ? 10 : 6} />
@@ -128,11 +144,12 @@ export function Diagram({ graph, mode, revision, title }: { graph: Graph; mode: 
       <div className="smod-diagram-bar">
         <strong className="smod-diagram-title">{mode === 'general' ? 'General View' : 'Interconnection View'}: {title}</strong>
         <Badge tone="info">SysML v2 view (projection)</Badge>
+        {onUp && <IconButton label="Up to the owning namespace" icon="arrow-right" size="sm" className="smod-up" onPress={onUp} />}
         <span className="smod-spacer" />
         <IconButton label="Zoom out" icon="zoom-out" size="sm" onPress={() => update({ zoom: Math.max(0.3, Math.round((zoom - 0.1) * 10) / 10) })} />
         <span className="smod-muted">{Math.round(zoom * 100)}%</span>
         <IconButton label="Zoom in" icon="zoom-in" size="sm" onPress={() => update({ zoom: Math.min(2.5, Math.round((zoom + 0.1) * 10) / 10) })} />
-        <IconButton label="Reset zoom" icon="fit" size="sm" onPress={() => update({ zoom: 1 })} />
+        <IconButton label="Fit to width" icon="fit" size="sm" onPress={() => layout && update({ zoom: fit(layout) })} />
       </div>
       {graph.notes.map((n) => (
         <Notice key={n} tone="neutral" className="smod-diagram-note">{n}</Notice>
@@ -140,7 +157,7 @@ export function Diagram({ graph, mode, revision, title }: { graph: Graph; mode: 
       {error && <Notice tone="danger" title="Layout failed">{error}</Notice>}
       {!layout && !error && <LoadingState label="Laying out the diagram" />}
       {layout && (
-        <div className="smod-canvas-scroll">
+        <div className="smod-canvas-scroll" ref={scroller}>
           <svg className="smod-canvas" width={Math.ceil(layout.width * zoom) + 40} height={Math.ceil(layout.height * zoom) + 40} viewBox={`-20 -20 ${layout.width + 40} ${layout.height + 40}`} role="group" aria-label={`${mode === 'general' ? 'General' : 'Interconnection'} View diagram with ${graph.nodes.length} nodes and ${graph.edges.length} edges`}>
             <defs>
               <marker id="smod-tri" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse">

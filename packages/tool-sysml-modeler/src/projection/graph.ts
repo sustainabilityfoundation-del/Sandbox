@@ -33,6 +33,8 @@ export interface GraphNode {
   children: GraphNode[]
   /** The view's own context (interconnection root). */
   isContext?: boolean
+  /** Shown because a member refers to it; owned by another namespace. */
+  isExternal?: boolean
 }
 
 export type EdgeKind = 'specialization' | 'composition' | 'typing' | 'satisfy' | 'allocate' | 'connection' | 'interface' | 'flow' | 'binding' | 'succession'
@@ -141,44 +143,64 @@ export function connectorEnds(s: Semantics, connectorId: string): string[][] {
   })
 }
 
-/** SysML v2 General View of a namespace: definitions and usages with specialization, composition, typing, satisfy and allocate edges. */
+/**
+ * SysML v2 General View of a namespace: its direct members (nested packages as package nodes that
+ * list their contents), with specialization, composition, typing, satisfy and allocate edges.
+ * Definitions referenced from other namespaces appear as compact external nodes (qualified name).
+ */
 export function generalView(model: Model, rootId: string): Graph {
   const s = semanticsOf(model)
-  const collected: Element[] = []
+  const members: Element[] = []
   const relationshipUsages: Element[] = []
-  const visit = (id: string, depth: number) => {
-    for (const m of s.ownedMembers(id)) {
-      const t = m['@type']
-      if (t === 'Package' || t === 'LibraryPackage') {
-        if (depth < 20) visit(m['@id'], depth + 1)
-      } else if (EDGE_USAGES.has(t)) relationshipUsages.push(m)
-      else if ((isKindOf(t, 'Definition') && t !== 'ConjugatedPortDefinition') || (isKindOf(t, 'Usage') && t !== 'MetadataUsage')) collected.push(m)
-    }
-  }
   const root = s.get(rootId)
   if (root && isKindOf(root['@type'], 'Definition')) {
-    collected.push(root)
+    members.push(root)
     for (const m of s.ownedMembers(rootId)) if (EDGE_USAGES.has(m['@type'])) relationshipUsages.push(m)
-  } else visit(rootId, 0)
-  const shown = collected.slice(0, MAX_NODES)
-  const nodes = shown.map((el) => node(model, s, el))
+  } else {
+    for (const m of s.ownedMembers(rootId)) {
+      const t = m['@type']
+      if (EDGE_USAGES.has(t)) relationshipUsages.push(m)
+      else if (t === 'Package' || t === 'LibraryPackage' || (isKindOf(t, 'Definition') && t !== 'ConjugatedPortDefinition') || (isKindOf(t, 'Usage') && t !== 'MetadataUsage')) members.push(m)
+    }
+  }
+  const shown = members.slice(0, MAX_NODES)
+  const nodes: GraphNode[] = shown.map((el) => (el['@type'] === 'Package' || el['@type'] === 'LibraryPackage' ? packageNode(s, el) : node(model, s, el)))
   const ids = new Set(nodes.map((n) => n.id))
+  let externals = 0
+  // External names are shown relative to the namespace that contains the view's root.
+  const rootOwner = s.owningNamespace(rootId)
+  const ownerQ = rootOwner && rootOwner['@id'] !== model.rootId ? s.qualifiedName(rootOwner['@id']) : null
+  const prefix = ownerQ ? `${ownerQ}::` : ''
+  /** Shows a referenced element from another namespace as an external node (not library elements). */
+  const ensure = (id: string | undefined): boolean => {
+    if (!id) return false
+    if (ids.has(id)) return true
+    const el = s.get(id)
+    if (!el || model.isLibrary(id) || externals >= 40) return false
+    if (!isKindOf(el['@type'], 'Definition') && !isKindOf(el['@type'], 'Usage')) return false
+    externals++
+    ids.add(id)
+    const q = s.qualifiedName(id) ?? label(s, id)
+    nodes.push({ id, elementId: id, metaclass: el['@type'], keyword: keywordOf(el), name: prefix && q.startsWith(prefix) ? q.slice(prefix.length) : q, shortName: s.shortName(id), compartments: [], ports: [], children: [], isExternal: true })
+    return true
+  }
   const edges: GraphEdge[] = []
   for (const el of shown) {
+    if (el['@type'] === 'Package' || el['@type'] === 'LibraryPackage') continue
     for (const r of s.ownedRelationships(el['@id'])) {
       if (r['@type'] === 'Subclassification') {
         const g = refId(r, 'superclassifier')
-        if (g && ids.has(g)) edges.push({ id: r['@id'], elementId: r['@id'], kind: 'specialization', source: el['@id'], target: g })
+        if (ensure(g)) edges.push({ id: r['@id'], elementId: r['@id'], kind: 'specialization', source: el['@id'], target: g! })
       }
       if (isKindOf(el['@type'], 'Usage') && isKindOf(r['@type'], 'FeatureTyping')) {
         const t = refId(r, r['@type'] === 'ConjugatedPortTyping' ? 'conjugatedPortDefinition' : 'type')
-        if (t && ids.has(t)) edges.push({ id: r['@id'], elementId: r['@id'], kind: 'typing', source: el['@id'], target: t })
+        if (ensure(t)) edges.push({ id: r['@id'], elementId: r['@id'], kind: 'typing', source: el['@id'], target: t! })
       }
     }
     if (isKindOf(el['@type'], 'Definition')) {
       for (const f of s.ownedMembers(el['@id'])) {
         if (f['@type'] !== 'PartUsage' && f['@type'] !== 'ItemUsage') continue
-        for (const t of s.featureTypes(f['@id'])) if (ids.has(t) && t !== el['@id']) edges.push({ id: `comp:${f['@id']}:${t}`, elementId: f['@id'], kind: 'composition', source: el['@id'], target: t, label: `${label(s, f['@id'])}${multiplicity(s, f['@id'])}` })
+        for (const t of s.featureTypes(f['@id'])) if (t !== el['@id'] && ensure(t)) edges.push({ id: `comp:${f['@id']}:${t}`, elementId: f['@id'], kind: 'composition', source: el['@id'], target: t, label: `${label(s, f['@id'])}${multiplicity(s, f['@id'])}` })
       }
     }
   }
@@ -192,17 +214,25 @@ export function generalView(model: Model, rootId: string): Graph {
       const expr = fv && s.get(refId(fv, 'ownedRelatedElement'))
       const mem = expr && s.memberships(expr['@id'])[0]
       const by = mem && s.memberElement(mem)?.['@id']
-      if (req && by && ids.has(req) && ids.has(by)) edges.push({ id: u['@id'], elementId: u['@id'], kind: 'satisfy', source: by, target: req, label: '«satisfy»' })
+      if (req && by && ensure(by) && ensure(req)) edges.push({ id: u['@id'], elementId: u['@id'], kind: 'satisfy', source: by, target: req, label: '«satisfy»' })
     } else if (u['@type'] === 'AllocationUsage') {
       const [a, b] = connectorEnds(s, u['@id'])
       const src = a?.[0]
       const tgt = b?.[0]
-      if (src && tgt && ids.has(src) && ids.has(tgt)) edges.push({ id: u['@id'], elementId: u['@id'], kind: 'allocate', source: src, target: tgt, label: `«allocate»${b.length > 1 ? ` ${b.slice(1).map((x) => label(s, x)).join('.')}` : ''}` })
+      if (src && tgt && ensure(src) && ensure(tgt)) edges.push({ id: u['@id'], elementId: u['@id'], kind: 'allocate', source: src, target: tgt, label: `«allocate»${b.length > 1 ? ` ${b.slice(1).map((x) => label(s, x)).join('.')}` : ''}` })
     }
   }
   const notes: string[] = []
-  if (collected.length > MAX_NODES) notes.push(`Showing ${MAX_NODES} of ${collected.length} elements; open a nested package to see the rest.`)
-  return { nodes, edges, omitted: Math.max(0, collected.length - MAX_NODES), notes }
+  if (members.length > MAX_NODES) notes.push(`Showing ${MAX_NODES} of ${members.length} members; open a nested package to see the rest.`)
+  if (externals) notes.push(`${externals} element${externals === 1 ? '' : 's'} from other packages shown with their qualified names (dashed).`)
+  return { nodes, edges, omitted: Math.max(0, members.length - MAX_NODES), notes }
+}
+
+function packageNode(s: Semantics, el: Element): GraphNode {
+  const owned = s.ownedMembers(el['@id']).filter((m) => m['@type'] !== 'Documentation' && m['@type'] !== 'Comment' && !EDGE_USAGES.has(m['@type']))
+  const items = owned.slice(0, 12).map((m) => ({ id: m['@id'], text: `${keywordOf(m)} ${label(s, m['@id'])}` }))
+  if (owned.length > 12) items.push({ id: `${el['@id']}:more`, text: `… and ${owned.length - 12} more` })
+  return { id: el['@id'], elementId: el['@id'], metaclass: el['@type'], keyword: keywordOf(el), name: label(s, el['@id']), compartments: items.length ? [{ title: 'members', items }] : [], ports: [], children: [] }
 }
 
 /** Definition whose internal structure an Interconnection View shows for a context element. */

@@ -163,10 +163,11 @@ export interface ChildSummary extends ElementSummary {
 /** Members of a namespace for a lazy model browser (relationships and implied elements hidden). */
 export function children(model: Model, ownerId: string = model.rootId): ChildSummary[] {
   const s = semanticsOf(model)
+  const browsable = (m: Element) => !['ConjugatedPortDefinition', 'MultiplicityRange', 'Documentation', 'Feature', 'PayloadFeature'].includes(m['@type']) && !(isKindOf(m['@type'], 'Expression') && !isKindOf(m['@type'], 'Usage'))
   return s
     .ownedMembers(ownerId)
-    .filter((m) => !['ConjugatedPortDefinition', 'MultiplicityRange', 'Documentation'].includes(m['@type']) && !(isKindOf(m['@type'], 'Expression') && !isKindOf(m['@type'], 'Usage')))
-    .map((m) => ({ ...summarize(model, m['@id'])!, childCount: s.ownedMembers(m['@id']).filter((c) => !['ConjugatedPortDefinition', 'MultiplicityRange', 'Documentation'].includes(c['@type'])).length }))
+    .filter(browsable)
+    .map((m) => ({ ...summarize(model, m['@id'])!, childCount: s.ownedMembers(m['@id']).filter(browsable).length }))
 }
 
 export { refId }

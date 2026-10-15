@@ -85,9 +85,10 @@ export async function layoutGraph(graph: Graph, mode: 'general' | 'interconnecti
     id: '__root',
     layoutOptions: {
       'elk.algorithm': 'layered',
-      'elk.direction': mode === 'general' ? 'DOWN' : 'RIGHT',
-      'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-      'elk.layered.spacing.nodeNodeBetweenLayers': mode === 'general' ? '70' : '90',
+      'elk.direction': 'RIGHT',
+      // Hierarchy only for interconnection (nested parts); the General View packs disconnected groups.
+      ...(mode === 'interconnection' ? { 'elk.hierarchyHandling': 'INCLUDE_CHILDREN' } : { 'elk.separateConnectedComponents': 'true', 'elk.aspectRatio': '1.4', 'elk.spacing.componentComponent': '40' }),
+      'elk.layered.spacing.nodeNodeBetweenLayers': mode === 'general' ? '110' : '90',
       'elk.spacing.nodeNode': '40',
       'elk.edgeRouting': 'ORTHOGONAL',
       'elk.spacing.edgeLabel': '4',

@@ -13,14 +13,20 @@ const id = (m: ReturnType<typeof model>, qn: string) => resolveRef(m, qn)['@id']
 describe('view projections (diagrams are computed from the model)', () => {
   it('General View: definitions with compartments and specialization / composition / satisfy edges', () => {
     const m = model()
-    const g = generalView(m, id(m, 'ActuatorSystem'))
+    const top = generalView(m, id(m, 'ActuatorSystem'))
+    expect(top.nodes.map((n) => n.keyword)).toEqual(Array(8).fill('package'))
+    expect(top.nodes.find((n) => n.name === 'Mechanical')!.compartments[0].items.map((i) => i.text)).toEqual(['part def Housing', 'part def Gearbox', 'part def BallScrew', 'part def Rod'])
+    const g = generalView(m, id(m, 'ActuatorSystem::Architecture'))
     const la = g.nodes.find((n) => n.name === 'LinearActuator')!
     expect(la.keyword).toBe('part def')
     expect(la.compartments.find((c) => c.title === 'attributes')!.items.map((i) => i.text)).toContain('totalMass : MassValue = 1.85 [kg]')
     const comp = g.edges.filter((e) => e.kind === 'composition' && e.source === la.id)
     expect(comp.map((e) => e.label).sort()).toContain('motor')
-    expect(g.edges.filter((e) => e.kind === 'satisfy')).toHaveLength(3)
-    expect(g.edges.some((e) => e.kind === 'allocate')).toBe(true)
+    // Types from other packages appear as external nodes with qualified names.
+    expect(g.nodes.find((n) => n.name === 'Electrical::BrushlessMotor')?.isExternal).toBe(true)
+    const product = generalView(m, id(m, 'ActuatorSystem::Product'))
+    expect(product.edges.filter((e) => e.kind === 'satisfy')).toHaveLength(3)
+    expect(product.edges.some((e) => e.kind === 'allocate')).toBe(true)
   })
 
   it('Interconnection View: parts with their ports, connections and flows between ports', () => {

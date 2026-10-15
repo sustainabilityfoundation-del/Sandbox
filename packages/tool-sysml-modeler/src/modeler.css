@@ -68,6 +68,9 @@
   .smod-node.is-definition > rect { fill: var(--ws-surface-2); }
   .smod-node.is-requirement > rect { fill: var(--ws-info-soft); stroke: var(--ws-info); }
   .smod-node.is-context > rect { fill: none; stroke: var(--ws-diagram-stroke-strong); stroke-width: 2; }
+  .smod-node.is-external > rect { fill: var(--ws-surface-3); stroke-dasharray: 5 3; }
+  .smod-node.is-package > rect { fill: var(--ws-surface-2); stroke-width: 2; }
+  .smod-up { transform: rotate(-90deg); }
   .smod-node:hover > rect { stroke: var(--ws-diagram-stroke-strong); stroke-width: 2; }
   .smod-node:focus-visible > rect { stroke: var(--ws-focus); stroke-width: 3; }
   .smod-node.is-selected > rect { fill: var(--ws-diagram-selected); stroke: var(--ws-accent); stroke-width: 2.5; }

@@ -111,7 +111,21 @@ export default function ModelerView() {
         <ModelBrowser model={model} revision={state.revision} />
       </aside>
       <main className="smod-center" aria-label="View">
-        {vs.tab === 'diagram' && graph && <Diagram graph={graph} mode={vs.view} revision={state.revision} title={rootLabel(vs.view === 'interconnection' ? icRoot : root)} />}
+        {vs.tab === 'diagram' && graph && (
+          <Diagram
+            graph={graph}
+            mode={vs.view}
+            revision={state.revision}
+            title={rootLabel(vs.view === 'interconnection' ? icRoot : root)}
+            onOpen={(id) => {
+              const el = model.get(id)
+              if (!el) return
+              if (vs.view === 'general' && (isKindOf(el['@type'], 'Package') || isKindOf(el['@type'], 'Definition'))) update({ rootId: id, selectedId: id })
+              else if (interconnectionContext(model, id)) update({ rootId: interconnectionContext(model, id)!, view: 'interconnection', selectedId: id })
+            }}
+            onUp={vs.view === 'general' && root && root !== model.rootId ? () => update({ rootId: s.owningNamespace(root)?.['@id'] ?? model.rootId }) : undefined}
+          />
+        )}
         {vs.tab === 'diagram' && !graph && (
           <EmptyState icon="relationship" title="Choose a part definition">The Interconnection View shows the parts, ports and connections inside a part definition or part usage. Select one in the browser and choose Interconnection.</EmptyState>
         )}
