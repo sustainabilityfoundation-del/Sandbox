@@ -3,6 +3,7 @@ import type { PlatformHost, SharedContext, ToolApi } from '@ews/platform-sdk'
 import { useToasts } from '@ews/design-system'
 import { useWorkspaceStore } from './store'
 import { workspaceServices } from './services'
+import { workspaceSettings } from '../settings/store'
 import { toolIdOfView } from './views'
 
 
@@ -52,6 +53,7 @@ export function getToolApi<VS>(toolId: string, viewId: string = toolId): ToolApi
       toolId,
       viewId,
       services: workspaceServices,
+      settings: workspaceSettings,
       getContext: () => sharedContextOf(store(), viewId),
       getModel: (): ModelIndex => {
         const model = store().model

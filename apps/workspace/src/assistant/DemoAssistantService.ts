@@ -1,5 +1,6 @@
 import type { AssistantRequest, AssistantResponse, AssistantService, HistoryItem, ToolCallRequest, ToolCallResult } from './types'
 import { getTools } from '../platform/registry'
+import { drillBitHolderDemo } from './demos/drillBitHolder'
 
 /**
  * DEMO ASSISTANT: deterministic, rule-based responses for a handful of example
@@ -20,6 +21,7 @@ export const EXAMPLE_PROMPTS = [
   'Open SysML and show the rod.',
   'Which artifacts are stale?',
   'Undo the last model change.',
+  'Start the drill bit holder example',
 ]
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
@@ -344,7 +346,7 @@ function toolDemoIntent(turn: Turn): AssistantResponse | null {
 
 function helpReply(): AssistantResponse {
   return final(
-    "I'm the **demo assistant**: a deterministic mock that understands a few example requests. I'm not connected to ChatGPT. " +
+    "I'm the **demo assistant**: a deterministic mock that understands a few example requests. I'm not connected to an AI model; connect your own account in Settings → AI and reasoning. " +
       'I can read requirements and the shared model, prepare change previews (requirements, SysML elements and links, CAD dimensions) for you to apply, open tools in your subscription, and select objects.',
     { suggestions: EXAMPLE_PROMPTS },
   )
@@ -369,6 +371,9 @@ export class DemoAssistantService implements AssistantService {
     const text = turn.text
     const history = request.history
 
+    // Optional demonstration (drill bit holder), separate from the product's general intents.
+    const example = drillBitHolderDemo(request)
+    if (example) return example
     if (/\b(undo|revert|roll ?back)\b/i.test(text)) return undoIntent(turn, history)
     if (/\b(stale|out of date|outdated)\b/i.test(text)) return staleIntent(turn, history)
     if (/\bsysml\b/i.test(text) && /\b(reference|ref)\b/i.test(text)) return sysmlReferenceIntent(turn)

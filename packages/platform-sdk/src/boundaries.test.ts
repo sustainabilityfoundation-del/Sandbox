@@ -41,7 +41,7 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/requirements-client': /^@ews\/platform-sdk$/,
   'packages/reqif': /^$/,
   'services/requirements': /^@ews\/(platform-sdk|reqif)$/,
-  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service|projects-service)$/,
+  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service|settings-service|assistant-service|projects-service)$/,
   // Project Management (docs/specifications/project-management-contracts.md §3). Only the client reaches the browser.
   'services/projects': /^@ews\/platform-sdk$/,
   'packages/projects-client': /^@ews\/platform-sdk$/,
@@ -58,6 +58,9 @@ const ALLOWED: Record<string, RegExp> = {
   // the core may use the SDK's testing fixtures (sample twin) in its scenario tests.
   'packages/engineering-calc': /^@ews\/platform-sdk$/,
   'packages/design-reasoning-core': /^@ews\/(platform-sdk(\/testing)?|engineering-calc)$/,
+  // AI connection (docs/specifications/ai-connection.md §5, §5a): framework-free SDK contract only; hosted by services/api.
+  'services/settings': /^@ews\/platform-sdk$/,
+  'services/assistant': /^@ews\/platform-sdk$/,
 }
 
 describe('package boundaries', () => {

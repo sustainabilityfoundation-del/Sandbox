@@ -129,3 +129,27 @@ Recommendation and rationale: [mathematics.md](../../modules/design-reasoning/ma
 | **CPM** per-class `type` with an independent taxonomy | **Adopt** as the extension mechanism (classifications and registered relationship types) instead of a global ontology | knowledge-representation.md §6 |
 | OWL/RDF ontologies, reasoners, a graph database | **Leave out.** The brief forbids a graph database without demonstrated need; the extension mechanism above covers the use cases | ADR-0041 |
 | MCP-style tool definitions (input and output schema, annotations) | **Adopt the shape** for provider-independent tool schemas | ai-tools.md |
+
+## 4. Addendum (R3, 15 October 2026): citations of the relations library
+
+The relations library of `@ews/engineering-calc` (mathematics.md §10) cites standard texts and standards in
+which its relations are given. **None of them was consulted in this session** (access level: none). The citations
+identify where an engineer reviewing the library can check each relation; they are not evidence that the agent
+verified the relations against them, and no text is copied from them.
+
+| Cited for | Source (as cited) | Access |
+| --- | --- | --- |
+| Euler critical load | Timoshenko & Gere, *Theory of Elastic Stability*, 2nd ed., 1961 | None |
+| Euler–Johnson transition slenderness, torque–preload relation, power screws | Budynas & Nisbett, *Shigley's Mechanical Engineering Design* | None |
+| Beam deflection and stress formulas | Young, Budynas & Sadegh, *Roark's Formulas for Stress and Strain*, 8th ed., 2012; Gere & Goodno, *Mechanics of Materials* | None |
+| Proof stress, tensile stress area of metric threads | ISO 898-1:2013 | None |
+| Systematic bolted-joint calculation (not implemented) | VDI 2230 Part 1:2015 | None |
+| Rated output of rotating machines (context) | IEC 60034-1 | None |
+| Ball screw lead (context) | ISO 3408-1 | None |
+| Power of a torque | Hibbeler, *Engineering Mechanics: Dynamics* | None |
+
+What was actually done instead: every relation is dimensionally checked by the engine and each reference case
+is recomputed in tests from an independently written closed form; the M10 tensile stress area (≈ 57.99 mm²)
+agrees with the commonly tabulated 58.0 mm², recalled rather than read. The library therefore carries the review
+status "agent-checked, engineering review required", and its models stay `unvalidated` until a person validates
+them.

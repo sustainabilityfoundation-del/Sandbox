@@ -10,6 +10,8 @@ import { formatTime } from '@ews/platform-sdk/react'
 import { AppIcon, Button, Checkbox, Icon, Spinner, TextField } from '@ews/design-system'
 import { ChangeCard } from './ChangeCard'
 import { MessageText, Reference } from './MessageText'
+import { useAiConnection } from '../../assistant/connection'
+import { useSettingsCentre } from '../../settings/SettingsCentre'
 
 function LiveContextChips() {
   const model = useWorkspaceStore((s) => s.model)!
@@ -181,6 +183,48 @@ function Message({ message, focused }: { message: ChatMessage; focused: boolean 
   )
 }
 
+/**
+ * Which assistant answers: the connected account (provider, model; "Using ChatGPT plan" for Sign in with
+ * ChatGPT) or the labelled demo. Connecting happens in Settings → AI and reasoning, not here.
+ */
+function ConnectionLine() {
+  const info = useConversation((s) => s.service?.info)
+  const connection = useAiConnection((s) => s.connection)
+  const providers = useAiConnection((s) => s.providers)
+  const openAi = () => useSettingsCentre.getState().show('ai')
+  if (info?.kind === 'remote') {
+    const usage = providers.find((p) => p.id === connection?.provider)?.methods.find((m) => m.id === connection?.method)
+    return (
+      <span data-testid="assistant-connection" data-assistant-kind="remote">
+        <strong>{info.name}</strong>
+        {info.model ? ` · ${info.model}` : ''} (your connected account).{' '}
+        {info.method === 'chatgpt' && (
+          <>
+            <span className="as-tag">Using ChatGPT plan</span>{' '}
+            {usage?.kind === 'oauth' && usage.manageUsageUrl && (
+              <a className="ws-help-link" href={usage.manageUsageUrl} target="_blank" rel="noopener noreferrer">
+                Manage usage
+              </a>
+            )}{' '}
+          </>
+        )}
+        <Button size="sm" variant="text" icon="settings" onPress={openAi}>
+          AI settings
+        </Button>{' '}
+      </span>
+    )
+  }
+  return (
+    <span data-testid="assistant-connection" data-assistant-kind="demo">
+      <strong>{info?.name ?? 'Assistant'}</strong> (scripted demo responses, not connected to an AI model).{' '}
+      {connection && connection.status !== 'active' && <span className="as-tag">Connection needs attention</span>}{' '}
+      <Button size="sm" variant="text" icon="connect" onPress={openAi}>
+        Connect your account
+      </Button>{' '}
+    </span>
+  )
+}
+
 /** The ChatGPT panel: conversation with the (replaceable) assistant service. */
 export function AssistantPanel() {
   const messages = useConversation((s) => s.messages)
@@ -188,7 +232,6 @@ export function AssistantPanel() {
   const send = useConversation((s) => s.send)
   const stop = useConversation((s) => s.stop)
   const clear = useConversation((s) => s.clear)
-  const info = useConversation((s) => s.service?.info)
   const focusId = useConversation((s) => s.focusMessageId)
   const focusMessage = useConversation((s) => s.focusMessage)
   const draft = useConversation((s) => s.draft)
@@ -226,9 +269,8 @@ export function AssistantPanel() {
               New conversation
             </Button>
           )}
-          <strong>{info?.name ?? 'Assistant'}</strong>
-          {info?.kind === 'demo' ? ' (scripted responses, not connected to ChatGPT).' : '.'} Model changes are only made when
-          you choose Apply.{' '}
+          <ConnectionLine />
+          Model changes are only made when you choose Apply.{' '}
           <Button size="sm" variant="text" onPress={() => useCoverageDialog.getState().setOpen(true)}>
             What can the assistant do?
           </Button>

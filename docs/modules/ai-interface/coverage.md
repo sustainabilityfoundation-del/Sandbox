@@ -51,3 +51,12 @@ that both the Requirements UI and the assistant call, with identical validation 
 the Requirements API, working with the tool closed, and with the platform preview. This needs the
 decision on ADR-0013 (registry shape and AssistantContribution migration), which also resolves the
 deferred contract request 3.
+
+## Update: provider connection (development plan sprint 4, 15 October 2026)
+
+Finding 6 is addressed on `feature/ai-connection`: with a connected account (Settings → AI and reasoning)
+the conversation is answered by a real model through `services/assistant`, using the same operations; the
+inventory now marks the conversation **experimental** (answer quality is not evaluated) and adds the
+connection, access policy, send preview and audit as **restricted** (a person's controls over the AI, never
+assistant operations) and the Settings centre. The server enforces the AI access policy when the tool list is
+built and when calls return ([provider connection](provider-connection.md)). The other findings stand.

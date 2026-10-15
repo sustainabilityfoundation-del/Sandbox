@@ -1,5 +1,6 @@
 import type { PlatformServices } from './requirements'
 import type { CurrentProject } from './projects'
+import type { SettingsService } from './settings'
 import type { IconName } from '@ews/design-system/icon-names'
 import type {
   ActivityEntry,
@@ -135,6 +136,11 @@ export interface ToolApi<VS = unknown> {
    * not entitled; never fall back to another data source silently.
    */
   readonly services: PlatformServices
+  /**
+   * Effective setting values (SDK 1.6): from the settings service, clamped to project ceilings, else
+   * defaults. Read-only here; people change settings in the Settings centre.
+   */
+  readonly settings: SettingsService
   /** Opens another tool through the platform (subject to subscription). Never imports the tool. */
   openTool: (toolId: string) => OpenToolResult
   getViewState: () => VS
