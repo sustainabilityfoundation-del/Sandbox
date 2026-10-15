@@ -12,6 +12,7 @@ import { ChangeCard } from './ChangeCard'
 import { MessageText, Reference } from './MessageText'
 import { useAiConnection } from '../../assistant/connection'
 import { useSettingsCentre } from '../../settings/SettingsCentre'
+import { downloadTranscript } from '../../assistant/transcript'
 
 function LiveContextChips() {
   const model = useWorkspaceStore((s) => s.model)!
@@ -285,6 +286,11 @@ export function AssistantPanel() {
           {messages.length > 0 && (
             <Button size="sm" variant="text" icon="add" onPress={clear} isDisabled={running} className="float-right">
               New conversation
+            </Button>
+          )}
+          {messages.length > 0 && (
+            <Button size="sm" variant="text" icon="save" onPress={downloadTranscript} isDisabled={running} className="float-right" data-testid="export-transcript">
+              Export transcript
             </Button>
           )}
           <ConnectionLine />

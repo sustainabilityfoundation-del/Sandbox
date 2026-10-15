@@ -29,6 +29,10 @@ export interface ToolStep {
   summary: string
   inspected: InspectedItem[]
   error?: string
+  /** Arguments the model sent (kept for the exported transcript, the evidence of a run). */
+  arguments?: Record<string, unknown>
+  /** Model response this call came from (0-based within the answer). */
+  round?: number
 }
 
 export type ChatMessage =
@@ -47,6 +51,8 @@ export type ChatMessage =
       proposalIds: string[]
       suggestions: string[]
       clarification?: boolean
+      /** Provider and model that produced the final answer (connected assistant only). */
+      model?: string
       error?: string
       note?: string
     }
@@ -391,6 +397,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
               text: response.text,
               suggestions: response.suggestions ?? [],
               clarification: response.clarification,
+              ...(response.meta?.model ? { model: `${response.meta.provider ?? ''} ${response.meta.model}`.trim() } : {}),
             })
             return
           }
@@ -399,7 +406,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
             const label = operationLabel(toolCall.name)
             patchMessage(reply.id, (m) => ({
               status: 'running-tool',
-              steps: [...m.steps, { id: toolCall.id, name: toolCall.name, label, status: 'running', summary: `${label}…`, inspected: [] }],
+              steps: [...m.steps, { id: toolCall.id, name: toolCall.name, label, status: 'running', summary: `${label}…`, inspected: [], arguments: toolCall.arguments, round: step }],
             }))
             const execution = executeToolCall(toolCall, { captured: context, source, env }).then((outcome) => {
               // Record the outcome even if the user pressed Stop meanwhile.
