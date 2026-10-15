@@ -1,0 +1,95 @@
+@layer components {
+  /* Tool: CAD Modeler. Design tokens only (AGENTS.md "Design system"); lays out against the tool container. */
+  .cadm-root { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); height: 100%; min-height: 0; }
+  .cadm-side { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--ws-border); background: var(--ws-surface); }
+  .cadm-tabs { flex: 1; min-height: 0; }
+  .cadm-tablist { flex: none; border-bottom: 1px solid var(--ws-border); padding: 0 var(--ws-space-2); }
+  .cadm-tabpanel { flex: 1; min-height: 0; overflow: auto; }
+  .cadm-panel-body { display: flex; flex-direction: column; gap: var(--ws-space-3); padding: var(--ws-space-3) var(--ws-space-4) var(--ws-space-6); }
+
+  .cadm-stage { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: linear-gradient(var(--ws-viewport-top), var(--ws-viewport-bottom)); }
+  .cadm-stage-header { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); min-height: var(--ws-header-h); padding: var(--ws-space-1) var(--ws-space-3); border-bottom: 1px solid var(--ws-border); background: var(--ws-surface); }
+  .cadm-doc-title { font-weight: var(--ws-weight-medium); }
+  .cadm-status { display: flex; flex: none; flex-wrap: wrap; gap: var(--ws-space-4); padding: var(--ws-space-1) var(--ws-space-3); border-top: 1px solid var(--ws-border); background: var(--ws-surface); color: var(--ws-text-3); font-size: var(--ws-font-size-sm); }
+
+  .cadm-viewport { position: relative; flex: 1; min-height: 240px; }
+  .cadm-viewport-host { position: absolute; inset: 0; outline: none; touch-action: none; }
+  .cadm-viewport-host:focus-visible { box-shadow: inset 0 0 0 3px var(--ws-focus); }
+  .cadm-canvas { display: block; width: 100%; height: 100%; }
+  .cadm-viewport-message { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--ws-space-4); pointer-events: none; }
+  .cadm-view-tools { position: absolute; top: var(--ws-space-2); right: var(--ws-space-2); display: flex; flex-wrap: wrap; gap: var(--ws-space-1); padding: var(--ws-space-1); border-radius: var(--ws-radius); background: var(--ws-overlay-surface); box-shadow: var(--ws-shadow-sm); }
+  .cadm-viewport-status { position: absolute; left: var(--ws-space-3); bottom: var(--ws-space-2); display: flex; gap: var(--ws-space-2); align-items: center; color: var(--ws-text-2); font-size: var(--ws-font-size-sm); pointer-events: none; }
+
+  .cadm-sketch-stage { flex: 1; min-height: 240px; display: flex; padding: var(--ws-space-3); background: var(--ws-diagram-bg); }
+  .cadm-sketch { flex: 1; width: 100%; height: 100%; min-height: 220px; }
+  .cadm-sk-axis { stroke: var(--ws-diagram-grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .cadm-sk-origin { fill: var(--ws-diagram-leader); }
+  .cadm-sk-entity, .cadm-sk-point { cursor: pointer; outline: none; }
+  .cadm-sk-hit { stroke: transparent; stroke-width: 14; fill: none; vector-effect: non-scaling-stroke; }
+  .cadm-sk-curve { fill: none; stroke: var(--ws-diagram-stroke-strong); stroke-width: 2; vector-effect: non-scaling-stroke; }
+  .cadm-sk-entity.is-construction .cadm-sk-curve { stroke: var(--ws-diagram-detail); stroke-dasharray: 6 4; }
+  .cadm-sk-entity.is-free .cadm-sk-curve { stroke: var(--ws-info); }
+  .cadm-sk-point circle { fill: var(--ws-diagram-stroke); }
+  .cadm-sk-point.is-free circle { fill: var(--ws-info); }
+  .cadm-sk-entity.is-selected .cadm-sk-curve { stroke: var(--ws-accent); stroke-width: 3.5; }
+  .cadm-sk-point.is-selected circle { fill: var(--ws-accent); }
+  .cadm-sk-entity:focus-visible .cadm-sk-curve, .cadm-sk-point:focus-visible circle { stroke: var(--ws-focus); stroke-width: 4; }
+  .cadm-sk-dim { fill: var(--ws-info); font-family: var(--ws-font-sans); }
+  .cadm-sk-dim.is-bad { fill: var(--ws-danger); }
+
+  .cadm-section { display: flex; flex-direction: column; gap: var(--ws-space-2); padding-top: var(--ws-space-2); border-top: 1px solid var(--ws-border); }
+  .cadm-section-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); margin: 0; font-size: var(--ws-font-title); font-weight: var(--ws-weight-medium); }
+  .cadm-subtitle { margin: 0; color: var(--ws-text-2); font-size: var(--ws-font-size-sm); font-weight: var(--ws-weight-medium); }
+  .cadm-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ws-space-2); }
+  .cadm-muted { color: var(--ws-text-3); font-size: var(--ws-font-size-sm); }
+  .cadm-hint { margin: 0; color: var(--ws-text-3); font-size: var(--ws-font-size-xs); }
+  .cadm-error { margin: 0; color: var(--ws-danger); font-size: var(--ws-font-size-sm); }
+  .cadm-mono { font-family: var(--ws-mono); font-size: var(--ws-font-size-xs); }
+  .cadm-block { display: block; }
+  .cadm-actions { display: flex; flex-wrap: wrap; gap: var(--ws-space-2); }
+  .cadm-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--ws-space-2); align-items: end; }
+  .cadm-form-grid > p, .cadm-form-grid > .cadm-hint { grid-column: 1 / -1; }
+
+  .cadm-tree, .cadm-list, .cadm-log { display: flex; flex-direction: column; gap: var(--ws-space-1); margin: 0; padding: 0; list-style: none; }
+  .cadm-tree-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--ws-space-1); border-radius: var(--ws-radius-sm); }
+  .cadm-tree-item.is-selected { background: var(--ws-selected); }
+  .cadm-tree-item.is-suppressed .cadm-tree-name { color: var(--ws-text-3); text-decoration: line-through; }
+  .cadm-tree-item > .cadm-error { grid-column: 1 / -1; padding: 0 var(--ws-space-2) var(--ws-space-1); }
+  .cadm-tree-button { justify-content: flex-start; gap: var(--ws-space-2); width: 100%; min-width: 0; }
+  .cadm-tree-button.is-selected { background: var(--ws-selected); color: var(--ws-selected-text); }
+  .cadm-tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .cadm-params { display: flex; flex-direction: column; gap: var(--ws-space-2); }
+  .cadm-param-row { display: grid; grid-template-columns: minmax(64px, auto) minmax(0, 1fr) auto auto; align-items: center; gap: var(--ws-space-2); }
+  .cadm-param-name { overflow: hidden; text-overflow: ellipsis; }
+  .cadm-param-value { color: var(--ws-text-2); font-size: var(--ws-font-size-sm); white-space: nowrap; }
+  .cadm-param-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto auto; align-items: end; gap: var(--ws-space-2); }
+
+  .cadm-constraint { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); padding: var(--ws-space-1) 0; border-bottom: 1px solid var(--ws-border); }
+  .cadm-constraint-type { font-size: var(--ws-font-size-sm); font-weight: var(--ws-weight-medium); }
+  .cadm-constraint-value { width: 120px; }
+  .cadm-entity-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--ws-space-1); max-height: 220px; overflow: auto; }
+
+  .cadm-props { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--ws-space-1) var(--ws-space-3); margin: 0; font-size: var(--ws-font-size-sm); }
+  .cadm-props dt { color: var(--ws-text-3); }
+  .cadm-props dd { margin: 0; overflow-wrap: anywhere; }
+  .cadm-props-group { display: contents; }
+  .cadm-log li { font-size: var(--ws-font-size-sm); }
+
+  .cadm-welcome { display: grid; place-items: center; height: 100%; padding: var(--ws-space-6); }
+
+  /* Tablet: narrower panel. */
+  @container tool (max-width: 1000px) {
+    .cadm-root { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); }
+    .cadm-param-add { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  }
+  /* Phone: viewport on top, panels below; the page scrolls. */
+  @container tool (max-width: 700px) {
+    .cadm-root { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(300px, 48%) minmax(0, 1fr); }
+    .cadm-stage { grid-row: 1; }
+    .cadm-side { grid-row: 2; border-right: 0; border-top: 1px solid var(--ws-border); }
+    .cadm-view-tools { max-width: calc(100% - 2 * var(--ws-space-2)); }
+    .cadm-param-row { grid-template-columns: minmax(56px, auto) minmax(0, 1fr) auto; }
+    .cadm-param-row > .cadm-param-value { grid-column: 2; }
+  }
+}
