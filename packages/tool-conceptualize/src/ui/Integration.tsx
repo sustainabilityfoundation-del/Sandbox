@@ -85,7 +85,7 @@ export function LinkStatusBadge({ status }: { status: LinkStatus | undefined }) 
 
 // ---- implementations ----------------------------------------------------------------------------------------
 
-const MODULE_LABEL: Record<ArtifactModule, string> = { requirements: 'Requirement', sysml: 'SysML element', cad: 'CAD representation', twin: 'Component or saved result', analysis: 'Analysis (test adapter)', external: 'External document or URL' }
+const MODULE_LABEL: Record<ArtifactModule, string> = { requirements: 'Requirement', sysml: 'SysML element', cad: 'CAD representation', twin: 'Component or saved result', analysis: 'Analysis (test adapter)', external: 'External document or URL', projects: 'Project document', product: 'Product element', conceptualize: 'Conceptualize record' }
 const MODULE_TYPES: Partial<Record<ArtifactModule, string[]>> = { sysml: ['sysml-element'], cad: ['cad-representation'], twin: ['assembly', 'part'] }
 
 /** Picks a version-aware artifact reference: twin objects from the model (pinned to their current revision), others typed. */

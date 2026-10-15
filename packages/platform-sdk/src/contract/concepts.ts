@@ -36,7 +36,7 @@ export interface ConceptSummary {
 }
 
 /** Module that owns a referenced artifact. 'twin' = an object or artifact of the shared twin. */
-export type ArtifactModule = 'requirements' | 'sysml' | 'cad' | 'analysis' | 'twin' | 'external'
+export type ArtifactModule = 'requirements' | 'sysml' | 'cad' | 'analysis' | 'twin' | 'external' | 'projects' | 'product' | 'conceptualize'
 
 /**
  * Every module that can own a referenced artifact (SDK 1.7): `ArtifactModule` plus 'projects' (Project
