@@ -81,7 +81,7 @@ export const COMMAND_SCHEMAS: CommandSchema[] = [
   },
   {
     op: 'setMetadata',
-    summary: 'Attach (or with null remove) platform metadata: ManagedRequirement {requirementId, revision}, CadRepresentation {cadRef, revision, role}, ConceptLink {conceptId}.',
+    summary: 'Attach (or with null remove) platform metadata: ManagedRequirement {requirementId, revision}, CadRepresentation {cadRef: "<documentUuid>/<entityId>", revision, role}, ProductElement {productElementId: "<product element UUID>", revision}, ConceptLink {conceptId}.',
     effect: 'update',
     schema: obj('setMetadata', { elementId: ref, metadata: { enum: [...METADATA_KINDS] }, values: { anyOf: [{ type: 'object', additionalProperties: { type: ['string', 'number', 'null'] } }, { type: 'null' }] } }, ['elementId', 'metadata', 'values']),
   },

@@ -107,6 +107,18 @@ export class ModelerSession {
     await this.open(this.platformProjectId, p.id)
   }
 
+  /**
+   * Lazy creation: a platform project has no SysML project until someone starts modelling. Creates
+   * one (an empty package `SystemModel`, nothing else) when the platform project has none.
+   */
+  async ensureProject(): Promise<void> {
+    if (this.getState().status === 'ready') return
+    if (!this.platformProjectId) throw new Error('No platform project.')
+    const existing = await this.client.listProjects(this.platformProjectId)
+    if (existing.length) return this.open(this.platformProjectId, existing[0].id)
+    await this.createProject(`System model (${this.platformProjectId})`, 'package SystemModel;')
+  }
+
   /** Dry run of commands against the loaded head. */
   async preview(commands: Command[], validationPolicy: ValidationPolicy = 'report'): Promise<TransactionOutcome> {
     const { project, branch, headCommitId } = this.need()

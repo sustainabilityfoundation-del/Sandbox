@@ -53,6 +53,7 @@ export const sysmlModelerHelp: HelpManifest = {
     { control: 'sysml-modeler.validation', helpId: 'sysml-modeler.validation' },
     { control: 'sysml-modeler.history', helpId: 'sysml-modeler.history' },
     { control: 'sysml-modeler.create', helpId: 'sysml-modeler.tutorial.first-model' },
+    { control: 'sysml-modeler.start', helpId: 'sysml-modeler.getting-started' },
     { control: 'sysml-modeler.create.confirm', helpId: 'sysml-modeler.tutorial.first-model' },
     { control: 'sysml-modeler.connect', helpId: 'sysml-modeler.views' },
     // Assistant operations (the registry stays authoritative for what runs).
@@ -66,6 +67,7 @@ export const sysmlModelerHelp: HelpManifest = {
     { operation: 'sysml-modeler.propose_text', helpId: 'sysml-modeler.text' },
     { operation: 'sysml-modeler.link_requirement', helpId: 'sysml-modeler.requirements' },
     { control: 'sysml-modeler.requirements', helpId: 'sysml-modeler.requirements' },
+    { control: 'sysml-modeler.represents', helpId: 'sysml-modeler.represents' },
   ],
   tutorials: [
     {

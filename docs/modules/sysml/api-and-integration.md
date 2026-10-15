@@ -123,7 +123,48 @@ A part-to-CAD mapping references a **CAD Modeler entity** with exactly this `Art
   written with the `setMetadata` command (UI, text or assistant) and are validated.
 - Interface traceability for ports (a `CadInterface` metadata) is a proposal for a later sprint.
 
-### 5.4 Simulation and analysis (future)
+### 5.4 Project Management registration (CR-PM-REG-3, SDK 1.7 `ArtifactSource`)
+
+`createSysmlArtifactSource(repo, events)` in `@ews/sysml-service` implements the SDK 1.7 `ArtifactSource`
+(docs/modules/projects/registration-and-provisioning.md §4). The API host wires it into the Project
+Management plugin; Project Management never writes SysML data through it.
+
+| Kind | `ref.id` | Registered | Lifecycle, version |
+| --- | --- | --- | --- |
+| `sysml-project` | SysML project UUID | every SysML project of the platform project | working; head commit number of the default branch |
+| `sysml-model-element` | `<projectId>/<elementId>` (CR-SYSML-02) | **named definitions and usages** at the default-branch head (no packages, relationships or anonymous features; other branches are not registered) | working; commit number of the element's latest version |
+| `sysml-tag` | `<projectId>/<tagId>` | every tag | released; tagged commit number |
+
+- `projectId` in the interface is the **platform** project; SysML projects belong to one platform project.
+- Keys are display text: the project name, the element's qualified name, `<project> @ <tag>`. Titles
+  carry the keyword (`part def Rod`). Deep links: `{ toolId: 'sysml-modeler', params: { sysmlProjectId, elementId | tagId } }`.
+- `relations` report SysML-owned relationships for the link index: `satisfies` and `allocated-to`
+  (between registered elements; feature chains are reported from their first feature), `represents`
+  (CAD Modeler entities and product elements, §5.3 and §5.5) and `stands-for` (managed requirement,
+  with the pinned revision).
+- Events: `sysml.project-created` → upserted project; `sysml.commit-created` on the default branch →
+  upserted (the project and the changed registered elements) and retired (deleted elements, or
+  elements that are no longer named definitions or usages); `sysml.tag-created` → upserted tag. Branch
+  creation and commits on other branches register nothing. If an event cannot be itemised, the source
+  sends `reconcile`.
+- Paging: stable order (projects by creation; within a project the project, its tags, its elements by
+  ID), opaque cursor, at most 500 per page. Unknown platform project → empty page; unknown refs are
+  absent from `describe`.
+- `provision` returns `not-needed`. **A new platform project has no SysML project**; the example is
+  seeded only for PRJ-ACT100 in development. The modeler creates a SysML project lazily when a person
+  chooses **Start modelling** or **Add** (one empty package `SystemModel`).
+- Contract tests: `services/sysml/test/artifacts.test.ts` (real PostgreSQL).
+
+### 5.5 Product elements (CR-PM-SYS-1)
+
+A SysML element may `represent` a product element of Project Management's product registry, with
+`{ module: 'product', kind: 'product-element', id: '<product element UUID>', revision?: <revision> }`,
+stored in SysML as `@EWS::ProductElement { productElementId = "<uuid>"; revision = 3; }` (SysML-owned, no
+copy of product data), validated by `SYSML-PRODUCT-REFERENCE` and returned by `representations()`
+together with CAD references. Properties lists the product elements that the Project Management
+registry knows (`services.projects.artifacts(projectId, { category: 'product-element' })`) to pick from.
+
+### 5.6 Simulation and analysis (future)
 
 Analysis cases (`analysis def`) and calculations expose parameters; an analysis module receives
 `{ projectId, commitId, elementId }` plus evaluated parameter values, and returns results as its own

@@ -60,9 +60,13 @@ export function createSysmlModelerTool(options: SysmlModelerOptions = {}): ToolD
           icon: 'add',
           primary: true,
           priority: 'primary',
-          disabled: !ready,
-          title: ready ? 'Add an element to the selected namespace' : 'No model is loaded',
-          onClick: () => api.updateViewState((vs) => ({ ...vs, dialog: { kind: 'create', ownerId: vs.selectedId } })),
+          disabled: !ready && state?.status !== 'empty',
+          title: ready ? 'Add an element to the selected namespace' : state?.status === 'empty' ? 'Start modelling: creates the SysML model of this project, then adds an element' : 'No model is loaded',
+          onClick: () => {
+            const openCreate = () => api.updateViewState((vs) => ({ ...vs, dialog: { kind: 'create', ownerId: vs.selectedId } }))
+            if (ready) openCreate()
+            else if (session && state?.status === 'empty') void session.ensureProject().then(openCreate, (e) => useToasts.getState().push({ tone: 'danger', title: `Could not start the model: ${message(e)}` }))
+          },
         },
         {
           type: 'button',
