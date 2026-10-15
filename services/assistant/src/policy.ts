@@ -100,6 +100,8 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   'cad-modeler.new_document': 'propose',
   'cad-modeler.open_document': 'propose',
   'cad-modeler.export': 'export',
+  'cad-modeler.list_documents': 'read',
+  'cad-modeler.save_document': 'propose',
   'sysml.read_model': 'read',
   'sysml.create_part': 'propose',
   'sysml.connect': 'propose',
