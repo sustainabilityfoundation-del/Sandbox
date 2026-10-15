@@ -8,7 +8,15 @@ import type { Pool, PoolClient } from 'pg'
  * Delivery may repeat: consumers dedupe by `eventId` and reread the document.
  */
 
-export type CadEventType = 'cad.document-created' | 'cad.revision-created' | 'cad.document-archived'
+export type CadEventType = 'cad.document-created' | 'cad.revision-created' | 'cad.document-archived' | 'cad.document-restored'
+
+/** A part of the document as announced in events and summaries: stable UUID, document-local ID, name. */
+export interface CadPartDescriptor {
+  /** Stable UUID (version 5 of the part ID in the document UUID namespace; entityUuid in @ews/cad-core). */
+  uuid: string
+  id: string
+  name: string
+}
 
 export interface CadEvent {
   eventId: string
@@ -16,28 +24,42 @@ export interface CadEvent {
   /** Platform project ID. */
   projectId: string
   documentId: string
+  /** Entity kind of the document ('cad-document'); parts are listed in `parts`. */
+  kind: 'cad-document'
+  /** Document title at the time of the event (older events: the title when migration 0002 ran). */
+  name: string
   revision?: number
   occurredAt: string
   actor: string
+  /** Same as occurredAt / actor: when and by whom the entity was last changed. */
+  updatedAt: string
+  updatedBy: string
   sourceKind: string
+  /** Parts of the revision the event announces (absent on events written before migration 0002). */
+  parts?: CadPartDescriptor[]
 }
 
-type Row = { event_id: string; type: CadEventType; project_id: string; document_id: string; revision: number | null; occurred_at: Date; actor: string; source_kind: string; delivery_seq: string }
+type Row = { kind: string; name: string | null; parts: CadPartDescriptor[] | null; event_id: string; type: CadEventType; project_id: string; document_id: string; revision: number | null; occurred_at: Date; actor: string; source_kind: string; delivery_seq: string }
 
 const toEvent = (r: Row): CadEvent => ({
   eventId: r.event_id,
   type: r.type,
   projectId: r.project_id,
   documentId: r.document_id,
+  kind: 'cad-document',
+  name: r.name ?? '',
   ...(r.revision !== null ? { revision: r.revision } : {}),
   occurredAt: new Date(r.occurred_at).toISOString(),
   actor: r.actor,
+  updatedAt: new Date(r.occurred_at).toISOString(),
+  updatedBy: r.actor,
   sourceKind: r.source_kind,
+  ...(r.parts ? { parts: r.parts } : {}),
 })
 
-export async function emit(db: Pick<PoolClient, 'query'>, e: { type: CadEventType; projectId: string; documentId: string; revision?: number; actor: string; sourceKind: string; at: Date }): Promise<string> {
+export async function emit(db: Pick<PoolClient, 'query'>, e: { type: CadEventType; projectId: string; documentId: string; name: string; parts: CadPartDescriptor[]; revision?: number; actor: string; sourceKind: string; at: Date }): Promise<string> {
   const id = randomUUID()
-  await db.query('INSERT INTO cad.outbox (event_id, project_id, type, document_id, revision, occurred_at, actor, source_kind) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [
+  await db.query('INSERT INTO cad.outbox (event_id, project_id, type, document_id, revision, occurred_at, actor, source_kind, kind, name, parts) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     id,
     e.projectId,
     e.type,
@@ -46,6 +68,9 @@ export async function emit(db: Pick<PoolClient, 'query'>, e: { type: CadEventTyp
     e.at,
     e.actor,
     e.sourceKind,
+    'cad-document',
+    e.name,
+    JSON.stringify(e.parts),
   ])
   await db.query(`SELECT pg_notify('cad_outbox', '')`)
   return id

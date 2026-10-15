@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import Ajv2020 from 'ajv/dist/2020'
-import { stableStringify, validateDocument, type CadDocument } from '@ews/cad-core'
+import { entityUuid, stableStringify, validateDocument, type CadDocument } from '@ews/cad-core'
 import schema from '@ews/cad-core/schema/ews-cad.schema.json'
 import type { Pool, PoolClient } from 'pg'
 import { CadServiceError, conflict, invalid, notFound } from './errors'
-import { emit } from './events'
+import { emit, type CadPartDescriptor } from './events'
 
 /**
  * The CAD document store. Documents are native ews-cad JSON, validated by the same JSON Schema and
@@ -28,7 +28,9 @@ export interface Ctx {
 }
 
 export interface DocumentSummary {
+  /** The document UUID (the native file's documentId). */
   id: string
+  kind: 'cad-document'
   projectId: string
   title: string
   revision: number
@@ -37,6 +39,8 @@ export interface DocumentSummary {
   modelVersion: number
   partCount: number
   featureCount: number
+  /** Parts of the current revision with their stable UUIDs. */
+  parts: CadPartDescriptor[]
   createdAt: string
   createdBy: string
   updatedAt: string
@@ -73,10 +77,14 @@ export function validateContent(doc: unknown): CadDocument {
 const hashOf = (doc: CadDocument) => createHash('sha256').update(stableStringify({ ...doc, version: 0 })).digest('hex')
 
 type DocRow = { id: string; project_id: string; title: string; current_revision: number; archived: boolean; created_at: Date; created_by: string; updated_at: Date; updated_by: string }
-type RevRow = { revision: number; title: string; format_version: string; model_version: number; part_count: number; feature_count: number; message: string; actor: string; source_kind: Provenance['sourceKind']; conversation_id: string | null; proposal_id: string | null; message_id: string | null; created_at: Date; content?: CadDocument; content_hash?: string }
+type RevRow = { revision: number; title: string; format_version: string; model_version: number; part_count: number; feature_count: number; message: string; actor: string; source_kind: Provenance['sourceKind']; conversation_id: string | null; proposal_id: string | null; message_id: string | null; created_at: Date; content?: CadDocument; content_hash?: string; part_list?: { id: string; name: string }[] }
+
+/** Parts with stable UUIDs (version 5 of the part ID in the document UUID namespace). */
+export const partDescriptors = (documentId: string, parts: { id: string; name: string }[]): CadPartDescriptor[] => parts.map((p) => ({ uuid: entityUuid(documentId, p.id), id: p.id, name: p.name }))
 
 const summary = (d: DocRow, r: RevRow): DocumentSummary => ({
   id: d.id,
+  kind: 'cad-document',
   projectId: d.project_id,
   title: d.title,
   revision: d.current_revision,
@@ -85,6 +93,7 @@ const summary = (d: DocRow, r: RevRow): DocumentSummary => ({
   modelVersion: r.model_version,
   partCount: r.part_count,
   featureCount: r.feature_count,
+  parts: partDescriptors(d.id, r.part_list ?? []),
   createdAt: d.created_at.toISOString(),
   createdBy: d.created_by,
   updatedAt: d.updated_at.toISOString(),
@@ -104,6 +113,7 @@ const revisionInfo = (r: RevRow): RevisionInfo => ({
   createdAt: r.created_at.toISOString(),
 })
 
+const PART_LIST = `(SELECT coalesce(jsonb_agg(jsonb_build_object('id', p->>'id', 'name', p->>'name') ORDER BY o), '[]'::jsonb) FROM jsonb_array_elements(r.content->'parts') WITH ORDINALITY AS x(p, o)) AS part_list`
 const REV_COLS = 'revision, title, format_version, model_version, part_count, feature_count, message, actor, source_kind, conversation_id, proposal_id, message_id, created_at'
 
 async function loadDoc(db: Pick<PoolClient, 'query'>, projectId: string, id: string, lock = false): Promise<DocRow> {
@@ -115,14 +125,14 @@ async function loadDoc(db: Pick<PoolClient, 'query'>, projectId: string, id: str
 }
 
 async function loadRevision(db: Pick<PoolClient, 'query'>, id: string, revision: number, withContent: boolean): Promise<RevRow> {
-  const { rows } = await db.query<RevRow>(`SELECT ${REV_COLS}${withContent ? ', content, content_hash' : ', content_hash'} FROM cad.document_revisions WHERE document_id = $1 AND revision = $2`, [id, revision])
+  const { rows } = await db.query<RevRow>(`SELECT ${REV_COLS}, ${PART_LIST}${withContent ? ', content, content_hash' : ', content_hash'} FROM cad.document_revisions r WHERE document_id = $1 AND revision = $2`, [id, revision])
   if (!rows[0]) throw notFound(`Revision ${revision} of CAD document ${id} does not exist.`)
   return rows[0]
 }
 
 export async function listDocuments(db: Pick<PoolClient, 'query'>, projectId: string, includeArchived: boolean): Promise<DocumentSummary[]> {
   const { rows } = await db.query<DocRow & RevRow>(
-    `SELECT d.*, r.revision, r.format_version, r.model_version, r.part_count, r.feature_count, r.message, r.actor, r.source_kind, r.conversation_id, r.proposal_id, r.message_id
+    `SELECT d.*, r.revision, r.format_version, r.model_version, r.part_count, r.feature_count, r.message, r.actor, r.source_kind, r.conversation_id, r.proposal_id, r.message_id, ${PART_LIST}
      FROM cad.documents d JOIN cad.document_revisions r ON r.document_id = d.id AND r.revision = d.current_revision
      WHERE d.project_id = $1 ${includeArchived ? '' : 'AND NOT d.archived'} ORDER BY d.updated_at DESC, d.id LIMIT 500`,
     [projectId],
@@ -159,7 +169,7 @@ export async function createDocumentRecord(ctx: Ctx, raw: unknown, message = '')
   if (existing.rows[0]) throw conflict(`A CAD document with ID ${doc.documentId} already exists${existing.rows[0].project_id === ctx.projectId ? '' : ' in another project'}. Save a new revision instead, or give the copy a new document ID.`, { reason: 'document-exists' })
   await ctx.db.query('INSERT INTO cad.documents (id, project_id, title, current_revision, created_at, created_by, updated_at, updated_by) VALUES ($1,$2,$3,1,$4,$5,$4,$5)', [doc.documentId, ctx.projectId, titleOf(doc), ctx.now, ctx.actor])
   await insertRevision(ctx, doc, 1, message, hashOf(doc))
-  await emit(ctx.db, { type: 'cad.document-created', projectId: ctx.projectId, documentId: doc.documentId, revision: 1, actor: ctx.actor, sourceKind: ctx.provenance.sourceKind, at: ctx.now })
+  await emit(ctx.db, { type: 'cad.document-created', projectId: ctx.projectId, documentId: doc.documentId, name: titleOf(doc), parts: partDescriptors(doc.documentId, doc.parts), revision: 1, actor: ctx.actor, sourceKind: ctx.provenance.sourceKind, at: ctx.now })
   const d = await loadDoc(ctx.db, ctx.projectId, doc.documentId)
   const r = await loadRevision(ctx.db, doc.documentId, 1, false)
   return { summary: summary(d, r), revision: revisionInfo(r) }
@@ -178,7 +188,7 @@ export async function saveRevision(ctx: Ctx, id: string, raw: unknown, expectedR
   const next = d.current_revision + 1
   await insertRevision(ctx, doc, next, message, hash)
   await ctx.db.query('UPDATE cad.documents SET current_revision = $2, title = $3, updated_at = $4, updated_by = $5 WHERE id = $1', [id, next, titleOf(doc), ctx.now, ctx.actor])
-  await emit(ctx.db, { type: 'cad.revision-created', projectId: ctx.projectId, documentId: id, revision: next, actor: ctx.actor, sourceKind: ctx.provenance.sourceKind, at: ctx.now })
+  await emit(ctx.db, { type: 'cad.revision-created', projectId: ctx.projectId, documentId: id, name: titleOf(doc), parts: partDescriptors(id, doc.parts), revision: next, actor: ctx.actor, sourceKind: ctx.provenance.sourceKind, at: ctx.now })
   const updated = await loadDoc(ctx.db, ctx.projectId, id)
   const r = await loadRevision(ctx.db, id, next, false)
   return { summary: summary(updated, r), revision: revisionInfo(r), unchanged: false }
@@ -189,7 +199,8 @@ export async function setArchived(ctx: Ctx, id: string, archived: boolean, expec
   if (d.current_revision !== expectedRevision) throw conflict(`Expected revision ${expectedRevision}, current revision ${d.current_revision}.`, { currentRevision: d.current_revision, expectedRevision })
   if (d.archived !== archived) {
     await ctx.db.query('UPDATE cad.documents SET archived = $2, updated_at = $3, updated_by = $4 WHERE id = $1', [id, archived, ctx.now, ctx.actor])
-    if (archived) await emit(ctx.db, { type: 'cad.document-archived', projectId: ctx.projectId, documentId: id, revision: d.current_revision, actor: ctx.actor, sourceKind: ctx.provenance.sourceKind, at: ctx.now })
+    const cur = await loadRevision(ctx.db, id, d.current_revision, false)
+    await emit(ctx.db, { type: archived ? 'cad.document-archived' : 'cad.document-restored', projectId: ctx.projectId, documentId: id, name: d.title, parts: partDescriptors(id, cur.part_list ?? []), revision: d.current_revision, actor: ctx.actor, sourceKind: ctx.provenance.sourceKind, at: ctx.now })
   }
   return summary(await loadDoc(ctx.db, ctx.projectId, id), await loadRevision(ctx.db, id, d.current_revision, false))
 }

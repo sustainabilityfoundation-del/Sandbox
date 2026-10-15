@@ -13,6 +13,7 @@ const summary = {
   type: 'object',
   properties: {
     id: uuid,
+    kind: { type: 'string', const: 'cad-document' },
     projectId,
     title: { type: 'string' },
     revision: { type: 'integer' },
@@ -21,6 +22,11 @@ const summary = {
     modelVersion: { type: 'integer' },
     partCount: { type: 'integer' },
     featureCount: { type: 'integer' },
+    parts: {
+      type: 'array',
+      description: 'Parts of the current revision. uuid is stable: version 5 of the part ID in the document UUID namespace.',
+      items: { type: 'object', properties: { uuid, id: { type: 'string' }, name: { type: 'string' } } },
+    },
     createdAt: { type: 'string', format: 'date-time' },
     createdBy: { type: 'string' },
     updatedAt: { type: 'string', format: 'date-time' },
@@ -180,7 +186,7 @@ export function registerRoutes(app: FastifyInstance, services: Services, registr
     tag: 'Events',
     summary: 'Committed-change notifications (Server-Sent Events)',
     description:
-      'text/event-stream. Each event: `id: <eventId>`, `event: <type>` (cad.document-created, cad.revision-created, cad.document-archived), `data: <CadEvent JSON>`. Resume with `?after=<eventId>` or Last-Event-ID; an unknown resume point starts with `event: reset`. Delivery may repeat: dedupe by eventId and reread the document.',
+      'text/event-stream. Each event: `id: <eventId>`, `event: <type>` (cad.document-created, cad.revision-created, cad.document-archived, cad.document-restored), `data: <CadEvent JSON>` with kind, name, revision, updatedAt, updatedBy and the part descriptors (uuid, id, name). Resume with `?after=<eventId>` or Last-Event-ID; an unknown resume point starts with `event: reset`. Delivery may repeat: dedupe by eventId and reread the document.',
     permission: 'read',
     params: { projectId },
     query: { after: { type: 'string' } },

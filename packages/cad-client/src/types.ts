@@ -1,8 +1,18 @@
 import type { CadDocument } from '@ews/cad-core'
 
 /** Summary of a stored CAD document (its current revision). */
-export interface CadDocumentSummary {
+/** A part as listed in summaries and events: stable UUID, document-local ID, name. */
+export interface CadPartDescriptor {
+  /** Stable UUID: version 5 of the part ID in the document UUID namespace (entityUuid in @ews/cad-core). */
+  uuid: string
   id: string
+  name: string
+}
+
+export interface CadDocumentSummary {
+  /** The document UUID (the native file's documentId). */
+  id: string
+  kind: 'cad-document'
   projectId: string
   title: string
   revision: number
@@ -11,6 +21,8 @@ export interface CadDocumentSummary {
   modelVersion: number
   partCount: number
   featureCount: number
+  /** Parts of the current revision. */
+  parts: CadPartDescriptor[]
   createdAt: string
   createdBy: string
   updatedAt: string
@@ -37,17 +49,24 @@ export interface CadRevisionInfo {
   createdAt: string
 }
 
-export type CadEventType = 'cad.document-created' | 'cad.revision-created' | 'cad.document-archived'
+export type CadEventType = 'cad.document-created' | 'cad.revision-created' | 'cad.document-archived' | 'cad.document-restored'
 
 export interface CadEvent {
   eventId: string
   type: CadEventType
   projectId: string
   documentId: string
+  /** Enough to list and describe the entity without rereading it (Project Management artifact source). */
+  kind: 'cad-document'
+  name: string
   revision?: number
   occurredAt: string
   actor: string
+  updatedAt: string
+  updatedBy: string
   sourceKind: string
+  /** Parts of the announced revision (absent on events stored before service migration 0002). */
+  parts?: CadPartDescriptor[]
 }
 
 /** Platform reference to a CAD Modeler entity (CR-CAD-1). */

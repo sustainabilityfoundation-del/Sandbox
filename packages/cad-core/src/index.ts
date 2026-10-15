@@ -5,6 +5,7 @@
  */
 export * from './model/types'
 export * from './model/document'
+export { entityUuid, uuidV5 } from './model/uuid'
 export { validateSchema, type JsonSchema } from './model/jsonSchema'
 export * from './errors'
 export { evaluate, parseExpression, referencedNames, UNIT_FACTORS, PARAMETER_NAME, RESERVED_NAMES } from './expr/expression'

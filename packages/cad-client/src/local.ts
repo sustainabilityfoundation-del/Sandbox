@@ -1,4 +1,4 @@
-import { allIds, stableStringify, validateDocument, type CadDocument } from '@ews/cad-core'
+import { allIds, entityUuid, stableStringify, validateDocument, type CadDocument } from '@ews/cad-core'
 import { CadClientError, entityRef, type CadClient, type CadDocumentSummary, type CadEvent, type CadRevisionInfo } from './types'
 
 /**
@@ -15,8 +15,12 @@ export function createLocalCadClient(options: { actor?: string; clock?: () => st
   const keys = new Map<string, unknown>()
   let seq = 0
 
-  const emit = (e: Omit<CadEvent, 'eventId' | 'occurredAt' | 'actor' | 'sourceKind'>, sourceKind: string) => {
-    const ev: CadEvent = { ...e, eventId: `local-${++seq}`, occurredAt: now(), actor, sourceKind }
+  const partsOf = (id: string, doc: CadDocument) => doc.parts.map((p) => ({ uuid: entityUuid(id, p.id), id: p.id, name: p.name }))
+  const emit = (e: Pick<CadEvent, 'type' | 'projectId' | 'documentId' | 'revision'>, sourceKind: string) => {
+    const s = docs.get(e.documentId)!
+    const cur = s.revisions.at(-1)!
+    const at = now()
+    const ev: CadEvent = { ...e, kind: 'cad-document', name: cur.info.title, parts: partsOf(e.documentId, cur.document), eventId: `local-${++seq}`, occurredAt: at, actor, updatedAt: at, updatedBy: actor, sourceKind }
     queueMicrotask(() => listeners.get(e.projectId)?.forEach((l) => l(ev)))
   }
   const check = (doc: CadDocument) => {
@@ -31,7 +35,7 @@ export function createLocalCadClient(options: { actor?: string; clock?: () => st
   }
   const summary = (id: string, s: Stored): CadDocumentSummary => {
     const cur = s.revisions.at(-1)!
-    return { id, projectId: s.projectId, title: cur.info.title, revision: cur.info.revision, archived: s.archived, formatVersion: cur.info.formatVersion, modelVersion: cur.info.modelVersion, partCount: cur.info.partCount, featureCount: cur.info.featureCount, createdAt: s.createdAt, createdBy: s.createdBy, updatedAt: cur.info.createdAt, updatedBy: cur.info.actor }
+    return { id, kind: 'cad-document', projectId: s.projectId, title: cur.info.title, revision: cur.info.revision, archived: s.archived, formatVersion: cur.info.formatVersion, modelVersion: cur.info.modelVersion, partCount: cur.info.partCount, featureCount: cur.info.featureCount, parts: partsOf(id, cur.document), createdAt: s.createdAt, createdBy: s.createdBy, updatedAt: cur.info.createdAt, updatedBy: cur.info.actor }
   }
   const info = (doc: CadDocument, revision: number, message: string, sourceKind: CadRevisionInfo['source']['sourceKind']): CadRevisionInfo => ({
     revision,
@@ -96,8 +100,9 @@ export function createLocalCadClient(options: { actor?: string; clock?: () => st
       const s = find(projectId, id)
       const cur = s.revisions.at(-1)!.info.revision
       if (cur !== o.expectedRevision) throw new CadClientError('conflict', `Expected revision ${o.expectedRevision}, current revision ${cur}.`, { currentRevision: cur, expectedRevision: o.expectedRevision })
-      if (s.archived !== archived && archived) emit({ type: 'cad.document-archived', projectId, documentId: id, revision: cur }, 'user')
+      const changed = s.archived !== archived
       s.archived = archived
+      if (changed) emit({ type: archived ? 'cad.document-archived' : 'cad.document-restored', projectId, documentId: id, revision: cur }, 'user')
       return summary(id, s)
     },
     async resolveEntity(projectId, id, entityId, revision) {

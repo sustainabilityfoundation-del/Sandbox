@@ -194,3 +194,63 @@ describe('events and OpenAPI', () => {
     expect((await env.call('', 'GET', '/api/cad/v1/docs')).status).toBe(200)
   })
 })
+
+describe('Project Management readiness', () => {
+  it('summaries and events carry kind, name, revision, updatedAt/updatedBy and parts with stable UUIDs', async () => {
+    const { entityUuid } = await import('@ews/cad-core')
+    const doc = plate('80', 'Described plate')
+    await env.call('eli', 'POST', P, { document: doc }, idem())
+    const saved = await env.call('nia', 'PUT', `${P}/${doc.documentId}`, { document: withWidth(doc, '90'), expectedRevision: 1 })
+    const partId = doc.parts[0].id
+    const part = { uuid: entityUuid(doc.documentId, partId), id: partId, name: 'Plate' }
+    expect(part.uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5/)
+    expect(saved.body.summary).toMatchObject({ id: doc.documentId, kind: 'cad-document', title: 'Described plate', revision: 2, updatedBy: 'nia', parts: [part] })
+    const listed = (await env.call('eli', 'GET', P)).body.find((d: { id: string }) => d.id === doc.documentId)
+    expect(listed.parts).toEqual([part])
+    // Archive and restore are announced too.
+    await env.call('eli', 'POST', `${P}/${doc.documentId}/archive`, { archived: true, expectedRevision: 2 })
+    await env.call('eli', 'POST', `${P}/${doc.documentId}/archive`, { archived: false, expectedRevision: 2 })
+    const { rows } = await env.pool.query('SELECT * FROM cad.outbox WHERE document_id = $1 ORDER BY seq', [doc.documentId])
+    expect(rows.map((r) => [r.type, r.kind, r.name, r.revision, r.actor])).toEqual([
+      ['cad.document-created', 'cad-document', 'Described plate', 1, 'eli'],
+      ['cad.revision-created', 'cad-document', 'Described plate', 2, 'nia'],
+      ['cad.document-archived', 'cad-document', 'Described plate', 2, 'eli'],
+      ['cad.document-restored', 'cad-document', 'Described plate', 2, 'eli'],
+    ])
+    for (const r of rows) expect(r.parts).toEqual([part])
+  })
+
+  it('refuses every write on the server when the host reports reader (archived project), reads still work', async () => {
+    const { default: Fastify } = await import('fastify')
+    const { cadPlugin } = await import('../src/index')
+    let archivedProject = false
+    const app = Fastify()
+    await app.register(cadPlugin, {
+      prefix: '/api/cad/v1',
+      pool: env.pool,
+      eventPollMs: 50,
+      authenticate: async (req) => ({ userId: String(req.headers['x-dev-user']), entitlements: ['tool:cad'] }),
+      // As the platform host will do (Project Management): archived projects make everyone a reader.
+      roleOf: async () => (archivedProject ? 'reader' : 'editor'),
+    })
+    const call = (method: 'GET' | 'POST' | 'PUT', url: string, body?: unknown, headers: Record<string, string> = {}) =>
+      app.inject({ method, url, payload: body as object, headers: { 'x-dev-user': 'pm-user', ...headers } })
+    const base = '/api/cad/v1/projects/PRJ-PM-ARCHIVE/documents'
+    // A new project starts empty: the service seeds nothing.
+    expect((await call('GET', '/api/cad/v1/projects/PRJ-PM-EMPTY/documents')).json()).toEqual([])
+    const doc = plate('80', 'Before archiving')
+    expect((await call('POST', base, { document: doc }, idem())).statusCode).toBe(201)
+    archivedProject = true
+    const writes = [
+      await call('POST', base, { document: plate() }, idem()),
+      await call('PUT', `${base}/${doc.documentId}`, { document: withWidth(doc, '99'), expectedRevision: 1 }),
+      await call('POST', `${base}/${doc.documentId}/archive`, { archived: true, expectedRevision: 1 }),
+    ]
+    expect(writes.map((w) => w.statusCode)).toEqual([403, 403, 403])
+    expect(writes.every((w) => /reader/.test(w.json().error.message))).toBe(true)
+    expect((await call('GET', `${base}/${doc.documentId}`)).statusCode).toBe(200)
+    expect((await env.pool.query('SELECT current_revision FROM cad.documents WHERE id = $1', [doc.documentId])).rows[0].current_revision).toBe(1)
+    await app.close()
+  })
+
+})
