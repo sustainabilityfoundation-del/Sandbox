@@ -1,11 +1,12 @@
 {
   "name": "@ews/engineering-calc",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Deterministic calculation engine: expression validation, dimensional analysis, evaluation, constraint checks, interval bounds and reproducibility manifests (no React, no database).",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./node": "./src/node/isolated.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
