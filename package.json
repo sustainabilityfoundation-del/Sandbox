@@ -35,7 +35,11 @@
     "req:reqif:schemas": "tsx packages/reqif/scripts/fetch-schemas.ts",
     "req:reqif:samples": "tsx packages/reqif/scripts/fetch-samples.ts",
     "concept:test:db": "vitest run --config services/conceptualize/vitest.db.config.ts",
-    "concept:dev": "npm run dev -w @ews/tool-conceptualize"
+    "concept:dev": "npm run dev -w @ews/tool-conceptualize",
+    "cad:commands": "tsx packages/cad-core/scripts/write-catalog.ts",
+    "cad:test": "vitest run packages/cad-core packages/cad-kernel packages/tool-cad-modeler",
+    "cad:bench": "tsx packages/cad-kernel/scripts/bench.ts",
+    "cad:dev": "npm run dev -w @ews/tool-cad-modeler"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
