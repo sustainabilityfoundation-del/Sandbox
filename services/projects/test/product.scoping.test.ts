@@ -33,7 +33,7 @@ describe('C1: provisioning states and per-project workspace defaults', () => {
     const ctx = (await env.call('eli', 'GET', `${P(p.id)}/context`)).body
     await expectConforms(env, 'getProjectContext', 200, ctx)
     const hosted = ctx.modules.filter((m: { module: string }) => m.module !== 'settings')
-    expect(hosted.map((m: { module: string; status: string }) => `${m.module}:${m.status}`)).toEqual(['conceptualize:not-needed', 'requirements:not-needed', 'sysml:not-needed'])
+    expect(hosted.map((m: { module: string; status: string }) => `${m.module}:${m.status}`)).toEqual(['cad:not-needed', 'conceptualize:not-needed', 'requirements:not-needed', 'sysml:not-needed'])
     expect(hosted.every((m: { reason?: string }) => !!m.reason)).toBe(true)
     expect(ctx.workspace.defaultTools).toEqual(['requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler'])
     const legacy = (await env.call('ada', 'GET', `${P('PRJ-ACT100')}/context`)).body
@@ -41,14 +41,15 @@ describe('C1: provisioning states and per-project workspace defaults', () => {
     // Retrying is idempotent and keeps the states.
     const retry = await env.call('eli', 'POST', `${P(p.id)}/provision?force=true`)
     expect(retry.status).toBe(200)
-    expect(retry.body.filter((m: { module: string }) => m.module !== 'settings').map((m: { status: string }) => m.status)).toEqual(['not-needed', 'not-needed', 'not-needed'])
+    expect(retry.body.filter((m: { module: string }) => m.module !== 'settings').map((m: { status: string }) => m.status)).toEqual(['not-needed', 'not-needed', 'not-needed', 'not-needed'])
   })
 
   it('records disabled modules without deleting anything and leaves their tools out of the defaults', async () => {
     const p = await createProject(env, 'eli', { modules: ['requirements', 'conceptualize'] })
+    // SysML and CAD disabled: their tools leave the defaults; nothing is deleted.
     const ctx = (await env.call('eli', 'GET', `${P(p.id)}/context`)).body
     expect(ctx.modules.find((m: { module: string }) => m.module === 'sysml').enabled).toBe(false)
-    expect(ctx.workspace.defaultTools).toEqual(['requirements', 'conceptualize', 'cad-modeler'])
+    expect(ctx.workspace.defaultTools).toEqual(['requirements', 'conceptualize'])
     expect((await env.call('eli', 'POST', `${API}/projects`, { key: 'BADMOD', name: 'x', modules: ['nonexistent'] }, idem())).status).toBe(422)
   })
 })
@@ -136,7 +137,9 @@ describe('C13: project scoping', () => {
     expect((await env.call('eli', 'GET', `${P(a.id)}/product-elements`)).body.map((e: { name: string }) => e.name)).toEqual(['Part of A'])
     expect((await env.call('eli', 'GET', `${P(b.id)}/product-elements`)).body).toEqual([])
     expect((await env.call('eli', 'GET', `${P(b.id)}/work-items`)).body.total).toBe(0)
-    expect((await env.call('eli', 'GET', `${P(b.id)}/artifacts`)).body.total).toBe(0)
+    // B's registry holds only B's artifacts (its own requirement, registered from the Requirements events), never A's.
+    const bArtifacts = (await env.call('eli', 'GET', `${P(b.id)}/artifacts`)).body.items as { ref: { module: string } }[]
+    expect(bArtifacts.every((x) => x.ref.module === 'requirements')).toBe(true)
     expect((await env.call('eli', 'GET', `${REQ(a.id)}/requirements`)).body.items).toEqual([])
 
     // Cross-project writes are refused on the server.

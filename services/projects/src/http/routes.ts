@@ -30,6 +30,7 @@ import { addDocumentVersion, createDocument, getDocument, listDocuments, readDoc
 import { registerRoute, type HostServices, type RequestContext, type RouteSpec } from './route'
 import { runProvisioning } from '../provisioning'
 import { workspaceDefaults } from '../domain/workspace'
+import { describeAndRegister, reconcileProject } from '../registry'
 import { registerProductRoutes } from './productRoutes'
 import * as S from './schemas'
 
@@ -195,6 +196,8 @@ export function registerProjectRoutes(app: FastifyInstance, services: HostServic
       })
       // Retries provisioning that is still pending or failed (C1); a module failure never blocks opening.
       if (state === 'active') await runProvisioning(services.pool, rc.projectId, services.modules ?? [], rc.principal.userId)
+      // The registry converges in the background (events may have been missed while the host was down).
+      if (services.artifactSources?.length) void reconcileProject({ pool: services.pool, sources: services.artifactSources }, rc.projectId, rc.principal.userId).catch((e) => rc.request.log.error({ err: e }, 'reconcile on open failed'))
       return { body: await projectContext(rc) }
     },
   })
@@ -490,6 +493,26 @@ export function registerProjectRoutes(app: FastifyInstance, services: HostServic
   })
   route({
     method: 'POST',
+    path: '/projects/{projectId}/reconcile',
+    operationId: 'reconcileProject',
+    tag: 'Registry',
+    summary: 'Make the artifact registry converge with every installed module now',
+    description: 'Lists each module’s artifacts in the project, registers new and changed ones, marks records a module no longer lists as missing-in-module and records of modules that are not installed as module-unavailable. Never deletes.',
+    params: P,
+    permission: 'edit',
+    responses: {
+      200: {
+        description: 'Report per module',
+        schema: Type.Object({
+          modules: Type.Array(Type.Object({ module: Type.String(), status: Type.String(), listed: Type.Optional(Type.Integer()), upserted: Type.Optional(Type.Integer()), missing: Type.Optional(Type.Integer()), error: Type.Optional(Type.String()) })),
+          unavailableModules: Type.Array(Type.String()),
+        }) as never,
+      },
+    },
+    handler: async (rc) => ({ body: await reconcileProject({ pool: services.pool, sources: services.artifactSources ?? [] }, rc.projectId, rc.principal.userId) }),
+  })
+  route({
+    method: 'POST',
     path: '/projects/{projectId}/artifacts/resolve',
     operationId: 'resolveArtifacts',
     tag: 'Registry',
@@ -501,6 +524,8 @@ export function registerProjectRoutes(app: FastifyInstance, services: HostServic
     responses: { 200: { description: 'Records found', schema: Type.Array(ref('Artifact')) as never } },
     handler: async (rc) => {
       const refs = (rc.body as { refs: { module: string; kind: string; id: string }[] }).refs
+      // Refs of installed modules are described by their module and registered when unseen (ADR-0062).
+      if (services.artifactSources?.length) await describeAndRegister({ pool: services.pool, sources: services.artifactSources }, rc.projectId, refs)
       return {
         body: await rc.read(async (ctx) => {
           const { rows } = await ctx.db.query(

@@ -44,7 +44,7 @@ describe('project creation and lifecycle', () => {
     const ctx = await env.call('eli', 'POST', `${P(p.id)}/open`)
     expect(ctx.status).toBe(200)
     await expectConforms(env, 'openProject', 200, ctx.body)
-    expect(ctx.body.modules.map((m: { module: string; status: string }) => `${m.module}:${m.status}`)).toEqual(["conceptualize:not-needed", "requirements:not-needed", "settings:not-needed", "sysml:not-needed"])
+    expect(ctx.body.modules.map((m: { module: string; status: string }) => `${m.module}:${m.status}`)).toEqual(["cad:not-needed", "conceptualize:not-needed", "requirements:not-needed", "settings:not-needed", "sysml:not-needed"])
     expect(ctx.body.settings).toMatchObject({ available: true, values: {}, requested: {} })
     expect(ctx.body.project.counts).toEqual({ members: 1, artifacts: 0, openWorkItems: 0, milestones: 0, documents: 0 })
   })
