@@ -155,7 +155,7 @@ impact analysis, rationale retrieval) are plain API operations usable from the C
 
 ## 6. Conflicts with existing designs (summary)
 
-Detailed in the [progress file §16 report](../../specifications/design-reasoning-progress.md#conflicts).
+Detailed in the [progress file §16 report](../../specifications/design-reasoning-progress.md#4-conflicts-with-existing-designs).
 
 1. Conceptualize models functions, constraints and assumptions as Concepts or statements, not as
    separately identifiable entities; its `explorations` are atomic bulk-create logs, not structured
