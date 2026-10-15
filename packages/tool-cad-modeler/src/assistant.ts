@@ -1,4 +1,4 @@
-import { CadEngine, COMMANDS, QUERIES, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
+import { CadEngine, COMMANDS, MEDIA_TYPE, QUERIES, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, serializeDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
 import { ActionError, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { cadSession, type OpenDocument } from './session'
 import { runChecks, type CheckRequest, type MeasureSpec } from './checks'
@@ -147,6 +147,45 @@ function validateCheckRequests(raw: unknown): CheckRequest[] {
     if (!constraint || typeof constraint.id !== 'string' || !constraint.id) throw new ActionError('invalid-arguments', `checks[${i}].constraint.id (a Conceptualize constraint) is required; bounds are read from it.`)
     return { measure: m as unknown as MeasureSpec, constraint: { id: constraint.id, ...(typeof constraint.revision === 'number' ? { revision: constraint.revision } : {}) }, ...(typeof (c as { partId?: unknown }).partId === 'string' ? { partId: (c as { partId: string }).partId } : {}) }
   })
+}
+
+async function sha256(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Export without download: the file and (STEP) the read-back report, as data for another operation. */
+async function exportForReturn(d: OpenDocument, format: 'step' | 'ewscad', partId?: string) {
+  const doc = d.engine.document
+  const provenanceOf = { documentId: doc.documentId, documentRevision: d.stored?.revision ?? null, modelVersion: doc.version, unsavedChanges: !!d.stored && cadSession.isDirty(d) }
+  if (format === 'ewscad') {
+    const content = serializeDocument(doc)
+    const file = { name: d.fileName, mediaType: MEDIA_TYPE, encoding: 'utf-8', size: new TextEncoder().encode(content).length, sha256: await sha256(content), content }
+    return { kind: 'data' as const, data: { format, file, ...provenanceOf }, summary: `Native file ${file.name} (${file.size} bytes)`, inspected: [{ id: d.id, detail: `CAD document, model version ${doc.version}` }] }
+  }
+  let r
+  try {
+    r = await cadSession.exportStep(d.id, partId, { download: false })
+  } catch (e) {
+    throw new ActionError('not-allowed', (e as Error).message)
+  }
+  const file = { name: r.file.name, mediaType: r.file.mime, encoding: 'utf-8', size: new TextEncoder().encode(r.file.content).length, sha256: await sha256(r.file.content), content: r.file.content }
+  const s = r.inspection
+  return {
+    kind: 'data' as const,
+    data: {
+      format,
+      file,
+      partId: r.partId,
+      inspection: { valid: s.valid, problems: s.problems, applicationProtocol: s.applicationProtocol, schema: s.schema, lengthUnit: s.lengthUnit, solids: s.entities.MANIFOLD_SOLID_BREP ?? 0, faces: s.entities.ADVANCED_FACE ?? 0, products: s.products },
+      readBack: r.readBack,
+      note: 'STEP carries geometry only; the native ews-cad document keeps the parameters and feature history.',
+      ...provenanceOf,
+    },
+    summary: `STEP ${file.name} (${file.size} bytes): read back ${r.readBack.ok ? 'matches the native model' : `differs (${r.readBack.differences.join('; ')})`}`,
+    inspected: [{ id: d.id, detail: `STEP export of ${r.partId}, model version ${r.version}` }],
+  }
 }
 
 function validateCalls(raw: unknown): CommandCall[] {
@@ -446,11 +485,13 @@ const actions: AssistantActionDefinition[] = [
   {
     name: 'cad-modeler.export',
     label: 'Prepare CAD export',
-    description: 'Propose exporting the active document: "step" writes STEP AP242 (exact B-rep with names, units, colours; no feature history) of a part; "ewscad" saves the native parametric file. The file is downloaded on the user’s computer after Apply; the result includes a structural report of the STEP file.',
-    parameters: { type: 'object', properties: { format: { type: 'string', enum: ['step', 'ewscad'] }, partId: { type: 'string' }, documentId }, required: ['format'], additionalProperties: false },
+    description:
+      'Export the document. "step" writes STEP AP242 of a part (exact B-rep with names, units, colours; geometry only, no feature history; the native model keeps the history) and reads it back: the file is imported again and its solid count, bounding box and volume are compared with the native model. "ewscad" saves the native parametric file. By default this is a proposal and the file is downloaded on the user’s computer after Apply. With "return": true (STEP or ewscad) nothing is downloaded or changed: the result returns the file (name, media type, size, SHA-256, text content) and, for STEP, the read-back report, so another operation can store it, for example as a project document.',
+    parameters: { type: 'object', properties: { format: { type: 'string', enum: ['step', 'ewscad'] }, partId: { type: 'string' }, documentId, return: { type: 'boolean', description: 'Return the file in the result instead of proposing a download.' } }, required: ['format'], additionalProperties: false },
     async run(args, ctx) {
       const d = (await resolveDocument(args, ctx))!
       const format = args.format as 'step' | 'ewscad'
+      if (args.return === true) return exportForReturn(d, format, args.partId as string | undefined)
       const regen = await d.engine.regenerate()
       if (format === 'step') {
         const partId = (args.partId as string | undefined) ?? d.engine.document.parts[0]?.id
@@ -470,7 +511,8 @@ const actions: AssistantActionDefinition[] = [
           }
           const r = await cadSession.exportStep(d.id, args.partId as string | undefined)
           const s = r.inspection
-          return { summary: `Exported ${r.file.name}: ${s.applicationProtocol}, ${s.entities.MANIFOLD_SOLID_BREP} solid(s), ${s.entities.ADVANCED_FACE} faces, unit ${s.lengthUnit}${s.valid ? '' : `, problems: ${s.problems.join(' ')}`}` }
+          const rb = r.readBack
+          return { summary: `Exported ${r.file.name}: ${s.applicationProtocol}, ${s.entities.MANIFOLD_SOLID_BREP} solid(s), ${s.entities.ADVANCED_FACE} faces, unit ${s.lengthUnit}${s.valid ? '' : `, problems: ${s.problems.join(' ')}`}; read back: ${rb.ok ? `matches the native model (${rb.imported.solids} solid(s), volume ${fmt(rb.imported.volume)} mm³)` : `DIFFERS: ${rb.differences.join('; ')}`}` }
         },
       }
     },

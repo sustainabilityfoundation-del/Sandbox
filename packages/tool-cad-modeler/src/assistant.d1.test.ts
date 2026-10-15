@@ -186,3 +186,44 @@ describe('D1-CAD: check_bindings', () => {
     expect(again.data.current).toHaveLength(1)
   })
 })
+
+describe('D1-CAD: headless STEP export with read-back', () => {
+  it('returns the STEP file and a read-back that matches the native model; nothing is downloaded', async () => {
+    const downloads: string[] = []
+    cadSession.configureDownloads((f) => downloads.push(f.name))
+    const { d } = await model()
+    const r = (await action('cad-modeler.export').run({ format: 'step', return: true }, ctx())) as { kind: string; data: any }
+    expect(r.kind).toBe('data')
+    const { file, readBack, inspection } = r.data
+    expect(file).toMatchObject({ name: 'Block.step', mediaType: 'model/step', encoding: 'utf-8', sha256: expect.stringMatching(/^[0-9a-f]{64}$/) })
+    expect(file.content.startsWith('ISO-10303-21;')).toBe(true)
+    expect(file.size).toBe(new TextEncoder().encode(file.content).length)
+    expect(inspection).toMatchObject({ valid: true, applicationProtocol: 'AP242', solids: 1 })
+    expect(readBack).toMatchObject({ ok: true, differences: [], native: { solids: 1 }, imported: { solids: 1, valid: true } })
+    const native = d.engine.regeneration!.parts[0].bodies[0].analysis.volume
+    expect(readBack.imported.volume).toBeCloseTo(native, 3)
+    expect(readBack.imported.boundingBox.size[0]).toBeCloseTo(60, 3)
+    expect(r.data).toMatchObject({ documentId: d.id, modelVersion: d.engine.document.version })
+    expect(downloads).toEqual([])
+    // The native file can be returned the same way.
+    const native2 = (await action('cad-modeler.export').run({ format: 'ewscad', return: true }, ctx())) as { data: any }
+    expect(JSON.parse(native2.data.file.content).documentId).toBe(d.id)
+  })
+})
+
+describe('D1-CAD: workspace PlatformServices.cad helper', () => {
+  it('summarises and measures a stored revision with the shared kernel', async () => {
+    const { createWorkspaceCadService } = await import('./index')
+    const store = createLocalCadClient({ actor: 'eli' })
+    cadSession.configureStore(store)
+    const { d } = await model()
+    const cad = createWorkspaceCadService({ client: store })
+    const ref = { module: 'cad', kind: 'cad-modeler-entity', id: `${d.id}/${d.engine.document.parts[0].id}`, revision: 1 }
+    const summary = await cad.summary(PROJECT, ref)
+    expect(summary).toMatchObject({ status: 'resolved', value: { entityType: 'part', label: 'Block', ref: { revision: 1 } } })
+    const mass = await cad.massProperties(PROJECT, ref)
+    if (mass.status !== 'resolved') throw new Error(JSON.stringify(mass))
+    expect(mass.value.parts[0].bodies[0].volume).toBeCloseTo(60 * 20 * 20 - 4 * (Math.sqrt(3) / 2) * 49 * 12, 4)
+    expect(mass.value.derivedFrom).toBe('regeneration')
+  })
+})

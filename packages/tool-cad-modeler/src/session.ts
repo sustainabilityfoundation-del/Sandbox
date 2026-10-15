@@ -9,6 +9,7 @@ import {
   type CadDocument,
   type GeometryKernel,
   type Regenerator,
+  type StepReadBack,
 } from '@ews/cad-core'
 import { detectFormat, inspectStep, type StepInspection } from '@ews/cad-kernel'
 import { CadClientError, newIdempotencyKey, type CadClient, type CadDocumentSummary, type CadProvenance } from '@ews/cad-client'
@@ -279,16 +280,20 @@ export class CadSession {
   }
 
   /** STEP AP242 of a part, with a structural inspection; downloads it. */
-  async exportStep(id?: string | null, partId?: string): Promise<{ file: DownloadFile; inspection: StepInspection; version: number }> {
+  /**
+   * STEP AP242 of a part with a structural inspection and a read-back (re-import: solid count, bounding
+   * box and volume compared with the native model). Downloads it unless `download: false`.
+   */
+  async exportStep(id?: string | null, partId?: string, options: { download?: boolean } = {}): Promise<{ file: DownloadFile; inspection: StepInspection; readBack: StepReadBack; version: number; partId: string }> {
     const d = this.require(id)
-    const result = await d.engine.exportStep(partId)
+    const result = await d.engine.exportStepWithReadBack(partId)
     const part = d.engine.document.parts.find((p) => p.id === result.partId)!
     const inspection = inspectStep(result.text)
     const file = { name: `${fileStem(part.name)}.step`, mime: 'model/step', content: result.text }
-    this.downloader(file)
+    if (options.download !== false) this.downloader(file)
     this.lastExport = { fileName: file.name, inspection, documentVersion: result.version }
     this.emit()
-    return { file, inspection, version: result.version }
+    return { file, inspection, readBack: result.readBack, version: result.version, partId: result.partId }
   }
 
   // ---- CAD document service (CR-CAD-2) ------------------------------------------------------
