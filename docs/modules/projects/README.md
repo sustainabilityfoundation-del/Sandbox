@@ -1,6 +1,6 @@
 # Project Management module
 
-Status: **Phase A — proposed architecture, awaiting coordinator approval.** Nothing in this folder is
+Status: **Phase A approved (15 October 2026); increment I1 implemented** (see the progress file). ADRs stay Proposed until the acceptance workflow validates them. Nothing here is
 implemented unless the [progress file](../../specifications/project-management-progress.md) says so.
 
 Brief: [project-management.md](../../specifications/project-management.md) ·
@@ -32,3 +32,5 @@ Decisions: ADR-0060 to ADR-0068 (Proposed) in [docs/decisions](../../decisions/)
 | [0066](../../decisions/0066-projects-blob-store.md) | Content-addressed blob store behind an interface |
 | [0067](../../decisions/0067-projects-baselines.md) | Project baselines as sets of pinned module versions |
 | [0068](../../decisions/0068-projects-views-as-projections.md) | Views as projections; no maintained copies |
+| [0069](../../decisions/0069-projects-operation-records.md) | Persisted multi-module operation records with idempotent, resumable steps (C7) |
+| [0070](../../decisions/0070-projects-browser-data-import.md) | Explicit, user-confirmed import of browser twin data (C8) |

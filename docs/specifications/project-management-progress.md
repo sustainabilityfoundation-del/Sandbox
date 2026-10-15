@@ -4,10 +4,12 @@ Brief: [project-management.md](project-management.md). Contracts: [project-manag
 Architecture set: [docs/modules/projects](../modules/projects/README.md). Maintained by the Project Management agent.
 
 - [x] Phase A: inspection, architecture, information model, API and schema design, registration and provisioning contract, product-structure ADR, interchange package, phased plan, backlog (15 October 2026)
-- [ ] Coordinator approval of phase A (requested 15 October 2026; **waiting**)
-- [ ] Phase B: project core inside own packages (allowed before approval, contracts §4) — see "Phase B status"
-- [ ] Phases C–F (plan: [plan.md](../modules/projects/plan.md))
-- [ ] Blank-project acceptance workflow (brief §9)
+- [x] Coordinator approval of phase A (15 October 2026: D1–D9 approved; answers Q1–Q6 below)
+- [x] Phase B: project core in own packages (registry, lifecycle, work items, milestones, documents, blob store)
+- [x] SDK 1.7.0 (merged to main as 39daa6c)
+- [x] Integration milestone 1, increment I1 (C1, C2, C13, MS-1/2, WS-1 with C12; C7/C8 designs) — **checkpoint, ready for coordinator review**
+- [ ] I2–I5 (registration adapters by module owners, baselines, export/import, operation records, browser import, headless AI)
+- [ ] Brief §9 acceptance workflow complete
 
 ## Phase A deliverables
 
@@ -247,20 +249,69 @@ mechanism for both.
 
 **CR-PM-WS-3 — capability inventory**: `CapabilityModule` gains `'projects'`; I append the entries.
 
-## Phase B status (own packages only)
+## Coordinator answers (15 October 2026)
 
-Not started at the time of the phase A report. Scope and acceptance criteria: [plan.md §3](../modules/projects/plan.md#3-phase-b-sprint-now).
+D1–D9 approved as proposed (ADRs stay Proposed until the acceptance workflow validates them). Q1: the mock CAD
+dimension delegation stays twin-only (the mock tool operates on PRJ-ACT100 only). Q2: twin components of new
+projects are a read-only fallback. Q3: PRJ-ACT100 registered as a legacy project (fixture). Q4: any authenticated
+user may create projects and becomes administrator. Q5: settings behind a port with a contract-test adapter until
+the settings service is on main (it now is; the real port is wired). Q6: host roleOf downgrade, with a test per
+hosted service. Assignment change: CR-PM-WS-2 (generic headless platform-module registry) belongs to the AI
+connection agent; `projects.*` assistant actions register through it once it is on main.
 
-## Open questions for the coordinator
+## Status by contract (integration milestone 1)
 
-1. **Q1 (ADR-0063):** the mock CAD dimension delegation after components move server-side: enforce it in the
-   product API, or keep it twin-only until the mock CAD tool is retired?
-2. **Q2 (ADR-0063):** twin components as read-only offline fallback (proposed) or editable offline with a later merge?
-3. **Q3:** `PRJ-ACT100` in the registry: register it as a legacy project (migration 0002, owner `ada`, key
-   `ACT100`) so it appears in Project Home — proposed yes; it keeps its ID and all data.
-4. **Q4:** project creation rights: any authenticated user (proposed) or only users with a platform-level
-   permission (none exists yet)?
-5. **Q5:** settings service timing: phase C needs it on `main`; until then the wizard records requested settings in
-   the creation record only and the Settings page is absent (no second store).
-6. **Q6:** should modules refuse writes to archived projects themselves, or is the host `roleOf` downgrade
-   (CR-PM-API-4) enough? Proposed: host downgrade.
+Vocabulary: implemented / integrated / tested / owner-accepted (integration-milestone-1.md). Nothing here is
+integrated into `main` except SDK 1.7.0; everything else is on `feature/project-management`.
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| Project registry and lifecycle (create blank or template, edit with If-Match, archive, restore, soft delete with X-Confirm and retention, duplicate configuration, recents, search/filter/sort) | implemented, tested | `services/projects/test/projects.api.test.ts` |
+| Members through the platform membership port (one transaction with creation; last administrator protected) | implemented, tested | idem; `services/api/src/platform/memberships.ts` |
+| Archived projects read-only in every hosted service (Q6) | implemented, tested | archive test: Requirements, Conceptualize, SysML writes refused (CAD when services/cad is hosted) |
+| C1 provisioning states (pending → ready / not-needed / failed; retry on open and on request; no-seed rule) | implemented, tested | `product.scoping.test.ts` (C1) |
+| C2 product registry (elements, revisions, unit-checked properties, breakdowns with cycle check, tree) | implemented, tested | `product.scoping.test.ts` (C2) |
+| C2 Requirements allocation through the registry (CR-PM-API-3) | implemented, tested for assembly/part; product/system kinds wait for CR-PM-REQ-2 | idem |
+| C2 PRJ-ACT100 components imported with twin IDs as aliases | implemented, tested | `legacyProduct.test.ts` (fixture = model-service seed), `product.scoping.test.ts` |
+| C13 project scoping (two projects, cross-project writes refused, per-project events, per-project sessions and twin) | implemented, tested | `product.scoping.test.ts` (C13), `DemoRepository.test.ts` (MS-1) |
+| Work items, milestones, links, registry of PM entities, documents with versioned blobs, audit, outbox, SSE | implemented, tested | `projects.api.test.ts` |
+| Durability across a full restart of API and PostgreSQL | tested | `persistence.test.ts`, `acceptance.i1.test.ts`; browser after a hard kill (below) |
+| MS-1 multi-project twin (empty for new projects, PRJ-ACT100 unchanged) | implemented, tested | `DemoRepository.test.ts` |
+| MS-2 product projection into the workspace model (non-example projects) | implemented, browser-checked | `reopen-flow` below; unit test of `mergeProjections` |
+| WS-1 current project, Project Home, New Project wizard, overview, switcher | implemented, browser-checked | `projects-flow` below |
+| C12 default tools per project | implemented, browser-checked | idem |
+| Project settings via the settings service (definitions registered, port wired) | implemented, browser-checked (wizard's unit system written; state ready) | overview screenshot |
+| C7 operation records, C8 browser data import | designed (ADR-0069, ADR-0070) | — |
+| Help pages, capability inventory entries, `projects.*` assistant actions | **not started** (actions wait for the WS-2 registry; help and inventory are next) | — |
+
+## I1 acceptance (integration-milestone-1.md §2), 15 October 2026
+
+| Step | Result | Ran against |
+| --- | --- | --- |
+| 1 Create a genuinely empty project | verified: API test (no artifacts in Project Management, Requirements, Conceptualize, SysML) and browser (wizard → new project, no example data, real-module tabs) | real services |
+| 2 Requirement, function, candidate concepts, design decision | verified for requirement (Requirements), three candidate Concepts in an alternative set and a recorded decision with outcomes and rationale (Conceptualize); **function: not verified as a first-class entity** — a Concept with abstraction `function` was used, because Conceptualize Functions (cf33f80) are not on main yet | real services |
+| 5 Save, close, restart services, reopen in a fresh session | verified: API test stops and restarts PostgreSQL and the API; browser check after a hard kill of the API and PostgreSQL, fresh browser context opening the project by URL | real services |
+| 6 Recover every committed artifact, relationship, revision and decision | verified: snapshot before = after (project, requirement and its revisions, allocation to the product element, concepts, alternative set, decision, product structure, task and its link, registry, activity) | real services |
+
+Database: empty apart from the development identities and the preserved PRJ-ACT100 fixture (development seed).
+
+Browser flows (scratchpad `pw/projects/`; to move into `tests/e2e` when it exists): `projects-flow.mjs` 16/16
+passed (example project unchanged, Project Home, wizard key suggestion, create and open, C12 tabs, empty project,
+reopen after reload and in a fresh session, overview with module states and members, phone layout, switch back to
+PRJ-ACT100 with its data intact, no page errors); `reopen-flow.mjs` 4/4 passed after a hard restart.
+
+Checks at 84e02fb: `npm run check` 954 passed, 1 skipped; `npm run req:test:db` 26 files, 227 passed, 1 skipped.
+Not run: `npm run build`, `npm run build:harnesses` (next checkpoint).
+
+Known limitations: the header is cramped at 1600 px (configuration and scenario selects truncate; also before this
+change, since the Settings button was added); the Project Settings page in the Settings centre needs the WS-2
+registry (values are written by the wizard and the API today); the illustrative SysML and mock CAD tools are not yet
+labelled "Demo" in the registry (coordinator, C12); ArtifactSource adapters are the module owners' (CR-PM-REG-1…4),
+so the registry indexes only Project Management and product entities so far.
+
+## Commits (feature/project-management)
+
+ad9f768 phase A · 9b6e709 SDK 1.7.0 (COORDINATOR REVIEW) · 3f70afe phase B service · 69aa366 host API-1/2/4/5
+(COORDINATOR REVIEW) · 737e067 product registry WIP · 12d8c35 merge main · 55cd7c2 C1/C2/C13 · 0adb037 host API-3
+(COORDINATOR REVIEW) · 45ab78a projects-client · 04fa32c MS-1 (COORDINATOR REVIEW) · 2c834be Project Home, product
+projection, I1 acceptance · 84e02fb WS-1, MS-2 (COORDINATOR REVIEW).
