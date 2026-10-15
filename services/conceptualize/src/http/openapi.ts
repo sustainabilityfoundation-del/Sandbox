@@ -3,9 +3,41 @@ import { BASIS_MEANING, GATED_MATURITIES, LINK_MEANING, MATURITY_MEANING, PERMIS
 import { TRADE_METHOD } from '../domain/tradeStudy'
 import { COMMON_UNITS } from '../domain/units'
 import { CROSS_MODULE_ENTITLEMENTS, ENTITLEMENT, type RouteSpec } from './route'
-import { SCHEMAS } from './schemas'
+import { DESIGN_SCHEMAS } from './designSchemas'
+import { SCHEMAS as BASE_SCHEMAS } from './schemas'
+
+const REPLACED = new Set(['Decision', 'DecisionCreate', 'Evidence', 'EvidenceCreate'])
+const SCHEMAS = [...BASE_SCHEMAS.filter((s) => !REPLACED.has(s.$id as string)), ...DESIGN_SCHEMAS]
 
 /** Strips TypeBox symbols and replaces named sub-schemas by `$ref`s to components. */
+/**
+ * Design Reasoning R1 operation names (contract-change-requests.md R1-1) for the operations that implement
+ * them. v1 operationIds are kept (agreed 15 Oct 2026: renaming would break generated clients); POST /batch
+ * accepts the R1 names as item ops.
+ */
+export const R1_OPERATION: Record<string, string> = {
+  createFunction: 'createFunction',
+  createConcept: 'createConcept',
+  createConstraint: 'createConstraint',
+  reviseConstraint: 'reviseConstraint',
+  createAssumption: 'createAssumption',
+  setAssumptionValidation: 'setAssumptionValidation',
+  createEvidence: 'createEvidence',
+  reviewEvidence: 'reviewEvidence',
+  createDesignLink: 'createLink',
+  createAlternativeSet: 'createAlternativeSet',
+  createTradeStudy: 'createTradeStudy',
+  putTradeScores: 'putScores',
+  createDecision: 'proposeDecision',
+  recordDecision: 'recordDecision',
+  flagDecisionForReview: 'flagDecisionForReview',
+  createImplementation: 'createImplementation',
+  traverseGraph: 'traverse',
+  decisionRationale: 'decisionRationale',
+  listLinkTypes: 'linkTypes',
+  listDesignLinks: 'links',
+}
+
 export function toJsonSchema(schema: unknown, root: string | null, names: Set<string>): unknown {
   if (Array.isArray(schema)) return schema.map((s) => toJsonSchema(s, null, names))
   if (!schema || typeof schema !== 'object') return schema
@@ -70,6 +102,8 @@ export function buildOpenApi(routes: RouteSpec[]) {
       parameters: params,
       responses,
       security: [{ devUser: [] }, { bearer: [] }],
+      ...(R1_OPERATION[r.operationId] ? { 'x-r1-operation': R1_OPERATION[r.operationId] } : {}),
+      ...(r.operationId === 'createLink' ? { 'x-r1-note': 'Concept→artifact link (v1). The R1 operation createLink is createDesignLink; in a batch this operation is createConceptLink.' } : {}),
       'x-permissions': {
         permission: r.permission,
         roles: ROLES.filter((role) => (r.anyOf ?? [r.permission]).some((p) => PERMISSIONS[p].roles.includes(role))),

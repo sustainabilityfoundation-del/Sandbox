@@ -16,11 +16,25 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
-## 1.8.0 (pending)
+## 1.8.0 (2026-10-15)
 
 Type: additive
 
-What changed (AI connection, integration milestone 1 C9, ADR-0042 / design reasoning CR-A1, CR-A2):
+What changed:
+- `contract/cad.ts`: `CadService` (`summary`, `massProperties` at a document revision), `CadArtifactRefInput`,
+  `CadReadResult`, `CadEntitySummary`, `CadBodyMassProperties`, `CadMassPropertiesResult`. Implemented by
+  `createCadReadService` in `@ews/cad-client`. Results name the kernel that regenerated them.
+- `contract/sysml.ts`: `SysmlModelService` (`listProjects`, `resolve`, `find`, `subscribe`), `SysmlElementRef`,
+  `SysmlElementSummary`, `SysmlResolution`, `SysmlModelEvent`. Implemented by `createSysmlModelService` in
+  `@ews/sysml-client`.
+- `PlatformServices.cad?` and `PlatformServices.sysml?`.
+- `ConceptsService.getConstraint?` and `ConstraintSummary` (optional; demonstration D1 reads constraint bounds
+  from Conceptualize).
+Why: milestone C5 (cross-module resolution) and demonstration D1 (checks against authoritative constraints).
+Migration for tools: none. Use `useServices().cad` / `.sysml` / `concepts.getConstraint` when present and handle
+their absence (module not installed or not entitled).
+
+AI part (AI connection, integration milestone 1 C9, ADR-0042 / design reasoning CR-A1, CR-A2):
 
 - `contract/assistant.ts`: declarative proposals. New action result kind `DeclarativeProposal`
   (`kind: 'declarative-proposal'`, module, title, explanation, preview, assumptions, inspected, `operations:

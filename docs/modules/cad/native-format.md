@@ -1,4 +1,4 @@
-# ews-cad native format specification (format 1.0.0)
+# ews-cad native format specification (format 1.1.0)
 
 Status: Proposed with ADR-0022. Machine-readable schema:
 [`packages/cad-core/schema/ews-cad.schema.json`](../../../packages/cad-core/schema/ews-cad.schema.json)
@@ -51,8 +51,21 @@ names, `+ - * / % ^`, unary minus, brackets, constants `pi`, `e`, functions `sin
 
 Common: `id`, `type`, `name`, optional `suppressed`.
 
-**sketch:** `plane { kind: "standard", plane: "XY" | "XZ" | "YZ", offset?: Expr }`, `entities[]`,
-`constraints[]`.
+**sketch:** `plane` (a plane reference, below), `entities[]`, `constraints[]`.
+
+Plane references (`PlaneRef`, 1.1 adds the last two kinds), each with an optional `offset: Expr`
+along the normal:
+
+- `{ kind: "standard", plane: "XY" | "XZ" | "YZ" }`;
+- `{ kind: "datum", datum: <ID of an earlier datum-plane feature> }`;
+- `{ kind: "face", face: <stable face name, e.g. "ext-22/cap-end"> }`, which must name a planar face
+  of a body produced by an earlier feature.
+
+A face plane is re-resolved at every regeneration, so the sketch follows the face when upstream
+parameters change. The origin is the face centroid, the normal is the outward face normal, and
+`faceFrame` gives the x direction (Z × normal, or the X axis when the normal is within 0.99 of ±Z).
+If the face no longer exists, the sketch fails with `reference-lost`. If the face is not planar, it
+fails with `face-not-planar`.
 
 | Plane | Origin | x direction | normal |
 | --- | --- | --- | --- |
@@ -80,14 +93,37 @@ earlier body-creating feature; default the latest body).
 **revolve:** `sketch`, `axis` (a line of the sketch, `x-axis` or `y-axis`), `angle: Expr` in
 (0, 360], `operation`, optional `target`.
 
-Rules beyond the schema (checked by `validateDocument`): unique IDs across the document; features
-refer only to earlier sketches; constraint entity signatures; referenced parameters exist; revolve
-axes are lines of the sketch.
+**datum-plane** (1.1): `plane` (a plane reference as above, including another datum or a face, with
+`offset`). It produces no body, only a plane for later sketches and datums.
+
+**fillet** (1.1): `edges[]` (stable edge names, at least one), `radius: Expr` (> 0), optional
+`target` (ID of the body-creating feature; default the latest body).
+
+**chamfer** (1.1): `edges[]`, `distance: Expr` (> 0, equal distance), optional `target`.
+
+Stable edge names are `edge(<faceA>|<faceB>)`, with the two adjacent stable face names in sorted
+order, plus `#n` when the same pair of faces shares several edges. Faces created by a fillet or
+chamfer are named `<featureId>/blend:<edge name>`. A missing edge fails the feature with
+`reference-lost` and lists the available edges. A value the kernel cannot build fails it with
+`invalid-value` or `blend-failed`. Later features are then `blocked`.
+
+Rules beyond the schema (checked by `validateDocument`):
+
+- IDs are unique across the document.
+- Features refer only to earlier sketches, datum planes and body-creating features.
+- Constraints match their entity signatures.
+- Referenced parameters exist.
+- Revolve axes are lines of the sketch.
+- Fillets and chamfers name at least one edge.
+
+Validation does not check whether face and edge names exist. Regeneration resolves them and reports
+failures.
 
 ## 5. References
 
 `{ id, subject, role, target { module, id, revision?, kind?, label? } }` with roles `represents`,
-`satisfies`, `verifies`, `realizes`, `traces`, `related` and modules `twin`, `requirements`, `sysml`,
+`satisfies`, `verifies`, `realizes`, `traces`, `related` and modules `product` (1.1: Project Management product elements, the default for new projects;
+ADR-0026), `twin`, `requirements`, `sysml`,
 `conceptualize`, `external`. `label` is display text captured at link time and is not authoritative.
 
 ## 6. Semantics of regeneration
@@ -101,6 +137,9 @@ from their seed positions with the constraint values evaluated at regeneration t
 
 - Minor versions add optional fields or new feature/entity/constraint types; older 1.x readers
   reject unknown feature types with a clear message.
+- 1.1.0 (2026-10-15) adds plane references `datum` and `face`, and the features `datum-plane`,
+  `fillet` and `chamfer`. Every 1.0 document is a valid 1.1 document unchanged; no migration is needed.
+  Readers built for 1.0 do not know the additions and may refuse documents that use them.
 - Major versions require a migration function in `cad-core` that converts the old document into a
   new one without deleting information (ADR-0009) and a test with an old-format fixture.
 

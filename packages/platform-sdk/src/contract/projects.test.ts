@@ -14,7 +14,6 @@ import {
 
 describe('SDK 1.7 projects and artifact source contracts', () => {
   it('is an additive minor version that tools built for 1.x still accept', () => {
-    // 1.7 tools keep loading on later 1.x hosts (1.8 is additive).
     expect(isSdkCompatible('^1.7.0', SDK_VERSION)).toBe(true)
     expect(isSdkCompatible('^1.0.0')).toBe(true)
     expect(isSdkCompatible('^1.6.0')).toBe(true)

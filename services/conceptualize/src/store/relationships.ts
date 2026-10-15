@@ -143,7 +143,8 @@ export async function removeRelationship(ctx: Ctx, id: string, expectedRevision:
 
 interface DecRow {
   id: string
-  parent_id: string
+  parent_id: string | null
+  parent_function_id: string | null
   name: string
   description: string
   status: DecompositionDto['status']
@@ -154,7 +155,7 @@ interface DecRow {
 }
 const toDecomposition = (r: DecRow): DecompositionDto => ({
   id: r.id,
-  parentId: r.parent_id,
+  parentId: r.parent_id ?? r.parent_function_id!,
   name: r.name,
   description: r.description,
   status: r.status,
@@ -196,8 +197,24 @@ export async function updateDecomposition(ctx: Ctx, id: string, patch: { name?: 
     'UPDATE conceptualize.decompositions SET name = $2, description = $3, status = $4, record_version = record_version + 1, updated_at = $5, updated_by = $6 WHERE id = $1',
     [id, patch.name?.trim() ?? d.name, patch.description?.trim() ?? d.description, patch.status ?? d.status, ctx.now, ctx.actor],
   )
-  await audit(ctx, { entityType: 'decomposition', entityId: id, conceptIds: [d.parent_id], action: 'updated', reason: patch.reason ?? '', details: { status: patch.status ?? d.status } })
-  await emit(ctx, 'concept.relationships-changed', d.parent_id, d.record_version + 1)
+  await audit(ctx, { entityType: 'decomposition', entityId: id, conceptIds: d.parent_id ? [d.parent_id] : [], action: 'updated', reason: patch.reason ?? '', details: { status: patch.status ?? d.status, functionId: d.parent_function_id } })
+  if (d.parent_id) await emit(ctx, 'concept.relationships-changed', d.parent_id, d.record_version + 1)
+  else await emit(ctx, 'function.revised', d.parent_function_id!, d.record_version + 1)
   const { rows: after } = await ctx.db.query<DecRow>('SELECT * FROM conceptualize.decompositions WHERE id = $1', [id])
   return toDecomposition(after[0])
+}
+
+/** Named (alternative) decomposition of a Function (CR-C1); children are decomposes-into links with this decomposition. */
+export async function createFunctionDecomposition(ctx: Ctx, functionId: string, input: { name: string; description?: string }): Promise<DecompositionDto> {
+  const { rowCount } = await ctx.db.query('SELECT 1 FROM conceptualize.functions WHERE id = $1 AND project_id = $2', [functionId, ctx.projectId])
+  if (!rowCount) throw notFound(`Function ${functionId} not found.`)
+  const id = randomUUID()
+  await ctx.db.query(
+    `INSERT INTO conceptualize.decompositions (id, project_id, parent_id, parent_function_id, name, description, created_at, created_by, updated_at, updated_by) VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$6,$7)`,
+    [id, ctx.projectId, functionId, input.name.trim(), (input.description ?? '').trim(), ctx.now, ctx.actor],
+  )
+  await audit(ctx, { entityType: 'decomposition', entityId: id, action: 'created', details: { functionId, name: input.name } })
+  await emit(ctx, 'function.revised', functionId, 1)
+  const { rows } = await ctx.db.query<DecRow>('SELECT * FROM conceptualize.decompositions WHERE id = $1', [id])
+  return toDecomposition(rows[0])
 }

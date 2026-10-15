@@ -134,6 +134,13 @@ export class SysmlRepository {
     this.library = library ?? platformLibrary()
   }
 
+  /**
+   * Test-only fault injection around COMMIT (retry-safety tests, C10). Never set in production code.
+   * `beforeCommit` throwing rolls the transaction back; `afterCommit` throwing simulates a response lost
+   * after the commit succeeded.
+   */
+  faults?: { beforeCommit?: () => void | Promise<void>; afterCommit?: () => void | Promise<void> }
+
   // ---- transactions ---------------------------------------------------------------------------
   async tx<T>(fn: (db: PoolClient, now: Date) => Promise<T>): Promise<T> {
     let client: PoolClient
@@ -142,13 +149,18 @@ export class SysmlRepository {
     } catch {
       throw new SysmlServiceError('unavailable', 'The SysML database is not reachable. Nothing was changed; try again later.')
     }
+    let committed = false
     try {
       await client.query('BEGIN')
       const { rows } = await client.query<{ now: Date }>('SELECT now() AS now')
       const out = await fn(client, rows[0].now)
+      await this.faults?.beforeCommit?.()
       await client.query('COMMIT')
+      committed = true
+      await this.faults?.afterCommit?.()
       return out
     } catch (e) {
+      if (committed) throw e
       await client.query('ROLLBACK').catch(() => undefined)
       throw mapDbError(e)
     } finally {

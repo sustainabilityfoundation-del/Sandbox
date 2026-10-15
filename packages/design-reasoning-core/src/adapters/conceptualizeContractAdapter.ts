@@ -1,4 +1,4 @@
-import { BASIS_RANK, validateModel, verifyManifest, type Basis, type CalculationModelDefinition } from '@ews/engineering-calc'
+import { BASIS_RANK, ENGINE_VERSION, qualifyManifest, validateModel, verifyManifest, type Basis, type CalculationModelDefinition } from '@ews/engineering-calc'
 import {
   ConceptualizeError,
   type AlternativeSetRecord,
@@ -7,6 +7,7 @@ import {
   type BatchItem,
   type BatchRequest,
   type BatchResponse,
+  type CalculationVerification,
   type CalculationModelRecord,
   type ConceptRecord,
   type ConceptualizeKnowledgeApi,
@@ -301,6 +302,7 @@ export function createConceptualizeTestAdapter(options: ConceptualizeTestAdapter
         requireRole(ctx, AUTHOR, 'Creating an assumption')
         const b = item.body
         checkBasis(ctx, b.basis, 'Assumption')
+        if (b.scope && !Array.isArray((b.scope as { subjects?: unknown }).subjects)) fail('invalid', 'An assumption scope needs subjects (may be empty).', { fields: { 'scope.subjects': 'required' } })
         for (const s of b.scope?.subjects ?? []) if (!exists(s)) fail('not-found', `Assumption subject ${s.type} ${s.id} does not exist.`)
         const id = newId()
         const rec: AssumptionRecord = {
@@ -333,17 +335,21 @@ export function createConceptualizeTestAdapter(options: ConceptualizeTestAdapter
         if (b.basis !== 'calculated') checkBasis(ctx, b.basis, 'Evidence')
         if (!b.subjects.length) fail('invalid', 'Evidence needs at least one subject.')
         for (const s of b.subjects) if (!exists(s)) fail('not-found', `Evidence subject ${s.type} ${s.id} does not exist.`)
+        let verification: CalculationVerification | undefined
         if (b.basis === 'calculated' || b.calculation) {
           const calc = b.calculation ?? fail('invalid', 'Evidence with basis “calculated” needs the calculation model reference and its manifest (CR-C8).')
           const model = getRecord('calculation-model', calc.modelId, calc.modelRevision) ?? fail('not-found', `Calculation model ${calc.modelId} revision ${calc.modelRevision} does not exist.`)
           const verdict = verifyManifest(toDefinition(model), calc.manifest)
           if (!verdict.ok) fail('invalid', `The calculation could not be reproduced: ${verdict.reasons.join(' ')}`, { reasons: verdict.reasons })
           if (BASIS_RANK[b.basis] > BASIS_RANK[calc.manifest.basis]) fail('invalid', `The manifest supports basis “${calc.manifest.basis}”, not “${b.basis}”.`)
+          verification = { verifiedAt: now(), engineVersion: ENGINE_VERSION, manifestVersion: (calc.manifest.manifestVersion ?? 1) as 1 | 2 | 3, ok: true, exactDigestMatch: verdict.exactDigestMatch }
         }
         const id = newId()
         const rec: EvidenceRecord = {
           id, key: nextKey('evidence', ctx.projectId), projectId: ctx.projectId, createdAt: now(), provenance: provenance(ctx),
-          kind: b.kind, title: b.title, summary: b.summary ?? '', subjects: b.subjects, basis: b.basis, applicability: b.applicability, calculation: b.calculation, source: b.source,
+          kind: b.kind, title: b.title, summary: b.summary ?? '', subjects: b.subjects, basis: b.basis, applicability: b.applicability, calculation: b.calculation ? { modelId: b.calculation.modelId, modelRevision: b.calculation.modelRevision, manifest: b.calculation.manifest, verification } : undefined, source: b.source,
+          // C11: derived from the verified manifest, never from the client.
+          qualifications: b.calculation ? qualifyManifest(b.calculation.manifest) : undefined,
           supersedesId: b.supersedesId, version: b.supersedesId ? (state.evidence.get(b.supersedesId)?.version ?? 0) + 1 : 1, reviews: [], validationStatus: 'unreviewed',
         }
         state.evidence.set(id, rec)
@@ -400,7 +406,23 @@ export function createConceptualizeTestAdapter(options: ConceptualizeTestAdapter
           } else checkBasis(ctx, s.basis, 'Score')
           if (s.qualitative !== undefined && (s.qualitative < 1 || s.qualitative > 5)) fail('invalid', 'Qualitative scores are 1–5.')
         }
-        study.scores = [...study.scores.filter((x) => !item.body.scores.some((s) => s.criterionId === x.criterionId && s.conceptId === x.conceptId)), ...item.body.scores]
+        // C11: a score taken from calculated evidence carries that output's qualification, unchanged. The numbers
+        // must match the evidence; client-supplied qualifications are replaced.
+        const scores = item.body.scores.map(({ qualification: _ignored, ...s }) => {
+          if (!s.evidenceOutput) return s
+          const ev = s.evidenceId ? state.evidence.get(s.evidenceId) : undefined
+          const q = ev?.qualifications ?? fail('invalid', 'A score with evidenceOutput must reference calculated evidence (evidenceId).')
+          const out = q.outputs.find((o) => o.symbol === s.evidenceOutput) ?? fail('invalid', `Evidence ${ev!.key} has no output “${s.evidenceOutput}”.`)
+          const near = (a: number | undefined, b: number) => a !== undefined && Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b), 1e-300)
+          if (s.value !== undefined && !near(s.value, out.value)) fail('invalid', `The score differs from ${ev!.key} ${out.symbol} = ${out.value} ${out.unit}.`)
+          if (out.range.kind === 'point') {
+            if (s.low !== undefined || s.high !== undefined) fail('invalid', `${ev!.key} ${out.symbol} is a point value; a score range cannot be taken from it.`)
+          } else if ((s.low !== undefined || s.high !== undefined) && (!near(s.low, out.range.min) || !near(s.high, out.range.max))) {
+            fail('invalid', `The score range differs from the ${out.range.kind} of ${ev!.key} ${out.symbol}.`)
+          }
+          return { ...s, qualification: { source: 'calculation' as const, evidenceId: ev!.id, symbol: out.symbol, kind: out.range.kind, quality: out.range.kind === 'bounds' ? out.range.quality : undefined } }
+        })
+        study.scores = [...study.scores.filter((x) => !scores.some((s) => s.criterionId === x.criterionId && s.conceptId === x.conceptId)), ...scores]
         study.revision++
         emit(ctx, 'trade-study.scored', designRef('trade-study', study.id), study.revision)
         return { id: study.id, key: study.key, revision: study.revision }
@@ -532,6 +554,7 @@ export function createConceptualizeTestAdapter(options: ConceptualizeTestAdapter
 
   return {
     mode: 'test-adapter',
+    capabilities: { functionAlternativeSets: true, calculationModels: true, calculatedEvidenceVerification: true, realizedConceptRevision: true, reasoningSourceKind: true, scoreQualifications: true, events: true },
     label: 'TEST ADAPTER: in-memory implementation of the proposed Conceptualize contract (CR-C1…C10); not the Conceptualize module',
 
     async get(type, id, ctx, revision) {
@@ -750,11 +773,22 @@ export function evaluateTradeStudy(study: TradeStudyRecord): TradeStudyResult {
   scored.forEach((o, i) => (o.rank = i + 1))
   const incomplete = options.some((o) => o.coverage < 1)
   const best = scored[0]
-  const robust = scored.length >= 2 && scored.slice(1).every((o) => best.low! > o.high!)
+  const intervalsSeparate = scored.length >= 2 && scored.slice(1).every((o) => best.low! > o.high!)
+  // C11: count how the score ranges are qualified; a sampled range is not a bound and cannot prove robustness.
+  const q = { points: 0, exactBounds: 0, enclosures: 0, sampledRanges: 0, statedRanges: 0 }
+  for (const s of study.scores) {
+    if (s.qualification?.kind === 'sampled-range') q.sampledRanges++
+    else if (s.qualification?.kind === 'bounds') s.qualification.quality === 'exact' ? q.exactBounds++ : q.enclosures++
+    else if (s.low !== undefined && s.high !== undefined && s.low !== s.high) q.statedRanges++
+    else q.points++
+  }
+  const robust = intervalsSeparate && q.sampledRanges === 0
+  const robustnessNote = intervalsSeparate && q.sampledRanges ? 'The score ranges separate, but some are sampled ranges (not bounds), so robustness is not proven.' : undefined
   return {
     options,
     ranking: incomplete ? 'incomplete' : robust ? 'robust' : 'uncertain',
     preliminary: !study.scores.length || study.scores.some((s) => s.basis !== 'evidence'),
     method,
+    qualifications: { ...q, ...(robustnessNote ? { robustnessNote } : {}) },
   }
 }

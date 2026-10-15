@@ -30,6 +30,13 @@ Follow [the development workflow](docs/development-workflow.md) and use
 - When multiple agents are explicitly requested, the coordinator owns sprint scope, shared
   contracts and integration; implementation agents own bounded areas and separate files/worktrees.
 
+## Current priority
+
+Deliver the smallest credible end-to-end AI engineering workflow before broadening individual modules:
+[demonstration D1](docs/specifications/demo-ai-engineering.md), within
+[integration milestone 1](docs/specifications/integration-milestone-1.md). Implement the smallest reusable increment
+that completes the workflow; do not substitute disconnected module demonstrations.
+
 ## Ownership
 
 | Area | Packages | Owns |
@@ -63,7 +70,7 @@ apps/workspace → every package; a tool only through its package entry point
 
 ## SDK and versions
 
-- SDK version **1.7.0** (`packages/platform-sdk/src/contract/version.ts`). Tools declare
+- SDK version **1.8.0** (`packages/platform-sdk/src/contract/version.ts`). Tools declare
   `sdkVersion: '^1.0.0'` or `'^1.1.0'` (needed for revisions and baselines); the registry refuses tools built for another major version.
 - Entry points: `@ews/platform-sdk` (framework-free contract and domain model),
   `@ews/platform-sdk/react` (`defineTool`, hooks, engineering UI helpers),
@@ -173,6 +180,15 @@ Preserve the current proposal-preview policy until its replacement is explicitly
   property). Do not add implicit synchronisation.
 - Subscriptions are platform logic. Tools declare `entitlement` and never check plans themselves.
   Client-side checks are UX only; production checks belong on the server.
+
+## Development assurance (deferred epic)
+
+Standards-aware assurance is deferred ([E-ASSURE](docs/roadmap.md#deferred-epic-e-assure-standards-aware-development-assurance-and-safety-engineering));
+do not start it. New work must still respect [ADR-0070](docs/decisions/0070-development-assurance-boundaries.md):
+no standard-specific terminology, integrity levels or certification gates in generic modules; no conversion
+between classification schemes; evidence records the revisions, configuration, inputs and tool versions it
+supports; keep validation, implementation, verification, review and evidence currency as separate states; AI
+proposals, results and approved records stay distinguishable.
 
 ## Do not
 

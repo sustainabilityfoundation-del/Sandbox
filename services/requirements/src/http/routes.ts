@@ -445,7 +445,7 @@ export function registerRequirementRoutes(app: FastifyInstance, services: HostSe
     operationId: 'createRelationship',
     tag: 'Traceability',
     summary: 'Create a typed relationship',
-    description: 'Endpoints are validated per type; self-links, duplicates and cycles in derives-from/decomposes are refused. Allocation targets must be twin components (assembly or part).',
+    description: 'Endpoints are validated per type; self-links, duplicates and cycles in derives-from/decomposes are refused. Allocation targets must be components (assembly or part) or product elements known to the host twin directory.',
     params: P,
     body: S.RelationshipCreate,
     permission: 'author',

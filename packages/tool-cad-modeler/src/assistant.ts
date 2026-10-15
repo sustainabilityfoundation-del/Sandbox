@@ -1,6 +1,6 @@
 import { CadEngine, COMMANDS, QUERIES, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
-import { ActionError, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
-import { cadSession } from './session'
+import { ActionError, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
+import { cadSession, type OpenDocument } from './session'
 
 /**
  * Assistant operations for the CAD Modeler (contracts §5, ADR-0023). Reads return structured data
@@ -8,11 +8,18 @@ import { cadSession } from './session'
  * commands are validated and regenerated on a copy (dry run) for the preview, and only Apply runs
  * them, through the same executor as the toolbar and dialogs, with the model version captured at
  * preview time. Nothing is written by an action itself.
+ *
+ * Headless (contract C9): every operation works with no CAD Modeler view mounted. A target that is
+ * not open is loaded from the CAD document service of the captured project (the injected client;
+ * later PlatformServices.cad). Regeneration, dry runs and previews run in the kernel worker. While
+ * no view is mounted, an applied change is also saved as a new revision with the proposal's
+ * provenance, so it is durable without the tab. A document stored in another project is refused
+ * (C13).
  */
 
 export const MODULE = 'cad-modeler'
 
-const documentId = { type: 'string', description: 'Document ID (default: the active CAD Modeler document).' }
+const documentId = { type: 'string', description: 'Document ID. Default: the active CAD Modeler document of this project, else the only document stored in the project. A stored document that is not open is loaded from the project.' }
 
 const fmt = (n: number, digits = 2) => (Math.abs(n) >= 1e5 ? n.toExponential(3) : n.toFixed(digits))
 
@@ -44,11 +51,62 @@ function predictionItems(dry: DryRunResult): ServiceProposalItem[] {
   return items
 }
 
-async function dryRunFor(docId: string | undefined, commands: CommandCall[], expectedVersion: number | undefined) {
-  const open = cadSession.document(docId)
-  if (docId && !open) throw new ActionError('not-found', `CAD document ${docId} is not open.`)
+/**
+ * The document an operation acts on, without needing a view (C9):
+ * 1. a given documentId that is open in this window;
+ * 2. a given documentId loaded from the project's CAD service (headless, the view's active document
+ *    is kept);
+ * 3. without an ID, the active document if it belongs to this project;
+ * 4. else the project's only stored document. With several, the caller must choose (documentId).
+ * Documents stored in another project are refused (C13).
+ */
+export async function resolveDocument(args: Record<string, unknown>, ctx: AssistantActionContext, options: { allowNone?: boolean } = {}): Promise<OpenDocument | undefined> {
+  const projectId = ctx.captured.projectId
+  const id = typeof args.documentId === 'string' ? args.documentId : undefined
+  const inProject = (d: OpenDocument) => (d.stored?.projectId ?? d.projectId ?? projectId) === projectId
+  const store = cadSession.storeClient
+  const load = async (docId: string) => {
+    try {
+      return await cadSession.openFromStore(projectId, docId, undefined, { activate: false })
+    } catch (e) {
+      const err = e as { code?: string; message?: string }
+      throw new ActionError(err.code === 'forbidden' ? 'not-allowed' : err.code === 'unavailable' ? 'unavailable' : 'not-found', err.message ?? String(e))
+    }
+  }
+  if (id) {
+    const open = cadSession.document(id)
+    if (open) {
+      if (!inProject(open)) throw new ActionError('not-allowed', `CAD document ${id} is stored in project ${open.stored?.projectId ?? open.projectId}, not in ${projectId}.`)
+      return open
+    }
+    if (!store) throw new ActionError('not-found', `CAD document ${id} is not open, and no CAD document service is connected in this window.`)
+    return load(id)
+  }
+  const active = cadSession.active
+  if (active && inProject(active)) return active
+  // The window's views may show another project; look for this project's open documents too.
+  const openHere = cadSession.openDocuments().filter(inProject)
+  if (openHere.length === 1) return openHere[0]
+  if (store) {
+    let docs
+    try {
+      docs = await store.list(projectId)
+    } catch (e) {
+      throw new ActionError('unavailable', (e as Error).message)
+    }
+    if (docs.length === 1) return cadSession.document(docs[0].id) ?? load(docs[0].id)
+    if (docs.length > 1) throw new ActionError('invalid-arguments', `Project ${projectId} has ${docs.length} CAD documents; pass documentId (${docs.slice(0, 8).map((d) => `${d.id} “${d.title}”`).join(', ')}). See cad-modeler.list_documents.`)
+  }
+  if (options.allowNone) return undefined
+  throw new ActionError('not-found', `No CAD Modeler document is open or stored in project ${projectId}. Propose cad-modeler.new_document or cad-modeler.run_commands (it creates a document).`)
+}
+
+/** While no view is mounted, applied changes are saved as revisions (when a CAD service is connected). */
+const persistsOnApply = () => !cadSession.viewMounted && !!cadSession.storeClient
+
+async function dryRunFor(open: OpenDocument | undefined, commands: CommandCall[], expectedVersion: number | undefined) {
   // Without an open document the commands are previewed on a new, empty document.
-  const engine = open?.engine ?? new CadEngine({ kernel: cadSession.getKernel(), document: createDocument({ documentId: 'preview', title: 'New document' }) })
+  const engine = open?.engine ?? new CadEngine({ ...cadSession.engineOptions(), document: createDocument({ documentId: 'preview', title: 'New document' }) })
   const version = expectedVersion ?? engine.document.version
   const dry = await engine.dryRun({ commands, expectedVersion: version, source: 'assistant' })
   if (!open) await engine.dispose()
@@ -73,13 +131,13 @@ const actions: AssistantActionDefinition[] = [
     description:
       'Structured overview of the active CAD Modeler document (or one by ID): open documents, parts, feature history with regeneration status and errors, parameters with values, bodies with volume, mass, bounding box and topology, and failures. Use cad-modeler.query for details (sketch DOF, faces with stable names, dependencies, operation log, the native document).',
     parameters: { type: 'object', properties: { documentId }, additionalProperties: false },
-    async run(args) {
+    async run(args, ctx) {
+      const open = await resolveDocument(args, ctx, { allowNone: true })
       const snap = cadSession.getSnapshot()
-      const open = cadSession.document(args.documentId as string | undefined)
       if (!open) {
         return {
           kind: 'data',
-          data: { documents: snap.documents, active: null, kernel: snap.kernel, hint: 'No document is open. Propose cad-modeler.new_document or cad-modeler.run_commands (it creates a document when none is open).' },
+          data: { documents: snap.documents, active: null, kernel: snap.kernel, hint: `No CAD document is open or stored in project ${ctx.captured.projectId}. Propose cad-modeler.new_document or cad-modeler.run_commands (it creates a document when none is open).` },
           summary: 'No CAD Modeler document is open',
         }
       }
@@ -90,7 +148,8 @@ const actions: AssistantActionDefinition[] = [
         data: {
           documents: snap.documents,
           kernel: snap.kernel.info ?? null,
-          document: { id: doc.documentId, title: doc.metadata.title, version: doc.version, regeneratedVersion: regen?.documentVersion ?? null, dirty: snap.documents.find((d) => d.id === doc.documentId)?.dirty ?? false },
+          document: { id: doc.documentId, title: doc.metadata.title, version: doc.version, regeneratedVersion: regen?.documentVersion ?? null, dirty: snap.documents.find((d) => d.id === doc.documentId)?.dirty ?? false, stored: open.stored ?? null },
+          regeneration: { location: regen?.location ?? null },
           tree: featureTree(doc, regen),
           parameters: Object.fromEntries(doc.parts.map((p) => [p.id, parameterTable(doc, p.id)])),
           bodies: Object.fromEntries(doc.parts.map((p) => [p.id, regen ? massProperties(doc, regen, p.id) : []])),
@@ -112,12 +171,11 @@ const actions: AssistantActionDefinition[] = [
       required: ['query'],
       additionalProperties: false,
     },
-    async run(args) {
+    async run(args, ctx) {
       const query = String(args.query)
       const input = (args.input ?? {}) as Record<string, unknown>
       if (query === 'list_commands') return { kind: 'data', data: QUERIES.find((q) => q.name === 'list_commands')!.run({ doc: createDocument({ documentId: 'catalog' }), operations: () => [] }, input), summary: 'Read the CAD command catalogue' }
-      const open = cadSession.document(args.documentId as string | undefined)
-      if (!open) throw new ActionError('not-found', 'No CAD Modeler document is open.')
+      const open = (await resolveDocument(args, ctx))!
       await open.engine.regenerate()
       try {
         const data = open.engine.query(query, input)
@@ -145,10 +203,11 @@ const actions: AssistantActionDefinition[] = [
       required: ['commands'],
       additionalProperties: false,
     },
-    async run(args) {
+    async run(args, ctx) {
       const commands = validateCalls(args.commands)
-      const docId = args.documentId as string | undefined
-      const { open, version, dry } = await dryRunFor(docId, commands, args.expectedVersion as number | undefined)
+      const projectId = ctx.captured.projectId
+      const { open, version, dry } = await dryRunFor(await resolveDocument(args, ctx, { allowNone: true }), commands, args.expectedVersion as number | undefined)
+      const persist = persistsOnApply()
       if (!dry.ok) {
         const where = dry.failedIndex !== undefined && dry.failedIndex >= 0 ? ` (command ${dry.failedIndex + 1}, ${commands[dry.failedIndex]?.command})` : ''
         throw new ActionError(dry.error?.code === 'version-conflict' ? 'conflict' : dry.error?.code === 'not-found' ? 'not-found' : 'invalid-arguments', `${dry.error?.message ?? 'The commands are not valid.'}${where}`)
@@ -167,20 +226,32 @@ const actions: AssistantActionDefinition[] = [
           ...(open ? [] : [{ label: 'New document', proposed: 'Untitled CAD Modeler document' }]),
           ...commands.map((c, i) => ({ label: `${i + 1}. ${c.command}`, proposed: describeInput(c) })),
           ...predictionItems(dry),
+          ...(persist ? [{ targetId: open?.id, label: 'Saved to the project', proposed: open?.stored ? `revision ${open.stored.revision + 1} of ${open.id} in ${projectId}` : `new stored document in ${projectId}` }] : []),
         ],
         assumptions: dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : undefined,
         inspected: open ? [{ id: open.id, detail: `CAD document version ${version}` }] : [],
-        async apply() {
-          const d = target ? cadSession.require(target) : await cadSession.newDocument({ source: 'assistant', empty: true })
+        async apply(provenance) {
+          const d = target ? cadSession.require(target) : await cadSession.newDocument({ source: 'assistant', empty: true, projectId })
           target = d.id
           before = d.engine.document
           const expected = open ? version : d.engine.document.version
           const result = await d.engine.execute({ commands, expectedVersion: expected, label: `Assistant: ${label}`, source: 'assistant' })
           if (!result.ok) throw new Error(`${result.error.message}${result.failedCommand ? ` (${result.failedCommand})` : ''}`)
           appliedVersion = result.version
-          cadSession.setActive(d.id)
+          if (cadSession.viewMounted) cadSession.setActive(d.id)
+          let saved = ''
+          if (persist) {
+            try {
+              const r = await cadSession.saveToStore(projectId, d.id, { message: `Assistant: ${label}`, provenance: { sourceKind: 'assistant', ...provenance } })
+              saved = `; saved revision ${r.revision} in ${projectId}`
+            } catch (e) {
+              // Not durable: put the in-memory model back so nothing diverges from the project.
+              await d.engine.restore(before, `Revert assistant: ${label}`, 'assistant', result.version)
+              throw new Error(`The change was not saved: ${(e as Error).message}`)
+            }
+          }
           const failed = result.regeneration ? failures(result.regeneration).filter((f) => f.status === 'failed' || f.status === 'blocked') : []
-          return { summary: `Applied ${commands.length} CAD command${commands.length === 1 ? '' : 's'}: version ${result.version}${failed.length ? `, ${failed.length} feature(s) failed to regenerate` : ''}`, createdIds: result.affected.created }
+          return { summary: `Applied ${commands.length} CAD command${commands.length === 1 ? '' : 's'}: version ${result.version}${failed.length ? `, ${failed.length} feature(s) failed to regenerate` : ''}${saved}`, createdIds: result.affected.created }
         },
         async undo() {
           if (!target || !before || appliedVersion === undefined) throw new Error('Nothing to undo.')
@@ -198,9 +269,8 @@ const actions: AssistantActionDefinition[] = [
     label: 'Prepare CAD undo',
     description: 'Propose undoing the last transaction of the CAD document (whoever made it). Undo creates a new version; Redo is available in the CAD Modeler.',
     parameters: { type: 'object', properties: { documentId }, additionalProperties: false },
-    async run(args) {
-      const d = cadSession.document(args.documentId as string | undefined)
-      if (!d) throw new ActionError('not-found', 'No CAD Modeler document is open.')
+    async run(args, ctx) {
+      const d = (await resolveDocument(args, ctx))!
       const state = d.engine.getState()
       if (!state.canUndo) throw new ActionError('no-op', 'There is nothing to undo in this document.')
       const version = d.engine.document.version
@@ -209,10 +279,14 @@ const actions: AssistantActionDefinition[] = [
         module: MODULE,
         title: `Undo “${state.undoLabel}”`,
         explanation: `Restores “${d.engine.document.metadata.title}” to its state before “${state.undoLabel}” (from version ${version}).`,
-        preview: [{ targetId: d.id, label: 'Undo', current: `version ${version}`, proposed: `state before “${state.undoLabel}” as version ${version + 1}` }],
-        async apply() {
+        preview: [
+          { targetId: d.id, label: 'Undo', current: `version ${version}`, proposed: `state before “${state.undoLabel}” as version ${version + 1}` },
+          ...(persistsOnApply() && d.stored ? [{ targetId: d.id, label: 'Saved to the project', proposed: `revision ${d.stored.revision + 1} of ${d.id} in ${ctx.captured.projectId}` }] : []),
+        ],
+        async apply(provenance) {
           const r = await d.engine.undo('assistant', version)
-          return { summary: `Undid “${state.undoLabel}” (version ${r.version})` }
+          const saved = persistsOnApply() && d.stored ? await cadSession.saveToStore(ctx.captured.projectId, d.id, { message: `Assistant: undo “${state.undoLabel}”`, provenance: { sourceKind: 'assistant', ...provenance } }) : null
+          return { summary: `Undid “${state.undoLabel}” (version ${r.version})${saved ? `; saved revision ${saved.revision}` : ''}` }
         },
       }
     },
@@ -222,18 +296,20 @@ const actions: AssistantActionDefinition[] = [
     label: 'Prepare new CAD document',
     description: 'Propose creating a new CAD Modeler document with one empty part, and make it active.',
     parameters: { type: 'object', properties: { title: { type: 'string' }, partName: { type: 'string' } }, additionalProperties: false },
-    async run(args) {
+    async run(args, ctx) {
       const title = (args.title as string | undefined)?.trim() || 'Untitled'
       const partName = (args.partName as string | undefined)?.trim() || 'Part 1'
+      const persist = persistsOnApply()
       return {
         kind: 'service-proposal',
         module: MODULE,
         title: `New CAD document “${title}”`,
-        explanation: 'Creates a document in this window’s CAD Modeler session. Save it to keep it.',
-        preview: [{ label: 'New document', proposed: `${title} with part “${partName}”` }],
-        async apply() {
-          const d = await cadSession.newDocument({ title, partName, source: 'assistant' })
-          return { summary: `Created “${title}” (${d.id})`, createdIds: [d.id] }
+        explanation: persist ? `Creates the document and stores it in ${ctx.captured.projectId} as revision 1.` : 'Creates a document in this window’s CAD Modeler session. Save it to keep it.',
+        preview: [{ label: 'New document', proposed: `${title} with part “${partName}”${persist ? `, stored in ${ctx.captured.projectId}` : ''}` }],
+        async apply(provenance) {
+          const d = await cadSession.newDocument({ title, partName, source: 'assistant', projectId: ctx.captured.projectId })
+          const saved = persist ? await cadSession.saveToStore(ctx.captured.projectId, d.id, { message: 'Assistant: new document', provenance: { sourceKind: 'assistant', ...provenance } }) : null
+          return { summary: `Created “${title}” (${d.id})${saved ? `, stored as revision ${saved.revision}` : ''}`, createdIds: [d.id] }
         },
       }
     },
@@ -241,9 +317,35 @@ const actions: AssistantActionDefinition[] = [
   {
     name: 'cad-modeler.open_document',
     label: 'Prepare opening a CAD document',
-    description: 'Propose opening a native ews-cad document given as JSON (for example one read earlier with query get_document). It is validated before the preview.',
-    parameters: { type: 'object', properties: { document: { type: 'object' }, fileName: { type: 'string' } }, required: ['document'], additionalProperties: false },
-    async run(args) {
+    description:
+      'Propose opening a CAD document: a document stored in the project (documentId, optional revision; see cad-modeler.list_documents) or a native ews-cad document given as JSON (document). It is validated before the preview and regenerated when opened.',
+    parameters: { type: 'object', properties: { documentId: { type: 'string' }, revision: { type: 'integer' }, document: { type: 'object' }, fileName: { type: 'string' } }, additionalProperties: false },
+    async run(args, ctx) {
+      if (typeof args.documentId === 'string') {
+        const store = cadSession.storeClient
+        if (!store) throw new ActionError('not-allowed', 'No CAD document service is connected in this window; pass the native document as JSON instead.')
+        const projectId = ctx.captured.projectId
+        const revision = typeof args.revision === 'number' ? args.revision : undefined
+        let found
+        try {
+          found = await store.get(projectId, args.documentId, revision)
+        } catch (e) {
+          throw new ActionError('not-found', (e as Error).message)
+        }
+        return {
+          kind: 'service-proposal',
+          module: MODULE,
+          title: `Open “${found.summary.title}” from ${projectId}`,
+          explanation: `Opens revision ${found.revision.revision} of ${found.summary.id} (current revision ${found.summary.revision}) and regenerates it.`,
+          preview: [{ targetId: found.summary.id, label: 'Open stored document', proposed: `${found.summary.title}, revision ${found.revision.revision} by ${found.revision.actor}` }],
+          inspected: [{ id: found.summary.id, detail: `stored CAD document, revision ${found.summary.revision}` }],
+          async apply() {
+            const d = await cadSession.openFromStore(projectId, found.summary.id, revision)
+            return { summary: `Opened “${found.summary.title}” revision ${found.revision.revision}`, createdIds: [d.id] }
+          },
+        }
+      }
+      if (!args.document) throw new ActionError('invalid-arguments', 'Give a documentId (stored in the project) or a document (native JSON).')
       const text = JSON.stringify(args.document)
       let doc: CadDocument
       try {
@@ -265,13 +367,54 @@ const actions: AssistantActionDefinition[] = [
     },
   },
   {
+    name: 'cad-modeler.list_documents',
+    label: 'List stored CAD documents',
+    description: 'CAD documents stored in the current project (CAD service), with current revision, author and time. Empty with an explanation when no service is connected.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    async run(_args, ctx) {
+      const store = cadSession.storeClient
+      if (!store) return { kind: 'data', data: { documents: [], note: 'No CAD document service is connected in this window (files only).' }, summary: 'No CAD document service connected' }
+      try {
+        const documents = await store.list(ctx.captured.projectId)
+        return { kind: 'data', data: { projectId: ctx.captured.projectId, store: store.mode, documents }, summary: `Found ${documents.length} stored CAD document(s) in ${ctx.captured.projectId}`, inspected: documents.map((d) => ({ id: d.id, detail: `${d.title}, revision ${d.revision}` })) }
+      } catch (e) {
+        throw new ActionError('unavailable', (e as Error).message)
+      }
+    },
+  },
+  {
+    name: 'cad-modeler.save_document',
+    label: 'Prepare saving a CAD revision',
+    description:
+      'Propose saving the active document as a new revision in the project (CAD service). The revision records this conversation and proposal as its provenance. A newer revision saved by someone else makes Apply fail without overwriting anything.',
+    parameters: { type: 'object', properties: { message: { type: 'string' }, documentId }, additionalProperties: false },
+    async run(args, ctx) {
+      const store = cadSession.storeClient
+      if (!store) throw new ActionError('not-allowed', 'No CAD document service is connected in this window; use cad-modeler.export with format ewscad to download the file.')
+      const d = (await resolveDocument(args, ctx))!
+      const projectId = ctx.captured.projectId
+      const message = typeof args.message === 'string' ? args.message : ''
+      const base = d.stored?.revision
+      return {
+        kind: 'service-proposal',
+        module: MODULE,
+        title: `Save “${d.engine.document.metadata.title}” to ${projectId}`,
+        explanation: base ? `Creates revision ${base + 1} (based on revision ${base}).` : 'Stores the document in the project as revision 1.',
+        preview: [{ targetId: d.id, label: 'Revision', current: base ? `revision ${base}` : 'not stored', proposed: `${base ? `revision ${base + 1}` : 'revision 1'}${message ? `: ${message}` : ''} (model version ${d.engine.document.version})` }],
+        async apply(provenance) {
+          const r = await cadSession.saveToStore(projectId, d.id, { message, provenance: { sourceKind: 'assistant', ...provenance } })
+          return { summary: r.unchanged ? `No changes since revision ${r.revision}` : `Saved revision ${r.revision} in ${projectId}` }
+        },
+      }
+    },
+  },
+  {
     name: 'cad-modeler.export',
     label: 'Prepare CAD export',
     description: 'Propose exporting the active document: "step" writes STEP AP242 (exact B-rep with names, units, colours; no feature history) of a part; "ewscad" saves the native parametric file. The file is downloaded on the user’s computer after Apply; the result includes a structural report of the STEP file.',
     parameters: { type: 'object', properties: { format: { type: 'string', enum: ['step', 'ewscad'] }, partId: { type: 'string' }, documentId }, required: ['format'], additionalProperties: false },
-    async run(args) {
-      const d = cadSession.document(args.documentId as string | undefined)
-      if (!d) throw new ActionError('not-found', 'No CAD Modeler document is open.')
+    async run(args, ctx) {
+      const d = (await resolveDocument(args, ctx))!
       const format = args.format as 'step' | 'ewscad'
       const regen = await d.engine.regenerate()
       if (format === 'step') {
@@ -359,8 +502,37 @@ export const cadModelerDemo: DemoPlanner = (text) => {
       }
     }
   }
+  const blend = new RegExp(`\\b(fillet|round|chamfer|bevel)\\b.*\\b(vertical|top|bottom|all)\\b.*?\\bedges?\\b.*?${NUM}\\s*mm`).exec(t)
+  if (blend && open && /\b(cad|part|plate|block)\b/.test(t)) {
+    const body = open.engine.regeneration?.parts[0]?.bodies.at(-1)
+    const kind = /fillet|round/.test(blend[1]) ? 'fillet' : 'chamfer'
+    const which = blend[2]
+    const edges = (body?.analysis.edges ?? [])
+      .filter((e) => e.faces.length === 2 && !e.name.includes('face#'))
+      .filter((e) => {
+        // The role is the part after the feature ID ("side:ln-8", "cap-end", "blend:…").
+        const role = (f: string) => f.slice(f.indexOf('/') + 1)
+        const sides = e.faces.filter((f) => role(f).startsWith('side:')).length
+        if (which === 'vertical') return sides === 2
+        if (which === 'top') return sides === 1 && e.faces.some((f) => role(f).startsWith('cap-end'))
+        if (which === 'bottom') return sides === 1 && e.faces.some((f) => role(f).startsWith('cap-start'))
+        return true
+      })
+      .map((e) => e.name)
+    if (edges.length) {
+      const size = Number(blend[3])
+      return {
+        reply: `(Demo planner.) I prepared a ${kind} of ${size} mm on the ${which} edges (${edges.length}), chosen by their stable names. The preview shows the predicted volume.`,
+        calls: [{ name: 'cad-modeler.run_commands', arguments: { label: `${kind === 'fillet' ? 'Fillet' : 'Chamfer'} ${which} edges ${size} mm`, commands: [{ command: kind === 'fillet' ? 'fillet_edges' : 'chamfer_edges', input: { edges, ...(kind === 'fillet' ? { radius: size } : { distance: size }) } }], expectedVersion: open.engine.document.version } }],
+      }
+    }
+  }
   if (/\b(cad|part|model)\b/.test(t) && /\b(describe|summari[sz]e|what is|show|volume|mass|status|failures?)\b/.test(t) && /\bcad\b|\bvolume\b|\bpart\b/.test(t))
     return { reply: '(Demo planner.) Here is the CAD Modeler model as structured data: features, parameters, bodies and failures.', calls: [{ name: 'cad-modeler.describe_model', arguments: {} }] }
+  if (/\bsave\b/.test(t) && /\bcad\b/.test(t) && cadSession.storeClient && open) {
+    const message = /["“](.+?)["”]/.exec(text)?.[1] ?? ''
+    return { reply: '(Demo planner.) I prepared saving the active CAD document as a new revision in this project; the revision records this conversation.', calls: [{ name: 'cad-modeler.save_document', arguments: message ? { message } : {} }] }
+  }
   if (/\bexport\b.*\bstep\b|\bstep\b.*\bexport\b/.test(t)) return { reply: '(Demo planner.) I prepared a STEP AP242 export of the active CAD document.', calls: [{ name: 'cad-modeler.export', arguments: { format: 'step' } }] }
   if (/\bundo\b.*\bcad\b|\bcad\b.*\bundo\b/.test(t)) return { reply: '(Demo planner.) I prepared undoing the last CAD change.', calls: [{ name: 'cad-modeler.undo', arguments: {} }] }
   return null

@@ -89,3 +89,47 @@ describe('service proposals', () => {
     await expect(action('conceptualize.create').run({ text: 'A gripper' }, context({}))).rejects.toThrow(/not available/)
   })
 })
+
+describe('design-knowledge operations (Design Reasoning P1)', () => {
+  const plan = (t: string) => conceptsDemo(t, { selectionIds: [] })?.calls[0]
+  it('maps example prompts to registered design operations', () => {
+    expect(plan('Convert CON-005 to a function')).toEqual({ name: 'conceptualize.convert_to_function', arguments: { conceptId: 'CON-005' } })
+    expect(plan('Create a function "Reject heat" performed by CON-006 and CON-007')).toEqual({ name: 'conceptualize.create_function', arguments: { name: 'Reject heat', performedBy: ['CON-006', 'CON-007'] } })
+    expect(plan('Promote the constraints of CON-001')?.name).toBe('conceptualize.promote_constraint')
+    expect(plan('Record an assumption for CON-001: rod ends are pinned')).toEqual({ name: 'conceptualize.record_assumption', arguments: { statement: 'rod ends are pinned', subjectId: 'CON-001' } })
+    expect(plan('CON-006 performs FN-001')).toEqual({ name: 'conceptualize.create_link', arguments: { type: 'performs', from: 'CON-006', to: 'FN-001' } })
+    expect(plan('Why was DEC-001 made?')).toEqual({ name: 'conceptualize.rationale', arguments: { decisionId: 'DEC-001' } })
+    expect(plan('Which concepts perform FN-001?')?.name).toBe('conceptualize.traverse')
+    expect(plan('Search functions for linear force')).toEqual({ name: 'conceptualize.search_design', arguments: { text: 'linear force', types: ['function'] } })
+    const names = new Set(conceptsAssistant.actions.map((a) => a.name))
+    for (const p of ['Convert CON-005 to a function', 'Create a function Reject heat', 'Promote constraints of CON-001', 'Record an assumption: dry air', 'CON-006 performs FN-001', 'Why DEC-001', 'What depends on ASM-001', 'Search design for envelope']) {
+      for (const c of conceptsDemo(p, { selectionIds: [] })?.calls ?? []) expect(names.has(c.name), p).toBe(true)
+    }
+  })
+
+  it('applies a Function as one atomic batch with placeholders and assistant provenance', async () => {
+    const calls: { method: string; url: string; headers: Record<string, string>; body: any }[] = []
+    const fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = String(input)
+      calls.push({ method: init.method ?? 'GET', url, headers: init.headers as Record<string, string>, body: init.body ? JSON.parse(String(init.body)) : undefined })
+      const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } })
+      if (url.includes('/concepts?')) return json({ items: [{ id: 'c6', key: 'CON-006', name: 'Ball screw' }], total: 1, limit: 20, offset: 0 })
+      if (url.endsWith('/concepts/c6')) return json({ id: 'c6', key: 'CON-006', name: 'Ball screw', revision: 1, statements: [] })
+      if (url.endsWith('/batch')) return json({ results: [{ index: 0, op: 'createFunction', as: '$fn', id: 'f1', key: 'FN-009', revision: 1 }, { index: 1, op: 'createLink', as: '$l1', id: 'l1', key: null, revision: 1 }], ids: { $fn: 'f1', $l1: 'l1' } })
+      return json({})
+    }) as typeof globalThis.fetch
+    const concepts = createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch })
+    const result = (await action('conceptualize.create_function').run({ name: 'Reject heat', performedBy: ['CON-006'] }, context({ concepts }))) as ServiceProposal
+    expect(result.kind).toBe('service-proposal')
+    expect(result.preview.every((p) => p.basis === 'ai-hypothesis')).toBe(true)
+    const before = calls.length
+    const applied = await result.apply({ conversationId: 'C-2', proposalId: 'CP-9', messageId: 'M1' })
+    expect(applied.createdIds).toEqual(['f1', 'l1'])
+    const batch = calls.slice(before).find((c) => c.url.endsWith('/batch'))!
+    expect(batch.headers).toMatchObject({ 'X-Source-Kind': 'assistant', 'X-Proposal-Id': 'CP-9', 'Idempotency-Key': 'C-2:CP-9:function' })
+    expect(batch.body.items).toEqual([
+      { op: 'createFunction', as: '$fn', body: { name: 'Reject heat', reason: 'Assistant proposal CP-9' } },
+      { op: 'createLink', as: '$l1', body: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: 'c6' }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } },
+    ])
+  })
+})

@@ -3,7 +3,7 @@ import { SysmlClientError, type SysmlClient, type TransactionOutcome } from '@ew
 import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, checkCommandShape, findElements, relationshipMatrix, requirementCoverage, impact, incomingReferences, isTextEditableNamespace, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
 import { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from './projection/behavior'
 import type { Graph } from './projection/graph'
-import { getClient, sessionFor } from './session'
+import { existingSession, getClient } from './session'
 
 /**
  * Assistant operations of the SysML Modeler (ADR-0038). Reads return data; changes are service
@@ -22,10 +22,15 @@ interface Target {
   model: Model
 }
 
+/**
+ * Headless (C9): the client comes from the host configuration (the tool registration; `PlatformServices.sysml`
+ * once SDK 1.8 provides it), and the model is loaded from the repository at the branch head. No view
+ * needs to be mounted; when one is open on the same project, its branch is used.
+ */
 async function target(ctx: AssistantActionContext, projectId?: string): Promise<Target> {
   const client = getClient()
   if (!client) throw new ActionError('not-allowed', 'The SysML Modeler is not configured in this host.')
-  const session = sessionFor(ctx.captured.projectId)
+  const session = existingSession(ctx.captured.projectId)
   try {
     let pid = projectId
     if (!pid) {
@@ -34,6 +39,8 @@ async function target(ctx: AssistantActionContext, projectId?: string): Promise<
     }
     if (!pid) throw new ActionError('not-found', `There is no SysML project for ${ctx.captured.projectId}. Create one in the SysML Modeler first.`)
     const project = await client.getProject(pid)
+    // C13: the assistant acts only in the platform project of the conversation.
+    if (project.platformProjectId !== ctx.captured.projectId) throw new ActionError('not-allowed', `SysML project ${pid} belongs to platform project ${project.platformProjectId}, not ${ctx.captured.projectId}. Switch projects to work on it.`)
     const st = session?.getState()
     const branchId = st?.project?.id === pid && st.branch ? st.branch.id : project.defaultBranchId
     const branch = await client.getBranch(pid, branchId)
@@ -99,13 +106,13 @@ async function propose(ctx: AssistantActionContext, args: Record<string, unknown
     apply: async (provenance) => {
       const out = await t.client.transact(t.projectId, t.branchId, { baseCommitId: t.headCommitId, commands, validationPolicy: 'reject-new-errors', reason: explanation, source: { kind: 'assistant', conversationId: provenance.conversationId, proposalId: provenance.proposalId, messageId: provenance.messageId } })
       commitId = out.commit?.id
-      void sessionFor(ctx.captured.projectId)?.refresh()
+      void existingSession(ctx.captured.projectId)?.refresh()
       return { summary: `Commit #${out.commit?.number}: ${out.summaryText}`, createdIds: Object.values(out.createdIds) }
     },
     undo: async () => {
       if (!commitId) throw new Error('Nothing was applied.')
       const out = await t.client.revert(t.projectId, commitId, t.branchId, { source: { kind: 'assistant' }, reason: `Undo of: ${title}` })
-      void sessionFor(ctx.captured.projectId)?.refresh()
+      void existingSession(ctx.captured.projectId)?.refresh()
       return { summary: out.summaryText }
     },
   }
@@ -398,7 +405,7 @@ export const sysmlModelerDemo: AssistantContribution['demo'] = (text) => {
       calls: [{ name: 'sysml-modeler.propose_text', arguments: { namespace: 'ActuatorSystem', mode: 'append', title: 'Add a cooling subsystem (demo elaboration)', explanation: 'Elaborates thermal management for the motor as a new package; values are assumptions to be refined.', text: THERMAL, assumptions: ['Thermal resistance 1.2 K/W, heat sink mass 0.15 kg and a 423 K (150 °C) sensor limit are assumed placeholder values.'] } }],
     }
   }
-  if ((m = /link (?:the )?(?:sysml )?(?:requirement )?([w:]+) (?:to|with) (REQ-d+)/i.exec(t))) return { reply: `I prepared a proposal to link ${m[1]} to the managed requirement ${m[2]}.`, calls: [{ name: 'sysml-modeler.link_requirement', arguments: { element: m[1], requirement: m[2] } }] }
+  if ((m = /link (?:the )?(?:sysml )?(?:requirement )?([\w:]+) (?:to|with) (REQ-\d+)/i.exec(t))) return { reply: `I prepared a proposal to link ${m[1]} to the managed requirement ${m[2]}.`, calls: [{ name: 'sysml-modeler.link_requirement', arguments: { element: m[1], requirement: m[2] } }] }
   if (/(requirement )?coverage|requirements? (?:are|is) not (?:satisfied|covered|verified)|unsatisfied requirements/i.test(t)) return { reply: 'This is the requirement coverage of the SysML model (modelled satisfaction and verification).', calls: [{ name: 'sysml-modeler.coverage', arguments: { gapsOnly: /not|gap|unsatisfied/i.test(t) } }] }
   if ((m = /(satisfy|satisfaction|allocation|allocate|connection|connect) matrix/i.exec(t))) {
     const kind = /^satisf/i.test(m[1]) ? 'satisfy' : /^alloc/i.test(m[1]) ? 'allocate' : 'connect'

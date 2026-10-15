@@ -12,7 +12,7 @@ kept current by a test). The same API serves the interface, the assistant and sc
 | TypeScript (browser, Node) | `new CadEngine({ kernel, document })` from `@ews/cad-core`; kernels from `@ews/cad-kernel/node` (in-process) or `@ews/cad-kernel/worker-client` (Web Worker) |
 | Pure transaction (no kernel) | `applyTransaction(doc, tx)` and `DocumentHistory` |
 | Workspace assistant | `cad-modeler.*` actions ([ai-commands.md](ai-commands.md)) |
-| HTTP | planned with `services/cad` (`/api/cad/v1`, OpenAPI), contract change request CR-CAD-2 |
+| HTTP (documents and revisions) | `services/cad` at `/api/cad/v1` (OpenAPI 3.1 at `/api/cad/v1/openapi.json`); see [service.md](service.md). Clients: `@ews/cad-client` (`createHttpCadClient`, `createLocalCadClient`). Commands are not executed on the server; the HTTP API stores and serves documents |
 
 ## 2. Transactions
 
@@ -35,16 +35,17 @@ interface Transaction {
 - Determinism: IDs come from `nextId` (`sk-5`, `ext-21`); no clock or random input affects the model.
 - Engine: `CadEngine.execute(tx)` also regenerates and returns `regeneration`.
 
-## 3. Commands (30)
+## 3. Commands (33)
 
 | Category | Command | Effect (summary) |
 | --- | --- | --- |
 | document | `set_document_metadata` | title, description |
 | part | `create_part`, `rename`, `set_material` | parts, display names, material |
 | parameter | `create_parameter`, `set_parameter`, `delete_parameter` | expressions with cycle checks |
-| sketch | `create_sketch`, `set_sketch_plane`, `add_point`, `add_line`, `add_circle`, `add_arc`, `add_rectangle`, `delete_sketch_entities`, `move_sketch_point`, `set_construction` | geometry |
+| datum | `create_datum_plane` | reference plane offset from a standard plane, a datum or a planar face |
+| sketch | `create_sketch` (on a standard plane, datum or planar face), `set_sketch_plane`, `add_point`, `add_line`, `add_circle`, `add_arc`, `add_rectangle`, `delete_sketch_entities`, `move_sketch_point`, `set_construction` | geometry |
 | constraint | `apply_constraint`, `set_dimension`, `set_dimension_driving`, `delete_constraint` | constraints and dimensions |
-| feature | `extrude_profile`, `revolve_profile`, `edit_feature`, `set_suppressed`, `delete_feature` | solids |
+| feature | `extrude_profile`, `revolve_profile`, `fillet_edges`, `chamfer_edges`, `edit_feature`, `set_suppressed`, `delete_feature` | solids; fillets and chamfers on stable edge names |
 | semantics | `add_semantic`, `remove_semantic` | engineering meaning |
 | reference | `add_reference`, `remove_reference` | links to other modules |
 
@@ -74,9 +75,11 @@ against their schemas (in the catalogue).
 `regeneration-failed`. Regeneration failures are not command errors: the command commits and the
 feature reports `failed` / `blocked` with `details.reason` (`invalid-profile`, `upstream-failed`,
 `upstream-suppressed`, `no-target-body`, `profile-crosses-axis`, `invalid-value`, `sketch-conflicting`,
-`sketch-failed`, `invalid-shape`).
+`sketch-failed`, `invalid-shape`, `reference-lost` (a face or edge name no longer exists; details list
+the available names), `face-not-planar`, `blend-failed`).
 
 ## 7. Versioning
 
-The catalogue has `catalogVersion` (1.0.0). Adding commands or optional inputs is a minor change;
+The catalogue has `catalogVersion` (1.1.0: adds `create_datum_plane`, `fillet_edges`, `chamfer_edges`
+and the plane options of `create_sketch` / `set_sketch_plane`). Adding commands or optional inputs is a minor change;
 removing or changing semantics is major and needs a deprecation period with both versions served.

@@ -107,6 +107,18 @@ export class ModelerSession {
     await this.open(this.platformProjectId, p.id)
   }
 
+  /**
+   * Lazy creation: a platform project has no SysML project until someone starts modelling. Creates
+   * one (an empty package `SystemModel`, nothing else) when the platform project has none.
+   */
+  async ensureProject(): Promise<void> {
+    if (this.getState().status === 'ready') return
+    if (!this.platformProjectId) throw new Error('No platform project.')
+    const existing = await this.client.listProjects(this.platformProjectId)
+    if (existing.length) return this.open(this.platformProjectId, existing[0].id)
+    await this.createProject(`System model (${this.platformProjectId})`, 'package SystemModel;')
+  }
+
   /** Dry run of commands against the loaded head. */
   async preview(commands: Command[], validationPolicy: ValidationPolicy = 'report'): Promise<TransactionOutcome> {
     const { project, branch, headCommitId } = this.need()
@@ -179,7 +191,17 @@ export function getClient(): SysmlClient | undefined {
   return client
 }
 
-/** The shared session for a platform project (views and assistant actions use the same one). */
+/** The session of a platform project if a view opened one; never creates one (headless callers). */
+export function existingSession(platformProjectId: string): ModelerSession | undefined {
+  return sessions.get(platformProjectId)
+}
+
+/** Number of sessions (views) opened in this process (tests of headless operation). */
+export function sessionCount(): number {
+  return sessions.size
+}
+
+/** The shared session for a platform project (views use it; assistant actions only refresh an open one). */
 export function sessionFor(platformProjectId: string): ModelerSession | undefined {
   if (!client) return undefined
   let s = sessions.get(platformProjectId)

@@ -1,4 +1,4 @@
-import type { Basis } from '@ews/engineering-calc'
+import type { Basis, CalculationQualifications } from '@ews/engineering-calc'
 import type { BatchRequest, BatchResponse, ConceptualizeKnowledgeApi, RequestContext } from './contract/conceptualize'
 import type { AnyRef } from './refs'
 
@@ -42,7 +42,11 @@ export interface ProposalDraft {
   expectedEffects: string[]
   evidence: { ref: AnyRef; basis: Basis }[]
   assumptions: { text: string; ref?: AnyRef }[]
-  uncertainty: { summary: string; ranges?: { name: string; min: number; max: number; unit: string }[] }
+  uncertainty: { summary: string; ranges?: { name: string; min: number; max: number; unit: string; kind: 'sampled-range' | 'bounds'; quality?: 'exact' | 'enclosure' }[] }
+  /** C11: qualifications of a calculation draft, shown unchanged in the preview. */
+  qualifications?: CalculationQualifications
+  /** What applying this does NOT establish (C11), shown in the preview. */
+  limits?: string[]
   requiredApprovals: { permission: 'author' | 'decide'; module: string; reason: string }[]
   operations: ModuleOperation[]
   preview: ProposalItem[]

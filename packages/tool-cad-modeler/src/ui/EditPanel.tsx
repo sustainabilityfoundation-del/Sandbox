@@ -6,7 +6,6 @@ import {
   type DryRunResult,
   type EngineState,
   type ExtrudeFeature,
-  type Part,
   type RevolveFeature,
   type SketchFeature,
 } from '@ews/cad-core'
@@ -14,6 +13,7 @@ import { Badge, Button, Checkbox, EmptyState, IconButton, Notice, SegmentedContr
 import { useEffect, useMemo, useState } from 'react'
 import type { CadModelerViewState, Editing } from '../viewState'
 import { CommitField, SKETCH_STATUS, exprValue, fmtNum, makeRun, regenOf } from './common'
+import { DatumPlaneForm, EdgeFeatureForm, NewSketchForm, describePlane } from './PlaneAndEdgeForms'
 
 interface Props {
   engine: CadEngine
@@ -35,41 +35,11 @@ export function EditPanel({ engine, state, vs, update }: Props) {
     )
   const part = state.doc.parts[0]
   if (!part) return <div className="cadm-panel-body"><Notice tone="warning">The document has no part. Add one in the Model tab.</Notice></div>
-  if (editing.kind === 'new-sketch') return <NewSketch engine={engine} parts={state.doc.parts} update={update} />
+  if (editing.kind === 'new-sketch') return <NewSketchForm engine={engine} state={state} vs={vs} update={update} />
+  if (editing.kind === 'datum-plane') return <DatumPlaneForm key={editing.featureId ?? 'new'} engine={engine} state={state} featureId={editing.featureId} update={update} />
+  if (editing.kind === 'fillet' || editing.kind === 'chamfer') return <EdgeFeatureForm key={`${editing.kind}:${editing.featureId ?? 'new'}`} engine={engine} state={state} vs={vs} kind={editing.kind} featureId={editing.featureId} update={update} />
   if (editing.kind === 'sketch') return <SketchTools key={editing.sketchId} engine={engine} state={state} sketchId={editing.sketchId} vs={vs} update={update} />
   return <SolidFeatureForm key={`${editing.kind}:${editing.featureId ?? 'new'}`} engine={engine} state={state} editing={editing} update={update} />
-}
-
-function NewSketch({ engine, parts, update }: { engine: CadEngine; parts: Part[]; update: Props['update'] }) {
-  const [partId, setPartId] = useState(parts[0].id)
-  const [plane, setPlane] = useState('XY')
-  const [offset, setOffset] = useState('0')
-  const [name, setName] = useState('')
-  const run = makeRun(engine)
-  return (
-    <div className="cadm-panel-body" data-help-id="cad-modeler.sketch.create">
-      <h3 className="cadm-section-title">New sketch</h3>
-      {parts.length > 1 && <Select label="Part" value={partId} onChange={setPartId} options={parts.map((p) => ({ id: p.id, label: p.name }))} />}
-      <Select label="Plane" value={plane} onChange={setPlane} options={[{ id: 'XY', label: 'XY (top, normal +Z)' }, { id: 'XZ', label: 'XZ (front, normal −Y)' }, { id: 'YZ', label: 'YZ (right, normal +X)' }]} />
-      <TextField label="Offset along the normal" unit="mm" value={offset} onChange={setOffset} description="A number or an expression over parameters." />
-      <TextField label="Name (optional)" value={name} onChange={setName} />
-      <div className="cadm-actions">
-        <Button
-          variant="filled"
-          icon="check"
-          onPress={async () => {
-            const r = await run([{ command: 'create_sketch', input: { partId, plane, ...(offset.trim() && offset.trim() !== '0' ? { offset: exprValue(offset) } : {}), ...(name.trim() ? { name: name.trim() } : {}) } }], 'Create sketch')
-            if (r?.ok) update({ editing: { kind: 'sketch', sketchId: r.results[0].result.sketchId as string }, selection: [] })
-          }}
-        >
-          Create sketch
-        </Button>
-        <Button variant="quiet" onPress={() => update({ editing: null })}>
-          Cancel
-        </Button>
-      </div>
-    </div>
-  )
 }
 
 type GeometryKind = 'rectangle' | 'circle' | 'line' | 'arc' | 'point'
@@ -120,8 +90,7 @@ function SketchTools({ engine, state, sketchId, vs, update }: { engine: CadEngin
         </Badge>
       </div>
       <p className="cadm-muted">
-        Plane {sketch.plane.plane}
-        {sketch.plane.offset ? ` offset ${sketch.plane.offset}` : ''}. Highlighted points still have degrees of freedom; add constraints until the sketch is fully constrained.
+        On {describePlane(sketch.plane)}. Highlighted points still have degrees of freedom; add constraints until the sketch is fully constrained.
       </p>
       {result?.error && <Notice tone="danger" title="Sketch does not solve">{result.error.message}</Notice>}
       {!!result?.sketch?.profile.issues.length && (

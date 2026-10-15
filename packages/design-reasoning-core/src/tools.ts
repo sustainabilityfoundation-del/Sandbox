@@ -113,6 +113,7 @@ export const TOOLS: ToolDefinition[] = [
       required: ['function', 'candidates', 'setName', 'question'],
       properties: {
         function: ref,
+        parentConcept: { $ref: '#/$defs/ref', description: 'Parent Concept of the alternative set, for knowledge services without Function-level sets (CR-C7)' } as JsonSchema,
         setName: str(200),
         question: str(4000),
         candidates: {

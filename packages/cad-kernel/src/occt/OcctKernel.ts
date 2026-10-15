@@ -1,5 +1,7 @@
 import {
   KernelError,
+  type EdgeBlendRequest,
+  type EdgeBlendResult,
   type EdgeInfo,
   type FaceInfo,
   type FaceProbe,
@@ -107,6 +109,70 @@ export class OcctKernel implements GeometryKernel {
     return this.store(out)
   }
 
+  async blendEdges(req: EdgeBlendRequest): Promise<EdgeBlendResult> {
+    const shape = this.get(req.target)
+    if (!(req.size > 0)) throw new KernelError('invalid-value', `The ${req.kind} size must be greater than zero.`)
+    const edges = shape.edges
+    const naming = topologyNames(shape.faces, edges, req.probes)
+    const selected: Edge[] = []
+    const missing: string[] = []
+    for (const name of req.edges) {
+      const i = naming.edgeNames.indexOf(name)
+      if (i < 0) missing.push(name)
+      else selected.push(edges[i])
+    }
+    if (missing.length) {
+      const available = naming.edgeNames.filter((n) => !n.includes('face#')).slice(0, 16)
+      throw new KernelError('reference-lost', `Edge${missing.length > 1 ? 's' : ''} ${missing.join(', ')} no longer exist${missing.length > 1 ? '' : 's'} on the body. Choose edges again. Available: ${available.join(', ')}${naming.edgeNames.length > 16 ? ' …' : ''}`)
+    }
+    const midpoints = selected.map((e) => {
+      const p = e.pointAt(0.5)
+      const out: Vec3 = [p.x, p.y, p.z]
+      p.delete()
+      return out
+    })
+    let out: Shape3D
+    try {
+      const pick = (e: Edge) => (selected.some((s) => s.isSame(e)) ? req.size : null)
+      out = (req.kind === 'fillet' ? shape.clone().fillet(pick) : shape.clone().chamfer(pick)) as Shape3D
+    } catch (e) {
+      throw new KernelError('blend-failed', `The ${req.kind} of ${req.size} mm failed in the kernel (${message(e)}). Typical causes: the size is larger than an adjacent face allows, or edges meet at a vertex the ${req.kind} cannot resolve.`)
+    }
+    if (!out || out.faces.length === 0) throw new KernelError('empty-result', `The ${req.kind} produced no geometry.`)
+    // Name each generated face after the edge it replaces: project the old edge midpoint onto the
+    // nearest face that no existing probe names, and use that surface point as the probe.
+    const after = topologyNames(out.faces, out.edges, req.probes)
+    const probes: FaceProbe[] = []
+    req.edges.forEach((name, k) => {
+      const m = midpoints[k]
+      const vtx = r.makeVertex(m)
+      let best = -1
+      let bestD = Infinity
+      out.faces.forEach((f, i) => {
+        if (after.faceStable[i]) return
+        const d = r.measureDistanceBetween(f, vtx)
+        if (d < bestD) {
+          bestD = d
+          best = i
+        }
+      })
+      vtx.delete()
+      if (best < 0 || bestD > req.size * 1.5 + 1e-6) return
+      const f = out.faces[best]
+      try {
+        // uvCoordinates returns surface parameters; pointOnSurface takes them normalised to the face's UV bounds.
+        const [u, v] = f.uvCoordinates(m)
+        const b = f.UVBounds
+        const p = f.pointOnSurface((u - b.uMin) / (b.uMax - b.uMin || 1), (v - b.vMin) / (b.vMax - b.vMin || 1))
+        probes.push({ name: `${req.featureId}/blend:${name}`, points: [[p.x, p.y, p.z]] })
+        p.delete()
+      } catch {
+        /* the face keeps a fallback name */
+      }
+    })
+    return { shape: this.store(out), probes }
+  }
+
   async analyze(handle: ShapeHandle, probes: FaceProbe[]): Promise<ShapeAnalysis> {
     const shape = this.get(handle)
     const faces = shape.faces
@@ -117,34 +183,10 @@ export class OcctKernel implements GeometryKernel {
     props.delete?.()
     const bounds = shape.boundingBox.bounds as [Vec3, Vec3]
 
-    // Probe-based naming (ADR-0024).
-    const names: string[][] = faces.map(() => [])
-    const vertexCache = new Map<string, r.Vertex>()
-    const faceBoxes = faces.map((f) => f.boundingBox.bounds as [Vec3, Vec3])
-    for (const probe of probes) {
-      let assigned = false
-      for (const p of probe.points) {
-        for (let i = 0; i < faces.length && !assigned; i++) {
-          const [mn, mx] = faceBoxes[i]
-          if (p.some((v, k) => v < mn[k] - 1e-3 || v > mx[k] + 1e-3)) continue
-          const key = p.join(',')
-          let vtx = vertexCache.get(key)
-          if (!vtx) {
-            vtx = r.makeVertex(p)
-            vertexCache.set(key, vtx)
-          }
-          if (r.measureDistanceBetween(faces[i], vtx) < PROBE_TOLERANCE) {
-            names[i].push(probe.name)
-            assigned = true
-          }
-        }
-        if (assigned) break
-      }
-    }
-    vertexCache.forEach((v) => v.delete())
+    // Probe-based naming (ADR-0024), shared with blendEdges so both see the same names.
+    const naming = topologyNames(faces, edges, probes)
 
     const faceInfos: FaceInfo[] = faces.map((f, index) => {
-      const own = names[index]
       const center = f.center
       let normal: Vec3 | undefined
       try {
@@ -156,9 +198,9 @@ export class OcctKernel implements GeometryKernel {
       }
       const info: FaceInfo = {
         index,
-        name: own[0] ?? `face#${index + 1}`,
-        aliases: own.slice(1),
-        stable: own.length > 0,
+        name: naming.faceNames[index],
+        aliases: naming.faceAliases[index],
+        stable: naming.faceStable[index],
         surfaceType: String(f.geomType),
         area: r.measureArea(f),
         center: [center.x, center.y, center.z].map(clean) as Vec3,
@@ -167,25 +209,7 @@ export class OcctKernel implements GeometryKernel {
       center.delete()
       return info
     })
-
-    // Edges named by their adjacent faces.
-    const edgeFaces = new Map<number, number[]>()
-    faces.forEach((f, fi) => {
-      for (const e of f.edges) {
-        const idx = edges.findIndex((x) => x.isSame(e))
-        if (idx >= 0) edgeFaces.set(idx, [...(edgeFaces.get(idx) ?? []), fi])
-      }
-    })
-    const usedEdgeNames = new Map<string, number>()
-    const edgeInfos: EdgeInfo[] = edges.map((e, index) => {
-      const adjacent = [...new Set(edgeFaces.get(index) ?? [])].map((fi) => faceInfos[fi].name).sort()
-      const base = `edge(${adjacent.join('|')})`
-      const n = (usedEdgeNames.get(base) ?? 0) + 1
-      usedEdgeNames.set(base, n)
-      return { index, name: n > 1 ? `${base}#${n}` : base, curveType: String(e.geomType), length: e.length, faces: adjacent }
-    })
-    // Number duplicates consistently (#1 for the first when a base repeats).
-    for (const [base, count] of usedEdgeNames) if (count > 1) edgeInfos.find((x) => x.name === base)!.name = `${base}#1`
+    const edgeInfos: EdgeInfo[] = edges.map((e, index) => ({ index, name: naming.edgeNames[index], curveType: String(e.geomType), length: e.length, faces: naming.edgeFaces[index] }))
 
     let valid = false
     try {
@@ -287,6 +311,60 @@ export class OcctKernel implements GeometryKernel {
   get liveShapes(): number {
     return this.shapes.size
   }
+}
+
+type Face = Shape3D['faces'][number]
+type Edge = Shape3D['edges'][number]
+
+/**
+ * Stable names of faces (first probe whose point lies on the face; later ones are aliases; unmatched
+ * faces get flagged fallback names) and of edges (sorted adjacent face names, `#n` for repeats).
+ */
+function topologyNames(faces: Face[], edges: Edge[], probes: FaceProbe[]) {
+  const names: string[][] = faces.map(() => [])
+  const vertexCache = new Map<string, r.Vertex>()
+  const faceBoxes = faces.map((f) => f.boundingBox.bounds as [Vec3, Vec3])
+  for (const probe of probes) {
+    let assigned = false
+    for (const p of probe.points) {
+      for (let i = 0; i < faces.length && !assigned; i++) {
+        const [mn, mx] = faceBoxes[i]
+        if (p.some((v, k) => v < mn[k] - 1e-3 || v > mx[k] + 1e-3)) continue
+        const key = p.join(',')
+        let vtx = vertexCache.get(key)
+        if (!vtx) {
+          vtx = r.makeVertex(p)
+          vertexCache.set(key, vtx)
+        }
+        if (r.measureDistanceBetween(faces[i], vtx) < PROBE_TOLERANCE) {
+          names[i].push(probe.name)
+          assigned = true
+        }
+      }
+      if (assigned) break
+    }
+  }
+  vertexCache.forEach((v) => v.delete())
+  const faceNames = names.map((own, i) => own[0] ?? `face#${i + 1}`)
+  const edgeFaceIdx = new Map<number, number[]>()
+  faces.forEach((f, fi) => {
+    for (const e of f.edges) {
+      const idx = edges.findIndex((x) => x.isSame(e))
+      if (idx >= 0) edgeFaceIdx.set(idx, [...(edgeFaceIdx.get(idx) ?? []), fi])
+    }
+  })
+  const edgeFaces = edges.map((_, i) => [...new Set(edgeFaceIdx.get(i) ?? [])].map((fi) => faceNames[fi]).sort())
+  const bases = edgeFaces.map((adj) => `edge(${adj.join('|')})`)
+  const total = new Map<string, number>()
+  bases.forEach((b) => total.set(b, (total.get(b) ?? 0) + 1))
+  const seen = new Map<string, number>()
+  const edgeNames = bases.map((b) => {
+    if ((total.get(b) ?? 0) < 2) return b
+    const n = (seen.get(b) ?? 0) + 1
+    seen.set(b, n)
+    return `${b}#${n}`
+  })
+  return { faceNames, faceAliases: names.map((own) => own.slice(1)), faceStable: names.map((own) => own.length > 0), edgeNames, edgeFaces }
 }
 
 function loopDrawing(segments: KernelSegment[]): Drawing {

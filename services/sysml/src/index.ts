@@ -7,6 +7,7 @@ export { sysmlPlugin, buildSysmlOpenApi, SYSML_BASE_PATH, SYSML_API_VERSION, typ
 export { SysmlRepository, type CommitSource, type TransactionOutcome, type TransactionRequest } from './repository'
 export { migrateSysml, SYSML_MIGRATIONS } from './db/migrate'
 export { createSysmlEventHub, type SysmlEvent, type SysmlEventHub } from './events'
+export { createSysmlArtifactSource, isRegisteredElement, SYSML_ARTIFACT_KINDS } from './artifacts'
 export { seedSysml, SEED_PROJECT_ID, SEED_PLATFORM_PROJECT } from './seed'
 export { SysmlServiceError, errorBody } from './errors'
 export type { Principal, Role, SysmlHost } from './http/route'

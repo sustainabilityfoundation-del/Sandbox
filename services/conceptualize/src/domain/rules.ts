@@ -8,7 +8,7 @@ import type { ConceptAbstraction, ConceptMaturity } from '@ews/platform-sdk'
 export type Role = 'reader' | 'editor' | 'reviewer' | 'administrator'
 export const ROLES: Role[] = ['reader', 'editor', 'reviewer', 'administrator']
 
-export type Permission = 'read' | 'author' | 'decide'
+export type Permission = 'read' | 'author' | 'decide' | 'administer'
 
 /** Permissions matrix (contracts §6). Documented in OpenAPI and the progress file. */
 export const PERMISSIONS: Record<Permission, { roles: Role[]; label: string }> = {
@@ -19,8 +19,9 @@ export const PERMISSIONS: Record<Permission, { roles: Role[]; label: string }> =
   },
   decide: {
     roles: ['reviewer', 'administrator'],
-    label: 'Record accepted or rejected decisions (select alternatives), set maturity selected or later, supersede or archive Concepts that are selected or later, set verification status',
+    label: 'Record accepted or rejected decisions (select alternatives), set maturity selected or later, supersede or archive Concepts that are selected or later, set verification status, clear decision review flags or record invalidation, review evidence',
   },
+  administer: { roles: ['administrator'], label: 'Register link types' },
 }
 
 export function roleAllows(role: Role | string | null, permission: Permission): boolean {
@@ -75,13 +76,17 @@ export const VERIFICATION_STATUSES: VerificationStatus[] = ['not-verified', 'par
  * the assistant may only write ai-hypothesis, assumption and estimate; evidence needs an evidence
  * record with basis evidence; decision needs a recorded decision.
  */
-export type Basis = 'user-assertion' | 'ai-hypothesis' | 'assumption' | 'estimate' | 'evidence' | 'decision'
-export const BASES: Basis[] = ['user-assertion', 'ai-hypothesis', 'assumption', 'estimate', 'evidence', 'decision']
+export type Basis = 'user-assertion' | 'ai-hypothesis' | 'assumption' | 'assessment' | 'estimate' | 'calculated' | 'evidence' | 'decision'
+export const BASES: Basis[] = ['user-assertion', 'ai-hypothesis', 'assumption', 'assessment', 'estimate', 'calculated', 'evidence', 'decision']
+/** ADR-0043 ladder, lowest first (user-assertion ranks with assumption). */
+export const BASIS_RANK: Record<Basis, number> = { 'ai-hypothesis': 0, assumption: 1, 'user-assertion': 1, assessment: 2, estimate: 3, calculated: 4, evidence: 5, decision: 6 }
 export const BASIS_MEANING: Record<Basis, string> = {
   'user-assertion': 'Stated by a person (not verified)',
   'ai-hypothesis': 'Proposed by the assistant; unverified until a person confirms it or evidence supports it',
   assumption: 'Engineering assumption, to be confirmed',
+  assessment: 'Qualitative engineering judgement (not a calculation)',
   estimate: 'Preliminary estimate (calculation with stated assumptions), not validated',
+  calculated: 'Result of a registered calculation model with a reproducibility manifest (not yet reviewed)',
   evidence: 'Supported by a verified evidence record (analysis, test, review)',
   decision: 'Established by a recorded design decision',
 }
@@ -222,4 +227,25 @@ export const DECISION_OUTCOMES = ['accepted', 'rejected', 'deferred'] as const
 /** Which artifact modules are only reachable through a labelled test adapter (contracts §9). */
 export const TEST_ADAPTER_MODULES = ['analysis'] as const
 
-export const KEY_PREFIX = { concept: 'CON', decision: 'DEC', study: 'TS', implementation: 'IMP', set: 'ALT', evidence: 'EVD' } as const
+export const KEY_PREFIX = { concept: 'CON', decision: 'DEC', study: 'TS', implementation: 'IMP', set: 'ALT', evidence: 'EVD', function: 'FN', constraint: 'CST', assumption: 'ASM' } as const
+
+// ---- design knowledge (docs/modules/design-reasoning, CR-C1…C6) ------------------------------------------
+
+/** Design entity types (SDK DesignEntityType, CR-S1; defined here until the SDK carries it). */
+export type DesignEntityType = 'function' | 'concept' | 'implementation' | 'constraint' | 'assumption' | 'evidence' | 'decision' | 'alternative-set' | 'trade-study' | 'exploration' | 'statement'
+export const DESIGN_ENTITY_TYPES: DesignEntityType[] = ['function', 'concept', 'implementation', 'constraint', 'assumption', 'evidence', 'decision', 'alternative-set', 'trade-study', 'exploration', 'statement']
+export interface DesignRef {
+  module: 'conceptualize'
+  type: DesignEntityType
+  id: string
+  revision?: number
+}
+
+export const FUNCTION_STATUSES = ['draft', 'active', 'retired'] as const
+export const CONSTRAINT_KINDS = ['qualitative', 'logical', 'mathematical', 'dimensional', 'interface'] as const
+export const CONSTRAINT_STRENGTHS = ['hard', 'soft', 'preference'] as const
+export const CONSTRAINT_STATUSES = ['proposed', 'active', 'relaxed', 'retired'] as const
+export const BOUND_OPERATORS = ['<=', '<', '=', '>=', '>', 'in-range'] as const
+export const ASSUMPTION_STATUSES = ['unvalidated', 'under-review', 'validated', 'invalidated', 'retired'] as const
+export const DECISION_VALIDITY = ['valid', 'under-review', 'invalidated'] as const
+export const INVALIDATION_KINDS = ['assumption-invalidated', 'constraint-changed', 'evidence-superseded', 'requirement-revised', 'artifact-revised', 'relation-violated', 'manual'] as const

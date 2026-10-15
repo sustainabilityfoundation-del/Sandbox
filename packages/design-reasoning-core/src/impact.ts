@@ -1,10 +1,10 @@
-import { evaluateModel, type CalculationResult, type CheckResult } from '@ews/engineering-calc'
+import { evaluateModel, qualifyManifest, type CalculationQualifications, type CalculationResult } from '@ews/engineering-calc'
 import { toDefinition } from './adapters/conceptualizeContractAdapter'
 import { BindingError, resolveInputs } from './bindings'
 import type { ConceptualizeKnowledgeApi, DecisionRecord, Quantity, RequestContext } from './contract/conceptualize'
-import { propagationOf } from './linkTypes'
+import { BUILT_IN_LINK_TYPES, propagationOf } from './linkTypes'
 import { isDesignRef, refKey, type AnyRef } from './refs'
-import type { TwinSnapshot } from './sources'
+import type { RequirementsReader, TwinSnapshot } from './sources'
 
 /**
  * Change impact analysis (ADR-0046; reasoning-orchestration.md §6). Traverses typed links and derived
@@ -29,7 +29,7 @@ export interface ImpactItem {
   /** Shortest propagation path from the change, as edge types and keys. */
   path: { type: string; from: string; to: string }[]
   mechanism: string
-  evidence?: { summary: string; checks?: CheckResult[] }
+  evidence?: { summary: string; checks?: CalculationResult['checks'] }
 }
 
 export interface ImpactReport {
@@ -63,10 +63,12 @@ const MECHANISM: Record<string, string> = {
 
 export async function assessChangeImpact(
   change: ImpactChange,
-  deps: { knowledge: ConceptualizeKnowledgeApi; ctx: RequestContext; twin?: TwinSnapshot },
+  deps: { knowledge: ConceptualizeKnowledgeApi; ctx: RequestContext; twin?: TwinSnapshot; requirements?: RequirementsReader },
   options: { maxDepth?: number } = {},
 ): Promise<ImpactReport> {
   const maxDepth = Math.min(options.maxDepth ?? 6, 6)
+  // Propagation comes from the knowledge service's own link registry (incl. its derived edges), built-ins as fallback.
+  const registry = [...(await deps.knowledge.linkTypes(deps.ctx)), ...BUILT_IN_LINK_TYPES]
   const graph = await deps.knowledge.traverse({ start: [change.ref], maxDepth: 6, limit: 500 }, deps.ctx)
   const labels = new Map(graph.nodes.map((n) => [refKey(n.ref), n.key ? `${n.key} ${n.label}` : n.label]))
   const startKey = refKey(change.ref)
@@ -80,7 +82,7 @@ export async function assessChangeImpact(
     for (const key of frontier) {
       const pathHere = reached.get(key)?.path ?? []
       for (const e of graph.edges) {
-        const dir = propagationOf(e.type)
+        const dir = propagationOf(e.type, registry)
         if (dir === 'none') continue
         const targets: AnyRef[] = []
         if ((dir === 'to-from' || dir === 'both') && refKey(e.to) === key) targets.push(e.from)
@@ -90,7 +92,9 @@ export async function assessChangeImpact(
           if (visited.has(k)) continue
           visited.add(k)
           reached.set(k, { ref: t, via: e.type, path: [...pathHere, { type: e.type, from: refKey(e.from), to: refKey(e.to) }] })
-          next.push(k)
+          // Artifacts of other modules are terminal: a design change may require reviewing them, but it does not
+          // change them, so impact does not travel on through them (e.g. from a requirement to other designs).
+          if (isDesignRef(t)) next.push(k)
         }
       }
     }
@@ -101,7 +105,7 @@ export async function assessChangeImpact(
   if (change.hypothetical) overrides.set(startKey, change.hypothetical)
 
   // 2. Demonstrate: re-evaluate calculations whose evidence was reached.
-  const reevaluations = new Map<string, { result?: CalculationResult; error?: string; before: CheckResult[] }>() // by model id
+  const reevaluations = new Map<string, { result?: CalculationResult; error?: string; before: CalculationQualifications['checks'] }>() // by model id
   const items: ImpactItem[] = []
   const evidenceOutcome = new Map<string, ImpactItem['classification']>()
   for (const [key, r] of reached) {
@@ -113,15 +117,21 @@ export async function assessChangeImpact(
     let entry = reevaluations.get(model.id)
     if (!entry) {
       try {
+        // C11: compare proven statuses; stored qualifications (or the manifest, for older evidence) are the "before".
+        const before = (ev.qualifications ?? qualifyManifest(ev.calculation.manifest)).checks
         const resolved = await resolveInputs(model, deps, { overrides })
-        entry = { result: evaluateModel(toDefinition(model), resolved.inputs, { uncertainty: ev.calculation.manifest.uncertainty }), before: ev.calculation.manifest.checks }
+        const uncertainty = ev.calculation.manifest.uncertainty === 'point' ? 'point' : 'interval'
+        entry = { result: evaluateModel(toDefinition(model), resolved.inputs, { uncertainty }), before }
       } catch (e) {
-        entry = { error: e instanceof BindingError || e instanceof Error ? e.message : String(e), before: ev.calculation.manifest.checks }
+        entry = { error: e instanceof BindingError || e instanceof Error ? e.message : String(e), before: (ev.qualifications ?? qualifyManifest(ev.calculation.manifest)).checks }
       }
       reevaluations.set(model.id, entry)
     }
-    const newlyViolated = entry.result?.checks.filter((c) => !c.satisfied && entry!.before.find((b) => b.relationId === c.relationId)?.satisfied) ?? []
-    const classification: ImpactItem['classification'] = entry.error ? 'possible' : newlyViolated.length ? 'demonstrated' : 'checked-unaffected'
+    // C11: demonstrated only by a proven violation; a check that can no longer be proven is a possible impact.
+    const wasSatisfied = (id: string) => entry!.before.find((b) => b.relationId === id)?.status === 'satisfied'
+    const newlyViolated = entry.result?.checks.filter((c) => c.status === 'violated' && wasSatisfied(c.relationId)) ?? []
+    const noLongerProven = entry.result?.checks.filter((c) => c.status === 'uncertain' && wasSatisfied(c.relationId)) ?? []
+    const classification: ImpactItem['classification'] = entry.error ? 'possible' : newlyViolated.length ? 'demonstrated' : noLongerProven.length ? 'possible' : 'checked-unaffected'
     evidenceOutcome.set(key, classification)
     items.push({
       ref: r.ref,
@@ -133,11 +143,48 @@ export async function assessChangeImpact(
         ? { summary: `Re-evaluation not possible: ${entry.error}` }
         : {
             summary: newlyViolated.length
-              ? `Re-evaluated ${model.key}: ${newlyViolated.map((c) => `${c.text} now violated (margin ${fmt(c.margin)} ${c.unit})`).join('; ')}.`
-              : `Re-evaluated ${model.key}: all checks still hold (${entry.result!.checks.map((c) => `${c.text}: margin ${fmt(c.margin)} ${c.unit}`).join('; ')}).`,
+              ? `Re-evaluated ${model.key}: ${newlyViolated.map((c) => `${c.text} now violated (${basisText(c.statusBasis)}; nominal margin ${fmt(c.margin)} ${c.unit})`).join('; ')}.`
+              : noLongerProven.length
+                ? `Re-evaluated ${model.key}: ${noLongerProven.map((c) => `${c.text} can no longer be shown to hold over the input ranges (${basisText(c.statusBasis)})`).join('; ')}.`
+                : `Re-evaluated ${model.key}: all checks still hold (${entry.result!.checks.map((c) => `${c.text}: ${basisText(c.statusBasis)}, nominal margin ${fmt(c.margin)} ${c.unit}`).join('; ')}).`,
             checks: entry.result!.checks,
           },
     })
+  }
+
+  // 2b. Formalized requirements: a constraint pinned to an older requirement revision is demonstrably out of date.
+  const requirementRevision = new Map<string, number | undefined>()
+  const currentRequirement = async (id: string) => {
+    if (!deps.requirements) return undefined
+    if (!requirementRevision.has(id)) requirementRevision.set(id, (await deps.requirements.get(id, { projectId: deps.ctx.projectId }))?.revision)
+    return requirementRevision.get(id)
+  }
+  for (const [key, r] of reached) {
+    if (!isDesignRef(r.ref) || r.ref.type !== 'constraint') continue
+    const c = await deps.knowledge.get('constraint', r.ref.id, deps.ctx)
+    if (c?.source.kind !== 'requirement' || c.source.ref.revision === undefined) continue
+    const now = await currentRequirement(c.source.ref.id)
+    if (now === undefined) continue
+    const stale = now > c.source.ref.revision
+    items.push({
+      ref: r.ref,
+      label: labels.get(key) ?? key,
+      classification: stale ? 'demonstrated' : 'checked-unaffected',
+      path: r.path,
+      mechanism: 'the constraint formalizes a pinned requirement revision',
+      evidence: { summary: stale ? `${c.key} formalizes the requirement at revision ${c.source.ref.revision}; the requirement is now at revision ${now}. The formalization must be reviewed.` : `${c.key} formalizes the current requirement revision ${now}.` },
+    })
+  }
+
+  /** Descriptions of the decision's requirement-revised conditions whose pinned requirement revision is no longer current. */
+  const requirementConditions = async (d: DecisionRecord) => {
+    const fired: string[] = []
+    for (const c of d.invalidationConditions) {
+      if (c.kind !== 'requirement-revised' || isDesignRef(c.subject) || c.subject.module !== 'requirements' || c.subject.revision === undefined) continue
+      const now = await currentRequirement(c.subject.id)
+      if (now !== undefined && now > c.subject.revision) fired.push(c.description)
+    }
+    return fired
   }
 
   // 3. Decisions: supporting evidence outcome and invalidation conditions.
@@ -145,7 +192,7 @@ export async function assessChangeImpact(
     if (!isDesignRef(r.ref) || r.ref.type !== 'decision') continue
     const d = await deps.knowledge.get('decision', r.ref.id, deps.ctx)
     if (!d) continue
-    const verdict = classifyDecision(d, change, evidenceOutcome, reevaluations)
+    const verdict = classifyDecision(d, change, evidenceOutcome, reevaluations, await requirementConditions(d))
     items.push({ ref: r.ref, label: labels.get(key) ?? key, classification: verdict.classification, path: r.path, mechanism: MECHANISM[r.via] ?? r.via, evidence: { summary: verdict.summary } })
   }
 
@@ -172,17 +219,25 @@ function classifyDecision(
   change: ImpactChange,
   evidenceOutcome: Map<string, ImpactItem['classification']>,
   reevaluations: Map<string, { result?: CalculationResult; error?: string }>,
+  requirementFired: string[] = [],
 ): { classification: ImpactItem['classification']; summary: string } {
   const reasons: string[] = []
+  const possibleReasons: string[] = []
   let checked = false
   for (const c of d.invalidationConditions) {
     if (c.kind === 'relation-violated' && c.relation) {
       const re = reevaluations.get(c.relation.modelId)
       const check = re?.result?.checks.find((x) => x.relationId === c.relation!.relationId)
-      if (check) {
+      if (check?.status === 'uncertain') possibleReasons.push(`${c.description}: no longer proven (${basisText(check.statusBasis)})`)
+      else if (check) {
         checked = true
-        if (!check.satisfied) reasons.push(`invalidation condition fired: ${c.description} (${check.text}, margin ${fmt(check.margin)} ${check.unit})`)
+        if (check.status === 'violated') reasons.push(`invalidation condition fired: ${c.description} (${check.text}, margin ${fmt(check.margin)} ${check.unit})`)
       }
+    } else if (c.kind === 'requirement-revised' && requirementFired.includes(c.description)) {
+      checked = true
+      reasons.push(`invalidation condition fired: ${c.description}`)
+    } else if (c.kind === 'requirement-revised') {
+      checked = true
     } else if (c.kind === 'constraint-changed' && refKey(c.subject) === refKey(change.ref)) {
       checked = true
       reasons.push(`invalidation condition fired: ${c.description}`)
@@ -192,8 +247,11 @@ function classifyDecision(
   if (supportDemonstrated.length) reasons.push(`${supportDemonstrated.length} supporting evidence item(s) no longer support it`)
   const supportChecked = d.support.some((s) => evidenceOutcome.get(refKey(s.ref)) === 'checked-unaffected')
   if (reasons.length) return { classification: 'demonstrated', summary: `${d.key}: ${reasons.join('; ')}.` }
+  if (possibleReasons.length) return { classification: 'possible', summary: `${d.key}: ${possibleReasons.join('; ')}.` }
   if (checked || supportChecked) return { classification: 'checked-unaffected', summary: `${d.key}: its invalidation conditions and supporting calculations still hold.` }
   return { classification: 'possible', summary: `${d.key}: reachable from the change; no deterministic check covers it.` }
 }
+
+const basisText = (b: string) => (b === 'point' ? 'at the nominal point' : b === 'exact-bounds' ? 'proven with exact bounds' : b === 'enclosure' ? 'from an enclosure' : 'sampled, not proven')
 
 const fmt = (v: number) => (Math.abs(v) >= 100 ? v.toFixed(1) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toPrecision(3))
