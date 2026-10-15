@@ -144,14 +144,14 @@ impact analysis, rationale retrieval) are plain API operations usable from the C
 ## 5. What the layer does not do
 
 - It does not store a second copy of any Concept, requirement or model element.
-- It does not call a model provider or hold credentials ([ADR-0022](../../decisions/0022-reasoning-runs-and-model-access.md)).
+- It does not call a model provider or hold credentials ([ADR-0045](../../decisions/0045-reasoning-runs-and-model-access.md)).
 - It does not write to any module except through previewed proposals applied by the user
-  ([ADR-0019](../../decisions/0019-declarative-service-proposals.md)); the preview policy is unchanged.
+  ([ADR-0042](../../decisions/0042-declarative-service-proposals.md)); the preview policy is unchanged.
 - It does not build a symbolic mathematics engine, a CAD kernel, an analysis solver or a chat UI.
 - It does not introduce a graph database, a vector database, a queue or a workflow engine in
-  phases 1–2 ([ADR-0018](../../decisions/0018-relational-knowledge-and-graph-api.md)).
+  phases 1–2 ([ADR-0041](../../decisions/0041-relational-knowledge-and-graph-api.md)).
 - It does not store private model reasoning; it stores explicit justifications, tool inputs, results
-  and evidence references ([ADR-0022](../../decisions/0022-reasoning-runs-and-model-access.md)).
+  and evidence references ([ADR-0045](../../decisions/0045-reasoning-runs-and-model-access.md)).
 
 ## 6. Conflicts with existing designs (summary)
 
@@ -161,7 +161,7 @@ Detailed in the [progress file §16 report](../../specifications/design-reasonin
    separately identifiable entities; its `explorations` are atomic bulk-create logs, not structured
    investigations; decisions lack invalidation conditions. Resolved by CR-C1…C7 with additive migrations.
 2. Service proposals carry `apply` closures that live in one browser window; a server-side engine cannot
-   produce them. Resolved by declarative proposals (CR-A1, ADR-0019).
+   produce them. Resolved by declarative proposals (CR-A1, ADR-0042).
 3. The twin (components, SysML, CAD) lives in the browser repository; a server-side engine cannot read it.
    Interim: client-attested twin snapshots with revisions; impact traversal for twin links runs in the
    browser through `@ews/design-reasoning-core` (CR-P1).

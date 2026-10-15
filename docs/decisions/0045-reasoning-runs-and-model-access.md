@@ -1,4 +1,4 @@
-# ADR-0022: Reasoning runs: model access through the AI Interface, budgets, checkpoints, reproducibility, no chain-of-thought
+# ADR-0045: Reasoning runs: model access through the AI Interface, budgets, checkpoints, reproducibility, no chain-of-thought
 
 Status: Proposed (2026-10-14)
 

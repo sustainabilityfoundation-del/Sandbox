@@ -1,6 +1,6 @@
 # C. Knowledge representation
 
-Status: Proposed. Decision: [ADR-0018](../../decisions/0018-relational-knowledge-and-graph-api.md).
+Status: Proposed. Decision: [ADR-0041](../../decisions/0041-relational-knowledge-and-graph-api.md).
 Index: [README.md](README.md).
 
 ## 1. Six layers, one authoritative store
@@ -35,7 +35,7 @@ CREATE TABLE conceptualize.design_links (
   to_module text,                       -- for artifacts: requirements | sysml | cad | twin | analysis | external
   to_revision integer,
   decomposition_id uuid,                -- for decomposes-into within a named decomposition
-  basis text NOT NULL,                  -- ADR-0020 ladder
+  basis text NOT NULL,                  -- ADR-0043 ladder
   note text NOT NULL DEFAULT '',
   attributes jsonb NOT NULL DEFAULT '{}'::jsonb,  -- e.g. interface definition, flow, strength
   revision integer NOT NULL DEFAULT 1,  -- 1 created, 2 removed (as today's relationships)
@@ -53,7 +53,7 @@ vocabulary below. New link kinds go into `design_links`. No existing row is rewr
 ### 2.2 Vocabulary (brief §4) and validation rules
 
 Each type has: allowed `from`/`to` entity types, direction, inverse reading, acyclicity, symmetry,
-whether the assistant may assert it, and **impact propagation** (used by the analyzer, ADR-0023).
+whether the assistant may assert it, and **impact propagation** (used by the analyzer, ADR-0046).
 
 | Type | From → To | Inverse reading | Rules | Impact propagation |
 | --- | --- | --- | --- | --- |
@@ -69,7 +69,7 @@ whether the assistant may assert it, and **impact propagation** (used by the ana
 | `contradicted-by` | same → Evidence | contradicts | — | new contradicting evidence → subject under review |
 | `verified-by` | Concept, Function, Constraint → Evidence (basis `evidence`) or twin verification record | verifies | target must be verification-grade | verification stale → subject (possible) |
 | `selected-through` | Concept → Decision | selects | derived from decision outcomes; not written directly | decision invalidated → selected Concept (demonstrated) |
-| `invalidated-by` | Decision, Assumption, Evidence → Evidence, Assumption, change record | invalidates | written only with a person's action (ADR-0023) | — (terminal) |
+| `invalidated-by` | Decision, Assumption, Evidence → Evidence, Assumption, change record | invalidates | written only with a person's action (ADR-0046) | — (terminal) |
 | `formalizes` | Constraint → requirement artifact (pinned) | formalized by | exactly one requirement per formalizing constraint | requirement revised → constraint suspect (demonstrated: revision differs) |
 | `proposes` | Concept/Constraint → requirement artifact | proposed by | existing concept link relation | — |
 

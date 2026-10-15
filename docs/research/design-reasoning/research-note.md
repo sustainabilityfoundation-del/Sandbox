@@ -104,7 +104,7 @@ documentation pages on units, security and the function reference (**full text**
 | glpk.js | 5.0.0 (2025-12-23) | **GPL-3.0** | — | Excluded (licence) |
 
 Recommendation and rationale: [mathematics.md](../../modules/design-reasoning/mathematics.md) and
-[ADR-0021](../../decisions/0021-calculation-models-and-math-stack.md).
+[ADR-0044](../../decisions/0044-calculation-models-and-math-stack.md).
 
 ## 3. What the architecture takes, and what it leaves out
 
@@ -127,5 +127,5 @@ Recommendation and rationale: [mathematics.md](../../modules/design-reasoning/ma
 | MDO architectures (MDF/IDF/SAND), coupled adjoints | **Leave out** until a multidisciplinary analysis capability exists; an external framework (OpenMDAO) would provide them | roadmap.md risks |
 | **SysML v2** constraints, calculations, analysis cases, trade studies, ISQ/SI | **Use as the mapping target** for formalization; keep our representation compatible (subject, objective, alternatives, evaluation function) without claiming conformance | formalization.md |
 | **CPM** per-class `type` with an independent taxonomy | **Adopt** as the extension mechanism (classifications and registered relationship types) instead of a global ontology | knowledge-representation.md §6 |
-| OWL/RDF ontologies, reasoners, a graph database | **Leave out.** The brief forbids a graph database without demonstrated need; the extension mechanism above covers the use cases | ADR-0018 |
+| OWL/RDF ontologies, reasoners, a graph database | **Leave out.** The brief forbids a graph database without demonstrated need; the extension mechanism above covers the use cases | ADR-0041 |
 | MCP-style tool definitions (input and output schema, annotations) | **Adopt the shape** for provider-independent tool schemas | ai-tools.md |

@@ -1,7 +1,7 @@
 # Conceptual-to-formal transition (brief §7)
 
 Status: Proposed. Part of deliverable E. Index: [README.md](README.md). Decision:
-[ADR-0023](../../decisions/0023-change-impact-and-invalidation.md); change request CR-C11.
+[ADR-0046](../../decisions/0046-change-impact-and-invalidation.md); change request CR-C11.
 
 ## 1. Progressive formalization without a mandatory sequence
 

@@ -1,4 +1,4 @@
-# ADR-0017: Extend Conceptualize with first-class Function, Constraint, Assumption, DesignExploration and typed design links
+# ADR-0040: Extend Conceptualize with first-class Function, Constraint, Assumption, DesignExploration and typed design links
 
 Status: Proposed (2026-10-14)
 
@@ -14,11 +14,11 @@ Decisions lack invalidation conditions and explicit supporting references.
 ## Decision
 
 - Conceptualize gains: **Function** (`FN-`), **DesignConstraint** (`CST-`), **Assumption** (`ASM-`),
-  **CalculationModel** (`CALC-`, ADR-0021); structured **DesignExploration**; alternatives as architectures
+  **CalculationModel** (`CALC-`, ADR-0044); structured **DesignExploration**; alternatives as architectures
   (member decomposition); **typed design links** across entity types with a registry of link types;
   decision extensions (support, assumptions, constraints, affected artifacts, invalidation conditions,
   derived validity); evidence extensions (subjects, applicability, reviews, manifest); a batch endpoint with
-  placeholders; graph traversal API (ADR-0018). Detailed as CR-C1…C13 in
+  placeholders; graph traversal API (ADR-0041). Detailed as CR-C1…C13 in
   docs/modules/design-reasoning/contract-change-requests.md.
 - Statements remain the flexible natural-language layer; new entities are used where identity, validation
   status, dependencies or impact analysis are needed.

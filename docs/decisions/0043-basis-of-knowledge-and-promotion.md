@@ -1,4 +1,4 @@
-# ADR-0020: Basis-of-knowledge ladder and promotion rules
+# ADR-0043: Basis-of-knowledge ladder and promotion rules
 
 Status: Proposed (2026-10-14)
 
@@ -20,7 +20,7 @@ assessments or for deterministic calculated results.
   (stated by a person, unverified), ranked with `assumption` for derivation purposes.
 - Promotion rules, enforced by Conceptualize: assistant/reasoning sources may write `ai-hypothesis`,
   `assumption`, `assessment`, `estimate`, and `calculated` **only** with a manifest that Conceptualize
-  re-verifies (ADR-0021); `evidence` needs a reviewer's review record; `decision` needs a recorded decision.
+  re-verifies (ADR-0044); `evidence` needs a reviewer's review record; `decision` needs a recorded decision.
 - A derived conclusion's basis is the minimum of its inputs' bases (a calculation on hypothesis inputs is an
   estimate). Stale inputs make conclusions stale.
 - Confidence scores, repetition and retrieval similarity never raise a basis.

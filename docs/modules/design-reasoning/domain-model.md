@@ -184,7 +184,7 @@ result includes Pareto dominance in addition to the weighted sum ([exploration.m
 | `statement`, `quantity?` | e.g. "Rod ends are pinned (K = 1)", `{ value: 1, unit: '-' }` |
 | `scope` | `subjects: DesignRef[]` plus optional `applicability` (configuration IDs, operating conditions text) |
 | `validationStatus` | `unvalidated | under-review | validated | invalidated | retired` |
-| `basis` | `user-assertion | ai-hypothesis | assumption` (initially), see ADR-0020 |
+| `basis` | `user-assertion | ai-hypothesis | assumption` (initially), see ADR-0043 |
 | `dependsOn` | DesignRefs or ArtifactRefs (other assumptions, evidence, requirements) |
 | `validatedBy` | Evidence refs, with the person who recorded validation |
 
@@ -199,7 +199,7 @@ reference; `invalidated` can be proposed by the impact analyzer and recorded by 
 | `subjects[]` | DesignRefs (today: exactly one concept). Existing rows keep `concept_id` as their one subject |
 | `version` | Position in the supersession chain (existing `supersedes_id`) |
 | `applicability` | Concept/function revisions, configuration, conditions it is valid for |
-| `basis` | Ladder of ADR-0020: `ai-hypothesis | assumption | assessment | estimate | calculated | evidence` |
+| `basis` | Ladder of ADR-0043: `ai-hypothesis | assumption | assessment | estimate | calculated | evidence` |
 | `validation` | Append-only review records `{ outcome: accepted | rejected, reviewer, method, at, note }`; derived `validationStatus` |
 | `manifest` | For `calculated`: the reproducibility manifest of [mathematics.md §6](mathematics.md#6-execution-results-and-the-reproducibility-manifest) |
 | `source` | ArtifactRef to an external authority (standard, test report, analysis result, twin verification record) |
@@ -242,7 +242,7 @@ runs that performed its investigations are operational records in the engine, re
 | `ToolInvocation` | One tool call: tool name and version, input (validated), output digest and payload, duration, error, idempotency key | immutable |
 | `ContextManifest` | What the run used: refs with revisions, retrieval route, digest, omissions | immutable per step |
 | `Checkpoint` | Resumable state after a step: completed step IDs, pending steps, budget consumed | append-only |
-| `ProposalDraft` | A serializable proposal before Apply (ADR-0019): operations, preview items, basis, evidence, uncertainty, required approvals | `draft → offered → applied | rejected | expired | superseded` |
+| `ProposalDraft` | A serializable proposal before Apply (ADR-0042): operations, preview items, basis, evidence, uncertainty, required approvals | `draft → offered → applied | rejected | expired | superseded` |
 | `Justification` | Concise explicit engineering justification attached to a step or draft (not model chain-of-thought) | immutable |
 
 Invariants: the engine never stores an authoritative copy of a design record; every ref it stores is a

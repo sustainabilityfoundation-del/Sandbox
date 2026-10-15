@@ -33,7 +33,7 @@ unchanged; `GET /api/reasoning/v1/tools` is the source of truth for schemas and 
   "runId": "uuid",            // the run this call was recorded in (created on first call if absent)
   "stepId": "uuid",
   "result": { … },            // tool-specific, validated against outputSchema
-  "basis": "calculated",      // lowest basis among conclusions in result (ADR-0020)
+  "basis": "calculated",      // lowest basis among conclusions in result (ADR-0043)
   "context": { "manifestId": "uuid", "items": 14, "omitted": 0 },
   "warnings": ["domain-warning: slenderness below the Euler validity range"],
   "implementationStatus": "implemented"

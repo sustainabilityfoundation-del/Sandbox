@@ -1,6 +1,6 @@
 # F. Mathematical model architecture
 
-Status: Proposed. Decision: [ADR-0021](../../decisions/0021-calculation-models-and-math-stack.md).
+Status: Proposed. Decision: [ADR-0044](../../decisions/0044-calculation-models-and-math-stack.md).
 Research: [research note, mathematics libraries](../../research/design-reasoning/research-note.md#mathematics-libraries-brief-6).
 Index: [README.md](README.md).
 
@@ -132,7 +132,7 @@ interface CalculationManifest {
   `calculated`, Conceptualize re-evaluates the manifest with its own copy of `@ews/engineering-calc`
   (same major version) and refuses the write if the digests differ. This prevents a model or a client from
   fabricating "calculated" numbers.
-- The basis of the stored evidence is the minimum of `calculated` and its inputs' bases (ADR-0020); a
+- The basis of the stored evidence is the minimum of `calculated` and its inputs' bases (ADR-0043); a
   validated model with validated assumptions and pinned measured dimensions can support a decision; a
   hypothesis-fed calculation is stored as `estimate`.
 

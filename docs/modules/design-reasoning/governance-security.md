@@ -2,8 +2,8 @@
 
 Status: Proposed. Index: [README.md](README.md). Related: ADR-0008 (client-side entitlements are a
 prototype), ADR-0010 (same command boundary), ADR-0013 (proposed registry and gateway), ADR-0015,
-[ADR-0019](../../decisions/0019-declarative-service-proposals.md), [ADR-0020](../../decisions/0020-basis-of-knowledge-and-promotion.md),
-[ADR-0022](../../decisions/0022-reasoning-runs-and-model-access.md).
+[ADR-0042](../../decisions/0042-declarative-service-proposals.md), [ADR-0043](../../decisions/0043-basis-of-knowledge-and-promotion.md),
+[ADR-0045](../../decisions/0045-reasoning-runs-and-model-access.md).
 
 ## 1. Authorization
 
@@ -68,7 +68,7 @@ Scoped autonomy beyond this (the ADR-0013 open question) is not introduced. Phas
 
 ## 6. Reliability of AI-produced engineering content
 
-- Basis ladder and promotion rules (ADR-0020) are enforced in Conceptualize, not only in the engine; the
+- Basis ladder and promotion rules (ADR-0043) are enforced in Conceptualize, not only in the engine; the
   engine's labels are hints, the module's checks are authoritative.
 - `calculated` evidence is re-verified by Conceptualize (mathematics.md §6).
 - An assertion is never upgraded by repetition, confidence scores or embedding similarity.

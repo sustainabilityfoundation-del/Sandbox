@@ -1,4 +1,4 @@
-# ADR-0016: Design Reasoning Engine as a separate service owning only operational state
+# ADR-0039: Design Reasoning Engine as a separate service owning only operational state
 
 Status: Proposed (2026-10-14)
 
@@ -20,10 +20,10 @@ and make Conceptualize depend on AI.
 - It owns **only operational state**: runs, plans, tool invocations, budgets, checkpoints, context-used
   manifests, justifications and draft proposals before Apply.
 - **Durable design knowledge is Conceptualize data**; gaps are filled by contract change requests to
-  Conceptualize (ADR-0017), never by engine tables.
+  Conceptualize (ADR-0040), never by engine tables.
 - It reads other modules only through their public APIs, **as the requesting user**, and writes nothing:
   durable changes are drafts that the platform previews and the user applies through the owning module
-  (ADR-0019).
+  (ADR-0042).
 - The service is introduced in phase 2. Phase 1 needs only the core library and the calculation package.
 
 ## Consequences

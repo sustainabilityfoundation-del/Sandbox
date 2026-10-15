@@ -68,7 +68,7 @@ phase 2 (engine service); **P3** later.
 ### CR-C6 Evidence extensions and basis ladder (P1)
 - **Change**: `subjects[]`, `applicability`, review records (`evidence_reviews`, append-only) with derived
   `validationStatus`, `manifest` (calculation), `source` ArtifactRef; Basis gains `assessment` and
-  `calculated` (statements, scores, links, evidence), with rules of ADR-0020 enforced server-side.
+  `calculated` (statements, scores, links, evidence), with rules of ADR-0043 enforced server-side.
 - **Today**: `evidence.concept_id NOT NULL`, basis `ai-hypothesis|assumption|estimate|evidence`.
 - **Migration**: `evidence_subjects` table; existing rows have their `concept_id` as the only subject
   (computed, or backfilled into the new table additively); CHECK constraints widened by adding values

@@ -1,4 +1,4 @@
-# ADR-0019: Declarative (serializable) service proposals applied by the platform
+# ADR-0042: Declarative (serializable) service proposals applied by the platform
 
 Status: Proposed (2026-10-14)
 

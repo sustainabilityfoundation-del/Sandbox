@@ -43,21 +43,21 @@ Architecture set: [docs/modules/design-reasoning/](../modules/design-reasoning/R
 
 | ADR | Decision |
 | --- | --- |
-| [0016](../decisions/0016-design-reasoning-engine-boundary.md) | Separate headless engine service owning only operational state |
-| [0017](../decisions/0017-conceptualize-design-knowledge-extension.md) | Extend Conceptualize with Function, Constraint, Assumption, DesignExploration, typed links |
-| [0018](../decisions/0018-relational-knowledge-and-graph-api.md) | Relational knowledge + persistence-independent graph API; no graph/vector DB |
-| [0019](../decisions/0019-declarative-service-proposals.md) | Declarative service proposals applied by the platform |
-| [0020](../decisions/0020-basis-of-knowledge-and-promotion.md) | Basis ladder (adds `assessment`, `calculated`) and promotion rules |
-| [0021](../decisions/0021-calculation-models-and-math-stack.md) | Calculation models in Conceptualize; engine on mathjs 15.2.0 + platform unit algebra; re-verified calculated evidence |
-| [0022](../decisions/0022-reasoning-runs-and-model-access.md) | Model access only through the AI Interface; runs with budgets, checkpoints, replay; no chain-of-thought |
-| [0023](../decisions/0023-change-impact-and-invalidation.md) | Possible vs demonstrated impact; review flags, never silent invalidation; implementation sync states |
+| [0039](../decisions/0039-design-reasoning-engine-boundary.md) | Separate headless engine service owning only operational state |
+| [0040](../decisions/0040-conceptualize-design-knowledge-extension.md) | Extend Conceptualize with Function, Constraint, Assumption, DesignExploration, typed links |
+| [0041](../decisions/0041-relational-knowledge-and-graph-api.md) | Relational knowledge + persistence-independent graph API; no graph/vector DB |
+| [0042](../decisions/0042-declarative-service-proposals.md) | Declarative service proposals applied by the platform |
+| [0043](../decisions/0043-basis-of-knowledge-and-promotion.md) | Basis ladder (adds `assessment`, `calculated`) and promotion rules |
+| [0044](../decisions/0044-calculation-models-and-math-stack.md) | Calculation models in Conceptualize; engine on mathjs 15.2.0 + platform unit algebra; re-verified calculated evidence |
+| [0045](../decisions/0045-reasoning-runs-and-model-access.md) | Model access only through the AI Interface; runs with budgets, checkpoints, replay; no chain-of-thought |
+| [0046](../decisions/0046-change-impact-and-invalidation.md) | Possible vs demonstrated impact; review flags, never silent invalidation; implementation sync states |
 
 ### 4. Conflicts with existing designs
 
 | # | Conflict | Resolution proposed |
 | --- | --- | --- |
 | 1 | **Conceptualize model gaps**: functions are Concepts (`abstraction: function`) linked by `implements`; constraints and assumptions are statements; no invalidation conditions; explorations are bulk-create logs; relationships only Concept↔Concept | CR-C1…C7 with additive migrations (explicit conversion for functions and constraints; automatic additive Assumption records) |
-| 2 | **ServiceProposal closures** live in one browser window (`serviceProposals.ts`); a server-side engine cannot produce them | Declarative proposals (CR-A1, ADR-0019) |
+| 2 | **ServiceProposal closures** live in one browser window (`serviceProposals.ts`); a server-side engine cannot produce them | Declarative proposals (CR-A1, ADR-0042) |
 | 3 | **Twin is browser-only**; a server-side engine cannot read components, SysML or CAD | Client-attested twin snapshot (CR-P1); twin-side impact runs in the browser via `design-reasoning-core`; honest labelling |
 | 4 | **ADR-0013** (proposed registry and gateway) overlaps with tool discovery and execution | Use today's `AssistantContribution` via a headless contribution (CR-A2); tool definitions served as data by `/tools` so they move into the registry unchanged; no competing gateway |
 | 5 | **Preview policy** must stay; engine-driven exploration wants autonomy | Autonomy limited to operational work (read, calculate, draft) within budgets; every durable change previewed and applied by the user |
@@ -85,7 +85,7 @@ justification) are operational.
 | What | Where |
 | --- | --- |
 | Architecture set A–J | `docs/modules/design-reasoning/` (README, overview, domain-model, knowledge-representation, reasoning-orchestration, integration, formalization, ai-tools, user-experience, mathematics, exploration, governance-security, roadmap, contract-change-requests) |
-| ADRs | `docs/decisions/0016-…` to `0023-…` (Proposed) |
+| ADRs | `docs/decisions/0039-…` to `0046-…` (Proposed) |
 | Research | `docs/research/design-reasoning/research-note.md` |
 | Progress, report, proposed coordinator text | this file |
 | Later (phase B and beyond) | package `AGENTS.md`/README for new packages; help topics in the module that ships each UI or operation |
@@ -146,14 +146,14 @@ Proposed for review (design reasoning layer, phase A, 14 October 2026; [architec
 
 | ADR | Decision | Status |
 | --- | --- | --- |
-| [0016](0016-design-reasoning-engine-boundary.md) | Design Reasoning Engine as a separate service owning only operational state | Proposed |
-| [0017](0017-conceptualize-design-knowledge-extension.md) | Extend Conceptualize with first-class Function, Constraint, Assumption, DesignExploration and typed design links | Proposed |
-| [0018](0018-relational-knowledge-and-graph-api.md) | Relational knowledge with a persistence-independent graph API; no graph or vector database | Proposed |
-| [0019](0019-declarative-service-proposals.md) | Declarative (serializable) service proposals applied by the platform | Proposed |
-| [0020](0020-basis-of-knowledge-and-promotion.md) | Basis-of-knowledge ladder and promotion rules | Proposed |
-| [0021](0021-calculation-models-and-math-stack.md) | Calculation models in Conceptualize; deterministic calculation engine on mathjs and the platform unit algebra | Proposed |
-| [0022](0022-reasoning-runs-and-model-access.md) | Reasoning runs: model access through the AI Interface, budgets, checkpoints, reproducibility, no chain-of-thought | Proposed |
-| [0023](0023-change-impact-and-invalidation.md) | Change impact distinguishes possible from demonstrated; invalidation is flagged, never silent | Proposed |
+| [0039](0039-design-reasoning-engine-boundary.md) | Design Reasoning Engine as a separate service owning only operational state | Proposed |
+| [0040](0040-conceptualize-design-knowledge-extension.md) | Extend Conceptualize with first-class Function, Constraint, Assumption, DesignExploration and typed design links | Proposed |
+| [0041](0041-relational-knowledge-and-graph-api.md) | Relational knowledge with a persistence-independent graph API; no graph or vector database | Proposed |
+| [0042](0042-declarative-service-proposals.md) | Declarative (serializable) service proposals applied by the platform | Proposed |
+| [0043](0043-basis-of-knowledge-and-promotion.md) | Basis-of-knowledge ladder and promotion rules | Proposed |
+| [0044](0044-calculation-models-and-math-stack.md) | Calculation models in Conceptualize; deterministic calculation engine on mathjs and the platform unit algebra | Proposed |
+| [0045](0045-reasoning-runs-and-model-access.md) | Reasoning runs: model access through the AI Interface, budgets, checkpoints, reproducibility, no chain-of-thought | Proposed |
+| [0046](0046-change-impact-and-invalidation.md) | Change impact distinguishes possible from demonstrated; invalidation is flagged, never silent | Proposed |
 ```
 
 On acceptance, move each accepted row into the main table with status Accepted.
@@ -163,7 +163,7 @@ On acceptance, move each accepted row into the main table with status Accepted.
 ```markdown
 ## Design reasoning layer
 
-Architecture: [docs/modules/design-reasoning/](docs/modules/design-reasoning/README.md) (ADR-0016 to ADR-0023).
+Architecture: [docs/modules/design-reasoning/](docs/modules/design-reasoning/README.md) (ADR-0039 to ADR-0046).
 
 - Durable design knowledge (functions, concepts, alternatives, decisions, assumptions, evidence, constraints,
   explorations, calculation models and their typed links) is **Conceptualize** data. Do not create another
@@ -175,7 +175,7 @@ Architecture: [docs/modules/design-reasoning/](docs/modules/design-reasoning/REA
 - Language models are reached only through the AI Interface. The engine has no provider SDK or credentials.
 - Numbers presented as calculated come from the deterministic calculation engine (`packages/engineering-calc`)
   with a reproducibility manifest; never present model-generated numbers as calculated or verified. Keep the
-  basis of knowledge (ADR-0020) visible in UI and data.
+  basis of knowledge (ADR-0043) visible in UI and data.
 - Modules that realize designs (Requirements, SysML, CAD, future Analysis) link to Concepts through
   ConceptImplementations and the SDK `ConceptsService`; implementation changes never rewrite design intent.
 ```
@@ -186,7 +186,7 @@ Architecture: [docs/modules/design-reasoning/](docs/modules/design-reasoning/REA
 ## 6b. Design reasoning layer (proposed)
 
 Status: **Proposed**, not implemented. Architecture set: [modules/design-reasoning](modules/design-reasoning/README.md);
-decisions ADR-0016 to ADR-0023 (Proposed).
+decisions ADR-0039 to ADR-0046 (Proposed).
 
 The platform distinguishes the engineering problem (requirements, functions, constraints), the proposed
 solution (concepts, alternatives, decisions, evidence; owned by Conceptualize) and the implemented design
@@ -203,7 +203,7 @@ it extends Conceptualize and adds the calculation and core libraries.
 Add to the Phase 1 table:
 
 ```markdown
-| Design reasoning layer: architecture and proposed ADRs 0016–0023 | Proposed (architecture review) |
+| Design reasoning layer: architecture and proposed ADRs 0039–0046 | Proposed (architecture review) |
 | Design reasoning validation prototype (functions vs concepts, deterministic calculation, decision with evidence, change impact) | Planned (after architecture approval) |
 | Conceptualize knowledge extensions: functions, constraints, assumptions, typed design links, calculation models | Planned (contract change requests C1–C10) |
 ```
@@ -249,5 +249,5 @@ waits for an explicit approval message with file ownership.
 
 ## Handoff log
 
-- 5723e69: architecture set (14 documents), proposed ADRs 0016–0023, research note.
+- 5723e69: architecture set (14 documents), proposed ADRs 0039–0046, research note.
 - (this commit): progress file with the §16 report, change-request summary, proposed coordinator text and open questions.

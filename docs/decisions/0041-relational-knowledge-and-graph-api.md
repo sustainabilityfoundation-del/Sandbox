@@ -1,4 +1,4 @@
-# ADR-0018: Relational knowledge with a persistence-independent graph API; no graph or vector database
+# ADR-0041: Relational knowledge with a persistence-independent graph API; no graph or vector database
 
 Status: Proposed (2026-10-14)
 

@@ -32,7 +32,7 @@ Language models are reached only through the AI Interface; the engine never call
 | F | [mathematics.md](mathematics.md) | Expression representation, units, solvers, validation, evidence; math technology recommendation |
 | G | [exploration.md](exploration.md) | Branching, alternatives, trade studies, iterative evaluation, convergence; the 20 % mass scenario |
 | H | [governance-security.md](governance-security.md) | Authorization, provenance, audit, approvals, model independence, untrusted content |
-| I | ADRs [0016](../../decisions/0016-design-reasoning-engine-boundary.md)–[0023](../../decisions/0023-change-impact-and-invalidation.md) | Proposed decisions (list below) |
+| I | ADRs [0039](../../decisions/0039-design-reasoning-engine-boundary.md)–[0046](../../decisions/0046-change-impact-and-invalidation.md) | Proposed decisions (list below) |
 | J | [roadmap.md](roadmap.md) | Phases, milestones, dependencies, acceptance criteria, risks; the validation prototype plan |
 | — | [contract-change-requests.md](contract-change-requests.md) | Numbered change requests to Conceptualize, the SDK, the AI Interface and the platform, with migrations |
 | — | [research note](../../research/design-reasoning/research-note.md) | Sources read (and not read), what was adopted and what was left out |
@@ -41,14 +41,14 @@ Language models are reached only through the AI Interface; the engine never call
 
 | ADR | Decision |
 | --- | --- |
-| [0016](../../decisions/0016-design-reasoning-engine-boundary.md) | Design Reasoning Engine as a separate service owning only operational state |
-| [0017](../../decisions/0017-conceptualize-design-knowledge-extension.md) | Extend Conceptualize with first-class Function, Constraint, Assumption, DesignExploration and typed design links |
-| [0018](../../decisions/0018-relational-knowledge-and-graph-api.md) | Relational knowledge with a persistence-independent graph API; no graph or vector database |
-| [0019](../../decisions/0019-declarative-service-proposals.md) | Declarative (serializable) service proposals applied by the platform |
-| [0020](../../decisions/0020-basis-of-knowledge-and-promotion.md) | Basis-of-knowledge ladder and promotion rules |
-| [0021](../../decisions/0021-calculation-models-and-math-stack.md) | Calculation models in Conceptualize, a deterministic calculation engine on mathjs and the platform unit algebra |
-| [0022](../../decisions/0022-reasoning-runs-and-model-access.md) | Reasoning runs: model access through the AI Interface, budgets, checkpoints, reproducibility, no chain-of-thought |
-| [0023](../../decisions/0023-change-impact-and-invalidation.md) | Change impact distinguishes possible from demonstrated; invalidation is flagged, never silent |
+| [0039](../../decisions/0039-design-reasoning-engine-boundary.md) | Design Reasoning Engine as a separate service owning only operational state |
+| [0040](../../decisions/0040-conceptualize-design-knowledge-extension.md) | Extend Conceptualize with first-class Function, Constraint, Assumption, DesignExploration and typed design links |
+| [0041](../../decisions/0041-relational-knowledge-and-graph-api.md) | Relational knowledge with a persistence-independent graph API; no graph or vector database |
+| [0042](../../decisions/0042-declarative-service-proposals.md) | Declarative (serializable) service proposals applied by the platform |
+| [0043](../../decisions/0043-basis-of-knowledge-and-promotion.md) | Basis-of-knowledge ladder and promotion rules |
+| [0044](../../decisions/0044-calculation-models-and-math-stack.md) | Calculation models in Conceptualize, a deterministic calculation engine on mathjs and the platform unit algebra |
+| [0045](../../decisions/0045-reasoning-runs-and-model-access.md) | Reasoning runs: model access through the AI Interface, budgets, checkpoints, reproducibility, no chain-of-thought |
+| [0046](../../decisions/0046-change-impact-and-invalidation.md) | Change impact distinguishes possible from demonstrated; invalidation is flagged, never silent |
 
 ## Reading order
 

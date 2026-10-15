@@ -1,9 +1,9 @@
 # D. Reasoning orchestration
 
-Status: Proposed. Decisions: [ADR-0016](../../decisions/0016-design-reasoning-engine-boundary.md),
-[ADR-0020](../../decisions/0020-basis-of-knowledge-and-promotion.md),
-[ADR-0022](../../decisions/0022-reasoning-runs-and-model-access.md),
-[ADR-0023](../../decisions/0023-change-impact-and-invalidation.md). Index: [README.md](README.md).
+Status: Proposed. Decisions: [ADR-0039](../../decisions/0039-design-reasoning-engine-boundary.md),
+[ADR-0043](../../decisions/0043-basis-of-knowledge-and-promotion.md),
+[ADR-0045](../../decisions/0045-reasoning-runs-and-model-access.md),
+[ADR-0046](../../decisions/0046-change-impact-and-invalidation.md). Index: [README.md](README.md).
 
 ## 1. Shape of the engine
 
@@ -26,7 +26,7 @@ flowchart TB
   RP -.plan.-> P[(Plan, Checkpoints)]
 ```
 
-Two modes share the components (ADR-0022):
+Two modes share the components (ADR-0045):
 
 | Mode | Who sequences steps | Model access | Phase |
 | --- | --- | --- | --- |
@@ -48,7 +48,7 @@ Resolution strategy, cheapest and most exact first:
    | --- | --- | --- |
    | Rationale ("why selected") | `selected-through`, decision `support`, assumptions, constraints, alternative set | 2 |
    | Alternatives ("what was rejected") | alternative sets of the subject's function, decisions, trade studies | 2 |
-   | Change ("what if this changes") | reverse dependency types with impact propagation ≠ none (ADR-0023) | 4 |
+   | Change ("what if this changes") | reverse dependency types with impact propagation ≠ none (ADR-0046) | 4 |
    | Assumptions ("which assumptions support") | `depends-on` and decision assumptions, transitively | 3 |
    | New principle ("completely different way") | the Function, its constraints and objectives, existing performers (to avoid duplicates) | 1 |
 3. **Requirements**: `RequirementsService.get` / `traceLinks` / `impact` for requirement refs found in
@@ -101,7 +101,7 @@ interface ReasoningPlan {
     inputs: Record<string, unknown>              // validated against the tool's input schema
     dependsOn: string[]
     expectedEvidence: { kind: 'calculation' | 'comparison' | 'impact' | 'context' | 'analysis' | 'judgement';
-                        basisCeiling: Basis }     // the best basis this step can produce (ADR-0020)
+                        basisCeiling: Basis }     // the best basis this step can produce (ADR-0043)
     budget?: { maxToolCalls?: number; maxMs?: number }
   }[]
   stopWhen: string                               // convergence / completion criterion, plain text + optional rule
@@ -146,7 +146,7 @@ Errors are structured and returned to the caller: `invalid-input`, `not-found`, 
 
 ## 5. Evidence Evaluator
 
-Classifies every result a run produces on the **basis ladder** (ADR-0020) and enforces promotion rules:
+Classifies every result a run produces on the **basis ladder** (ADR-0043) and enforces promotion rules:
 
 | Level | Basis | Produced by | Can the engine assign it? |
 | --- | --- | --- | --- |
@@ -171,7 +171,7 @@ Additional rules:
 
 ## 6. Change Impact Analyzer
 
-Algorithm (in `@ews/design-reasoning-core`, ADR-0023):
+Algorithm (in `@ews/design-reasoning-core`, ADR-0046):
 
 1. **Seed** with the change: a ref and a delta (new revision, changed value, removed link, invalidated
    assumption, revised requirement).
@@ -200,7 +200,7 @@ interface ImpactReport {
 
 ## 7. Proposal and Approval service
 
-Produces **ProposalDrafts** (ADR-0019): serializable descriptions of module operations plus the
+Produces **ProposalDrafts** (ADR-0042): serializable descriptions of module operations plus the
 information the brief requires. The AI Interface previews them; the user applies them; the owning module
 validates and commits.
 

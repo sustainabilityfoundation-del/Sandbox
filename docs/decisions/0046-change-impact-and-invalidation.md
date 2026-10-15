@@ -1,4 +1,4 @@
-# ADR-0023: Change impact distinguishes possible from demonstrated; invalidation is flagged, never silent
+# ADR-0046: Change impact distinguishes possible from demonstrated; invalidation is flagged, never silent
 
 Status: Proposed (2026-10-14)
 

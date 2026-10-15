@@ -1,4 +1,4 @@
-# ADR-0021: Calculation models in Conceptualize; a deterministic calculation engine on mathjs and the platform unit algebra
+# ADR-0044: Calculation models in Conceptualize; a deterministic calculation engine on mathjs and the platform unit algebra
 
 Status: Proposed (2026-10-14)
 

@@ -22,7 +22,7 @@ views is the owning agents' work through change requests (CR-C, CR-A4).
 | **Traceability** | Requirement → constraint → function → concept → implementation → artifact → verification, both directions; sync states | graph traversal + implementations |
 | **Impact view** | Result of an impact assessment: possible vs demonstrated vs checked-unaffected, with paths; actions to draft flags or proposals | `POST /api/reasoning/v1/impact` |
 
-Common UI rules: every item shows its **basis badge** (ADR-0020); AI-originated content is labelled and
+Common UI rules: every item shows its **basis badge** (ADR-0043); AI-originated content is labelled and
 "confirm" is an explicit action; rejected alternatives and superseded decisions remain visible.
 
 ## 2. Assistant panel additions (AI Interface)
