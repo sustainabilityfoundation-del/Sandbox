@@ -1,4 +1,4 @@
-import { CalcError, ERROR_TAXONOMY, evaluateModel, minBasis, type Basis } from '@ews/engineering-calc'
+import { CalcError, describeRange, ERROR_TAXONOMY, evaluateModel, minBasis, qualifyManifest, type Basis } from '@ews/engineering-calc'
 import { toDefinition } from './adapters/conceptualizeContractAdapter'
 import { BindingError, resolveInputs } from './bindings'
 import { paretoAnalysis } from './compare'
@@ -231,20 +231,29 @@ export function createReasoningEngine(deps: EngineDeps) {
       let draft: ProposalDraft | undefined
       const record = args.recordAsEvidence as { subjects: DesignRef[]; title: string } | undefined
       if (record) {
-        const checks = result.checks.map((c) => `${c.text}: ${c.satisfied ? 'satisfied' : 'violated'} (margin ${c.margin.toPrecision(4)} ${c.unit})`)
+        // C11: statuses say what they rest on; ranges say what kind they are.
+        const checks = result.checks.map((c) => `${c.text}: ${c.status} (${c.statusBasis === 'point' ? 'at the nominal point' : c.statusBasis === 'exact-bounds' ? 'proven with exact bounds' : 'from an enclosure'}; nominal margin ${c.margin.toPrecision(4)} ${c.unit})`)
+        const qualifications = qualifyManifest(result.manifest)
+        const limits = ['A reproducible calculation shows that these outputs follow from this model revision and these inputs. It does not establish that the model is valid for this design (model validation status: ' + result.manifest.limits.modelValidationStatus + '), and it does not establish that any requirement is satisfied.']
         draft = newDraft(run, stepId, {
           title: `Record calculation: ${record.title}`,
           action: `Record the result of ${model.key} as ${result.basis} evidence.`,
           rationale: `Deterministic evaluation of ${model.key} revision ${model.revision} by ${result.manifest.engine.name} ${result.manifest.engine.version}; Conceptualize re-verifies the manifest before accepting it.`,
+          qualifications,
+          limits,
           affected: record.subjects,
           expectedEffects: checks,
           evidence: [],
           assumptions: model.assumptions.map((a) => ({ text: a.id, ref: a })),
-          uncertainty: { summary: result.manifest.uncertainty === 'point' ? 'Point values; ranges not propagated.' : 'Interval bounds: exact where monotonicity is proven, enclosures otherwise (see each output).', ranges: Object.values(result.outputs).filter((o) => o.min !== undefined).map((o) => ({ name: o.symbol, min: o.min!, max: o.max!, unit: o.unit })) },
+          uncertainty: {
+            summary: result.manifest.uncertainty === 'point' ? 'Point values; ranges not propagated.' : 'Ranges propagated as bounds: exact where monotonicity is proven, enclosures otherwise; sampled values are not bounds.',
+            ranges: Object.values(result.outputs).flatMap((o) => (o.range.kind === 'point' ? [] : [{ name: o.symbol, min: o.range.min, max: o.range.max, unit: o.unit, kind: o.range.kind, quality: o.range.kind === 'bounds' ? o.range.quality : undefined }])),
+          },
           requiredApprovals: [{ permission: 'author', module: 'conceptualize', reason: 'Recording evidence' }],
           preview: [
             { label: 'New evidence', proposed: record.title, basis: result.basis },
-            ...Object.values(result.outputs).map((o) => ({ label: o.symbol, proposed: `${o.value.toPrecision(6)} ${o.unit}`, basis: result.basis })),
+            ...Object.values(result.outputs).map((o) => ({ label: o.symbol, proposed: o.range.kind === 'point' ? `${o.value.toPrecision(6)} ${o.unit} (point value)` : `${o.value.toPrecision(6)} ${o.unit}; ${describeRange(o.range)} ${o.range.min.toPrecision(6)}–${o.range.max.toPrecision(6)} ${o.unit}`, basis: result.basis })),
+            ...limits.map((l) => ({ label: 'Does not establish', proposed: l })),
             ...checks.map((c) => ({ label: 'Check', proposed: c, basis: result.basis })),
           ],
           items: [{ op: 'createEvidence', as: '$ev', body: { kind: 'calculation', title: record.title, summary: checks.join('; '), subjects: record.subjects, basis: result.basis, calculation: { modelId: model.id, modelRevision: model.revision, manifest: result.manifest } } }],
