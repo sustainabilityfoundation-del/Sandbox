@@ -428,6 +428,31 @@ export const cadModelerDemo: DemoPlanner = (text) => {
       }
     }
   }
+  const blend = new RegExp(`\\b(fillet|round|chamfer|bevel)\\b.*\\b(vertical|top|bottom|all)\\b.*?\\bedges?\\b.*?${NUM}\\s*mm`).exec(t)
+  if (blend && open && /\b(cad|part|plate|block)\b/.test(t)) {
+    const body = open.engine.regeneration?.parts[0]?.bodies.at(-1)
+    const kind = /fillet|round/.test(blend[1]) ? 'fillet' : 'chamfer'
+    const which = blend[2]
+    const edges = (body?.analysis.edges ?? [])
+      .filter((e) => e.faces.length === 2 && !e.name.includes('face#'))
+      .filter((e) => {
+        // The role is the part after the feature ID ("side:ln-8", "cap-end", "blend:…").
+        const role = (f: string) => f.slice(f.indexOf('/') + 1)
+        const sides = e.faces.filter((f) => role(f).startsWith('side:')).length
+        if (which === 'vertical') return sides === 2
+        if (which === 'top') return sides === 1 && e.faces.some((f) => role(f).startsWith('cap-end'))
+        if (which === 'bottom') return sides === 1 && e.faces.some((f) => role(f).startsWith('cap-start'))
+        return true
+      })
+      .map((e) => e.name)
+    if (edges.length) {
+      const size = Number(blend[3])
+      return {
+        reply: `(Demo planner.) I prepared a ${kind} of ${size} mm on the ${which} edges (${edges.length}), chosen by their stable names. The preview shows the predicted volume.`,
+        calls: [{ name: 'cad-modeler.run_commands', arguments: { label: `${kind === 'fillet' ? 'Fillet' : 'Chamfer'} ${which} edges ${size} mm`, commands: [{ command: kind === 'fillet' ? 'fillet_edges' : 'chamfer_edges', input: { edges, ...(kind === 'fillet' ? { radius: size } : { distance: size }) } }], expectedVersion: open.engine.document.version } }],
+      }
+    }
+  }
   if (/\b(cad|part|model)\b/.test(t) && /\b(describe|summari[sz]e|what is|show|volume|mass|status|failures?)\b/.test(t) && /\bcad\b|\bvolume\b|\bpart\b/.test(t))
     return { reply: '(Demo planner.) Here is the CAD Modeler model as structured data: features, parameters, bodies and failures.', calls: [{ name: 'cad-modeler.describe_model', arguments: {} }] }
   if (/\bexport\b.*\bstep\b|\bstep\b.*\bexport\b/.test(t)) return { reply: '(Demo planner.) I prepared a STEP AP242 export of the active CAD document.', calls: [{ name: 'cad-modeler.export', arguments: { format: 'step' } }] }

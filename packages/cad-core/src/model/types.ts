@@ -7,7 +7,7 @@
  */
 
 export const FORMAT = 'ews-cad'
-export const FORMAT_VERSION = '1.0.0'
+export const FORMAT_VERSION = '1.1.0'
 export const MEDIA_TYPE = 'application/vnd.ews.cad+json'
 export const FILE_EXTENSION = '.ewscad'
 
@@ -100,7 +100,12 @@ export interface ExternalReference {
 
 // ---- features -------------------------------------------------------------------------------
 
-export type Feature = SketchFeature | ExtrudeFeature | RevolveFeature
+/** Features that create or modify solid geometry from a sketch profile. */
+export type ProfileFeature = ExtrudeFeature | RevolveFeature
+/** Features that modify edges of an existing body (format 1.1). */
+export type EdgeFeature = FilletFeature | ChamferFeature
+
+export type Feature = SketchFeature | ExtrudeFeature | RevolveFeature | FilletFeature | ChamferFeature | DatumPlaneFeature
 export type FeatureType = Feature['type']
 
 interface FeatureBase {
@@ -111,7 +116,14 @@ interface FeatureBase {
 
 export type StandardPlane = 'XY' | 'XZ' | 'YZ'
 
-export type PlaneRef = { kind: 'standard'; plane: StandardPlane; offset?: Expr }
+/**
+ * Where a sketch or datum plane lies: a standard plane, a datum plane feature, or a planar face by its
+ * stable name (format 1.1), each with an optional offset along the normal.
+ */
+export type PlaneRef =
+  | { kind: 'standard'; plane: StandardPlane; offset?: Expr }
+  | { kind: 'datum'; datum: string; offset?: Expr }
+  | { kind: 'face'; face: string; offset?: Expr }
 
 export interface SketchFeature extends FeatureBase {
   type: 'sketch'
@@ -141,6 +153,30 @@ export interface RevolveFeature extends FeatureBase {
   angle: Expr
   operation: BodyOperation
   target?: string
+}
+
+/** Fillet of edges selected by stable edge names (format 1.1). */
+export interface FilletFeature extends FeatureBase {
+  type: 'fillet'
+  /** Stable edge names, e.g. "edge(ext-5/cap-end|ext-5/side:ln-8)". */
+  edges: string[]
+  radius: Expr
+  /** Body to modify (ID of the feature that created it). Default: the latest body. */
+  target?: string
+}
+
+/** Equal-distance chamfer of edges selected by stable edge names (format 1.1). */
+export interface ChamferFeature extends FeatureBase {
+  type: 'chamfer'
+  edges: string[]
+  distance: Expr
+  target?: string
+}
+
+/** A named reference plane (format 1.1): sketches and other datum planes can use it. */
+export interface DatumPlaneFeature extends FeatureBase {
+  type: 'datum-plane'
+  plane: PlaneRef
 }
 
 // ---- sketches -------------------------------------------------------------------------------

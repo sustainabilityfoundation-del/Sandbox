@@ -328,7 +328,7 @@
     {
       "name": "create_sketch",
       "category": "sketch",
-      "summary": "Create an empty sketch on a standard plane (XY, XZ or YZ), optionally offset along its normal.",
+      "summary": "Create an empty sketch on a standard plane (XY, XZ or YZ), a datum plane or a planar face (by stable name), optionally offset along its normal.",
       "input": {
         "type": "object",
         "properties": {
@@ -344,7 +344,19 @@
               "XY",
               "XZ",
               "YZ"
-            ]
+            ],
+            "description": "Standard plane."
+          },
+          "datum": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A datum plane of the part (create_datum_plane)."
+          },
+          "face": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "Stable name of a planar face, e.g. \"ext-5/cap-end\" (query get_entities)."
           },
           "offset": {
             "type": [
@@ -366,14 +378,14 @@
           }
         },
         "required": [
-          "partId",
-          "plane"
+          "partId"
         ],
         "additionalProperties": false
       },
       "output": "{ sketchId }",
       "preconditions": [
-        "The part exists."
+        "The part exists.",
+        "Exactly one of plane, datum or face is given; a datum is a datum plane earlier in the part; a face names a face of an earlier feature (planarity is checked at regeneration)."
       ],
       "errors": [
         "not-found",
@@ -387,7 +399,7 @@
     {
       "name": "set_sketch_plane",
       "category": "sketch",
-      "summary": "Move a sketch to another standard plane or offset.",
+      "summary": "Move a sketch to another standard plane, datum plane or planar face, or change its offset.",
       "input": {
         "type": "object",
         "properties": {
@@ -403,7 +415,19 @@
               "XY",
               "XZ",
               "YZ"
-            ]
+            ],
+            "description": "Standard plane."
+          },
+          "datum": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A datum plane of the part (create_datum_plane)."
+          },
+          "face": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "Stable name of a planar face, e.g. \"ext-5/cap-end\" (query get_entities)."
           },
           "offset": {
             "type": [
@@ -414,20 +438,91 @@
           }
         },
         "required": [
-          "sketchId",
-          "plane"
+          "sketchId"
         ],
         "additionalProperties": false
       },
       "output": "{}",
       "preconditions": [
-        "The sketch exists."
+        "The sketch exists.",
+        "Exactly one of plane, datum or face; references must come earlier in the history than the sketch."
       ],
       "errors": [
         "not-found",
+        "invalid-input",
         "invalid-expression"
       ],
       "undo": "Restores the previous plane.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "create_datum_plane",
+      "category": "feature",
+      "summary": "Create a datum (reference) plane: a standard plane, another datum plane or a planar face, offset along its normal. Sketches can be placed on it.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part ID"
+          },
+          "plane": {
+            "type": "string",
+            "enum": [
+              "XY",
+              "XZ",
+              "YZ"
+            ],
+            "description": "Standard plane."
+          },
+          "datum": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A datum plane of the part (create_datum_plane)."
+          },
+          "face": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "Stable name of a planar face, e.g. \"ext-5/cap-end\" (query get_entities)."
+          },
+          "offset": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Offset along the plane normal. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Datum plane name"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "partId"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ datumId }",
+      "preconditions": [
+        "Exactly one of plane, datum or face; references must exist earlier in the part."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Removes the datum plane.",
       "effect": "mutation",
       "transactional": true
     },
@@ -1286,9 +1381,133 @@
       "transactional": true
     },
     {
+      "name": "fillet_edges",
+      "category": "feature",
+      "summary": "Round edges of a body with a constant radius. Edges are selected by stable edge names (query get_entities).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "minItems": 1,
+            "maxItems": 200,
+            "description": "Stable edge names, e.g. \"edge(ext-5/cap-end|ext-5/side:ln-8)\"."
+          },
+          "radius": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Fillet radius (> 0). A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "target": {
+            "type": "string",
+            "description": "Body (ID of the feature that created it). Default: the latest body."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Feature name"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "edges",
+          "radius"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ featureId }",
+      "preconditions": [
+        "A body exists (checked at regeneration).",
+        "A literal radius is > 0.",
+        "Edge names resolve on the body at regeneration; otherwise the feature fails with reason reference-lost."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Removes the feature.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "chamfer_edges",
+      "category": "feature",
+      "summary": "Bevel edges of a body with an equal-distance chamfer. Edges are selected by stable edge names (query get_entities).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "minItems": 1,
+            "maxItems": 200,
+            "description": "Stable edge names."
+          },
+          "distance": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Chamfer distance (> 0). A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "target": {
+            "type": "string",
+            "description": "Body (ID of the feature that created it). Default: the latest body."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Feature name"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "edges",
+          "distance"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ featureId }",
+      "preconditions": [
+        "A body exists (checked at regeneration).",
+        "A literal distance is > 0.",
+        "Edge names resolve on the body at regeneration; otherwise the feature fails with reason reference-lost."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Removes the feature.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
       "name": "edit_feature",
       "category": "feature",
-      "summary": "Change an extrude or revolve: distance, direction, angle, axis, operation or target body.",
+      "summary": "Change a feature: extrude (distance, direction), revolve (angle, axis), fillet (radius, edges), chamfer (distance, edges), datum plane (offset); operation or target body.",
       "input": {
         "type": "object",
         "properties": {
@@ -1303,7 +1522,7 @@
               "number",
               "string"
             ],
-            "description": "Extrude depth. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+            "description": "Extrude depth or chamfer distance. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
           },
           "direction": {
             "type": "string",
@@ -1337,7 +1556,32 @@
               "string",
               "null"
             ],
-            "description": "Body to join or cut; null for the latest body."
+            "description": "Body to join, cut, fillet or chamfer; null for the latest body."
+          },
+          "radius": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Fillet radius. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "minItems": 1,
+            "maxItems": 200,
+            "description": "Fillet or chamfer edges (stable edge names)."
+          },
+          "offset": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Datum plane offset. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
           }
         },
         "required": [
@@ -1347,7 +1591,7 @@
       },
       "output": "{}",
       "preconditions": [
-        "The feature is an extrude (distance, direction) or revolve (angle, axis); values are valid."
+        "Only the fields of the feature type are given; values are valid."
       ],
       "errors": [
         "not-found",

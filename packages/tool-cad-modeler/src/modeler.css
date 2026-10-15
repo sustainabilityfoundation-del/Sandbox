@@ -68,6 +68,7 @@
   .cadm-constraint { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); padding: var(--ws-space-1) 0; border-bottom: 1px solid var(--ws-border); }
   .cadm-constraint-type { font-size: var(--ws-font-size-sm); font-weight: var(--ws-weight-medium); }
   .cadm-constraint-value { width: 120px; }
+  .cadm-edge-list { display: flex; flex-direction: column; gap: var(--ws-space-1); max-height: 260px; overflow: auto; padding: var(--ws-space-1); border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); }
   .cadm-entity-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--ws-space-1); max-height: 220px; overflow: auto; }
 
   .cadm-props { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--ws-space-1) var(--ws-space-3); margin: 0; font-size: var(--ws-font-size-sm); }

@@ -176,3 +176,18 @@ describe('CAD document service from the tool (local adapter, same contract as th
     }
   })
 })
+
+describe('fillet and chamfer through the assistant', () => {
+  it('plans a fillet on the vertical edges by stable names, previews and applies it', async () => {
+    await (await propose('cad-modeler.run_commands', { commands: cadModelerTool.assistant!.demo!('create a plate 80 x 40 x 10 in cad', { selectionIds: [] })!.calls[0].arguments.commands as never })).apply(provenance)
+    const plan = cadModelerTool.assistant!.demo!('Fillet the vertical edges of the CAD part with 5 mm', { selectionIds: [] })!
+    expect(plan.calls[0].arguments).toMatchObject({ commands: [{ command: 'fillet_edges', input: { radius: 5 } }] })
+    const p = await propose(plan.calls[0].name, plan.calls[0].arguments)
+    const removed = 4 * (25 - (Math.PI * 25) / 4) * 10
+    expect(p.preview.find((i) => i.label.startsWith('Predicted body'))?.proposed).toMatch(new RegExp(`^${(32000 - removed).toFixed(2)} mm³, 10 faces`))
+    await p.apply(provenance)
+    expect(cadSession.active!.engine.regeneration!.parts[0].bodies[0].analysis.volume).toBeCloseTo(32000 - removed, 6)
+    const chamfer = cadModelerTool.assistant!.demo!('chamfer the top edges of the cad plate 1 mm', { selectionIds: [] })!
+    expect((chamfer.calls[0].arguments.commands as { input: { edges: string[] } }[])[0].input.edges).toHaveLength(4)
+  })
+})

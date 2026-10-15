@@ -12,12 +12,11 @@ import {
   type ConstraintType,
   type Expr,
   type ExtrudeDirection,
-  type ExtrudeFeature,
   type Feature,
   type Part,
+  type PlaneRef,
   type ReferenceModule,
   type ReferenceRole,
-  type RevolveFeature,
   type SemanticKind,
   type SketchConstraint,
   type SketchEntity,
@@ -93,12 +92,23 @@ function addConstraint(ctx: CommandContext, part: Part, sketch: SketchFeature, c
   return cid
 }
 
-/** Features that use a sketch, or that target a body created by a feature. */
+/** Feature IDs a feature refers to: its sketch, target body, datum plane, and the features owning the faces it names. */
+export function referencesOf(f: Feature): string[] {
+  const owners = (names: string[]) => names.map((n) => n.split('/')[0])
+  const out: string[] = []
+  if (f.type === 'extrude' || f.type === 'revolve') out.push(f.sketch)
+  if ((f.type === 'extrude' || f.type === 'revolve' || f.type === 'fillet' || f.type === 'chamfer') && f.target) out.push(f.target)
+  if (f.type === 'fillet' || f.type === 'chamfer') for (const e of f.edges) out.push(...owners((/^edge\((.*)\)(#\d+)?$/.exec(e)?.[1] ?? '').split('|').filter(Boolean)))
+  if (f.type === 'sketch' || f.type === 'datum-plane') {
+    if (f.plane.kind === 'datum') out.push(f.plane.datum)
+    if (f.plane.kind === 'face') out.push(...owners([f.plane.face]))
+  }
+  return [...new Set(out)]
+}
+
+/** Features that refer to a feature (see referencesOf). */
 function dependentsOf(part: Part, featureId: string): string[] {
-  return part.features
-    .filter((f): f is ExtrudeFeature | RevolveFeature => f.type !== 'sketch')
-    .filter((f) => f.sketch === featureId || f.target === featureId)
-    .map((f) => f.id)
+  return part.features.filter((f) => f.id !== featureId && referencesOf(f).includes(featureId)).map((f) => f.id)
 }
 
 function parameterUsers(part: Part, paramName: string): string[] {
@@ -109,6 +119,43 @@ function parameterUsers(part: Part, paramName: string): string[] {
 }
 
 const define = <I,>(spec: CommandSpec<I>): CommandSpec<Record<string, unknown>> => spec as unknown as CommandSpec<Record<string, unknown>>
+
+// ---- planes ---------------------------------------------------------------------------------------
+
+type PlaneInput = { plane?: StandardPlane; datum?: string; face?: string; offset?: Expr }
+
+const planeInputSchema: Record<string, JsonSchema> = {
+  plane: { type: 'string', enum: PLANES, description: 'Standard plane.' },
+  datum: { type: 'string', minLength: 1, description: 'A datum plane of the part (create_datum_plane).' },
+  face: { type: 'string', minLength: 1, maxLength: 300, description: 'Stable name of a planar face, e.g. "ext-5/cap-end" (query get_entities).' },
+  offset: expr('Offset along the plane normal.'),
+}
+
+/** Builds a PlaneRef from command input; references must exist earlier than `before` (or anywhere for new features). */
+function planeFromInput(part: Part, i: PlaneInput, before?: string): PlaneRef {
+  const given = [i.plane, i.datum, i.face].filter((x) => x !== undefined).length
+  if (given !== 1) throw new CadError('invalid-input', 'Give exactly one of plane (XY, XZ, YZ), datum or face.')
+  checkExpr(part, i.offset, 'offset')
+  const offset = i.offset !== undefined && i.offset !== 0 ? { offset: i.offset } : {}
+  const limit = before ? part.features.findIndex((f) => f.id === before) : part.features.length
+  const earlier = part.features.slice(0, limit < 0 ? part.features.length : limit)
+  if (i.plane) return { kind: 'standard', plane: i.plane, ...offset }
+  if (i.datum) {
+    if (earlier.find((f) => f.id === i.datum)?.type !== 'datum-plane') throw new CadError('not-found', `${i.datum} is not a datum plane earlier in ${part.name}.`)
+    return { kind: 'datum', datum: i.datum, ...offset }
+  }
+  const owner = i.face!.split('/')[0]
+  if (!i.face!.includes('/') || !earlier.some((f) => f.id === owner)) throw new CadError('not-found', `${i.face} is not a face name of an earlier feature (expected "<featureId>/<role>", e.g. "ext-5/cap-end").`)
+  return { kind: 'face', face: i.face!, ...offset }
+}
+
+/** The part to add a body-modifying feature to: the target body's part, else the only/first part. */
+function activePart(ctx: CommandContext, target?: string): Part {
+  if (target) return findFeature(ctx.doc, target).part
+  const part = ctx.doc.parts.at(-1)
+  if (!part) throw new CadError('not-found', 'The document has no part.')
+  return part
+}
 
 // ---- commands -------------------------------------------------------------------------------------
 
@@ -258,43 +305,61 @@ export const COMMANDS: CommandSpec[] = [
   }),
 
   // Sketches
-  define<{ partId: string; plane: StandardPlane; offset?: Expr; name?: string; ref?: string }>({
+  define<PlaneInput & { partId: string; name?: string; ref?: string }>({
     name: 'create_sketch',
     category: 'sketch',
-    summary: 'Create an empty sketch on a standard plane (XY, XZ or YZ), optionally offset along its normal.',
-    input: obj({ partId: id('Part ID'), plane: { type: 'string', enum: PLANES }, offset: expr('Offset along the plane normal.'), name: name('Sketch name'), ref }, ['partId', 'plane']),
+    summary: 'Create an empty sketch on a standard plane (XY, XZ or YZ), a datum plane or a planar face (by stable name), optionally offset along its normal.',
+    input: obj({ partId: id('Part ID'), ...planeInputSchema, name: name('Sketch name'), ref }, ['partId']),
     output: '{ sketchId }',
-    preconditions: ['The part exists.'],
+    preconditions: ['The part exists.', 'Exactly one of plane, datum or face is given; a datum is a datum plane earlier in the part; a face names a face of an earlier feature (planarity is checked at regeneration).'],
     errors: ['not-found', 'invalid-input', 'invalid-expression'],
     undo: 'Removes the sketch.',
     apply(ctx, i) {
       const part = findPart(ctx.doc, i.partId)
-      checkExpr(part, i.offset, 'offset')
+      const plane = planeFromInput(part, i)
       const sid = ctx.newId('sk')
       const n = part.features.filter((f) => f.type === 'sketch').length + 1
-      part.features.push({ id: sid, type: 'sketch', name: i.name ?? `Sketch ${n}`, plane: { kind: 'standard', plane: i.plane, ...(i.offset !== undefined && i.offset !== 0 ? { offset: i.offset } : {}) }, entities: [], constraints: [] })
+      part.features.push({ id: sid, type: 'sketch', name: i.name ?? `Sketch ${n}`, plane, entities: [], constraints: [] })
       ctx.created(sid)
       return { sketchId: sid }
     },
   }),
-  define<{ sketchId: string; plane: StandardPlane; offset?: Expr }>({
+  define<PlaneInput & { sketchId: string }>({
     name: 'set_sketch_plane',
     category: 'sketch',
-    summary: 'Move a sketch to another standard plane or offset.',
-    input: obj({ sketchId: id('Sketch ID'), plane: { type: 'string', enum: PLANES }, offset: expr('Offset along the plane normal.') }, ['sketchId', 'plane']),
+    summary: 'Move a sketch to another standard plane, datum plane or planar face, or change its offset.',
+    input: obj({ sketchId: id('Sketch ID'), ...planeInputSchema }, ['sketchId']),
     output: '{}',
-    preconditions: ['The sketch exists.'],
-    errors: ['not-found', 'invalid-expression'],
+    preconditions: ['The sketch exists.', 'Exactly one of plane, datum or face; references must come earlier in the history than the sketch.'],
+    errors: ['not-found', 'invalid-input', 'invalid-expression'],
     undo: 'Restores the previous plane.',
     apply(ctx, i) {
       const { part, sketch } = sketchOf(ctx, i.sketchId)
-      checkExpr(part, i.offset, 'offset')
-      sketch.plane = { kind: 'standard', plane: i.plane, ...(i.offset !== undefined && i.offset !== 0 ? { offset: i.offset } : {}) }
+      sketch.plane = planeFromInput(part, i, sketch.id)
       ctx.modified(sketch.id)
       return {}
     },
   }),
-  define<{ sketchId: string; x: number; y: number; construction?: boolean; ref?: string }>({
+  define<PlaneInput & { partId: string; name?: string; ref?: string }>({
+    name: 'create_datum_plane',
+    category: 'feature',
+    summary: 'Create a datum (reference) plane: a standard plane, another datum plane or a planar face, offset along its normal. Sketches can be placed on it.',
+    input: obj({ partId: id('Part ID'), ...planeInputSchema, name: name('Datum plane name'), ref }, ['partId']),
+    output: '{ datumId }',
+    preconditions: ['Exactly one of plane, datum or face; references must exist earlier in the part.'],
+    errors: ['not-found', 'invalid-input', 'invalid-expression'],
+    undo: 'Removes the datum plane.',
+    apply(ctx, i) {
+      const part = findPart(ctx.doc, i.partId)
+      const plane = planeFromInput(part, i)
+      const did = ctx.newId('dp')
+      const n = part.features.filter((f) => f.type === 'datum-plane').length + 1
+      part.features.push({ id: did, type: 'datum-plane', name: i.name ?? `Datum plane ${n}`, plane })
+      ctx.created(did)
+      return { datumId: did }
+    },
+  }),
+define<{ sketchId: string; x: number; y: number; construction?: boolean; ref?: string }>({
     name: 'add_point',
     category: 'sketch',
     summary: 'Add a point to a sketch.',
@@ -658,39 +723,112 @@ export const COMMANDS: CommandSpec[] = [
       return { featureId: fid }
     },
   }),
-  define<{ featureId: string; distance?: Expr; direction?: ExtrudeDirection; angle?: Expr; axis?: string; operation?: BodyOperation; target?: string | null }>({
+  define<{ edges: string[]; radius: Expr; target?: string; name?: string; ref?: string }>({
+    name: 'fillet_edges',
+    category: 'feature',
+    summary: 'Round edges of a body with a constant radius. Edges are selected by stable edge names (query get_entities).',
+    input: obj(
+      {
+        edges: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 400 }, minItems: 1, maxItems: 200, description: 'Stable edge names, e.g. "edge(ext-5/cap-end|ext-5/side:ln-8)".' },
+        radius: expr('Fillet radius (> 0).'),
+        target: { type: 'string', description: 'Body (ID of the feature that created it). Default: the latest body.' },
+        name: name('Feature name'),
+        ref,
+      },
+      ['edges', 'radius'],
+    ),
+    output: '{ featureId }',
+    preconditions: ['A body exists (checked at regeneration).', 'A literal radius is > 0.', 'Edge names resolve on the body at regeneration; otherwise the feature fails with reason reference-lost.'],
+    errors: ['not-found', 'invalid-input', 'invalid-expression'],
+    undo: 'Removes the feature.',
+    apply(ctx, i) {
+      const part = activePart(ctx, i.target)
+      checkExpr(part, i.radius, 'radius')
+      if (typeof i.radius === 'number' && i.radius <= 0) throw new CadError('invalid-input', 'radius must be greater than zero.')
+      if (i.target) checkTarget(part, i.target)
+      const fid = ctx.newId('fil')
+      const n = part.features.filter((f) => f.type === 'fillet').length + 1
+      part.features.push({ id: fid, type: 'fillet', name: i.name ?? `Fillet ${n}`, edges: [...new Set(i.edges)], radius: i.radius, ...(i.target ? { target: i.target } : {}) })
+      ctx.created(fid)
+      return { featureId: fid }
+    },
+  }),
+  define<{ edges: string[]; distance: Expr; target?: string; name?: string; ref?: string }>({
+    name: 'chamfer_edges',
+    category: 'feature',
+    summary: 'Bevel edges of a body with an equal-distance chamfer. Edges are selected by stable edge names (query get_entities).',
+    input: obj(
+      {
+        edges: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 400 }, minItems: 1, maxItems: 200, description: 'Stable edge names.' },
+        distance: expr('Chamfer distance (> 0).'),
+        target: { type: 'string', description: 'Body (ID of the feature that created it). Default: the latest body.' },
+        name: name('Feature name'),
+        ref,
+      },
+      ['edges', 'distance'],
+    ),
+    output: '{ featureId }',
+    preconditions: ['A body exists (checked at regeneration).', 'A literal distance is > 0.', 'Edge names resolve on the body at regeneration; otherwise the feature fails with reason reference-lost.'],
+    errors: ['not-found', 'invalid-input', 'invalid-expression'],
+    undo: 'Removes the feature.',
+    apply(ctx, i) {
+      const part = activePart(ctx, i.target)
+      checkExpr(part, i.distance, 'distance')
+      if (typeof i.distance === 'number' && i.distance <= 0) throw new CadError('invalid-input', 'distance must be greater than zero.')
+      if (i.target) checkTarget(part, i.target)
+      const fid = ctx.newId('cha')
+      const n = part.features.filter((f) => f.type === 'chamfer').length + 1
+      part.features.push({ id: fid, type: 'chamfer', name: i.name ?? `Chamfer ${n}`, edges: [...new Set(i.edges)], distance: i.distance, ...(i.target ? { target: i.target } : {}) })
+      ctx.created(fid)
+      return { featureId: fid }
+    },
+  }),
+  define<{ featureId: string; distance?: Expr; direction?: ExtrudeDirection; angle?: Expr; axis?: string; operation?: BodyOperation; target?: string | null; radius?: Expr; edges?: string[]; offset?: Expr }>({
     name: 'edit_feature',
     category: 'feature',
-    summary: 'Change an extrude or revolve: distance, direction, angle, axis, operation or target body.',
+    summary: 'Change a feature: extrude (distance, direction), revolve (angle, axis), fillet (radius, edges), chamfer (distance, edges), datum plane (offset); operation or target body.',
     input: obj(
       {
         featureId: id('Feature ID'),
-        distance: expr('Extrude depth.'),
+        distance: expr('Extrude depth or chamfer distance.'),
         direction: { type: 'string', enum: DIRECTIONS },
         angle: expr('Revolve angle.'),
         axis: { type: 'string', minLength: 1 },
         operation: { type: 'string', enum: OPERATIONS },
-        target: { type: ['string', 'null'], description: 'Body to join or cut; null for the latest body.' },
+        target: { type: ['string', 'null'], description: 'Body to join, cut, fillet or chamfer; null for the latest body.' },
+        radius: expr('Fillet radius.'),
+        edges: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 400 }, minItems: 1, maxItems: 200, description: 'Fillet or chamfer edges (stable edge names).' },
+        offset: expr('Datum plane offset.'),
       },
       ['featureId'],
     ),
     output: '{}',
-    preconditions: ['The feature is an extrude (distance, direction) or revolve (angle, axis); values are valid.'],
+    preconditions: ['Only the fields of the feature type are given; values are valid.'],
     errors: ['not-found', 'invalid-input', 'invalid-expression'],
     undo: 'Restores the previous definition.',
     apply(ctx, i) {
       const { part, feature } = findFeature(ctx.doc, i.featureId)
+      const allowed: Record<Feature['type'], string[]> = {
+        sketch: [],
+        extrude: ['distance', 'direction', 'operation', 'target'],
+        revolve: ['angle', 'axis', 'operation', 'target'],
+        fillet: ['radius', 'edges', 'target'],
+        chamfer: ['distance', 'edges', 'target'],
+        'datum-plane': ['offset'],
+      }
       if (feature.type === 'sketch') throw new CadError('invalid-input', `${feature.id} is a sketch; edit it with sketch and constraint commands.`)
+      const given = Object.keys(i).filter((k) => k !== 'featureId' && (i as Record<string, unknown>)[k] !== undefined)
+      const wrong = given.filter((k) => !allowed[feature.type].includes(k))
+      if (wrong.length) throw new CadError('invalid-input', `${wrong.join(', ')} do${wrong.length > 1 ? '' : 'es'} not apply to a ${feature.type} (allowed: ${allowed[feature.type].join(', ')}).`)
+      const positive = (v: Expr, field: string) => {
+        checkExpr(part, v, field)
+        if (typeof v === 'number' && v <= 0) throw new CadError('invalid-input', `${field} must be greater than zero.`)
+        return v
+      }
       if (feature.type === 'extrude') {
-        if (i.angle !== undefined || i.axis !== undefined) throw new CadError('invalid-input', 'angle and axis apply to revolve features only.')
-        if (i.distance !== undefined) {
-          checkExpr(part, i.distance, 'distance')
-          if (typeof i.distance === 'number' && i.distance <= 0) throw new CadError('invalid-input', 'distance must be greater than zero.')
-          feature.extent.distance = i.distance
-        }
+        if (i.distance !== undefined) feature.extent.distance = positive(i.distance, 'distance')
         if (i.direction) feature.extent.direction = i.direction
-      } else {
-        if (i.distance !== undefined || i.direction !== undefined) throw new CadError('invalid-input', 'distance and direction apply to extrude features only.')
+      } else if (feature.type === 'revolve') {
         if (i.angle !== undefined) {
           checkExpr(part, i.angle, 'angle')
           if (typeof i.angle === 'number' && !(i.angle > 0 && i.angle <= 360)) throw new CadError('invalid-input', 'angle must be in (0, 360].')
@@ -701,18 +839,30 @@ export const COMMANDS: CommandSpec[] = [
           if (!['x-axis', 'y-axis'].includes(i.axis) && sketch.entities.find((e) => e.id === i.axis)?.type !== 'line') throw new CadError('invalid-input', `Axis ${i.axis} is not a line of ${sketch.id}.`)
           feature.axis = i.axis
         }
+      } else if (feature.type === 'fillet') {
+        if (i.radius !== undefined) feature.radius = positive(i.radius, 'radius')
+        if (i.edges) feature.edges = [...new Set(i.edges)]
+      } else if (feature.type === 'chamfer') {
+        if (i.distance !== undefined) feature.distance = positive(i.distance, 'distance')
+        if (i.edges) feature.edges = [...new Set(i.edges)]
+      } else if (feature.type === 'datum-plane') {
+        checkExpr(part, i.offset, 'offset')
+        if (i.offset === 0) delete feature.plane.offset
+        else if (i.offset !== undefined) feature.plane.offset = i.offset
       }
-      if (i.operation) feature.operation = i.operation
-      if (i.target === null) delete feature.target
-      else if (i.target !== undefined) {
-        checkTarget(part, i.target, feature.id)
-        feature.target = i.target
+      if (i.operation && (feature.type === 'extrude' || feature.type === 'revolve')) feature.operation = i.operation
+      if (feature.type === 'extrude' || feature.type === 'revolve' || feature.type === 'fillet' || feature.type === 'chamfer') {
+        if (i.target === null) delete feature.target
+        else if (i.target !== undefined) {
+          checkTarget(part, i.target, feature.id)
+          feature.target = i.target
+        }
       }
       ctx.modified(feature.id)
       return {}
     },
   }),
-  define<{ featureId: string; suppressed: boolean }>({
+define<{ featureId: string; suppressed: boolean }>({
     name: 'set_suppressed',
     category: 'feature',
     summary: 'Suppress or unsuppress a feature (suppressed features are skipped by regeneration; dependents are blocked).',
@@ -853,8 +1003,8 @@ export const COMMANDS: CommandSpec[] = [
 function checkTarget(part: Part, target: string, before?: string) {
   const idx = part.features.findIndex((f) => f.id === target)
   const f = part.features[idx]
-  if (!f || f.type === 'sketch' || f.operation !== 'new') {
-    const bodies = part.features.filter((x): x is Feature & { operation: BodyOperation } => x.type !== 'sketch' && x.operation === 'new').map((x) => x.id)
+  if (!f || (f.type !== 'extrude' && f.type !== 'revolve') || f.operation !== 'new') {
+    const bodies = part.features.filter((x) => (x.type === 'extrude' || x.type === 'revolve') && x.operation === 'new').map((x) => x.id)
     throw new CadError('invalid-input', `Target ${target} is not a body of ${part.name}. Bodies: ${bodies.join(', ') || 'none yet'}.`)
   }
   if (before && idx > part.features.findIndex((x) => x.id === before)) throw new CadError('invalid-input', `Target ${target} comes after ${before} in the history.`)

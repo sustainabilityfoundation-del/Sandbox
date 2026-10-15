@@ -87,7 +87,7 @@ export default function CadModelerView() {
   const sketch = sketchPart?.features.find((f) => f.id === editingSketch) as SketchFeature | undefined
   const sketchResult = sketchPart && state.regen?.parts.find((p) => p.partId === sketchPart.id)?.features.find((f) => f.featureId === editingSketch)?.sketch
   const ok = state.regen?.ok
-  const selectedFaces = vs.selection.flatMap((s) => (s.kind === 'face' ? [{ bodyId: s.bodyId, face: s.id }] : s.kind === 'body' ? [{ bodyId: s.id }] : []))
+  const selectedFaces = vs.selection.flatMap((s) => (s.kind === 'face' ? [{ bodyId: s.bodyId, face: s.id }] : s.kind === 'edge' ? [{ bodyId: s.bodyId, edge: s.id }] : s.kind === 'body' ? [{ bodyId: s.id }] : []))
 
   return (
     <div className="cadm-root" onKeyDown={onKeyDown}>
@@ -189,7 +189,17 @@ export default function CadModelerView() {
             selected={selectedFaces}
             showEdges={vs.showEdges}
             viewRequest={vs.viewRequest}
-            onPick={(p) => update({ selection: p ? [{ kind: 'face', id: p.face, bodyId: p.bodyId }] : [], ...(p ? { tab: 'inspect' } : {}) })}
+            highlightEdges={vs.highlightEdges ?? []}
+            onPick={(p) => {
+              if (!p) return update({ selection: [] })
+              const item = p.edge ? ({ kind: 'edge', id: p.edge, bodyId: p.bodyId } as const) : ({ kind: 'face', id: p.face!, bodyId: p.bodyId } as const)
+              // While a fillet or chamfer is edited, picks accumulate (toggle) and the Edit tab stays open.
+              if (vs.editing?.kind === 'fillet' || vs.editing?.kind === 'chamfer') {
+                const has = vs.selection.some((x) => x.kind === item.kind && x.id === item.id)
+                return update({ selection: has ? vs.selection.filter((x) => !(x.kind === item.kind && x.id === item.id)) : [...vs.selection.filter((x) => x.kind === 'edge' || x.kind === 'face'), item] })
+              }
+              update({ selection: [item], tab: 'inspect' })
+            }}
             onView={(kind) => update({ viewRequest: { kind, seq: Date.now() } })}
             onToggleEdges={() => update({ showEdges: !vs.showEdges })}
           />

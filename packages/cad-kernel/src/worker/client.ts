@@ -55,6 +55,7 @@ export function createWorkerKernel(): WorkerKernel {
     ready,
     makeSolid: call('makeSolid') as GeometryKernel['makeSolid'],
     boolean: call('boolean') as GeometryKernel['boolean'],
+    blendEdges: call('blendEdges') as GeometryKernel['blendEdges'],
     analyze: call('analyze') as GeometryKernel['analyze'],
     mesh: call('mesh') as GeometryKernel['mesh'],
     exportStep: call('exportStep') as GeometryKernel['exportStep'],

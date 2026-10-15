@@ -1,8 +1,8 @@
-import { massProperties, type CadEngine, type EngineState, type ReferenceModule, type ReferenceRole } from '@ews/cad-core'
+import { massProperties, type CadEngine, type EngineState, type Feature, type PlaneRef, type ReferenceModule, type ReferenceRole } from '@ews/cad-core'
 import { Button, EmptyState, IconButton, Notice, Select, TextField } from '@ews/design-system'
 import { isComponent } from '@ews/platform-sdk'
 import { useModel, useToolApi } from '@ews/platform-sdk/react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { CadModelerViewState } from '../viewState'
 import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf } from './common'
 
@@ -57,6 +57,35 @@ export function InspectPanel({ engine, state, vs, update }: Props) {
             </section>
           )
         })()}
+      {sel?.kind === 'edge' &&
+        (() => {
+          const body = pr?.bodies.find((b) => b.bodyId === sel.bodyId)
+          const edge = body?.analysis.edges.find((e) => e.name === sel.id)
+          if (!edge) return <Notice tone="warning">The edge {sel.id} no longer exists after regeneration.</Notice>
+          return (
+            <section className="cadm-section" aria-label="Edge">
+              <h3 className="cadm-section-title">Edge</h3>
+              <dl className="cadm-props">
+                <dt>Stable name</dt>
+                <dd className="cadm-mono">{edge.name}</dd>
+                <dt>Curve</dt>
+                <dd>{edge.curveType}</dd>
+                <dt>Length</dt>
+                <dd>{fmtNum(edge.length, 3)} mm</dd>
+                <dt>Between faces</dt>
+                <dd className="cadm-mono">{edge.faces.join(', ')}</dd>
+              </dl>
+              <div className="cadm-actions">
+                <Button size="sm" variant="outlined" icon="tune" onPress={() => update({ editing: { kind: 'fillet' }, tab: 'edit', selection: [sel] })}>
+                  Fillet this edge
+                </Button>
+                <Button size="sm" variant="outlined" icon="dimensions" onPress={() => update({ editing: { kind: 'chamfer' }, tab: 'edit', selection: [sel] })}>
+                  Chamfer this edge
+                </Button>
+              </div>
+            </section>
+          )
+        })()}
       {sel?.kind === 'body' &&
         (() => {
           const mp = pr ? massProperties(doc, state.regen, part.id).find((m) => m.bodyId === sel.id) : undefined
@@ -98,16 +127,12 @@ export function InspectPanel({ engine, state, vs, update }: Props) {
                 <dd className="cadm-mono">{f.id}</dd>
                 <dt>Type</dt>
                 <dd>{f.type}</dd>
-                {f.type !== 'sketch' && (
-                  <>
-                    <dt>Sketch</dt>
-                    <dd className="cadm-mono">{f.sketch}</dd>
-                    <dt>{f.type === 'extrude' ? 'Distance' : 'Angle'}</dt>
-                    <dd>{String(f.type === 'extrude' ? f.extent.distance : f.angle)}</dd>
-                    <dt>Operation</dt>
-                    <dd>{f.operation}</dd>
-                  </>
-                )}
+                {Object.entries(featureFacts(f)).map(([k, v]) => (
+                  <Fragment key={k}>
+                    <dt>{k}</dt>
+                    <dd className={/Sketch|Edges|Plane|Target/.test(k) ? 'cadm-mono' : undefined}>{v}</dd>
+                  </Fragment>
+                ))}
                 <dt>Regenerated</dt>
                 <dd>{r ? `${r.rebuilt ? 'rebuilt' : 'reused from cache'} in ${fmtNum(r.durationMs, 1)} ms` : '—'}</dd>
               </dl>
@@ -222,4 +247,23 @@ function PartProperties({ engine, state }: { engine: CadEngine; state: EngineSta
       </section>
     </>
   )
+}
+
+/** Readable definition of a feature for the inspector. */
+function featureFacts(f: Feature): Record<string, string> {
+  const plane = (p: PlaneRef) => `${p.kind === 'standard' ? p.plane : p.kind === 'datum' ? `datum ${p.datum}` : `face ${p.face}`}${p.offset ? `, offset ${p.offset}` : ''}`
+  switch (f.type) {
+    case 'sketch':
+      return { Plane: plane(f.plane), Entities: String(f.entities.length), Constraints: String(f.constraints.length) }
+    case 'extrude':
+      return { Sketch: f.sketch, Distance: String(f.extent.distance), Direction: f.extent.direction, Operation: f.operation, ...(f.target ? { Target: f.target } : {}) }
+    case 'revolve':
+      return { Sketch: f.sketch, Axis: f.axis, Angle: String(f.angle), Operation: f.operation, ...(f.target ? { Target: f.target } : {}) }
+    case 'fillet':
+      return { Radius: String(f.radius), Edges: f.edges.join(', '), ...(f.target ? { Target: f.target } : {}) }
+    case 'chamfer':
+      return { Distance: String(f.distance), Edges: f.edges.join(', '), ...(f.target ? { Target: f.target } : {}) }
+    case 'datum-plane':
+      return { Plane: plane(f.plane) }
+  }
 }

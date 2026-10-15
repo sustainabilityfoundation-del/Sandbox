@@ -63,8 +63,10 @@ function featureDetails(f: Feature, r?: FeatureResult): Record<string, unknown> 
   if (f.type === 'sketch') {
     const s = r?.sketch?.solution
     return {
-      plane: f.plane.plane,
+      plane: f.plane.kind === 'standard' ? f.plane.plane : f.plane.kind === 'datum' ? f.plane.datum : f.plane.face,
+      planeKind: f.plane.kind,
       offset: f.plane.offset ?? 0,
+      resolvedPlane: r?.sketch?.plane ?? null,
       entities: f.entities.length,
       constraints: f.constraints.length,
       constraintStatus: s?.status ?? null,
@@ -74,7 +76,10 @@ function featureDetails(f: Feature, r?: FeatureResult): Record<string, unknown> 
     }
   }
   if (f.type === 'extrude') return { sketch: f.sketch, distance: f.extent.distance, direction: f.extent.direction, operation: f.operation, target: f.target ?? null, body: r?.bodyId ?? null }
-  return { sketch: f.sketch, axis: f.axis, angle: f.angle, operation: f.operation, target: f.target ?? null, body: r?.bodyId ?? null }
+  if (f.type === 'revolve') return { sketch: f.sketch, axis: f.axis, angle: f.angle, operation: f.operation, target: f.target ?? null, body: r?.bodyId ?? null }
+  if (f.type === 'fillet') return { edges: f.edges, radius: f.radius, target: f.target ?? null, body: r?.bodyId ?? null }
+  if (f.type === 'chamfer') return { edges: f.edges, distance: f.distance, target: f.target ?? null, body: r?.bodyId ?? null }
+  return { planeKind: f.plane.kind, plane: f.plane.kind === 'standard' ? f.plane.plane : f.plane.kind === 'datum' ? f.plane.datum : f.plane.face, offset: f.plane.offset ?? 0, resolvedPlane: r?.plane ?? null }
 }
 
 export function parameterTable(doc: CadDocument, partId: string) {
@@ -175,7 +180,7 @@ export function geometricEntities(regen: RegenerationResult | undefined, partId:
 export interface DependencyEdge {
   from: string
   to: string
-  kind: 'parameter' | 'sketch' | 'body'
+  kind: 'parameter' | 'sketch' | 'body' | 'reference'
 }
 
 /** Explicit dependency graph of a part: parameters → parameters/features, sketch → feature, body chain. */
@@ -186,11 +191,32 @@ export function dependencyGraph(doc: CadDocument, partId: string) {
   for (const p of scope.parameters) for (const u of p.uses) edges.push({ from: `param:${u}`, to: `param:${p.name}`, kind: 'parameter' })
   let latest: string | undefined
   const lastOnBody = new Map<string, string>()
+  const bodyOf = new Map<string, string>()
   for (const f of part.features) {
     for (const n of featureNames(f)) edges.push({ from: `param:${n}`, to: f.id, kind: 'parameter' })
-    if (f.type === 'sketch') continue
+    if (f.type === 'sketch' || f.type === 'datum-plane') {
+      // Planes on datums or faces depend on that datum or on the body state that has the face.
+      if (f.plane.kind === 'datum') edges.push({ from: f.plane.datum, to: f.id, kind: 'reference' })
+      if (f.plane.kind === 'face') {
+        const owner = f.plane.face.split('/')[0]
+        const body = bodyOf.get(owner)
+        edges.push({ from: (body && lastOnBody.get(body)) ?? owner, to: f.id, kind: 'reference' })
+      }
+      continue
+    }
+    if (f.type === 'fillet' || f.type === 'chamfer') {
+      const body = f.target ?? latest
+      if (body && lastOnBody.has(body)) {
+        edges.push({ from: lastOnBody.get(body)!, to: f.id, kind: 'body' })
+        lastOnBody.set(body, f.id)
+        bodyOf.set(f.id, body)
+        latest = body
+      }
+      continue
+    }
     edges.push({ from: f.sketch, to: f.id, kind: 'sketch' })
     if (f.operation === 'new') {
+      bodyOf.set(f.id, f.id)
       latest = f.id
       lastOnBody.set(f.id, f.id)
     } else {
@@ -198,8 +224,10 @@ export function dependencyGraph(doc: CadDocument, partId: string) {
       if (body && lastOnBody.has(body)) {
         edges.push({ from: lastOnBody.get(body)!, to: f.id, kind: 'body' })
         lastOnBody.set(body, f.id)
+        bodyOf.set(f.id, body)
         latest = body
       } else if (f.operation === 'join') {
+        bodyOf.set(f.id, f.id)
         latest = f.id
         lastOnBody.set(f.id, f.id)
       }
