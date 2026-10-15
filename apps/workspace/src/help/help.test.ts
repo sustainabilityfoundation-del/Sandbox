@@ -119,12 +119,12 @@ describe('Help Service', () => {
 describe('workspace help', () => {
   it('searches across installed modules with provenance for retrieval', () => {
     const hits = workspaceHelp.search('baseline')
-    expect(new Set(hits.map((h) => h.moduleId))).toEqual(new Set(['platform', 'requirements']))
+    expect(new Set(hits.map((h) => h.moduleId))).toEqual(new Set(['platform', 'requirements', 'sysml-modeler']))
     for (const h of hits) expect(h).toMatchObject({ docsVersion: expect.any(String), source: expect.stringMatching(/\.md$/) })
   })
 
   it('follows the subscription: tools outside it are not listed', () => {
-    expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'sysml', 'cad', 'ai'])
+    expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'sysml', 'cad', 'sysml-modeler', 'ai'])
     useEntitlements.getState().setPlan('requirements')
     expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'ai'])
     expect(workspaceHelp.contextual({ moduleId: 'cad' }).map((r) => r.topic.id)).toEqual(['platform.getting-started'])

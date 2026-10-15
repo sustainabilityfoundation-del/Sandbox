@@ -31,8 +31,8 @@ beforeAll(async () => {
 beforeEach(() => setPlan('all'))
 
 describe('tool catalogue', () => {
-  it('contains exactly Requirements, SysML and CAD; Analysis and Verification are retired', () => {
-    expect(getTools().map((t) => t.id)).toEqual(['requirements', 'sysml', 'cad'])
+  it('contains exactly Requirements, SysML, CAD and the SysML Modeler; Analysis and Verification are retired', () => {
+    expect(getTools().map((t) => t.id)).toEqual(['requirements', 'sysml', 'cad', 'sysml-modeler'])
     expect(getTool('analysis')).toBeUndefined()
     expect(getTool('verification')).toBeUndefined()
     // Their saved data keeps a readable source name.
@@ -43,7 +43,8 @@ describe('tool catalogue', () => {
     for (const tool of getTools()) {
       expect(tool.version).toMatch(/^\d+\.\d+\.\d+$/)
       expect(isSdkCompatible(tool.sdkVersion)).toBe(true)
-      expect(tool.entitlement).toBe(`tool:${tool.id}`)
+      // The SysML Modeler shares the SysML entitlement during development (sysml-program-contracts.md §1).
+      expect(tool.entitlement).toBe(tool.id === 'sysml-modeler' ? 'tool:sysml' : `tool:${tool.id}`)
       for (const action of tool.assistant?.actions ?? []) expect(action.name.startsWith(`${tool.id}.`)).toBe(true)
     }
   })
