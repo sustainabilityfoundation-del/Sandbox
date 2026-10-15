@@ -232,7 +232,7 @@ describe('engineering-calc: reproducibility manifest', () => {
 
   it('verifies a genuine manifest and refuses tampered outputs, inputs or models', () => {
     const m = evaluateModel(BUCKLING, ROD_INPUTS, fixed).manifest
-    expect(verifyManifest(BUCKLING, m)).toEqual({ ok: true, reasons: [] })
+    expect(verifyManifest(BUCKLING, m)).toMatchObject({ ok: true, reasons: [], exactDigestMatch: true })
     const fakeOutput = { ...m, outputs: m.outputs.map((o) => (o.symbol === 'P_cr' ? { ...o, value: 500 } : o)), outputDigest: 'sha256:0' }
     expect(verifyManifest(BUCKLING, fakeOutput).ok).toBe(false)
     const fakeInput = { ...m, inputs: m.inputs.map((i) => (i.symbol === 'd' ? { ...i, value: 40 } : i)) }

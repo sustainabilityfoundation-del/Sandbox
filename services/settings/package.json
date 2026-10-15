@@ -1,0 +1,21 @@
+{
+  "name": "@ews/settings-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Settings service: typed setting definitions (SDK 1.6), user- and project-scoped values in PostgreSQL schema 'settings', server-side validation (types, ranges, permissions, project ceilings, ETag/If-Match), OpenAPI 3.1. Hosted by @ews/api at /api/settings/v1.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/platform-sdk": "^1.5.0",
+    "fastify": "5.12.5",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}

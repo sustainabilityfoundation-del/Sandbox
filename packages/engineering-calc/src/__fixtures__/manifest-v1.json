@@ -1,0 +1,279 @@
+{
+ "point": {
+  "engine": {
+   "name": "@ews/engineering-calc",
+   "version": "0.1.0",
+   "mathjs": "15.2.0",
+   "grammar": "ews-expr/1"
+  },
+  "model": {
+   "id": "calc-buckling",
+   "revision": 1,
+   "digest": "sha256:9107d6f2bb82373ff754de9f409db8ac1981899fadcce5086fc654532bbed50b"
+  },
+  "inputs": [
+   {
+    "symbol": "F",
+    "value": 12,
+    "unit": "kN",
+    "source": {
+     "kind": "binding",
+     "ref": {
+      "module": "conceptualize",
+      "type": "constraint",
+      "id": "cst-load"
+     },
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "E",
+    "value": 210,
+    "unit": "GPa",
+    "source": {
+     "kind": "binding",
+     "basis": "assumption"
+    }
+   },
+   {
+    "symbol": "d",
+    "value": 25,
+    "unit": "mm",
+    "source": {
+     "kind": "binding",
+     "ref": {
+      "module": "twin",
+      "id": "ROD-120",
+      "revision": 2
+     },
+     "property": "diameter",
+     "via": "client-attested",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "L",
+    "value": 600,
+    "unit": "mm",
+    "source": {
+     "kind": "binding",
+     "ref": {
+      "module": "twin",
+      "id": "ROD-120",
+      "revision": 2
+     },
+     "property": "effectiveLength",
+     "via": "client-attested",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "K",
+    "value": 1,
+    "unit": "-",
+    "source": {
+     "kind": "binding",
+     "basis": "assumption"
+    }
+   },
+   {
+    "symbol": "n",
+    "value": 2,
+    "unit": "-",
+    "source": {
+     "kind": "binding",
+     "basis": "assumption"
+    }
+   },
+   {
+    "symbol": "sigma_y",
+    "value": 600,
+    "unit": "MPa",
+    "source": {
+     "kind": "binding",
+     "basis": "assumption"
+    }
+   }
+  ],
+  "outputs": [
+   {
+    "symbol": "I",
+    "value": 19174.759848570513,
+    "unit": "mm^4"
+   },
+   {
+    "symbol": "P_cr",
+    "value": 110.39425494491515,
+    "unit": "kN"
+   },
+   {
+    "symbol": "lambda",
+    "value": 95.99999999999999,
+    "unit": "-"
+   }
+  ],
+  "checks": [
+   {
+    "relationId": "c1",
+    "text": "P_cr >= n * F",
+    "op": ">=",
+    "lhs": 110.39425494491515,
+    "rhs": 24,
+    "unit": "kN",
+    "margin": 86.39425494491515,
+    "marginRatio": 4.599760622704798,
+    "satisfied": true,
+    "status": "satisfied"
+   }
+  ],
+  "validity": {
+   "satisfied": true,
+   "violated": []
+  },
+  "uncertainty": "point",
+  "basis": "calculated",
+  "inputDigest": "sha256:4e1a199a41cee788e62448d240f4cf966737158605ab253dbaade83e948b8aa4",
+  "outputDigest": "sha256:22bac6ee47a12749512cb6bc953b20933d67e1e912c5f4643afa81304f8a04cb",
+  "evaluatedAt": "2026-10-15T00:00:00.000Z",
+  "durationMs": 79
+ },
+ "vertices": {
+  "engine": {
+   "name": "@ews/engineering-calc",
+   "version": "0.1.0",
+   "mathjs": "15.2.0",
+   "grammar": "ews-expr/1"
+  },
+  "model": {
+   "id": "calc-buckling",
+   "revision": 1,
+   "digest": "sha256:9107d6f2bb82373ff754de9f409db8ac1981899fadcce5086fc654532bbed50b"
+  },
+  "inputs": [
+   {
+    "symbol": "F",
+    "value": 12,
+    "unit": "kN",
+    "source": {
+     "kind": "binding",
+     "ref": {
+      "module": "conceptualize",
+      "type": "constraint",
+      "id": "cst-load"
+     },
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "E",
+    "value": 210,
+    "unit": "GPa",
+    "source": {
+     "kind": "binding",
+     "basis": "assumption"
+    }
+   },
+   {
+    "symbol": "d",
+    "value": 25,
+    "min": 24,
+    "max": 26,
+    "unit": "mm",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "L",
+    "value": 600,
+    "unit": "mm",
+    "source": {
+     "kind": "binding",
+     "ref": {
+      "module": "twin",
+      "id": "ROD-120",
+      "revision": 2
+     },
+     "property": "effectiveLength",
+     "via": "client-attested",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "K",
+    "value": 1,
+    "unit": "-",
+    "source": {
+     "kind": "binding",
+     "basis": "assumption"
+    }
+   },
+   {
+    "symbol": "n",
+    "value": 2,
+    "unit": "-",
+    "source": {
+     "kind": "binding",
+     "basis": "assumption"
+    }
+   },
+   {
+    "symbol": "sigma_y",
+    "value": 600,
+    "unit": "MPa",
+    "source": {
+     "kind": "binding",
+     "basis": "assumption"
+    }
+   }
+  ],
+  "outputs": [
+   {
+    "symbol": "I",
+    "value": 19174.759848570513,
+    "unit": "mm^4",
+    "min": 16286.016316209485,
+    "max": 22431.756944794524
+   },
+   {
+    "symbol": "P_cr",
+    "value": 110.39425494491515,
+    "unit": "kN",
+    "min": 93.76298068122665,
+    "max": 129.14566412213134
+   },
+   {
+    "symbol": "lambda",
+    "value": 95.99999999999999,
+    "unit": "-",
+    "min": 92.30769230769229,
+    "max": 100
+   }
+  ],
+  "checks": [
+   {
+    "relationId": "c1",
+    "text": "P_cr >= n * F",
+    "op": ">=",
+    "lhs": 110.39425494491515,
+    "rhs": 24,
+    "unit": "kN",
+    "margin": 86.39425494491515,
+    "marginRatio": 4.599760622704798,
+    "satisfied": true,
+    "status": "satisfied"
+   }
+  ],
+  "validity": {
+   "satisfied": true,
+   "violated": []
+  },
+  "uncertainty": "interval-vertices",
+  "basis": "calculated",
+  "inputDigest": "sha256:3895f2b1118e4447dbdefc8b85884bb01a9250bc55060e817170403d8b0c4185",
+  "outputDigest": "sha256:248aef7002f51f722abbfbcdaa692c78bd970fa82aafa496b090e60d5c481663",
+  "evaluatedAt": "2026-10-15T00:00:00.000Z",
+  "durationMs": 4
+ }
+}

@@ -41,7 +41,7 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/requirements-client': /^@ews\/platform-sdk$/,
   'packages/reqif': /^$/,
   'services/requirements': /^@ews\/(platform-sdk|reqif)$/,
-  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service)$/,
+  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service|settings-service|assistant-service)$/,
   // Conceptualize (docs/specifications/conceptualize-contracts.md). Only the client reaches the browser.
   'packages/tool-conceptualize': /^@ews\/(platform-sdk|design-system|conceptualize-client)(\/[\w.-]+)?$/,
   'packages/conceptualize-client': /^@ews\/platform-sdk$/,
@@ -55,6 +55,9 @@ const ALLOWED: Record<string, RegExp> = {
   // the core may use the SDK's testing fixtures (sample twin) in its scenario tests.
   'packages/engineering-calc': /^@ews\/platform-sdk$/,
   'packages/design-reasoning-core': /^@ews\/(platform-sdk(\/testing)?|engineering-calc)$/,
+  // AI connection (docs/specifications/ai-connection.md §5, §5a): framework-free SDK contract only; hosted by services/api.
+  'services/settings': /^@ews\/platform-sdk$/,
+  'services/assistant': /^@ews\/platform-sdk$/,
 }
 
 describe('package boundaries', () => {

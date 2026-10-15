@@ -1,4 +1,4 @@
-import { CalcError, evaluateModel, minBasis, type Basis } from '@ews/engineering-calc'
+import { CalcError, ERROR_TAXONOMY, evaluateModel, minBasis, type Basis } from '@ews/engineering-calc'
 import { toDefinition } from './adapters/conceptualizeContractAdapter'
 import { BindingError, resolveInputs } from './bindings'
 import { paretoAnalysis } from './compare'
@@ -42,7 +42,7 @@ export interface ToolEnvelope<T = unknown> {
 
 export class ToolCallError extends Error {
   constructor(
-    readonly code: 'invalid-input' | 'not-found' | 'forbidden' | 'unit-error' | 'domain-error' | 'budget-exhausted' | 'cancelled' | 'not-implemented' | 'conflict' | 'invalid',
+    readonly code: 'invalid-input' | 'not-found' | 'forbidden' | 'unit-error' | 'domain-error' | 'budget-exhausted' | 'cancelled' | 'not-implemented' | 'conflict' | 'invalid' | 'timeout' | 'resource-limit' | 'internal',
     message: string,
   ) {
     super(message)
@@ -226,7 +226,7 @@ export function createReasoningEngine(deps: EngineDeps) {
       const values = (args.values as Record<string, Quantity>) ?? {}
       const symbols = Object.fromEntries(Object.entries(values).map(([s, q]) => [s, { ...q, source: { kind: 'literal' as const, basis: 'assumption' as const } }]))
       const resolved = await resolveInputs(model, { knowledge: deps.knowledge, ctx, twin: deps.twin?.() }, { symbols })
-      const result = evaluateModel(toDefinition(model), resolved.inputs, { uncertainty: (args.uncertainty as 'point' | 'interval-vertices') ?? 'point', now })
+      const result = evaluateModel(toDefinition(model), resolved.inputs, { uncertainty: (args.uncertainty as 'point' | 'interval') ?? 'point', now })
       const m = manifest(run, stepId, [{ ref: designRef('calculation-model', model.id, model.revision), revision: model.revision, via: 'seed', adapter: adapterLabel, fields: ['relations'] }, ...resolved.items])
       let draft: ProposalDraft | undefined
       const record = args.recordAsEvidence as { subjects: DesignRef[]; title: string } | undefined
@@ -240,7 +240,7 @@ export function createReasoningEngine(deps: EngineDeps) {
           expectedEffects: checks,
           evidence: [],
           assumptions: model.assumptions.map((a) => ({ text: a.id, ref: a })),
-          uncertainty: { summary: result.manifest.uncertainty === 'point' ? 'Point values; ranges not propagated.' : 'Interval bounds by vertex enumeration.', ranges: Object.values(result.outputs).filter((o) => o.min !== undefined).map((o) => ({ name: o.symbol, min: o.min!, max: o.max!, unit: o.unit })) },
+          uncertainty: { summary: result.manifest.uncertainty === 'point' ? 'Point values; ranges not propagated.' : 'Interval bounds: exact where monotonicity is proven, enclosures otherwise (see each output).', ranges: Object.values(result.outputs).filter((o) => o.min !== undefined).map((o) => ({ name: o.symbol, min: o.min!, max: o.max!, unit: o.unit })) },
           requiredApprovals: [{ permission: 'author', module: 'conceptualize', reason: 'Recording evidence' }],
           preview: [
             { label: 'New evidence', proposed: record.title, basis: result.basis },
@@ -420,7 +420,7 @@ export function createReasoningEngine(deps: EngineDeps) {
 
 function toToolError(e: unknown): ToolCallError {
   if (e instanceof ToolCallError) return e
-  if (e instanceof CalcError) return new ToolCallError(e.code === 'unit-error' ? 'unit-error' : e.code === 'domain-error' ? 'domain-error' : 'invalid-input', e.message)
+  if (e instanceof CalcError) return new ToolCallError(ERROR_TAXONOMY[e.code].toolCode, e.message)
   if (e instanceof BindingError) return new ToolCallError('invalid-input', e.message)
   if (e instanceof ConceptualizeError) return new ToolCallError(e.code === 'not-found' ? 'not-found' : e.code === 'forbidden' ? 'forbidden' : e.code === 'conflict' ? 'conflict' : e.code === 'not-implemented' ? 'not-implemented' : 'invalid', e.message)
   return new ToolCallError('invalid', e instanceof Error ? e.message : String(e))

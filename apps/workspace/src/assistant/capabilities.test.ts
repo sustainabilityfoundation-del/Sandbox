@@ -69,7 +69,8 @@ describe('AI capability inventory', () => {
       if (c.coverage === 'partial' || c.coverage === 'restricted') expect({ id: c.id, note: !!c.note }).toEqual({ id: c.id, note: true })
     }
     expect(CAPABILITIES.filter((c) => c.module === 'cad').every((c) => c.status !== 'implemented')).toBe(true)
-    expect(CAPABILITIES.find((c) => c.id === 'assistant.conversation')?.status).toBe('mock')
+    // A connected account answers with a real model; quality is not evaluated, so never "implemented".
+    expect(CAPABILITIES.find((c) => c.id === 'assistant.conversation')?.status).toBe('experimental')
   })
 
   it('summarizes coverage over the whole inventory, not only exposed operations', () => {

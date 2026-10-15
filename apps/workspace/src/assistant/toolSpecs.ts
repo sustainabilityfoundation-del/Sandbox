@@ -2,6 +2,7 @@ import type { AssistantActionDefinition } from '@ews/platform-sdk'
 import type { AnyToolDefinition } from '@ews/platform-sdk/react'
 import { useEntitlements } from '../platform/entitlements'
 import { getTools } from '../platform/registry'
+import { clientDecision } from './aiPolicy'
 import type { AssistantToolSpec } from './types'
 
 /**
@@ -104,13 +105,17 @@ export function findToolAction(name: string): { tool: AnyToolDefinition; action:
   return undefined
 }
 
-/** Operations offered with a request: platform operations plus actions of tools the subscription includes. */
+/**
+ * Operations offered with a request: platform operations plus actions of tools the subscription includes,
+ * narrowed by the person's AI access settings (Settings → AI and reasoning). The server applies the same
+ * policy again and is authoritative.
+ */
 export function availableOperations(): AssistantToolSpec[] {
   const { has } = useEntitlements.getState()
   const toolActions = getTools()
     .filter((t) => has(t.entitlement))
     .flatMap((t) => (t.assistant?.actions ?? []).map((a) => ({ name: a.name, label: a.label, description: `[${t.name}] ${a.description}`, parameters: a.parameters })))
-  return [...PLATFORM_TOOLS, ...toolActions]
+  return [...PLATFORM_TOOLS, ...toolActions].filter((t) => clientDecision(t.name).ok)
 }
 
 /** Short human-readable label for execution status. */

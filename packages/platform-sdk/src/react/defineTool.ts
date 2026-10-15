@@ -1,6 +1,7 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
 import type { AssistantContribution } from '../contract/assistant'
 import type { HelpManifest } from '../contract/help'
+import type { SettingsContribution } from '../contract/settings'
 import type { ToolManifest, ToolbarContext, ToolbarItem } from '../contract/tool'
 
 /**
@@ -21,6 +22,11 @@ export interface ToolDefinition<VS = unknown> extends ToolManifest {
    * built from Markdown in the tool's `help/` folder. Required by the definition of done (AGENTS.md).
    */
   help?: HelpManifest
+  /**
+   * Settings (SDK 1.6): typed definitions the platform renders as this module's page in the Settings
+   * centre. Values are stored and validated by the settings service; read them with useSetting(id).
+   */
+  settings?: SettingsContribution
   /** Keep the view mounted (hidden) after first use, for views that are expensive to rebuild. */
   keepMounted?: boolean
   /** Only one instance per window (excludes the tool from the split pane). */
