@@ -4,7 +4,7 @@ import { DOCUMENT_KINDS, documentLifecycleProblem, type DocumentKind, type Docum
 import { BlobIntegrityError, BlobNotFoundError } from '../blob/blobStore'
 import { audit, emit, isoRequired, isUuid, nextKey, type Ctx } from './context'
 import { registerOwn } from './artifacts'
-import { linkSubjects } from './links'
+import { createLink, linkSubjects } from './links'
 
 /**
  * Documents and attachments (ADR-0066): metadata in PostgreSQL, bytes in the content-addressed blob store.
@@ -37,6 +37,7 @@ interface VersionRow {
   uploaded_by: string
   sha256: string
   byte_size: string
+  provenance: FileProvenance | null
 }
 
 const versionJson = (v: VersionRow) => ({
@@ -48,6 +49,7 @@ const versionJson = (v: VersionRow) => ({
   note: v.note,
   uploadedAt: isoRequired(v.uploaded_at),
   uploadedBy: v.uploaded_by,
+  ...(v.provenance ? { provenance: v.provenance } : {}),
 })
 
 export function documentJson(r: DocumentRow, extra: { artifactId?: string; versions?: VersionRow[] } = {}) {
@@ -83,10 +85,54 @@ export async function loadDocument(ctx: Ctx, id: string, forUpdate = false): Pro
 
 async function versionsOf(ctx: Ctx, id: string) {
   const { rows } = await ctx.db.query<VersionRow>(
-    `SELECT v.version, v.blob_key, v.file_name, v.media_type, v.note, v.uploaded_at, v.uploaded_by, b.sha256, b.byte_size FROM projects.document_versions v JOIN projects.blobs b ON b.key = v.blob_key WHERE v.document_id = $1 ORDER BY v.version DESC`,
+    `SELECT v.version, v.blob_key, v.file_name, v.media_type, v.note, v.uploaded_at, v.uploaded_by, v.provenance, b.sha256, b.byte_size FROM projects.document_versions v JOIN projects.blobs b ON b.key = v.blob_key WHERE v.document_id = $1 ORDER BY v.version DESC`,
     [id],
   )
   return rows
+}
+
+/**
+ * Where a stored file came from (D1-PM): the source artifact and the exact revision it was produced from, the tool
+ * and version that produced it, and optional details (for example a STEP read-back report). Recorded with the
+ * immutable version; never inferred.
+ */
+export interface FileProvenance {
+  source?: { module: string; kind: string; id: string; revision?: number | string }
+  tool?: { name: string; version: string }
+  kernel?: { name: string; version: string }
+  generatedAt?: string
+  notes?: string
+  details?: Record<string, unknown>
+}
+
+export function checkProvenance(value: unknown): FileProvenance {
+  const p = value as FileProvenance
+  const bad = (m: string) => invalid(`X-Provenance: ${m}`, { 'X-Provenance': 'invalid' }, 400)
+  if (!p || typeof p !== 'object' || Array.isArray(p)) throw bad('must be a JSON object.')
+  const allowed = ['source', 'tool', 'kernel', 'generatedAt', 'notes', 'details']
+  const extra = Object.keys(p).filter((k) => !allowed.includes(k))
+  if (extra.length) throw bad(`unknown field(s) ${extra.join(', ')}.`)
+  if (p.source) {
+    const s = p.source
+    if (typeof s.module !== 'string' || typeof s.kind !== 'string' || typeof s.id !== 'string' || !s.module || !s.kind || !s.id) throw bad('source needs module, kind and id.')
+    if (s.revision !== undefined && typeof s.revision !== 'number' && typeof s.revision !== 'string') throw bad('source.revision must be a number or a string.')
+  }
+  for (const k of ['tool', 'kernel'] as const) {
+    const t = p[k]
+    if (t !== undefined && (typeof t !== 'object' || typeof t.name !== 'string' || typeof t.version !== 'string')) throw bad(`${k} needs name and version.`)
+  }
+  if (p.generatedAt !== undefined && Number.isNaN(Date.parse(p.generatedAt))) throw bad('generatedAt must be a date-time.')
+  if (p.notes !== undefined && (typeof p.notes !== 'string' || p.notes.length > 2000)) throw bad('notes must be text (at most 2000 characters).')
+  if (JSON.stringify(p).length > 20000) throw bad('is too large (at most 20 000 characters).')
+  return p
+}
+
+async function linkToSource(ctx: Ctx, documentId: string, source: NonNullable<FileProvenance['source']>) {
+  const doc = await ctx.db.query<{ id: string }>(`SELECT id FROM projects.artifacts WHERE project_id = $1 AND module = 'projects' AND kind = 'document' AND native_id = $2`, [ctx.projectId, documentId])
+  const target = await ctx.db.query<{ id: string }>('SELECT id FROM projects.artifacts WHERE project_id = $1 AND module = $2 AND kind = $3 AND native_id = $4', [ctx.projectId, source.module, source.kind, source.id])
+  if (!doc.rows[0] || !target.rows[0]) return
+  const exists = await ctx.db.query(`SELECT 1 FROM projects.links WHERE project_id = $1 AND type = 'describes' AND from_artifact = $2 AND to_artifact = $3 AND removed_at IS NULL`, [ctx.projectId, doc.rows[0].id, target.rows[0].id])
+  if (!exists.rowCount) await createLink(ctx, { type: 'describes', from: { artifactId: doc.rows[0].id }, to: { artifactId: target.rows[0].id, ...(source.revision !== undefined ? { revision: source.revision } : {}) }, note: 'File produced from this artifact' })
 }
 
 export interface DocumentInput {
@@ -159,7 +205,7 @@ export async function updateDocument(ctx: Ctx, id: string, expectedRevision: num
  * if the transaction then fails, the stored bytes stay unreferenced, which is harmless (same content, same key)
  * and reported by integrity checks as unreferenced storage.
  */
-export async function addDocumentVersion(ctx: Ctx, id: string, expectedRevision: number, upload: { bytes: Uint8Array; fileName: string; mediaType: string; note?: string; expectedSha256?: string; maxBytes: number }) {
+export async function addDocumentVersion(ctx: Ctx, id: string, expectedRevision: number, upload: { bytes: Uint8Array; fileName: string; mediaType: string; note?: string; expectedSha256?: string; maxBytes: number; provenance?: FileProvenance }) {
   const d = await loadDocument(ctx, id, true)
   if (d.revision !== expectedRevision) throw conflict(`${d.key} changed since revision ${expectedRevision} (now ${d.revision}).`, d.revision)
   if (d.lifecycle === 'retired') throw invalid('A retired document cannot get new versions.')
@@ -169,7 +215,7 @@ export async function addDocumentVersion(ctx: Ctx, id: string, expectedRevision:
   if (upload.expectedSha256 && upload.expectedSha256 !== stored.sha256) throw invalid('The uploaded content does not match its Content-Digest (sha-256); nothing was recorded.', { 'Content-Digest': 'mismatch' })
   await ctx.db.query('INSERT INTO projects.blobs (key, sha256, byte_size, first_stored_at) VALUES ($1,$2,$3,$4) ON CONFLICT (key) DO NOTHING', [stored.key, stored.sha256, stored.byteSize, ctx.now])
   const version = d.current_version + 1
-  await ctx.db.query('INSERT INTO projects.document_versions (document_id, version, blob_key, file_name, media_type, note, uploaded_at, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [
+  await ctx.db.query('INSERT INTO projects.document_versions (document_id, version, blob_key, file_name, media_type, note, uploaded_at, uploaded_by, provenance) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [
     id,
     version,
     stored.key,
@@ -178,7 +224,10 @@ export async function addDocumentVersion(ctx: Ctx, id: string, expectedRevision:
     upload.note ?? '',
     ctx.now,
     ctx.actor,
+    upload.provenance ? JSON.stringify(upload.provenance) : null,
   ])
+  // A file produced from another artifact (e.g. a STEP export of a CAD document) is linked to it when it is registered.
+  if (upload.provenance?.source) await linkToSource(ctx, d.id, upload.provenance.source)
   const lifecycle: DocumentLifecycle = d.lifecycle === 'released' || d.lifecycle === 'in-review' ? 'working' : d.lifecycle
   const { rows } = await ctx.db.query<DocumentRow>(`UPDATE projects.documents SET current_version = $2, lifecycle = $3, revision = revision + 1, updated_at = $4, updated_by = $5 WHERE id = $1 RETURNING *`, [id, version, lifecycle, ctx.now, ctx.actor])
   const artifactId = await register(ctx, rows[0])

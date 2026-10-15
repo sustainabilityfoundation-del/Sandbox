@@ -26,7 +26,7 @@ import { artifactHistory, artifactJson, listArtifacts, loadArtifact } from '../s
 import { createLink, listLinks, removeLink } from '../store/links'
 import { createWorkItem, getWorkItem, listWorkItems, updateWorkItem, workItemHistory } from '../store/workItems'
 import { createMilestone, getMilestone, listMilestones, updateMilestone } from '../store/milestones'
-import { addDocumentVersion, createDocument, getDocument, listDocuments, readDocumentVersion, updateDocument } from '../store/documents'
+import { addDocumentVersion, checkProvenance, createDocument, getDocument, listDocuments, readDocumentVersion, updateDocument, type FileProvenance } from '../store/documents'
 import { registerRoute, type HostServices, type RequestContext, type RouteSpec } from './route'
 import { runProvisioning } from '../provisioning'
 import { workspaceDefaults } from '../domain/workspace'
@@ -835,7 +835,7 @@ export function registerProjectRoutes(app: FastifyInstance, services: HostServic
     operationId: 'uploadDocumentVersion',
     tag: 'Documents',
     summary: 'Upload a new immutable version (raw bytes)',
-    description: `Body: the file's bytes (any content type). Headers: X-File-Name (required), If-Match (document revision), optional Content-Digest \`sha-256=:<base64>:\` (verified), optional X-Version-Note. Limit ${maxUpload} bytes.`,
+    description: `Body: the file's bytes (any content type). Headers: X-File-Name (required), If-Match (document revision), optional Content-Digest \`sha-256=:<base64>:\` (verified), optional X-Version-Note, optional X-Provenance (URL-encoded JSON with source {module, kind, id, revision}, tool {name, version}, kernel {name, version}, generatedAt, notes, details), recorded with the immutable version; the document is linked (describes) to the source artifact when it is registered. Limit ${maxUpload} bytes.`,
     params: PI('documentId'),
     rawBody: { mediaType: 'application/octet-stream', description: 'The file content' },
     permission: 'edit',
@@ -855,9 +855,20 @@ export function registerProjectRoutes(app: FastifyInstance, services: HostServic
         expectedSha256 = Buffer.from(m[1], 'base64').toString('hex')
       }
       const expected = rc.expected(undefined, 'If-Match')
+      let provenance: FileProvenance | undefined
+      const rawProvenance = rc.request.headers['x-provenance']
+      if (typeof rawProvenance === 'string' && rawProvenance.trim()) {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(decodeURIComponent(rawProvenance))
+        } catch {
+          throw invalid('X-Provenance must be URL-encoded JSON.', { 'X-Provenance': 'malformed' }, 400)
+        }
+        provenance = checkProvenance(parsed)
+      }
       const mediaType = String(rc.request.headers['content-type'] ?? 'application/octet-stream').split(';')[0].trim() || 'application/octet-stream'
       return rc.write(async (ctx) => {
-        const d = await addDocumentVersion(ctx, rc.params.documentId, expected, { bytes: new Uint8Array(bytes), fileName, mediaType, note: rc.request.headers['x-version-note'] ? decodeURIComponent(String(rc.request.headers['x-version-note'])) : '', expectedSha256, maxBytes: maxUpload })
+        const d = await addDocumentVersion(ctx, rc.params.documentId, expected, { bytes: new Uint8Array(bytes), fileName, mediaType, note: rc.request.headers['x-version-note'] ? decodeURIComponent(String(rc.request.headers['x-version-note'])) : '', expectedSha256, maxBytes: maxUpload, provenance })
         return { status: 201, etag: d.revision, body: d }
       })
     },
