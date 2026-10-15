@@ -163,7 +163,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'reasoning.record_design_decision',
     version: '0.1.0',
     title: 'Record design decision',
-    description: 'Draft a design decision with outcomes, rationale, supporting evidence, assumptions, constraints and invalidation conditions. Recording accepted or rejected outcomes needs a reviewer, who applies the proposal.',
+    description: 'Draft a design decision with outcomes, rationale, supporting evidence, assumptions, constraints and invalidation conditions. An editor applies it as a proposed decision and a reviewer records it (Conceptualize roles: reviewers do not author). With record: true the draft both proposes and records, which only an administrator can apply.',
     effect: 'draft',
     inputSchema: {
       type: 'object',

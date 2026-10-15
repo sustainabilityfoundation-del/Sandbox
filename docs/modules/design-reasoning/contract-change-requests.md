@@ -182,3 +182,75 @@ analysis-dependent tools listed as `mock`/test adapter.
 No change required. Used as is: `get`, `resolve`, `traceLinks`, `create` (draft), events. Nice to have (P3):
 a quantity field on requirements so that formalizing constraints can be checked against a structured value
 instead of human-read text.
+
+## Exact TypeScript and refinements from the validation prototype (R1, 15 October 2026)
+
+The coordinator approved S1, S3 and S4 in principle and asked for the exact types, defined in
+`@ews/design-reasoning-core` until they are promoted to the SDK. The Conceptualize change requests
+(C1–C10) are implemented from **this document**; the TypeScript below and in
+`packages/design-reasoning-core/src/contract/conceptualize.ts` is its exact form. The in-memory test
+adapter (`src/adapters/conceptualizeContractAdapter.ts`) implements it and its tests list the failures the
+real API must produce.
+
+### CR-S1 (exact)
+
+```ts
+type DesignEntityType = 'function' | 'concept' | 'implementation' | 'constraint' | 'assumption' | 'evidence'
+  | 'decision' | 'alternative-set' | 'trade-study' | 'exploration' | 'calculation-model' | 'statement'
+interface DesignRef { module: 'conceptualize'; type: DesignEntityType; id: string; revision?: number }
+type ExtendedArtifactModule = ArtifactRef['module'] | 'conceptualize' | 'reasoning'
+interface ArtifactRefX extends Omit<ArtifactRef, 'module'> { module: Exclude<ExtendedArtifactModule, 'conceptualize'> }
+type AnyRef = DesignRef | ArtifactRefX
+```
+
+On promotion: `ArtifactModule` gains `'reasoning'` (and `'conceptualize'` only inside `DesignRef`), so
+`ArtifactRefX` collapses into `ArtifactRef`.
+
+### CR-S4 (exact)
+
+```ts
+type Basis = 'user-assertion' | 'ai-hypothesis' | 'assumption' | 'assessment' | 'estimate' | 'calculated' | 'evidence' | 'decision'
+interface ProposalItem { targetId?: string; label: string; current?: string; proposed: string; basis?: Basis }   // = ServiceProposalItem + 2 basis values
+interface ModuleOperation { module: 'conceptualize' | 'requirements'; operationId: string; params: Record<string, string>
+  body: unknown; ifMatch?: string; idempotencyKey: string }                                                    // CR-A1
+interface ProposalDraft {
+  id: string; runId: string; stepId: string
+  status: 'draft' | 'offered' | 'applied' | 'rejected' | 'expired' | 'superseded'
+  module: 'conceptualize' | 'requirements'; title: string; action: string; rationale: string
+  affected: AnyRef[]; expectedEffects: string[]; evidence: { ref: AnyRef; basis: Basis }[]
+  assumptions: { text: string; ref?: AnyRef }[]
+  uncertainty: { summary: string; ranges?: { name: string; min: number; max: number; unit: string }[] }
+  requiredApprovals: { permission: 'author' | 'decide'; module: string; reason: string }[]
+  operations: ModuleOperation[]; preview: ProposalItem[]; createdAt: string; expiresAt: string
+  applied?: { at: string; by: string; results: unknown[] }
+}
+```
+
+Promotion path: `ServiceProposalItem.basis` takes `Basis`; `ServiceProposal` gains the optional fields of
+`ProposalDraft` from `action` to `requiredApprovals`, plus `operations` as the declarative alternative to
+`apply` (ADR-0042). Apply allowlist: Conceptualize `batch` only in R1.
+
+### CR-S3 (read subset for other modules, exact signatures proposed)
+
+```ts
+interface ConceptsService {                         // additions, SDK 1.7 when Conceptualize ships C1, C5, C9
+  getFunction(id: string, scope: { projectId: string; revision?: number }): Promise<FunctionRecord | undefined>
+  traverse(request: TraverseRequest, scope: { projectId: string }): Promise<TraverseResponse>
+  decisionRationale(id: string, scope: { projectId: string }): Promise<DecisionRationale>
+}
+```
+
+### Refinements of the Conceptualize contract found while building R1
+
+| # | Refinement | Affects |
+| --- | --- | --- |
+| R1-1 | **All writes are batch items** (`POST /batch`, CR-C10). Item `op` names are the OpenAPI operationIds: `createFunction`, `createConcept`, `createConstraint`, `reviseConstraint`, `createAssumption`, `createEvidence`, `createLink`, `createAlternativeSet`, `createTradeStudy`, `putScores`, `proposeDecision`, `recordDecision`, `flagDecisionForReview`, `createImplementation`, `createCalculationModel`. The single-record endpoints of integration.md §3 take the same bodies. Placeholders are strings starting with `$`, substituted anywhere in later bodies | C10 |
+| R1-2 | Non-batch operations: `reviewEvidence(id, { outcome, method, note })` (reviewer) and `setAssumptionValidation(id, { status, reason, evidence? })`; validating needs an evidence ref and a person; validating or invalidating an assumption used by a recorded decision needs a reviewer | C3, C6 |
+| R1-3 | Roles follow Conceptualize's existing matrix: **reviewers do not author**, so a decision is proposed by an editor (or applied from a draft by an editor) and recorded by a reviewer. A reasoning draft therefore proposes; recording is a separate reviewer action | C5 |
+| R1-4 | `formalizes`: exactly one per constraint, target `requirements` artifact with a pinned revision; created automatically when `source.kind = 'requirement'`. `constrains` links are created from `subjects` | C2, C4 |
+| R1-5 | `CalculationParameterRecord.defaultBinding = { ref: AnyRef; property: string }` with properties `quantity` (assumption), `bound` (constraint), an attribute name (concept) or a twin property name. AI-sourced models start `unvalidated` | C8 |
+| R1-6 | Evidence `validationStatus: 'unreviewed' | 'accepted' | 'rejected'` derived from append-only reviews; `basis: 'evidence'` is never written directly. Evidence with `calculation` is re-verified (`verifyManifest`) and its basis may not exceed the manifest's | C6, C8 |
+| R1-7 | Decision `reviewFlags: { at, by, reason, impactReportId?, cleared? }[]`, `validity` derived (`under-review` while an uncleared flag exists); `flagDecisionForReview` only on recorded decisions; superseding by a recorded decision sets the old one `invalidated` | C5 |
+| R1-8 | Graph API returns **derived edges** (not stored, `derived: true`): `realizes`, `realized-as`, `selected-through`, `decides`, `member`, `decision-assumes`, `decision-constrained-by`, `binds`, `produced-by`, `subject`, `affects`, `watches`. Their impact propagation is in `linkTypes.ts` (`DERIVED_EDGE_TYPES`) | C9 |
+| R1-9 | Trade-study results use Conceptualize's existing computation unchanged (qualitative 1–5 is "very poor … very good" regardless of direction); Pareto dominance is computed by the reasoning core, not required from Conceptualize | C7 |
+| R1-10 | `asOf` on traversal stays in the contract; the test adapter answers `not-implemented` for it | C9 |
