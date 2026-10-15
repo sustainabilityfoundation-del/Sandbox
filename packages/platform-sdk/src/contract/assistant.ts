@@ -1,4 +1,5 @@
 import type { ModelIndex, ObjectType, OutputRecord, RelationshipType } from '@ews/model-service'
+import type { PlatformServices } from './requirements'
 
 /**
  * Assistant contributions. A tool describes the operations ChatGPT may request
@@ -33,6 +34,8 @@ export interface AssistantActionContext {
   /** Artifacts in the captured configuration. */
   artifacts: OutputRecord[]
   captured: CapturedActionContext
+  /** Platform services (SDK 1.5): service-backed modules prepare service proposals with them. */
+  services?: PlatformServices
 }
 
 /** A change an action proposes. The platform validates it and builds the preview. */
@@ -57,6 +60,41 @@ export interface InspectedItem {
 export type AssistantActionResult =
   | { kind: 'data'; data: unknown; summary: string; inspected?: InspectedItem[] }
   | { kind: 'proposal'; title: string; explanation: string; changes: ChangeInput[]; inspected?: InspectedItem[] }
+  | ServiceProposal
+
+/**
+ * A change to a service-backed module (Requirements, Conceptualize …) proposed by the assistant (SDK 1.5).
+ * The platform shows the preview; nothing is written until the user chooses Apply, which calls `apply`.
+ * `apply` must use the module's validated API with expected revisions or idempotency keys, so it
+ * enforces the same authorization, validation and history as a user edit. The preview policy is unchanged.
+ */
+export interface ServiceProposal {
+  kind: 'service-proposal'
+  /** Owning module (its entitlement is checked again before Apply). */
+  module: string
+  title: string
+  explanation: string
+  /** What will change, field by field or item by item. */
+  preview: ServiceProposalItem[]
+  /** Assumptions or AI hypotheses the user should see before applying. */
+  assumptions?: string[]
+  inspected?: InspectedItem[]
+  /** Performs the change through the module API. Throwing keeps the proposal open with the error. */
+  apply: (provenance: { conversationId: string; proposalId: string; messageId: string }) => Promise<{ summary: string; createdIds?: string[] }>
+  /** Compensating change (a new revision), if the module supports it. */
+  undo?: (applied: { createdIds?: string[] }) => Promise<{ summary: string }>
+}
+
+export interface ServiceProposalItem {
+  /** Canonical ID of the record (absent for records to be created). */
+  targetId?: string
+  /** What the item is, e.g. "New concept", "Alternative", "Relationship", "Statement". */
+  label: string
+  current?: string
+  proposed: string
+  /** How the content was produced; AI hypotheses are never shown as facts. */
+  basis?: 'user-statement' | 'ai-hypothesis' | 'assumption' | 'estimate' | 'evidence'
+}
 
 export interface AssistantActionDefinition {
   /** Globally unique, prefixed with the tool ID: 'requirements.read_for_component'. */
@@ -109,8 +147,17 @@ export interface CreatableObjectRule {
   parentTypes?: ObjectType[]
 }
 
+/**
+ * DEMO ONLY (SDK 1.5): lets a tool teach the scripted demo assistant how to answer some prompts
+ * with its actions, until a real model provider is connected. Returning null leaves the prompt to
+ * others. It must only plan calls to the tool's registered actions; it never writes.
+ */
+export type DemoPlanner = (text: string, ctx: { selectionIds: string[] }) => { reply: string; calls: { name: string; arguments: Record<string, unknown> }[] } | null
+
 export interface AssistantContribution {
   actions: AssistantActionDefinition[]
+  /** Scripted demo planning for this tool's actions (demo only; ignored with a real provider). */
+  demo?: DemoPlanner
   editableFields?: FieldRule[]
   editableRelationships?: RelationshipRule[]
   creatableObjects?: CreatableObjectRule[]

@@ -60,7 +60,7 @@ apps/workspace → every package; a tool only through its package entry point
 
 ## SDK and versions
 
-- SDK version **1.3.0** (`packages/platform-sdk/src/contract/version.ts`). Tools declare
+- SDK version **1.5.0** (`packages/platform-sdk/src/contract/version.ts`). Tools declare
   `sdkVersion: '^1.0.0'` or `'^1.1.0'` (needed for revisions and baselines); the registry refuses tools built for another major version.
 - Entry points: `@ews/platform-sdk` (framework-free contract and domain model),
   `@ews/platform-sdk/react` (`defineTool`, hooks, engineering UI helpers),

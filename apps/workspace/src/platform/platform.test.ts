@@ -84,7 +84,8 @@ describe('SDK version compatibility', () => {
 
 describe('subscriptions', () => {
   it('provides the three demonstration plans', () => {
-    expect(PLANS.map((p) => p.entitlements.length)).toEqual([1, 2, 3])
+    // The full plan also includes Conceptualize (SDK 1.5).
+    expect(PLANS.map((p) => p.entitlements.length)).toEqual([1, 2, 4])
   })
 
   it('Requirements only: Requirements opens, SysML and CAD are refused with an explanation', () => {

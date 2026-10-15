@@ -16,6 +16,28 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.5.0 (2026-10-14)
+
+Type: additive
+
+What changed:
+
+- `contract/concepts.ts`: the cross-module Conceptualize contract — `ConceptsService` (`get`, `list`,
+  `conceptsForArtifact`, `implementations`, `subscribe`), `ConceptSummary`, `ConceptMaturity`,
+  `ConceptAbstraction`, `ArtifactRef` (version-aware reference to another module's artifact),
+  `ConceptImplementationSummary`, `ConceptsEvent`, `ConceptsServiceError`. `PlatformServices.concepts`.
+- Assistant: `AssistantActionContext.services`; result kind `service-proposal` (`ServiceProposal`,
+  `ServiceProposalItem`) so service-backed modules' changes go through the platform preview and Apply
+  (Requirements contract request 3); `AssistantContribution.demo` (scripted demo planning, demo only).
+
+Why: the Conceptualize module (docs/specifications/conceptualize.md, ADR-0015), and a single preview and
+Apply path for changes to service-backed modules.
+
+Migration for tools: none. Requirements may move its in-tool proposals to `service-proposal`.
+Requirements contract requests 5, 7 and 9 move to SDK 1.6.
+
+Validated with: npm run check.
+
 ## 1.4.0 (2026-10-14)
 
 Type: additive

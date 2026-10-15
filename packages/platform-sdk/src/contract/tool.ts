@@ -23,9 +23,9 @@ import type {
 /** A subscription entitlement, e.g. 'tool:requirements'. Tools declare one; the platform checks it. */
 export type EntitlementId = `tool:${string}`
 
-export type ToolCategory = 'Requirements' | 'Systems engineering' | 'Design'
+export type ToolCategory = 'Conceptual design' | 'Requirements' | 'Systems engineering' | 'Design'
 
-export const TOOL_CATEGORIES: ToolCategory[] = ['Requirements', 'Systems engineering', 'Design']
+export const TOOL_CATEGORIES: ToolCategory[] = ['Conceptual design', 'Requirements', 'Systems engineering', 'Design']
 
 /** Static description of a tool, readable without loading its view. */
 export interface ToolManifest {

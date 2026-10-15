@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { serviceHandlers } from './serviceProposals'
 import type { ActivitySource } from '@ews/model-service'
 import { RepositoryError } from '@ews/model-service'
 import { useWorkspaceStore } from '../platform/store'
@@ -147,6 +148,46 @@ export const useConversation = create<ConversationState>()((set, get) => {
     return message.id
   }
 
+  /** Applies a service proposal through the module's API (validated, authorized, recorded there). */
+  const applyService = async (proposal: ChangeProposal) => {
+    const id = proposal.id
+    const handlers = serviceHandlers(id)
+    if (!handlers) {
+      patchProposal(id, { status: 'failed', message: 'This change was prepared in another window and can only be applied there. Ask again here to prepare it in this window.' })
+      return
+    }
+    patchProposal(id, { status: 'applying', message: undefined })
+    try {
+      const result = await handlers.apply({ conversationId: proposal.conversationId, proposalId: id, messageId: proposal.messageId })
+      handlers.applied = { createdIds: result.createdIds }
+      patchProposal(id, { status: 'applied', createdIds: result.createdIds?.length ? result.createdIds : undefined, service: { ...proposal.service!, appliedSummary: result.summary } })
+      useWorkspaceStore.getState().log('assistant', `${proposal.title}: ${result.summary} [${id}]`, 'change', result.createdIds ?? [], sourceFor({ messageId: proposal.messageId, label: `ChatGPT panel, ${id}` }))
+      addEvent({ text: `Applied ${id}: ${result.summary}`, tone: 'success', event: 'applied', proposalId: id })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      patchProposal(id, { status: 'failed', message: `Not applied: ${message} Nothing was changed by this proposal; the preview is kept.` })
+      addEvent({ text: `${id} failed: ${message}`, tone: 'danger', event: 'failed', proposalId: id })
+    }
+  }
+
+  const undoService = async (id: string) => {
+    const proposal = get().proposals[id]
+    const handlers = serviceHandlers(id)
+    if (!proposal?.service || proposal.status !== 'applied') return
+    if (!handlers?.undo) {
+      addEvent({ text: `${id} can't be undone from here: ${proposal.service.module} offers no compensating change, or it was prepared in another window.`, tone: 'warning' })
+      return
+    }
+    try {
+      const result = await handlers.undo(handlers.applied ?? {})
+      patchProposal(id, { service: { ...proposal.service, undone: true }, undoneBy: 'undo' })
+      useWorkspaceStore.getState().log('assistant', `Undo ${id}: ${result.summary}`, 'change', [], sourceFor({ messageId: proposal.messageId, label: `ChatGPT panel, undo ${id}` }))
+      addEvent({ text: `Undid ${id}: ${result.summary}`, tone: 'info', event: 'applied', proposalId: id })
+    } catch (error) {
+      addEvent({ text: `Undo of ${id} failed: ${error instanceof Error ? error.message : String(error)}`, tone: 'danger', event: 'failed', proposalId: id })
+    }
+  }
+
   const createProposal = (
     messageId: string,
     draft: {
@@ -157,6 +198,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
       affectedOutputIds: string[]
       requiredEntitlements: EntitlementId[]
       undoOf?: string
+      service?: ChangeProposal['service']
     },
   ): ChangeProposal => {
     const proposal: ChangeProposal = {
@@ -357,6 +399,8 @@ export const useConversation = create<ConversationState>()((set, get) => {
         return
       }
 
+      if (proposal.service) return applyService(proposal)
+
       // Check the expected revisions before committing.
       const conflicts = findConflicts(proposal, model)
       if (conflicts.length) return refreshAsConflict(`The model changed after this preview was created: ${conflicts.join(' ')}`)
@@ -397,6 +441,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
     },
 
     undoProposal: async (id) => {
+      if (get().proposals[id]?.service) return undoService(id)
       const original = get().proposals[id]
       const workspace = useWorkspaceStore.getState()
       if (!original || !workspace.model) return

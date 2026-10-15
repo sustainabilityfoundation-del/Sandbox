@@ -1,5 +1,6 @@
 import { useConversation } from '../../assistant/conversation'
-import type { PreviewChange, ProposalStatus } from '../../assistant/types'
+import type { ChangeProposal, PreviewChange, ProposalStatus } from '../../assistant/types'
+import type { ServiceProposalItem } from '@ews/platform-sdk'
 import { formatValue } from '@ews/model-service'
 import { useWorkspaceStore } from '../../platform/store'
 import { Badge, Button, Notice, Spinner, type IconName, type Tone } from '@ews/design-system'
@@ -59,6 +60,53 @@ function ChangeRow({ change }: { change: PreviewChange }) {
   )
 }
 
+const BASIS_LABEL: Record<NonNullable<ServiceProposalItem['basis']>, { label: string; tone: 'neutral' | 'info' | 'warning' | 'success' }> = {
+  'user-statement': { label: 'Your statement', tone: 'neutral' },
+  'ai-hypothesis': { label: 'AI hypothesis', tone: 'warning' },
+  assumption: { label: 'Assumption', tone: 'warning' },
+  estimate: { label: 'Preliminary estimate', tone: 'info' },
+  evidence: { label: 'Evidence', tone: 'success' },
+}
+
+/** Preview of a change to a service-backed module: what will be created or changed, and on what basis. */
+function ServicePreview({ service }: { service: NonNullable<ChangeProposal['service']> }) {
+  return (
+    <div className="as-card-table" data-service-module={service.module}>
+      <table className="ws-table ws-table-compact" aria-label="Proposed changes">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Current</th>
+            <th>Proposed</th>
+            <th>Basis</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.items.map((item, i) => (
+            <tr key={i}>
+              <td>{item.label}{item.targetId ? <span className="text-fg-3"> {item.targetId}</span> : null}</td>
+              <td>{item.current ?? <span className="text-fg-3">(new)</span>}</td>
+              <td>{item.proposed}</td>
+              <td>{item.basis ? <Badge tone={BASIS_LABEL[item.basis].tone}>{BASIS_LABEL[item.basis].label}</Badge> : null}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {service.assumptions.length > 0 && (
+        <div className="as-card-why">
+          <strong>Assumptions to check:</strong>
+          <ul className="m-0 pl-5">
+            {service.assumptions.map((a) => (
+              <li key={a}>{a}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {service.appliedSummary && <p className="as-card-why">{service.appliedSummary}</p>}
+    </div>
+  )
+}
+
 /** Compact preview of a proposed transaction with Apply / Reject / Undo. */
 export function ChangeCard({ proposalId }: { proposalId: string }) {
   const proposal = useConversation((s) => s.proposals[proposalId])
@@ -85,23 +133,27 @@ export function ChangeCard({ proposalId }: { proposalId: string }) {
           {status.label}
         </Badge>
       </header>
-      <div className="as-card-table">
-        <table className="ws-table ws-table-compact" aria-label={`Changes in ${proposal.id}`}>
-          <thead>
-            <tr>
-              <th>Target</th>
-              <th>Property / relationship</th>
-              <th>Current</th>
-              <th>Proposed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {proposal.changes.map((c, i) => (
-              <ChangeRow key={i} change={c} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {proposal.service ? (
+        <ServicePreview service={proposal.service} />
+      ) : (
+        <div className="as-card-table">
+          <table className="ws-table ws-table-compact" aria-label={`Changes in ${proposal.id}`}>
+            <thead>
+              <tr>
+                <th>Target</th>
+                <th>Property / relationship</th>
+                <th>Current</th>
+                <th>Proposed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {proposal.changes.map((c, i) => (
+                <ChangeRow key={i} change={c} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <dl className="as-card-meta">
         <div>
           <dt>Configuration</dt>

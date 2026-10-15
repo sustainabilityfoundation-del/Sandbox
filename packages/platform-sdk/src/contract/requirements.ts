@@ -1,3 +1,4 @@
+import type { ConceptsService } from './concepts'
 import type { HelpService } from './help'
 /**
  * Requirements service: the cross-module contract (SDK 1.2).
@@ -181,4 +182,6 @@ export interface PlatformServices {
   requirements?: RequirementsService
   /** Platform Help Service (SDK 1.4): documentation for people and the assistant. */
   help?: HelpService
+  /** Conceptualize (SDK 1.5): Concepts and their implementations. */
+  concepts?: ConceptsService
 }

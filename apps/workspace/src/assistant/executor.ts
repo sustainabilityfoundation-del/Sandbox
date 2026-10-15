@@ -1,6 +1,8 @@
 import { formatValue, isQuantity, outputFreshness, propertyLabel, type ActivitySource, type EngineeringObject, type ModelIndex, type ObjectType, type OutputRecord, type PropertyValue } from '@ews/model-service'
 import { workspaceHelp } from '../help/workspaceHelp'
-import { ActionError, type ActionParameters, type ChangeInput, type EntitlementId } from '@ews/platform-sdk'
+import { ActionError, type ActionParameters, type ChangeInput, type EntitlementId, type ServiceProposal } from '@ews/platform-sdk'
+import { workspaceServices } from '../platform/services'
+import { registerServiceHandlers } from './serviceProposals'
 import type { ToolAccess } from '../platform/entitlements'
 import { affectedOutputs, buildPreview, buildUndo, describeChange } from './proposals'
 import { findToolAction, isPlatformOperation, operationLabel } from './toolSpecs'
@@ -24,6 +26,7 @@ export interface AssistantEnvironment {
     affectedOutputIds: string[]
     requiredEntitlements: EntitlementId[]
     undoOf?: string
+    service?: ChangeProposal['service']
   }) => ChangeProposal
   getProposal: (id: string) => ChangeProposal | undefined
 }
@@ -333,14 +336,44 @@ async function runToolAction(call: ToolCallRequest, ctx: ExecutionContext): Prom
         modelRevision: ctx.captured.modelRevision,
         selectionIds: ctx.captured.selection.map((s) => s.id),
       },
+      services: workspaceServices,
     })
   } catch (error) {
     if (error instanceof ActionError) throw new ToolError(error.code, error.message)
     throw error
   }
   if (result.kind === 'data') return { data: result.data, summary: result.summary, inspected: result.inspected ?? [] }
+  if (result.kind === 'service-proposal') return proposeService(ctx, tool.entitlement, result)
   // Proposals go through the same validation as any other change.
   return propose(ctx, result.title, result.explanation, result.changes, undefined, result.inspected)
+}
+
+/**
+ * A change to a service-backed module (SDK 1.5). Nothing is written now: the platform shows the
+ * preview and calls the module's API only when the user applies it.
+ */
+function proposeService(ctx: ExecutionContext, entitlement: EntitlementId, result: ServiceProposal): Outcome {
+  if (!result.preview.length) throw new ToolError('invalid-arguments', 'A service proposal needs at least one previewed item.')
+  const proposal = ctx.env.createProposal({
+    title: result.title,
+    explanation: result.explanation,
+    configurationId: ctx.captured.configurationId,
+    changes: [],
+    affectedOutputIds: [],
+    requiredEntitlements: [entitlement],
+    service: { module: result.module, items: result.preview, assumptions: result.assumptions ?? [] },
+  })
+  registerServiceHandlers(proposal.id, result)
+  return {
+    data: {
+      proposalId: proposal.id,
+      status: 'awaiting user review',
+      changes: result.preview.map((p) => `${p.label}: ${p.proposed}`),
+      affectedArtifacts: [],
+    },
+    summary: `Prepared ${proposal.id}: ${result.title}`,
+    inspected: result.inspected ?? [],
+  }
 }
 
 /** Executes one call. Never throws; failures are returned to the assistant. */

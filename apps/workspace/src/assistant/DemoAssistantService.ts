@@ -1,4 +1,5 @@
 import type { AssistantRequest, AssistantResponse, AssistantService, HistoryItem, ToolCallRequest, ToolCallResult } from './types'
+import { getTools } from '../platform/registry'
 
 /**
  * DEMO ASSISTANT: deterministic, rule-based responses for a handful of example
@@ -315,6 +316,32 @@ function undoIntent(turn: Turn, history: HistoryItem[]): AssistantResponse {
   )
 }
 
+/**
+ * Tool-contributed demo planning (SDK 1.5 `AssistantContribution.demo`, demo only): a tool may map
+ * a prompt to a sequence of its own registered actions. The calls run one per step through the normal
+ * executor, so validation, subscription checks and previews are unchanged.
+ */
+function toolDemoIntent(turn: Turn): AssistantResponse | null {
+  for (const tool of getTools()) {
+    const plan = tool.assistant?.demo?.(turn.text, { selectionIds: turn.context.selection.map((s) => s.id) })
+    if (!plan || !plan.calls.length) continue
+    if (!plan.calls.every((c) => turn.offered(c.name))) return notInSubscription(tool.name)
+    const done = turn.results.filter((r) => plan.calls.some((c) => c.name === r.name))
+    const failure = done.find((r) => !r.ok)
+    if (failure) return failed(failure, plan.calls.find((c) => c.name === failure.name)?.name ?? failure.name)
+    if (done.length < plan.calls.length) {
+      const next = plan.calls[done.length]
+      return call(next.name, next.arguments)
+    }
+    const prepared = done.map((r) => (r.data as Data)?.proposalId).filter(Boolean)
+    return final(
+      plan.reply +
+        (prepared.length ? `\n\nPrepared for your review: ${prepared.map((id: string) => `**${id}**`).join(', ')}. Nothing has changed yet; choose **Apply** or **Reject** on each card.` : ''),
+    )
+  }
+  return null
+}
+
 function helpReply(): AssistantResponse {
   return final(
     "I'm the **demo assistant**: a deterministic mock that understands a few example requests. I'm not connected to ChatGPT. " +
@@ -352,6 +379,6 @@ export class DemoAssistantService implements AssistantService {
     if (dimension && /\b(change|set|make|increase|decrease)\b/i.test(text)) return dimensionIntent(turn, dimension.parameter)
     if (/\bREQ-\d{3}\b/.test(text) && /\b(set|change|update|edit|approve|mark)\b/i.test(text)) return requirementEditIntent(turn)
     if (/\brequirements?\b/i.test(text) && /\b(apply|applies|allocated|relevant)\b/i.test(text)) return requirementsIntent(turn)
-    return helpReply()
+    return toolDemoIntent(turn) ?? helpReply()
   }
 }

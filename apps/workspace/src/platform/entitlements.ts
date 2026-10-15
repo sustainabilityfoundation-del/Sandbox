@@ -29,8 +29,8 @@ export const PLANS: SubscriptionPlan[] = [
   {
     id: 'all',
     name: 'All tools',
-    description: 'Requirements Management, SysML Modeling and CAD.',
-    entitlements: ['tool:requirements', 'tool:sysml', 'tool:cad'],
+    description: 'Requirements Management, SysML Modeling, CAD and Conceptualize.',
+    entitlements: ['tool:requirements', 'tool:sysml', 'tool:cad', 'tool:conceptualize'],
   },
 ]
 

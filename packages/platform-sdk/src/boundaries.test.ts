@@ -36,12 +36,16 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/tool-sysml': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
   'packages/tool-cad': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
   // The workspace may use every package, but only a tool's public entry point.
-  'apps/workspace': /^@ews\/(model-service|design-system|platform-sdk|tool-[\w-]+|requirements-client)(\/(react|harness|testing|preferences|icon-names|styles\.css))?$/,
+  'apps/workspace': /^@ews\/(model-service|design-system|platform-sdk|tool-[\w-]+|requirements-client|conceptualize-client)(\/(react|harness|testing|preferences|icon-names|styles\.css))?$/,
   // Requirements module packages, checked once they exist. Only the client reaches the browser.
   'packages/requirements-client': /^@ews\/platform-sdk$/,
   'packages/reqif': /^$/,
   'services/requirements': /^@ews\/(platform-sdk|reqif)$/,
-  'services/api': /^@ews\/(platform-sdk|requirements-service)$/,
+  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service)$/,
+  // Conceptualize (docs/specifications/conceptualize-contracts.md). Only the client reaches the browser.
+  'packages/tool-conceptualize': /^@ews\/(platform-sdk|design-system|conceptualize-client)(\/[\w.-]+)?$/,
+  'packages/conceptualize-client': /^@ews\/platform-sdk$/,
+  'services/conceptualize': /^@ews\/platform-sdk$/,
 }
 
 describe('package boundaries', () => {

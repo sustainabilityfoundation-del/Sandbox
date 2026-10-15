@@ -1,5 +1,5 @@
 import type { ObjectType, PropertyValue, RelationshipType } from '@ews/model-service'
-import type { ChangeInput, EntitlementId } from '@ews/platform-sdk'
+import type { ChangeInput, EntitlementId, ServiceProposalItem } from '@ews/platform-sdk'
 
 export type { ChangeInput }
 
@@ -179,6 +179,11 @@ export interface ChangeProposal {
   requiredEntitlements: EntitlementId[]
   /** IDs created when applied (for create-object changes). */
   createdIds?: string[]
+  /**
+   * Set for changes to a service-backed module (SDK 1.5 service proposal). `changes` is then empty;
+   * the preview is `items` and Apply calls the module's API.
+   */
+  service?: { module: string; items: ServiceProposalItem[]; assumptions: string[]; appliedSummary?: string; undone?: boolean }
   conversationId: string
   messageId: string
   createdAt: string
