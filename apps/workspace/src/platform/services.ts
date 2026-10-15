@@ -1,4 +1,5 @@
-import type { PlatformServices, RequirementsService } from '@ews/platform-sdk'
+import type { ConceptsService, PlatformServices, RequirementsService } from '@ews/platform-sdk'
+import { createDemoConceptsService, createHttpConceptsService } from '@ews/conceptualize-client'
 import { createDemoRequirementsService, createHttpRequirementsService } from '@ews/requirements-client'
 import { create } from 'zustand'
 import { workspaceHelp } from '../help/workspaceHelp'
@@ -62,7 +63,13 @@ function createRequirements(settings: ServiceSettings): RequirementsService {
   })
 }
 
-export const workspaceServices: PlatformServices = { requirements: createRequirements(serviceSettings), help: workspaceHelp }
+/** Conceptualize (SDK 1.5) follows the same service settings: API mode and development user, or explicit demo data. */
+function createConcepts(settings: ServiceSettings): ConceptsService {
+  if (settings.requirementsMode === 'demo') return createDemoConceptsService({ latencyMs: 80 })
+  return createHttpConceptsService({ baseUrl: '/api/concepts/v1', devUser: settings.devUser })
+}
+
+export const workspaceServices: PlatformServices = { requirements: createRequirements(serviceSettings), help: workspaceHelp, concepts: createConcepts(serviceSettings) }
 
 /** Saves new settings and reloads; other windows follow through the storage event below. */
 export function saveServiceSettings(next: ServiceSettings): void {

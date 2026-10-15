@@ -1,0 +1,432 @@
+import { ActionError, argOptionalString, argString, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
+import { draftConcept, getConceptsModuleClient, type Concept, type ConceptsModuleClient, type Provenance } from '@ews/conceptualize-client'
+import { GENERATOR, generateExploration } from './ai/generator'
+import { formatQuantity, KIND_LABEL } from './domain'
+
+/**
+ * Assistant operations for Conceptualize (`concepts.*`). Reads return data; every change is a
+ * ServiceProposal: the platform shows the preview (with the basis of each item) and calls `apply`
+ * only when the user chooses Apply. `apply` uses the Conceptualize API with an idempotency key and the
+ * conversation/proposal provenance, so the server records who asked for what and refuses to record
+ * AI output as user assertions, verified evidence or approved decisions. `undo` is a compensating
+ * change (archive, withdraw, unlink), never a deletion.
+ */
+
+const MODULE = 'conceptualize'
+const KEY = /^CON-\d{3,}$/i
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function connection(ctx: AssistantActionContext): { client: ConceptsModuleClient; projectId: string } {
+  const projectId = ctx.captured.projectId
+  const client = getConceptsModuleClient(ctx.services?.concepts, projectId)
+  if (!client) throw new ActionError('not-available', ctx.services?.concepts ? 'Conceptualize runs on demo data here; changes and the assistant need API mode (service settings).' : 'The Conceptualize service is not available here.')
+  return { client, projectId }
+}
+
+async function resolve(client: ConceptsModuleClient, idOrKey: string): Promise<Concept> {
+  try {
+    if (UUID.test(idOrKey)) return await client.concept(idOrKey)
+    if (KEY.test(idOrKey)) {
+      const page = await client.list({ text: idOrKey.toUpperCase(), includeArchived: true, limit: 20 })
+      const hit = page.items.find((c) => c.key.toUpperCase() === idOrKey.toUpperCase())
+      if (hit) return await client.concept(hit.id)
+    }
+  } catch {
+    /* reported below */
+  }
+  throw new ActionError('not-found', `${idOrKey} is not a Concept in this project (use its key, e.g. CON-001, or its UUID).`)
+}
+
+const assistantProvenance = (p: { conversationId: string; proposalId: string; messageId: string }): Provenance => ({ sourceKind: 'assistant', conversationId: p.conversationId, proposalId: p.proposalId, messageId: p.messageId })
+const string = { type: 'string' }
+
+function proposal(p: Omit<ServiceProposal, 'kind' | 'module'>): ServiceProposal {
+  return { kind: 'service-proposal', module: MODULE, ...p }
+}
+
+const actions: AssistantActionDefinition[] = [
+  {
+    name: 'conceptualize.search',
+    label: 'Search Concepts',
+    description: 'Search Concepts by words in key, name, summary or description. Returns keys, names, maturity and counts of open questions and unconfirmed AI hypotheses.',
+    parameters: { type: 'object', properties: { text: string }, required: ['text'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const text = argString(args, 'text')
+      const page = await client.list({ text, limit: 20 })
+      return {
+        kind: 'data',
+        data: { total: page.total, concepts: page.items.map((c) => ({ key: c.key, id: c.id, name: c.name, summary: c.summary, maturity: c.maturity, implementationStatus: c.implementationStatus, openQuestions: c.openQuestions, unconfirmedHypotheses: c.unconfirmedHypotheses })) },
+        summary: `Found ${page.total} Concept(s) for “${text}”`,
+        inspected: page.items.map((c) => ({ id: c.key, detail: `rev ${c.revision}` })),
+      }
+    },
+  },
+  {
+    name: 'conceptualize.read',
+    label: 'Read Concept',
+    description: 'Read one Concept: intent statements with their basis, relationships, alternatives, implementations and the maturity assessment.',
+    parameters: { type: 'object', properties: { conceptId: string }, required: ['conceptId'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const c = await resolve(client, argString(args, 'conceptId'))
+      const [relationships, implementations, assessment] = await Promise.all([client.relationships({ conceptId: c.id }), client.implementations(c.id), client.assessment(c.id)])
+      return {
+        kind: 'data',
+        data: {
+          concept: { key: c.key, name: c.name, description: c.description, purpose: c.purpose, maturity: c.maturity, revision: c.revision, statements: c.statements.map((s) => ({ kind: s.kind, text: s.text, quantity: s.quantity, basis: s.basis, state: s.state })) },
+          relationships: relationships.map((r) => ({ type: r.type, from: r.fromId, to: r.toId })),
+          implementations: implementations.map((i) => ({ key: i.key, name: i.name, status: i.status, artifacts: i.artifacts.filter((a) => !a.removed).map((a) => `${a.module}:${a.artifactId}${a.revision ? `@${a.revision}` : ''}`) })),
+          assessment: { completeness: assessment.completeness, suggestedMaturity: assessment.suggestedMaturity, nextSteps: assessment.nextSteps.map((s) => s.text) },
+        },
+        summary: `Read ${c.key} ${c.name} (rev ${c.revision})`,
+        inspected: [{ id: c.key, detail: `statements, relationships, implementations (rev ${c.revision})` }],
+      }
+    },
+  },
+  {
+    name: 'conceptualize.create',
+    label: 'Prepare a new Concept',
+    description: 'Prepare a new Concept from a natural-language description (optionally as a child of another Concept). The description is kept verbatim; interpreted functions and constraints are AI hypotheses.',
+    parameters: { type: 'object', properties: { text: string, parentId: string }, required: ['text'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const text = argString(args, 'text')
+      const parentArg = argOptionalString(args, 'parentId')
+      const parent = parentArg ? await resolve(client, parentArg) : undefined
+      const d = draftConcept(text, 'ai-hypothesis')
+      let createdId: string | undefined
+      return proposal({
+        title: `Create Concept “${d.name}”`,
+        explanation: `Interpreted from your description${parent ? `, as part of ${parent.key}` : ''}. Saved as maturity “idea”; the interpreted statements stay AI hypotheses until you confirm them.`,
+        preview: [
+          { label: 'New Concept', proposed: d.name, basis: 'ai-hypothesis' },
+          { label: 'Description (your words, verbatim)', proposed: d.description, basis: 'user-statement' },
+          ...(parent ? [{ label: 'Part of', proposed: `${parent.key} ${parent.name}`, targetId: parent.id }] : []),
+          ...d.statements.map((s): ServiceProposalItem => ({ label: KIND_LABEL[s.kind], proposed: `${s.text}${s.quantity ? ` ${formatQuantity(s.quantity)}` : ''}`, basis: s.basis === 'assumption' ? 'assumption' : 'ai-hypothesis' })),
+        ],
+        assumptions: ['The interpretation is deterministic (scripted demo, no language model); check names, quantities and units.', ...d.notes],
+        async apply(p) {
+          const c = await client.createConcept(
+            { name: d.name, summary: d.summary, description: d.description, abstraction: d.abstraction, classifications: d.classifications, statements: d.statements, maturity: 'idea', parentId: parent?.id, reason: `Assistant proposal ${p.proposalId}` },
+            { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:create` },
+          )
+          createdId = c.id
+          return { summary: `Created ${c.key} ${c.name}`, createdIds: [c.id] }
+        },
+        async undo() {
+          if (!createdId) return { summary: 'Nothing to undo.' }
+          const c = await client.concept(createdId)
+          await client.changeMaturity(c.id, 'archived', { expectedRevision: c.revision, reason: 'Undo of an assistant proposal (compensating change)' })
+          return { summary: `Archived ${c.key} (kept in the history)` }
+        },
+      })
+    },
+  },
+  {
+    name: 'conceptualize.develop_alternatives',
+    label: 'Prepare alternative concepts',
+    description:
+      'Prepare a parent Concept and N alternative solution Concepts for a design objective, each with a functional decomposition, interfaces, preliminary calculations from the stated quantities and a trade study. Everything is labelled as AI hypotheses or estimates. One atomic change, applied only after review.',
+    parameters: { type: 'object', properties: { text: string, count: { type: 'integer', minimum: 1, maximum: 8 } }, required: ['text'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const text = argString(args, 'text')
+      const count = typeof args.count === 'number' ? args.count : undefined
+      const { exploration, draft, family, assumptions } = generateExploration(text, count)
+      let explorationId: string | undefined
+      const preview: ServiceProposalItem[] = [
+        { label: 'Parent Concept', proposed: draft.name, basis: 'ai-hypothesis' },
+        { label: 'Objective (your words)', proposed: text, basis: 'user-statement' },
+        ...draft.quantities.map((q): ServiceProposalItem => ({ label: 'Constraint (interpreted)', proposed: `${q.label}: ${formatQuantity(q.quantity)}`, basis: 'ai-hypothesis' })),
+        ...exploration.alternatives.map((a, i): ServiceProposalItem => ({ label: `Alternative ${i + 1}`, proposed: `${a.name}: ${a.summary ?? ''}${a.children?.length ? ` (parts: ${a.children.map((c) => c.name).join(', ')})` : ''}`, basis: 'ai-hypothesis' })),
+        ...exploration.alternatives.flatMap((a) => (a.evidence ?? []).map((e): ServiceProposalItem => ({ label: `Preliminary calculation (${a.name})`, proposed: `${e.title}: ${e.method} → ${(e.outputs ?? []).map((o) => `${o.name} = ${formatQuantity(o)}`).join(', ')}`, basis: 'estimate' }))),
+        ...(exploration.tradeStudy ? [{ label: 'Trade study', proposed: `${exploration.tradeStudy.title}: ${exploration.tradeStudy.criteria.map((c) => c.name).join(', ')}`, basis: 'ai-hypothesis' as const }] : []),
+      ]
+      return proposal({
+        title: `Develop ${exploration.alternatives.length} alternatives for “${draft.name}”`,
+        explanation: family
+          ? `Scripted demo: principles from the ${family} library, decomposed into parts, with preliminary estimates computed from your quantities. Nothing is verified; review, confirm or discard.`
+          : 'Scripted demo: no principle library matches this request, so the alternatives are placeholders with open questions.',
+        preview,
+        assumptions,
+        inspected: [{ id: 'request', detail: 'interpreted deterministically (no language model)' }],
+        async apply(p) {
+          const e = await client.createExploration({ ...exploration, generator: GENERATOR }, { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:explore` })
+          explorationId = e.id
+          const parent = e.created.concepts.find((c) => c.role === 'parent')
+          return { summary: `Created ${parent ? `${parent.key} ` : ''}with ${e.created.concepts.filter((c) => c.role === 'alternative').map((c) => c.key).join(', ')} (alternatives) and their decomposition`, createdIds: e.created.concepts.map((c) => c.id) }
+        },
+        async undo() {
+          if (!explorationId) return { summary: 'Nothing to undo.' }
+          await client.undoExploration(explorationId, { reason: 'Undo of an assistant proposal (compensating change)' })
+          return { summary: 'Archived the generated Concepts and withdrew the alternatives (kept in the history)' }
+        },
+      })
+    },
+  },
+  {
+    name: 'conceptualize.decompose',
+    label: 'Prepare a decomposition',
+    description: 'Prepare child Concepts (functions or parts) of a Concept, linked with contains. Children may later be shared by other parents.',
+    parameters: { type: 'object', properties: { conceptId: string, children: { type: 'array', items: string, minItems: 1, maxItems: 20 } }, required: ['conceptId', 'children'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const parent = await resolve(client, argString(args, 'conceptId'))
+      const children = (Array.isArray(args.children) ? args.children : []).map((c) => String(c).trim()).filter(Boolean)
+      if (!children.length) throw new ActionError('invalid-arguments', 'Name at least one child Concept.')
+      const created: string[] = []
+      return proposal({
+        title: `Decompose ${parent.key} ${parent.name}`,
+        explanation: `Adds ${children.length} child Concept(s) to ${parent.key}. Concept decomposition need not match the CAD or SysML structure.`,
+        preview: children.map((c) => ({ label: 'New child Concept', proposed: c, basis: 'ai-hypothesis', current: undefined })),
+        async apply(p) {
+          for (const [i, name] of children.entries()) {
+            const c = await client.createConcept({ name, abstraction: 'function', parentId: parent.id, maturity: 'idea', statements: [{ kind: 'function', text: name, basis: 'ai-hypothesis' }], reason: `Assistant proposal ${p.proposalId}` }, { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:child:${i}` })
+            created.push(c.id)
+          }
+          return { summary: `Added ${created.length} child Concept(s) to ${parent.key}`, createdIds: [...created] }
+        },
+        async undo() {
+          for (const id of created) {
+            const c = await client.concept(id)
+            await client.changeMaturity(id, 'archived', { expectedRevision: c.revision, reason: 'Undo of an assistant proposal' })
+          }
+          return { summary: `Archived ${created.length} child Concept(s)` }
+        },
+      })
+    },
+  },
+  {
+    name: 'conceptualize.compare',
+    label: 'Compare alternatives',
+    description: 'Compare the alternatives of a Concept (as parent or member of an alternative set): trade-study scores, weighted results with uncertainty ranges, coverage and recorded decisions.',
+    parameters: { type: 'object', properties: { conceptId: string }, required: ['conceptId'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const c = await resolve(client, argString(args, 'conceptId'))
+      const sets = await client.alternativeSets(c.id)
+      if (!sets.length) throw new ActionError('not-found', `${c.key} has no alternatives yet.`)
+      const out = []
+      for (const s of sets) {
+        const names = new Map((await Promise.all(s.members.map((m) => client.concept(m.conceptId)))).map((x) => [x.id, `${x.key} ${x.name}`]))
+        const studies = await client.tradeStudies({ setId: s.id })
+        out.push({
+          set: `${s.key} ${s.name}`,
+          alternatives: s.members.map((m) => ({ concept: names.get(m.conceptId), status: m.status })),
+          tradeStudies: studies.map((t) => ({ title: t.title, preliminary: t.result.preliminary, ranking: t.result.ranking, results: t.result.options.map((o) => ({ concept: names.get(o.conceptId), score: o.score, range: [o.low, o.high], coverage: o.coverage, rank: o.rank })) })),
+        })
+      }
+      return { kind: 'data', data: { comparisons: out, note: 'Scores are preliminary unless every score is verified evidence.' }, summary: `Compared ${sets.length} alternative set(s) of ${c.key}`, inspected: sets.map((s) => ({ id: s.key, detail: 'members, trade studies' })) }
+    },
+  },
+  {
+    name: 'conceptualize.propose_decision',
+    label: 'Prepare a design decision',
+    description: 'Prepare a PROPOSED decision to pursue one alternative (others deferred) with a rationale. A reviewer records it in Conceptualize; the assistant cannot record decisions.',
+    parameters: { type: 'object', properties: { conceptId: string, rationale: string }, required: ['conceptId'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const chosen = await resolve(client, argString(args, 'conceptId'))
+      const sets = (await client.alternativeSets(chosen.id)).filter((s) => s.members.some((m) => m.conceptId === chosen.id))
+      if (!sets.length) throw new ActionError('invalid-arguments', `${chosen.key} is not an alternative in any set.`)
+      const set = sets[0]
+      const rationale = argOptionalString(args, 'rationale') ?? `Proposed in the conversation: pursue ${chosen.name}.`
+      let decisionId: string | undefined
+      return proposal({
+        title: `Propose: pursue ${chosen.key} ${chosen.name}`,
+        explanation: `Creates a proposed decision on ${set.key} ${set.name}: ${chosen.key} accepted, the other alternatives deferred. It takes effect only when a reviewer records it.`,
+        preview: [
+          { label: 'Accepted (proposed)', proposed: `${chosen.key} ${chosen.name}`, basis: 'ai-hypothesis', targetId: chosen.id },
+          ...set.members.filter((m) => m.conceptId !== chosen.id && m.status !== 'withdrawn').map((m) => ({ label: 'Deferred (proposed)', proposed: m.conceptId, basis: 'ai-hypothesis' as const, targetId: m.conceptId })),
+          { label: 'Rationale', proposed: rationale, basis: 'ai-hypothesis' },
+        ],
+        assumptions: ['Recording the decision (approval gate) is a reviewer action in Conceptualize.'],
+        async apply(p) {
+          const d = await client.createDecision(
+            { title: `Pursue ${chosen.name}`, rationale, setId: set.id, question: set.question, outcomes: set.members.filter((m) => m.status !== 'withdrawn').map((m) => ({ conceptId: m.conceptId, outcome: m.conceptId === chosen.id ? 'accepted' : 'deferred' })) },
+            { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:decision` },
+          )
+          decisionId = d.id
+          return { summary: `Proposed ${d.key} (waiting for a reviewer)`, createdIds: [d.id] }
+        },
+        async undo() {
+          if (!decisionId) return { summary: 'Nothing to undo.' }
+          const d = await client.decision(decisionId)
+          await client.withdrawDecision(d.id, { expectedRevision: d.recordVersion, reason: 'Undo of an assistant proposal' })
+          return { summary: `Withdrew ${d.key}` }
+        },
+      })
+    },
+  },
+  {
+    name: 'conceptualize.link_artifact',
+    label: 'Prepare an implementation link',
+    description: 'Prepare a ConceptImplementation linking a Concept to an artifact of another module: a SysML element (SYS-…), a CAD representation (CAD-…), a component or saved result of the twin (ROD-120, OUT-…), an analysis result (test adapter) or an external document. The reference pins the artifact’s current revision.',
+    parameters: { type: 'object', properties: { conceptId: string, artifactId: string, module: { type: 'string', enum: ['sysml', 'cad', 'twin', 'analysis', 'external'] } }, required: ['conceptId', 'artifactId'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const c = await resolve(client, argString(args, 'conceptId'))
+      const artifactId = argString(args, 'artifactId')
+      const module = (argOptionalString(args, 'module') ?? (artifactId.startsWith('CAD-') ? 'cad' : artifactId.startsWith('SYS-') ? 'sysml' : /^https?:/.test(artifactId) ? 'external' : 'twin')) as 'sysml' | 'cad' | 'twin' | 'analysis' | 'external'
+      const object = ['sysml', 'cad', 'twin'].includes(module) ? ctx.model.get(artifactId) : undefined
+      if (['sysml', 'cad', 'twin'].includes(module) && !object) throw new ActionError('not-found', `${artifactId} is not in the model.`)
+      let implementationId: string | undefined
+      return proposal({
+        title: `Link ${c.key} to ${artifactId}`,
+        explanation: `Creates an implementation of ${c.key} that references ${artifactId}${object ? ` (${object.name}, revision ${object.revision})` : ''}. The Concept’s identity does not change if this implementation is replaced later.`,
+        preview: [
+          { label: 'New implementation', proposed: `${c.name} realized by ${object?.name ?? artifactId}`, targetId: c.id },
+          { label: 'Artifact reference', proposed: `${module}:${artifactId}${object ? ` pinned at revision ${object.revision}` : ''}` },
+        ],
+        ...(module === 'analysis' ? { assumptions: ['Analysis references come from a labelled test adapter: no Analysis module exists.'] } : {}),
+        inspected: object ? [{ id: object.id, detail: `revision ${object.revision}` }] : [],
+        async apply(p) {
+          const impl = await client.createImplementation(
+            { name: `${c.name}: ${object?.name ?? artifactId}`, conceptIds: [c.id], artifacts: [{ module, id: artifactId, ...(object ? { revision: object.revision, kind: object.type, label: `${object.id} ${object.name}` } : { label: artifactId }) }], reason: `Assistant proposal ${p.proposalId}` },
+            { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:link` },
+          )
+          implementationId = impl.id
+          return { summary: `Created ${impl.key} linking ${c.key} to ${artifactId}`, createdIds: [impl.id] }
+        },
+        async undo() {
+          if (!implementationId) return { summary: 'Nothing to undo.' }
+          const impl = await client.implementation(implementationId)
+          await client.updateImplementation(impl.id, { status: 'retired', reason: 'Undo of an assistant proposal' }, { expectedRevision: impl.revision })
+          return { summary: `Retired ${impl.key} (kept in the history)` }
+        },
+      })
+    },
+  },
+  {
+    name: 'conceptualize.propose_requirement',
+    label: 'Prepare draft requirements',
+    description: 'Prepare DRAFT requirements in Requirements for the quantified constraints of a Concept, linked to it with “proposes”. Approval stays in Requirements; nothing is approved here.',
+    parameters: { type: 'object', properties: { conceptId: string }, required: ['conceptId'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client, projectId } = connection(ctx)
+      const requirements = ctx.services?.requirements
+      if (!requirements || requirements.mode !== 'api') throw new ActionError('not-available', 'The Requirements service (API mode) is needed to create draft requirements.')
+      const c = await resolve(client, argString(args, 'conceptId'))
+      const constraints = c.statements.filter((s) => (s.kind === 'constraint' || s.kind === 'performance') && s.quantity)
+      if (!constraints.length) throw new ActionError('no-op', `${c.key} has no quantified constraints to turn into requirements.`)
+      const drafts = constraints.map((s) => ({ title: `${c.name}: ${s.text}`.slice(0, 200), statement: `The ${c.name.toLowerCase()} shall meet ${s.text.toLowerCase()} ${formatQuantity(s.quantity)}.`, statementId: s.id }))
+      const links: string[] = []
+      return proposal({
+        title: `Propose ${drafts.length} draft requirement(s) for ${c.key}`,
+        explanation: 'Creates draft requirements in Requirements (status draft) and links them to the Concept with “proposes”. Review and approval happen in Requirements.',
+        preview: drafts.map((d) => ({ label: 'Draft requirement', proposed: d.statement, basis: 'ai-hypothesis' })),
+        assumptions: ['Requirement wording is generated from the Concept’s statements; edit it in Requirements before review.'],
+        async apply(p) {
+          for (const [i, d] of drafts.entries()) {
+            const r = await requirements.create({ projectId, title: d.title, statement: d.statement, type: 'performance', rationale: `Proposed from ${c.key} (assistant proposal ${p.proposalId})` }, { idempotencyKey: `${p.proposalId}:req:${i}`, reason: `Proposed from Conceptualize ${c.key}` })
+            const l = await client.createLink(c.id, { relation: 'proposes', artifact: { module: 'requirements', id: r.id, revision: r.revision, kind: 'requirement', label: `${r.key} ${r.title}` } }, { provenance: assistantProvenance(p), idempotencyKey: `${p.proposalId}:link:${i}` })
+            links.push(l.id)
+          }
+          return { summary: `Created ${drafts.length} draft requirement(s) and linked them to ${c.key}`, createdIds: [...links] }
+        },
+        async undo() {
+          for (const id of links) await client.removeLink(id, { reason: 'Undo of an assistant proposal' })
+          return { summary: 'Removed the links. The draft requirements stay in Requirements (retire them there if not needed).' }
+        },
+      })
+    },
+  },
+  {
+    name: 'conceptualize.request_realization',
+    label: 'Prepare a CAD realization request',
+    description: 'Record a request for CAD (or SysML) to realize a Concept. No CAD generation API exists: the request is recorded on an implementation and stays pending until the CAD module offers one.',
+    parameters: { type: 'object', properties: { conceptId: string, targetModule: { type: 'string', enum: ['cad', 'sysml'] }, description: string }, required: ['conceptId'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const c = await resolve(client, argString(args, 'conceptId'))
+      const target = (argOptionalString(args, 'targetModule') ?? 'cad') as 'cad' | 'sysml'
+      const description = argOptionalString(args, 'description') ?? `Generate ${target === 'cad' ? 'geometry' : 'a SysML structure'} realizing ${c.name}`
+      const params = Object.fromEntries(c.statements.filter((s) => s.quantity && (s.kind === 'constraint' || s.kind === 'performance')).map((s) => [s.text, s.quantity]))
+      return proposal({
+        title: `Request ${target.toUpperCase()} realization of ${c.key}`,
+        explanation: `${description}. Recorded as a pending realization request (no ${target.toUpperCase()} generation API exists yet).`,
+        preview: [{ label: 'Realization request', proposed: description, targetId: c.id }, ...Object.entries(params).map(([k, q]) => ({ label: 'Parameter', proposed: `${k}: ${formatQuantity(q)}`, basis: 'ai-hypothesis' as const }))],
+        async apply(p) {
+          const prov = { provenance: assistantProvenance(p) }
+          const existing = (await client.implementations(c.id)).find((i) => i.status !== 'retired')
+          const impl = existing ?? (await client.createImplementation({ name: `Realization of ${c.name}`, conceptIds: [c.id] }, { ...prov, idempotencyKey: `${p.proposalId}:impl` }))
+          const after = await client.requestRealization(impl.id, { targetModule: target, requestKind: target === 'cad' ? 'generate-geometry' : 'formalize-structure', description, parameters: params }, { ...prov, expectedRevision: impl.revision, idempotencyKey: `${p.proposalId}:request` })
+          const req = after.realizationRequests[after.realizationRequests.length - 1]
+          return { summary: `Recorded a pending ${target.toUpperCase()} realization request on ${after.key}`, createdIds: [req.id] }
+        },
+        async undo(applied) {
+          const id = applied.createdIds?.[0]
+          if (id) await client.setRealizationStatus(id, 'cancelled', { reason: 'Undo of an assistant proposal' })
+          return { summary: 'Cancelled the realization request' }
+        },
+      })
+    },
+  },
+  {
+    name: 'conceptualize.next_steps',
+    label: 'Suggest next steps',
+    description: 'Maturity assessment of a Concept: completeness checklist, suggested maturity and next steps (deterministic rules, not an AI judgement).',
+    parameters: { type: 'object', properties: { conceptId: string }, required: ['conceptId'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const c = await resolve(client, argString(args, 'conceptId'))
+      const a = await client.assessment(c.id)
+      return {
+        kind: 'data',
+        data: { concept: `${c.key} ${c.name}`, maturity: a.maturity, suggestedMaturity: a.suggestedMaturity, completeness: a.completeness, counts: a.counts, nextSteps: a.nextSteps, note: a.note },
+        summary: `Assessed ${c.key}: ${Math.round(a.completeness * 100)} % complete, ${a.nextSteps.length} next step(s)`,
+        inspected: [{ id: c.key, detail: `assessment of rev ${c.revision}` }],
+      }
+    },
+  },
+]
+
+const CON = /\b(CON-\d{3,})\b/i
+
+/**
+ * DEMO ONLY: maps example prompts to `concepts.*` calls for the scripted demo assistant (no model provider).
+ * The reply says it is a scripted demo and that results are AI hypotheses.
+ */
+export const conceptsDemo: DemoPlanner = (text) => {
+  const t = text.trim()
+  const note = '\n\n_Scripted demo assistant: no language model is connected; the interpretation and estimates are deterministic and labelled as AI hypotheses._'
+  let m: RegExpExecArray | null
+  if ((m = /\b(?:create|new|capture|add|record)\s+(?:a\s+)?concept\b\s*(?:for|from|:)?\s*:?\s*(.+)$/i.exec(t)) && m[1].trim().length > 3) {
+    return { reply: `I prepared a new Concept from your description. The text is kept verbatim; what I interpreted from it is marked as AI hypotheses.${note}`, calls: [{ name: 'conceptualize.create', arguments: { text: m[1].trim() } }] }
+  }
+  if (/\b(develop|generate|propose|suggest|give me|come up with|explore|create)\b.*\b(alternatives?|concepts|options|solutions|variants)\b/i.test(t) && !/\brequirements?\b/i.test(t)) {
+    return { reply: `I prepared alternative Concepts for your objective, with a functional decomposition, preliminary calculations from your quantities and a trade study. All of it is an AI hypothesis or estimate for you to review.${note}`, calls: [{ name: 'conceptualize.develop_alternatives', arguments: { text: t } }] }
+  }
+  if ((m = /\bnext steps?\b.*?(CON-\d{3,})/i.exec(t)) || (m = /\b(CON-\d{3,})\b.*\bnext steps?\b/i.exec(t))) {
+    return { reply: `Here is the deterministic maturity assessment of ${m[1].toUpperCase()} with suggested next steps.${note}`, calls: [{ name: 'conceptualize.next_steps', arguments: { conceptId: m[1].toUpperCase() } }] }
+  }
+  if ((m = /\bcompare\b.*?(CON-\d{3,})/i.exec(t))) {
+    return { reply: `I compared the alternatives of ${m[1].toUpperCase()}. Scores are preliminary unless marked as verified evidence.${note}`, calls: [{ name: 'conceptualize.compare', arguments: { conceptId: m[1].toUpperCase() } }] }
+  }
+  if ((m = /\bdecompose\s+(CON-\d{3,})\s+into\s+(.+)$/i.exec(t))) {
+    const children = m[2].replace(/\.$/, '').split(/,|\band\b/).map((s) => s.trim()).filter(Boolean)
+    return { reply: `I prepared a decomposition of ${m[1].toUpperCase()}.${note}`, calls: [{ name: 'conceptualize.decompose', arguments: { conceptId: m[1].toUpperCase(), children } }] }
+  }
+  if ((m = /\blink\s+(CON-\d{3,})\s+(?:to|with)\s+([A-Z]{2,4}-\d+)\b/i.exec(t))) {
+    return { reply: `I prepared an implementation linking ${m[1].toUpperCase()} to ${m[2].toUpperCase()}.${note}`, calls: [{ name: 'conceptualize.link_artifact', arguments: { conceptId: m[1].toUpperCase(), artifactId: m[2].toUpperCase() } }] }
+  }
+  if (/\bpropose\b.*\brequirements?\b/i.test(t) && (m = CON.exec(t))) {
+    return { reply: `I prepared draft requirements for the quantified constraints of ${m[1].toUpperCase()}. They will be drafts in Requirements; approval stays there.${note}`, calls: [{ name: 'conceptualize.propose_requirement', arguments: { conceptId: m[1].toUpperCase() } }] }
+  }
+  if (/\b(request|initiate|start)\b.*\bcad\b/i.test(t) && (m = CON.exec(t))) {
+    return { reply: `I prepared a CAD realization request for ${m[1].toUpperCase()}. There is no CAD generation API yet, so it will be recorded as pending.${note}`, calls: [{ name: 'conceptualize.request_realization', arguments: { conceptId: m[1].toUpperCase(), targetModule: 'cad' } }] }
+  }
+  if ((m = /\b(?:select|choose|pick|pursue)\s+(CON-\d{3,})\b/i.exec(t))) {
+    return { reply: `I prepared a proposed decision to pursue ${m[1].toUpperCase()}. A reviewer records it in Conceptualize.${note}`, calls: [{ name: 'conceptualize.propose_decision', arguments: { conceptId: m[1].toUpperCase() } }] }
+  }
+  if ((m = /\b(?:show|read|describe|explain)\b.*?(CON-\d{3,})/i.exec(t))) {
+    return { reply: `Here is ${m[1].toUpperCase()}.${note}`, calls: [{ name: 'conceptualize.read', arguments: { conceptId: m[1].toUpperCase() } }] }
+  }
+  if ((m = /\b(?:find|search)\s+concepts?\s+(?:for|about|with)?\s*(.+)$/i.exec(t))) {
+    return { reply: `Concepts matching “${m[1].trim()}”.${note}`, calls: [{ name: 'conceptualize.search', arguments: { text: m[1].trim() } }] }
+  }
+  return null
+}
+
+export const conceptsAssistant: AssistantContribution = { actions, demo: conceptsDemo }

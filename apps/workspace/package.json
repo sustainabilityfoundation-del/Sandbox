@@ -10,11 +10,13 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@ews/conceptualize-client": "^0.1.0",
     "@ews/design-system": "^1.0.0",
     "@ews/model-service": "^1.0.0",
     "@ews/platform-sdk": "^1.0.0",
     "@ews/requirements-client": "^0.1.0",
     "@ews/tool-cad": "^1.0.0",
+    "@ews/tool-conceptualize": "^0.1.0",
     "@ews/tool-requirements": "^1.0.0",
     "@ews/tool-sysml": "^1.0.0",
     "driver.js": "1.8.0",

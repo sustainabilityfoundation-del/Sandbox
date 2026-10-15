@@ -210,7 +210,7 @@ export function draftConcept(text: string, basis: 'user-assertion' | 'ai-hypothe
   for (const f of functions) statements.push({ kind: 'function', text: f, basis, source })
   for (const q of quantities) statements.push({ kind: q.kind, text: q.label, quantity: q.quantity, basis, source: `${source}: “${q.phrase}”` })
   for (const s of sentences(description)) {
-    if (s.endsWith('?')) statements.push({ kind: 'question', text: s, basis: 'user-assertion', state: 'open', source })
+    if (s.endsWith('?')) statements.push({ kind: 'question', text: s, basis, state: 'open', source })
     else if (/^(assume|assuming|we assume|assumption)\b/i.test(s)) statements.push({ kind: 'assumption', text: s.replace(/^assumption:\s*/i, ''), basis: 'assumption', source })
     else if (/\b(because|so that|in order to)\b/i.test(s) && !quantities.some((q) => s.includes(q.phrase))) statements.push({ kind: 'rationale', text: s, basis, source })
   }

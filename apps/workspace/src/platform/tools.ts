@@ -4,6 +4,7 @@
  * imports their internals, only the exported definition.
  */
 import { cadTool } from '@ews/tool-cad'
+import { conceptualizeTool } from '@ews/tool-conceptualize'
 import { requirementsTool } from '@ews/tool-requirements'
 import { sysmlTool } from '@ews/tool-sysml'
 import { registerTool } from './registry'
@@ -11,6 +12,7 @@ import { registerTool } from './registry'
 registerTool(requirementsTool)
 registerTool(sysmlTool)
 registerTool(cadTool)
+registerTool(conceptualizeTool)
 
 /** Tools opened as tabs in a fresh session (only those the subscription includes are opened). */
-export const DEFAULT_OPEN_TOOLS = ['requirements', 'sysml', 'cad']
+export const DEFAULT_OPEN_TOOLS = ['requirements', 'sysml', 'cad', 'conceptualize']

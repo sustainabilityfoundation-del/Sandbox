@@ -1,0 +1,101 @@
+import { HELP_SCHEMA_VERSION, parseHelpMarkdown, type HelpManifest } from '@ews/platform-sdk'
+import pkg from '../package.json'
+
+/**
+ * Help manifest for Conceptualize (SDK 1.4, docs/modules/help.md), built from the Markdown in ../help.
+ * Keep help IDs stable when the interface changes.
+ */
+const files = import.meta.glob('../help/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+
+const OPERATIONS: [string, string][] = [
+  ['conceptualize.search', 'conceptualize.workspace'],
+  ['conceptualize.read', 'conceptualize.workspace'],
+  ['conceptualize.create', 'conceptualize.concept.create'],
+  ['conceptualize.develop_alternatives', 'conceptualize.alternatives'],
+  ['conceptualize.decompose', 'conceptualize.concept.create'],
+  ['conceptualize.compare', 'conceptualize.tradestudy'],
+  ['conceptualize.propose_decision', 'conceptualize.decision'],
+  ['conceptualize.link_artifact', 'conceptualize.implementation'],
+  ['conceptualize.propose_requirement', 'conceptualize.requirements'],
+  ['conceptualize.request_realization', 'conceptualize.implementation'],
+  ['conceptualize.next_steps', 'conceptualize.maturity'],
+]
+
+const CONTROLS: [string, string][] = [
+  ['conceptualize.explorer', 'conceptualize.explorer'],
+  ['conceptualize.explorer.tree', 'conceptualize.explorer'],
+  ['conceptualize.explorer.graph', 'conceptualize.explorer'],
+  ['conceptualize.workspace', 'conceptualize.workspace'],
+  ['conceptualize.workspace.description', 'conceptualize.concept.model'],
+  ['conceptualize.workspace.edit', 'conceptualize.workspace'],
+  ['conceptualize.workspace.save', 'conceptualize.history'],
+  ['conceptualize.maturity.change', 'conceptualize.maturity'],
+  ['conceptualize.structure', 'conceptualize.structure'],
+  ['conceptualize.relationship.create', 'conceptualize.structure'],
+  ['conceptualize.history', 'conceptualize.history'],
+  ['conceptualize.concept.create', 'conceptualize.concept.create'],
+  ['conceptualize.concept.describe', 'conceptualize.concept.create'],
+  ['conceptualize.alternatives', 'conceptualize.alternatives'],
+  ['conceptualize.alternatives.compare', 'conceptualize.alternatives'],
+  ['conceptualize.tradestudy', 'conceptualize.tradestudy'],
+  ['conceptualize.tradestudy.create', 'conceptualize.tradestudy'],
+  ['conceptualize.decision', 'conceptualize.decision'],
+  ['conceptualize.decision.create', 'conceptualize.decision'],
+  ['conceptualize.implementation', 'conceptualize.implementation'],
+  ['conceptualize.implementation.create', 'conceptualize.implementation'],
+  ['conceptualize.implementation.link', 'conceptualize.implementation'],
+  ['conceptualize.implementation.realization', 'conceptualize.implementation'],
+  ['conceptualize.requirements', 'conceptualize.requirements'],
+  ['conceptualize.evidence', 'conceptualize.concept.model'],
+  ['conceptualize.integration', 'conceptualize.integration'],
+  ['conceptualize.integration.notifications', 'conceptualize.integration'],
+  ['conceptualize.ai', 'conceptualize.ai'],
+  ['conceptualize.ai.review', 'conceptualize.ai'],
+  ['conceptualize.ai.next-steps', 'conceptualize.maturity'],
+  ['conceptualize.ai.provenance', 'conceptualize.history'],
+]
+
+export const conceptualizeHelp: HelpManifest = {
+  schemaVersion: HELP_SCHEMA_VERSION,
+  moduleId: 'conceptualize',
+  displayName: 'Conceptualize',
+  moduleVersion: pkg.version,
+  docsVersion: pkg.version,
+  landingTopic: 'conceptualize.overview',
+  topics: Object.entries(files)
+    .map(([path, raw]) => parseHelpMarkdown(raw, `packages/tool-conceptualize/help/${path.split('/').pop()}`))
+    .sort((a, b) => a.id.localeCompare(b.id)),
+  contextMappings: [
+    { toolbarItem: 'new', helpId: 'conceptualize.concept.create' },
+    { toolbarItem: 'child', helpId: 'conceptualize.concept.create' },
+    { toolbarItem: 'branch', helpId: 'conceptualize.alternatives' },
+    { toolbarItem: 'alternatives', helpId: 'conceptualize.alternatives' },
+    { toolbarItem: 'graph', helpId: 'conceptualize.explorer' },
+    ...CONTROLS.map(([control, helpId]) => ({ control, helpId })),
+    ...OPERATIONS.map(([operation, helpId]) => ({ operation, helpId })),
+  ],
+  tutorials: [
+    {
+      id: 'conceptualize.tutorial.first-concept',
+      title: 'Your first Concept',
+      summary: 'Describe an idea, review the interpreted draft and create the Concept.',
+      topic: 'conceptualize.getting-started',
+      steps: [
+        { title: 'New concept', text: 'Choose New concept in the toolbar.' },
+        { control: 'conceptualize.concept.describe', title: 'Describe the idea', text: 'Write what the Concept must achieve, with quantities and units.' },
+        { control: 'conceptualize.concept.create', title: 'Create', text: 'Check the interpreted statements and create the Concept (revision 1).' },
+        { control: 'conceptualize.explorer.tree', title: 'Find it in the explorer', text: 'The new Concept appears in the tree; open it to edit its intent.' },
+      ],
+    },
+  ],
+  shortcuts: [
+    { keys: 'Enter', action: 'Open the focused tree row or graph node', helpId: 'conceptualize.shortcuts' },
+    { keys: 'Escape', action: 'Close a dialog', helpId: 'conceptualize.shortcuts' },
+    { keys: 'F1', action: 'Help for the focused control', helpId: 'conceptualize.shortcuts' },
+  ],
+  apiReferences: [
+    { title: 'Conceptualize HTTP API (interactive)', url: '/api/concepts/v1/docs', kind: 'openapi', helpId: 'conceptualize.api' },
+    { title: 'OpenAPI document', url: '/api/concepts/v1/openapi.json', kind: 'openapi', helpId: 'conceptualize.api' },
+  ],
+  keywords: ['concept', 'conceptual design', 'alternatives', 'trade study', 'design intent'],
+}

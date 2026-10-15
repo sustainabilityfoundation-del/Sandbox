@@ -89,18 +89,18 @@ export function assess(c: AssessmentInput): Assessment {
 
   const steps: NextStep[] = []
   const add = (id: string, text: string, priority: NextStep['priority'], operation?: string) => steps.push({ id, text, priority, operation })
-  if (!met('described')) add('describe', 'Describe the idea in a few sentences: what it should achieve and why.', 'high', 'concepts.update')
-  if (!met('purpose')) add('purpose', 'State the purpose or the problem this Concept solves.', 'high', 'concepts.update')
-  if (!met('functions')) add('decompose', 'Identify the functions, or decompose the Concept into child Concepts.', 'high', 'concepts.decompose')
-  if (!met('constraints')) add('constraints', 'Quantify the main constraints with units (force, envelope, mass, cost …).', 'high', 'concepts.update')
+  if (!met('described')) add('describe', 'Describe the idea in a few sentences: what it should achieve and why.', 'high')
+  if (!met('purpose')) add('purpose', 'State the purpose or the problem this Concept solves.', 'high')
+  if (!met('functions')) add('decompose', 'Identify the functions, or decompose the Concept into child Concepts.', 'high', 'conceptualize.decompose')
+  if (!met('constraints')) add('constraints', 'Quantify the main constraints with units (force, envelope, mass, cost …).', 'high')
   if (unconfirmedHypotheses) add('hypotheses', `Review ${unconfirmedHypotheses} AI hypothes${unconfirmedHypotheses === 1 ? 'is' : 'es'}: confirm, edit or remove them.`, 'high')
-  if (openQuestions) add('questions', `Answer ${openQuestions} open question(s).`, 'medium', 'concepts.update')
-  if (!met('alternatives') && c.maturity !== 'archived') add('alternatives', 'Generate alternative solutions before committing to one.', 'medium', 'concepts.develop_alternatives')
-  if (met('alternatives') && c.alternativeSets.memberCount >= 2 && !c.scoredTradeStudies) add('trade-study', 'Compare the alternatives in a trade study (criteria, weights, scores with uncertainty).', 'medium', 'concepts.compare')
+  if (openQuestions) add('questions', `Answer ${openQuestions} open question(s).`, 'medium')
+  if (!met('alternatives') && c.maturity !== 'archived') add('alternatives', 'Generate alternative solutions before committing to one.', 'medium', 'conceptualize.develop_alternatives')
+  if (met('alternatives') && c.alternativeSets.memberCount >= 2 && !c.scoredTradeStudies) add('trade-study', 'Compare the alternatives in a trade study (criteria, weights, scores with uncertainty).', 'medium', 'conceptualize.compare')
   if (!c.evidence.preliminary && !c.evidence.verified && met('constraints')) add('calculation', 'Add a preliminary calculation with stated assumptions and units.', 'medium')
-  if (c.scoredTradeStudies && !c.decisions.recorded && c.alternativeSets.memberCount >= 2) add('decision', 'Propose a design decision: which alternative to pursue, which to reject or defer, and why.', 'medium', 'concepts.propose_decision')
-  if (!met('requirements') && quantifiedConstraints) add('requirements', 'Propose draft requirements for the quantified constraints (approval stays in Requirements).', 'low', 'concepts.propose_requirement')
-  if (c.decisions.accepted && !c.implementations.total) add('implement', 'Link an implementation (SysML element, CAD part) or record a realization request.', 'low', 'concepts.link_artifact')
+  if (c.scoredTradeStudies && !c.decisions.recorded && c.alternativeSets.memberCount >= 2) add('decision', 'Propose a design decision: which alternative to pursue, which to reject or defer, and why.', 'medium', 'conceptualize.propose_decision')
+  if (!met('requirements') && quantifiedConstraints) add('requirements', 'Propose draft requirements for the quantified constraints (approval stays in Requirements).', 'low', 'conceptualize.propose_requirement')
+  if (c.decisions.accepted && !c.implementations.total) add('implement', 'Link an implementation (SysML element, CAD part) or record a realization request.', 'low', 'conceptualize.link_artifact')
   if (c.evidence.preliminary && !c.evidence.verified && c.implementations.total) add('verify', 'Replace preliminary estimates with verified analysis or test evidence.', 'low')
 
   return {
