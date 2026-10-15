@@ -10,6 +10,8 @@ import { DisplaySettings, WindowsMenu } from './ShellParts'
 import { BaselinesMenu } from './Baselines'
 import { ServicesMenu } from './ServicesMenu'
 import { HelpMenu } from '../help/HelpMenu'
+import { ProjectSwitcher } from '../projects/ProjectHome'
+import { useCurrentProject } from '../projects/bootstrap'
 import { SettingsButton } from '../settings/SettingsButton'
 
 /** Repository connection and save state, with demo controls. */
@@ -82,12 +84,18 @@ function ContextFields({ stacked = false }: { stacked?: boolean }) {
   const setConfiguration = useWorkspaceStore((s) => s.setConfiguration)
   const setScenario = useWorkspaceStore((s) => s.setScenario)
   const { project, configurations, scenarios } = model.snapshot
+  const opened = useCurrentProject((s) => s.opened)
   return (
     <div className={stacked ? 'flex flex-col gap-3' : 'ws-header-context'} aria-label="Shared context" role="group">
       <div className="ws-ctx ws-ctx-project">
         <span className="ws-ctx-label">Project</span>
         <span className="ws-ctx-value">
-          <span className="font-mono">{project.id}</span> <span className="ws-ctx-project-name">{project.name}</span>
+          {/* Project switcher and Project Home entry (CR-PM-WS-1); the twin's own project label without Project Management. */}
+          {opened ? <ProjectSwitcher /> : (
+            <>
+              <span className="font-mono">{project.id}</span> <span className="ws-ctx-project-name">{project.name}</span>
+            </>
+          )}
         </span>
       </div>
       <Select

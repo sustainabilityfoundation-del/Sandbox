@@ -91,7 +91,8 @@ describe('project scoping (C13)', () => {
     expect((await tx(pb, pb.branch, head, [{ op: 'createElement', ownerId: 'Beta', kind: 'PartDefinition', name: 'OnlyB' }])).status).toBe(200)
     try {
       for (let k = 0; k < 10; k++) await hub.flush()
-      expect(seenA).toEqual([])
+      // A's own earlier events may still be published by this hub; none of B's may arrive.
+      expect(seenA.filter((e) => e.projectId !== pa.id)).toEqual([])
     } finally {
       off()
       await hub.close()

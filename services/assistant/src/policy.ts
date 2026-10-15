@@ -107,6 +107,8 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   'sysml-modeler.propose_text': 'propose',
   'sysml-modeler.read_element': 'read',
   'sysml-modeler.validate': 'calculate',
+  'sysml-modeler.create_project': 'propose',
+  'sysml-modeler.link_product_element': 'propose',
   'cad-modeler.describe_model': 'read',
   'cad-modeler.query': 'read',
   'cad-modeler.run_commands': 'propose',

@@ -3,7 +3,7 @@ import { createLocalSysmlClient, SysmlClientError } from '@ews/sysml-client'
 import { describe, expect, it } from 'vitest'
 import { createSysmlModelerTool } from '.'
 import { sysmlModelerDemo } from './assistant'
-import { serialize } from '@ews/sysml-core'
+import { representations, requirementCoverage, serialize } from '@ews/sysml-core'
 import { ModelerSession, sessionCount } from './session'
 
 /**
@@ -36,6 +36,8 @@ const CALLS: Record<string, Record<string, unknown>> = {
   propose_commands: { title: 'Add a brake', explanation: 'Hold the load.', commands: [{ op: 'createElement', ownerId: 'ActuatorSystem::Mechanical', kind: 'PartDefinition', name: 'Brake' }] },
   propose_text: { namespace: 'ActuatorSystem', mode: 'append', title: 'Add a package', explanation: 'Thermal', text: 'package Thermal { part def Fan; }' },
   link_requirement: { element: 'ActuatorSystem::Requirements::load', requirement: 'REQ-001' },
+  link_product_element: { element: 'ActuatorSystem::Mechanical::Rod', productElement: '7d1f3c2e-8b1a-4c55-9e0f-1a2b3c4d5e6f' },
+  create_project: { name: 'Second model', initialText: 'package Second;' },
 }
 
 describe('assistant operations without a mounted view (headless, C9)', () => {
@@ -50,7 +52,7 @@ describe('assistant operations without a mounted view (headless, C9)', () => {
         const p = out as ServiceProposal
         expect(p.preview.length, name).toBeGreaterThan(0)
         const applied = await p.apply({ conversationId: 'c', proposalId: `p-${name}`, messageId: 'm' })
-        expect(applied.summary, name).toMatch(/^Commit #\d+/)
+        expect(applied.summary, name).toMatch(/^(Commit #\d+|Created SysML project)/)
       } else expect((out as { kind: string }).kind, name).toBe('data')
     }
     expect(sessionCount()).toBe(sessionsBefore)
@@ -112,5 +114,29 @@ describe('project scoping in the client and assistant (C13)', () => {
     await expect(Promise.resolve().then(() => run('propose_commands', { projectId: other.id, title: 't', explanation: 'e', commands: [{ op: 'createElement', ownerId: 'Other', kind: 'PartDefinition', name: 'X' }] }))).rejects.toThrow(/belongs to platform project PRJ-OTHER/)
     a.dispose()
     b.dispose()
+  })
+})
+
+describe('D1-SYS: architecture step through the assistant in a new, empty platform project', () => {
+  it('creates the project, decomposes, links requirements and product elements, validates without errors', async () => {
+    const { runD1Sequence, D1_PRODUCT, D1_REQUIREMENT } = await import('../test/d1-sequence')
+    const client = createLocalSysmlClient({ seed: true })
+    const tool = createSysmlModelerTool({ client })
+    const before = sessionCount()
+    const out = await runD1Sequence(tool as never, 'PRJ-D1-NEW')
+    expect(out.validationErrors).toBe(0)
+    expect(out.coverage).toEqual([expect.objectContaining({ requirement: expect.stringContaining('gripForce'), status: 'satisfied' })])
+    expect(out.steps).toHaveLength(5)
+    expect(sessionCount()).toBe(before)
+    const [p] = await client.listProjects('PRJ-D1-NEW')
+    const branch = await client.getBranch(p.id, p.defaultBranchId)
+    const model = await client.loadModel(p.id, branch.headCommitId!)
+    const text = serialize(model)
+    expect(representations(model).map((r) => r.ref)).toEqual([
+      { module: 'product', kind: 'product-element', id: D1_PRODUCT.finger, revision: 3 },
+      { module: 'product', kind: 'product-element', id: D1_PRODUCT.gripper, revision: 3 },
+    ].sort((a, b) => (representations(model).findIndex((r) => r.ref.id === a.id) - representations(model).findIndex((r) => r.ref.id === b.id))))
+    expect(requirementCoverage(model).requirements[0].managed).toEqual({ requirementId: D1_REQUIREMENT.id, revision: 2 })
+    expect(text).toContain('action def GraspPart')
   })
 })

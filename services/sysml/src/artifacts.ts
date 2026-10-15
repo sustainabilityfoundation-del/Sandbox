@@ -1,6 +1,6 @@
 import type { ArtifactChange, ArtifactDescriptor, ArtifactKindInfo, ArtifactPage, ArtifactSource, NativeRef, ProvisionRequest, ProvisionResult } from '@ews/platform-sdk'
 import { ARTIFACT_SOURCE_CONTRACT_VERSION } from '@ews/platform-sdk'
-import { definitionKeyword, isKindOf, relationshipMatrix, representations, semanticsOf, usageKeyword, type Model } from '@ews/sysml-core'
+import { definitionKeyword, isKindOf, readMetadataValues, relationshipMatrix, representations, semanticsOf, usageKeyword, type Model } from '@ews/sysml-core'
 import type { SysmlEvent, SysmlEventHub } from './events'
 import type { ProjectRow, SysmlRepository, TagRow } from './repository'
 import { isUuid } from './repository'
@@ -133,16 +133,10 @@ export function createSysmlArtifactSource(repo: SysmlRepository, events: SysmlEv
     for (const e of model.elements()) {
       if (e['@type'] !== 'MetadataUsage' || !s.featureTypes(e['@id']).some((t) => s.qualifiedName(t) === 'EWS::ManagedRequirement')) continue
       const owner = s.owner(e['@id'])?.['@id']
-      const values = new Map(s.ownedMembers(e['@id']).map((f) => [s.name(f['@id']), f] as const))
-      const value = (n: string) => {
-        const f = values.get(n)
-        const fv = f && s.ownedRelationships(f['@id']).find((r) => r['@type'] === 'FeatureValue')
-        const v = fv ? s.get((fv.ownedRelatedElement as { '@id': string }[] | undefined)?.[0]?.['@id']) : undefined
-        return v?.value
-      }
-      const id = value('requirementId')
-      const rev = value('revision')
-      if (owner && typeof id === 'string' && isUuid(id)) add(owner, { type: 'stands-for', to: { module: 'requirements', kind: 'requirement', id }, ...(typeof rev === 'number' ? { toRevision: rev } : {}) })
+      const values = readMetadataValues(s, e['@id'])
+      const id = values.requirementId
+      const rev = values.revision
+      if (owner && typeof id === 'string' && isUuid(id)) add(owner, { type: 'stands-for', to: { module: 'requirements', kind: 'requirement', id }, ...(typeof rev === 'number' && Number.isInteger(rev) ? { toRevision: rev } : {}) })
     }
     return out
   }

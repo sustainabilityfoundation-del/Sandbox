@@ -1,0 +1,17 @@
+{
+  "name": "@ews/projects-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser client for the Project Management API: HTTP adapter of the SDK ProjectsService, the full typed client, an in-memory contract-test adapter and the adapter contract test suite.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract-tests": "./src/contractTests.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/platform-sdk": "^1.5.0"
+  }
+}

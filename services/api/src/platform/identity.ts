@@ -1,3 +1,4 @@
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
@@ -44,10 +45,30 @@ export async function seedPlatform(pool: Pool, projectId = 'PRJ-ACT100') {
 
 export interface IdentityOptions {
   production: boolean
+  /**
+   * Record state of a project in the Project Management registry (CR-PM-API-4). Archived projects are read-only
+   * for every hosted service (the role is capped at reader); deleted projects have no members until restored.
+   * Projects unknown to the registry keep their roles unchanged.
+   */
+  projectState?: (projectId: string) => Promise<'active' | 'archived' | 'deleted' | undefined>
 }
 
+/** Non-login identity of in-process registry adapters (CR-PM-API-2). Never a row in platform.users. */
+export const SYSTEM_PROJECTS_PRINCIPAL = 'system:projects'
+
 export function identity(pool: Pool, options: IdentityOptions) {
+  // A random per-process token for in-process calls (app.inject) by registry adapters. Never logged or returned.
+  const internalToken = randomBytes(32).toString('hex')
+  const internalMatches = (value: unknown) => typeof value === 'string' && value.length === internalToken.length && timingSafeEqual(Buffer.from(value), Buffer.from(internalToken))
+
   async function authenticate(request: FastifyRequest): Promise<Principal> {
+    const internal = request.headers['x-internal-token']
+    if (internal !== undefined) {
+      if (!internalMatches(internal)) throw new ServiceError('unauthenticated', 'Invalid internal token.')
+      if (request.method !== 'GET') throw new ServiceError('forbidden', 'The system principal may only read.')
+      const { rows } = await pool.query<{ entitlement: string }>('SELECT DISTINCT entitlement FROM platform.entitlements ORDER BY entitlement')
+      return { userId: SYSTEM_PROJECTS_PRINCIPAL, entitlements: rows.map((r) => r.entitlement) }
+    }
     const dev = request.headers['x-dev-user']
     if (options.production) {
       if (dev !== undefined) throw new ServiceError('unauthenticated', 'X-Dev-User is not accepted in production. Authenticate with a bearer token.')
@@ -70,11 +91,26 @@ export function identity(pool: Pool, options: IdentityOptions) {
   }
 
   async function roleOf(userId: string, projectId: string): Promise<Role | null> {
+    if (userId === SYSTEM_PROJECTS_PRINCIPAL) return 'reader'
+    const { rows } = await pool.query<{ role: Role }>('SELECT role FROM platform.project_memberships WHERE user_id = $1 AND project_id = $2', [userId, projectId])
+    const role = rows[0]?.role ?? null
+    if (!role || !options.projectState) return role
+    const state = await options.projectState(projectId)
+    if (state === 'deleted') return null
+    if (state === 'archived') return 'reader'
+    return role
+  }
+
+  /** Raw membership role, ignoring the record state (Project Management decides itself what archived and deleted allow). */
+  async function membershipRole(userId: string, projectId: string): Promise<Role | null> {
     const { rows } = await pool.query<{ role: Role }>('SELECT role FROM platform.project_memberships WHERE user_id = $1 AND project_id = $2', [userId, projectId])
     return rows[0]?.role ?? null
   }
 
-  return { authenticate, roleOf }
+  /** Headers for an in-process read as the system principal (registry adapters using app.inject). */
+  const internalHeaders = () => ({ 'x-internal-token': internalToken })
+
+  return { authenticate, roleOf, membershipRole, internalHeaders }
 }
 
 /** `GET /api/platform/v1/me` and, in development, the list of development users for a user selector. */

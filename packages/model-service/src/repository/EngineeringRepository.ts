@@ -57,4 +57,11 @@ export interface EngineeringRepository {
    */
   registerExternalObjects?(objects: { id: string; type: ObjectType; revision: number }[]): void
   createBaseline(projectId: string, draft: BaselineDraft, meta: { toolId: string }): Promise<Baseline>
+  /**
+   * Creates an empty twin for a project registered by Project Management (CR-PM-MS-1). Idempotent; never seeds.
+   * Optional: hosts with a single project skip it.
+   */
+  ensureProject?(project: { id: string; name: string }): Promise<void>
+  /** Projects this repository holds a twin for. Optional. */
+  listProjects?(): Promise<{ id: string; name: string }[]>
 }

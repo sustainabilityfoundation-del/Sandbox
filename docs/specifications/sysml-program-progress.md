@@ -125,6 +125,30 @@ export interface SysmlModelService {
 Host wiring: `services.sysml = createSysmlModelService(<the same client the SysML Modeler tool uses>)`.
 The tool then reads its client from the host when `services.sysml` exists (tool change after SDK 1.8).
 
+## D1-SYS (15 October 2026): architecture step of demonstration D1
+
+Confirmed headless through the assistant in a **new, empty platform project** (no view mounted):
+`create_project` → `propose_text` (functional decomposition as an action definition with successions,
+physical decomposition as part definitions and usages, `satisfy … by …`) → `link_requirement` (managed
+requirement, pinned revision) → `link_product_element` ×2 (product elements, pinned revision) →
+`validate` (0 errors) → `coverage` (satisfied). Every change is a commit with assistant provenance;
+Project Management sees the elements and their `represents`, `satisfies` and `stands-for` relations
+through the artifact source.
+
+What blocked it and was fixed: the assistant could not create a SysML project (new operation
+`sysml-modeler.create_project`, a proposal applied by a person, idempotent per proposal) and had no
+dedicated product-element link (new `sysml-modeler.link_product_element`, checked against Project
+Management when `services.projects` exists); the artifact source did not report `stands-for`
+relations (metadata read fixed). Tests: `packages/tool-sysml-modeler/test/d1-sequence.ts` (shared
+sequence), `src/headless.test.ts` (in-browser client) and `services/sysml/test/d1.test.ts` (HTTP API and
+PostgreSQL). No browser flow: the scripted demo assistant has no prompts for this sequence; the AI
+backend drives the same operations.
+
+`services.sysml` (SDK 1.8) is a read service; the tool needs the write client, so it keeps its own
+client. In API mode both are stateless HTTP clients of the same API (no duplicated state); nothing to
+remove. In demo mode the workspace provides no `services.sysml`, so other modules cannot resolve SysML
+references there (host change: build `services.sysml` from the tool's local client).
+
 ## Major architectural decisions
 
 ADR-0030…0038 (Proposed, sent 14 October 2026). Sprint 2 adds no new ADR: implied specializations

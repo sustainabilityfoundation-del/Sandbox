@@ -26,17 +26,37 @@ import { CapabilitiesDialog } from './shell/CapabilitiesDialog'
 import { CoverageDialog } from './shell/CoverageDialog'
 import { HelpCentre } from './help/HelpCentre'
 import { openContextualHelp } from './help/contextual'
+import { openCurrentProject } from './projects/bootstrap'
+import { ProjectHome, openProjectHome } from './projects/ProjectHome'
+import { switchProject } from './projects/currentProject'
 
 let started = false
 
-function start(repository: DemoRepository) {
-  return useWorkspaceStore.getState().initialize({
+async function start(repository: DemoRepository) {
+  // The window's project (CR-PM-WS-1): opened through Project Management when available; PRJ-ACT100 otherwise.
+  let opened
+  try {
+    opened = await openCurrentProject({ repository, projects: workspaceServices.projects, legacyTools: DEFAULT_OPEN_TOOLS })
+  } catch (error) {
+    useWorkspaceStore.setState({ status: 'error', loadError: error instanceof Error ? error.message : String(error) })
+    return
+  }
+  await useWorkspaceStore.getState().initialize({
     repository,
-    projectId: PROJECT_ID,
+    projectId: opened.legacy ? PROJECT_ID : opened.current.projectId,
     tools: getTools().map((t) => ({ id: t.id, initialViewState: t.initialViewState })),
-    defaultOpenToolIds: DEFAULT_OPEN_TOOLS,
+    defaultOpenToolIds: opened.defaultTools,
     requirements: workspaceServices.requirements,
   })
+  // Committed changes in Project Management (product elements, breakdowns) refresh the projected model (CR-PM-MS-2).
+  if (!opened.legacy && workspaceServices.projects) {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    workspaceServices.projects.subscribe(opened.current.projectId, (e) => {
+      if (e.type !== 'artifact.registered' && e.type !== 'artifact.updated') return
+      clearTimeout(timer)
+      timer = setTimeout(() => void useWorkspaceStore.getState().refreshRequirements(), 200)
+    })
+  }
 }
 
 /** Keeps the store's layout class (and so its saved layout preferences) in step with the viewport. */
@@ -190,6 +210,7 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
       <CapabilitiesDialog />
       <CoverageDialog />
       <HelpCentre />
+      <ProjectHome />
       <Toaster />
     </div>
   )
@@ -284,7 +305,18 @@ export default function App({ repository }: { repository: DemoRepository }) {
           >
             Retry
           </Button>
+          {workspaceServices.projects && (
+            <div className="flex flex-wrap gap-2">
+              <Button icon="repository" onPress={() => openProjectHome()}>
+                Projects…
+              </Button>
+              <Button variant="quiet" onPress={() => switchProject(PROJECT_ID)}>
+                Open the example project
+              </Button>
+            </div>
+          )}
         </div>
+        <ProjectHome />
       </div>
     )
   }
