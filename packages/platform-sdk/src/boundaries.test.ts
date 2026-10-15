@@ -41,7 +41,10 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/requirements-client': /^@ews\/platform-sdk$/,
   'packages/reqif': /^$/,
   'services/requirements': /^@ews\/(platform-sdk|reqif)$/,
-  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service)$/,
+  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service|projects-service)$/,
+  // Project Management (docs/specifications/project-management-contracts.md §3). Only the client reaches the browser.
+  'services/projects': /^@ews\/platform-sdk$/,
+  'packages/projects-client': /^@ews\/platform-sdk$/,
   // Conceptualize (docs/specifications/conceptualize-contracts.md). Only the client reaches the browser.
   'packages/tool-conceptualize': /^@ews\/(platform-sdk|design-system|conceptualize-client)(\/[\w.-]+)?$/,
   'packages/conceptualize-client': /^@ews\/platform-sdk$/,
