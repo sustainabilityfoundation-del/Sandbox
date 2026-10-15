@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastif
 import { migrateAssistant } from './db/migrate'
 import { AssistantBackend, AssistantError, type AssistantBackendOptions, type Principal } from './service'
 import { WIRE_REQUEST_SCHEMA, type WireRequest } from './wire'
+import { ProposalService, type ModuleApi, type ModuleCaller, type ProposalInput } from './proposals'
 
 export const ASSISTANT_BASE_PATH = '/api/assistant/v1'
 export const ASSISTANT_API_VERSION = '0.1.0'
@@ -12,6 +13,9 @@ export interface AssistantPluginOptions extends Omit<AssistantBackendOptions, 'r
   roleOf: (userId: string, projectId: string) => Promise<string | null>
   /** Receives the backend (the host wires the OAuth callback and server-side callers to it). */
   onReady?: (backend: AssistantBackend) => void
+  /** Module APIs that declarative proposals may call (C9), and how to call them in-process as the person. */
+  modules?: ModuleApi[]
+  callModule?: ModuleCaller
 }
 
 const PROJECT = { type: 'string', minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.-]+$' }
@@ -88,6 +92,53 @@ export const assistantPlugin: FastifyPluginAsync<AssistantPluginOptions> = async
     records: await backend.store.auditRecords((await who(request)).userId, Number((request.query as { limit?: number }).limit ?? 50)),
   }))
 
+  // ---- persisted proposals (C9, ADR-0042) -------------------------------------------------------------
+  const proposals = new ProposalService(options.pool, options.modules ?? [], options.callModule ?? (async () => ({ status: 503, body: { error: { message: 'No module gateway on this host.' } } })), options.roleOf)
+  /** The person's identity, forwarded to module APIs (development header or bearer token). */
+  const auth = (request: FastifyRequest): Record<string, string> => {
+    const h: Record<string, string> = {}
+    for (const name of ['x-dev-user', 'authorization']) {
+      const v = request.headers[name]
+      if (typeof v === 'string') h[name] = v
+    }
+    return h
+  }
+  const MODULE_OPERATION = { type: 'object', required: ['module', 'operationId', 'method', 'path'], additionalProperties: false, properties: { module: { type: 'string', maxLength: 60 }, operationId: { type: 'string', maxLength: 120 }, method: { enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] }, path: { type: 'string', maxLength: 2000 }, query: { type: 'object' }, body: {}, ifMatch: { type: 'string', maxLength: 200 }, idempotencyKey: { type: 'string', maxLength: 200 } } }
+  const EXPECTED = { type: 'object', required: ['module', 'kind', 'id', 'label', 'revision', 'read'], properties: { module: { type: 'string' }, kind: { type: 'string' }, id: { type: 'string' }, label: { type: 'string', maxLength: 300 }, revision: {}, read: { type: 'object', required: ['operationId', 'path', 'field'], properties: { operationId: { type: 'string' }, path: { type: 'string', maxLength: 2000 }, field: { type: 'string', maxLength: 200 } } } } }
+  app.post(
+    '/proposals',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['projectId', 'conversationId', 'key', 'kind', 'module', 'title', 'preview'],
+          additionalProperties: false,
+          properties: {
+            projectId: PROJECT, conversationId: { type: 'string', maxLength: 100 }, messageId: { type: 'string', maxLength: 100 }, key: { type: 'string', maxLength: 60 },
+            kind: { enum: ['declarative', 'twin', 'closure'] }, module: { type: 'string', maxLength: 60 }, title: { type: 'string', minLength: 1, maxLength: 300 }, explanation: { type: 'string', maxLength: 4000 },
+            preview: {}, assumptions: { type: 'array', maxItems: 50, items: { type: 'string', maxLength: 2000 } }, operations: { type: 'array', maxItems: 50, items: MODULE_OPERATION }, expected: { type: 'array', maxItems: 50, items: EXPECTED },
+            confirmation: { type: 'object', required: ['phrase', 'prompt'], properties: { phrase: { type: 'string', maxLength: 200 }, prompt: { type: 'string', maxLength: 1000 } } },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      reply.code(201)
+      return { proposal: await proposals.create(await who(request), request.body as ProposalInput, auth(request)) }
+    },
+  )
+  app.get('/proposals', { schema: { querystring: { type: 'object', required: ['projectId'], properties: { projectId: PROJECT, conversationId: { type: 'string', maxLength: 100 }, open: { type: 'boolean' } } } } }, async (request) => {
+    const q = request.query as { projectId: string; conversationId?: string; open?: boolean }
+    return { proposals: await proposals.list(await who(request), q) }
+  })
+  app.get('/proposals/:id', async (request) => ({ proposal: await proposals.getOne(await who(request), (request.params as { id: string }).id) }))
+  app.post('/proposals/:id/apply', { schema: { querystring: projectQuery } }, async (request) =>
+    proposals.apply(await who(request), (request.params as { id: string }).id, { currentProjectId: pid(request), confirmation: (request.body as { confirmation?: string } | null | undefined)?.confirmation }, auth(request)),
+  )
+  app.post('/proposals/:id/outcome', { schema: { body: { type: 'object', required: ['status'], additionalProperties: false, properties: { status: { enum: ['applied', 'failed', 'conflict', 'rejected'] }, message: { type: 'string', maxLength: 2000 } } } } }, async (request) => ({
+    proposal: await proposals.outcome(await who(request), (request.params as { id: string }).id, request.body as { status: 'applied' | 'failed' | 'conflict' | 'rejected'; message?: string }),
+  }))
+
   app.get('/openapi.json', async (_request, reply) => reply.header('Cache-Control', 'no-cache').send(assistantOpenApi()))
 }
 
@@ -159,6 +210,13 @@ export function assistantOpenApi() {
       '/policy': { get: { operationId: 'getPolicy', tags: ['Policy'], summary: 'Your effective AI access policy (settings clamped to project limits) and the operation catalogue', security, parameters: [projectId], responses: ok('Policy') } },
       '/preview': { post: { operationId: 'previewRequest', tags: ['Policy'], summary: 'What would be sent to the provider for this request (nothing is sent)', security, requestBody: json({ $ref: '#/components/schemas/AssistantRequest' }), responses: ok('Preview') } },
       '/respond': { post: { operationId: 'respond', tags: ['Assistant'], summary: 'One step of the tool-calling loop: tool calls (signed) or a final answer', security, requestBody: json({ $ref: '#/components/schemas/AssistantRequest' }), responses: ok('AssistantResponse') } },
+      '/proposals': {
+        post: { operationId: 'createProposal', tags: ['Proposals'], summary: 'Store a proposal shown to the person (declarative: module operations validated against the module OpenAPI and project)', security, requestBody: json({ type: 'object' }), responses: { '201': { description: 'Stored (versioned)', content: { 'application/json': { schema: { type: 'object' } } } }, ...errors } },
+        get: { operationId: 'listProposals', tags: ['Proposals'], summary: 'Your proposals in a project (open ones reopen after a restart)', security, parameters: [projectId, { name: 'conversationId', in: 'query', schema: { type: 'string' } }, { name: 'open', in: 'query', schema: { type: 'boolean' } }], responses: ok('Proposals') },
+      },
+      '/proposals/{id}': { get: { operationId: 'getProposal', tags: ['Proposals'], summary: 'One of your proposals', security, parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: ok('Proposal') } },
+      '/proposals/{id}/apply': { post: { operationId: 'applyProposal', tags: ['Proposals'], summary: 'Apply a declarative proposal: revalidate identity, membership, entitlements, project (C13), expected revisions and idempotency, then execute through the module API', security, parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, projectId], responses: ok('Applied (or already applied); 409 stale, project-mismatch or apply-in-browser; 422 module-refused') } },
+      '/proposals/{id}/outcome': { post: { operationId: 'recordProposalOutcome', tags: ['Proposals'], summary: 'Record the outcome of a proposal applied in the browser (twin, closure) or a rejection', security, parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: ok('Recorded') } },
       '/audit': { get: { operationId: 'getAudit', tags: ['Audit'], summary: 'Your recent AI calls: time, model, operations, tokens, outcome', security, parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200 } }], responses: ok('Records') } },
     },
   }
