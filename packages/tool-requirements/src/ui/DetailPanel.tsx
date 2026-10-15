@@ -1,8 +1,9 @@
 import { Badge, Button, ComboBox, IconButton, LoadingState, Notice, Select, Tab, TabList, TabPanel, Tabs, TextField } from '@ews/design-system'
 import { isComponent } from '@ews/platform-sdk'
-import { ObjectRef, useModel, useToolApi } from '@ews/platform-sdk/react'
+import { ObjectRef, useModel, usePlatformServices, useSharedContext, useToolApi } from '@ews/platform-sdk/react'
 import type { AttributeDefinition, Relationship, RelationshipType, Requirement } from '@ews/requirements-client'
 import { useState } from 'react'
+import { ALLOCATION_TARGET_KINDS, allocationRequest, allocationTargetLabel, type AllocationTargetKind } from '../allocations'
 import type { DetailTab, VerificationRecordView } from '../domain'
 import { sysmlTrace } from '../domain'
 import { errorMessage, useModuleData, useResource } from '../data'
@@ -114,7 +115,14 @@ function Relationships({ r, readOnly, baselineId }: { r: Requirement; readOnly: 
   const types = useResource(() => client.relationshipTypes(), [client])
   const [type, setType] = useState<RelationshipType>('derives-from')
   const [target, setTarget] = useState<{ id: string; label: string } | null>(null)
+  const [targetKind, setTargetKind] = useState<AllocationTargetKind>('component')
   const [search, setSearch] = useState('')
+  const { sysml } = usePlatformServices()
+  const { projectId } = useSharedContext()
+  const sysmlCandidates = useResource(
+    () => (type === 'allocated-to' && targetKind === 'sysml-model-element' && sysml ? sysml.find(projectId, { text: search || undefined, limit: 20 }) : Promise.resolve(null)),
+    [sysml, projectId, search, type, targetKind],
+  )
   const [rationale, setRationale] = useState('')
   const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
@@ -128,7 +136,9 @@ function Relationships({ r, readOnly, baselineId }: { r: Requirement; readOnly: 
     setBusy(true)
     setError(null)
     try {
-      await client.createRelationship({ type, fromId: r.id, ...(type === 'allocated-to' ? { toTwinId: target.id } : { toRequirementId: target.id }), rationale: rationale || undefined })
+      // Allocations carry the revision shown here (same request as the assistant's requirements.allocate).
+      if (type === 'allocated-to') await client.createRelationship(allocationRequest(r, { kind: targetKind, id: target.id }, { rationale: rationale || undefined }))
+      else await client.createRelationship({ type, fromId: r.id, toRequirementId: target.id, rationale: rationale || undefined })
       setTarget(null)
       setRationale('')
       invalidate()
@@ -177,7 +187,7 @@ function Relationships({ r, readOnly, baselineId }: { r: Requirement; readOnly: 
                   const twinObj = rel.toTwinId ? model.get(rel.toTwinId) : undefined
                   return (
                     <li key={rel.id}>
-                      {twinObj ? <ObjectRef object={twinObj} /> : <span className={rel.toTwinId ? 'font-mono' : ''}>{rel.toTwinId ?? label(other)}</span>}
+                      {twinObj ? <ObjectRef object={twinObj} /> : <span className={rel.toTwinId ? 'font-mono' : ''}>{rel.toTwinId ? allocationTargetLabel(rel) : label(other)}</span>}
                       {rel.rationale && <span className="text-fg-3"> — {rel.rationale}</span>}
                       <span className="text-ui-xs text-fg-3"> · rev {rel.revision}, made against {rel.fromId === r.id ? `rev ${rel.fromRequirementRevision}` : `rev ${rel.toRequirementRevision ?? '?'}`}</span>
                       {editable && !baselineId && <IconButton size="sm" icon="unlink" label={`Remove ${rel.type} link`} onPress={() => void remove(rel)} />}
@@ -229,7 +239,15 @@ function Relationships({ r, readOnly, baselineId }: { r: Requirement; readOnly: 
             options={(types.data ?? []).map((t) => ({ id: t.type, label: RELATION_LABEL[t.type].out, description: t.meaning }))}
           />
           {rule && <p className="ws-hint m-0">{rule.reads.replace('{from}', r.key).replace('{to}', 'the target')}. {rule.meaning}</p>}
-          {type === 'allocated-to' ? (
+          {type === 'allocated-to' && (
+            <Select
+              label="Allocate to"
+              value={targetKind}
+              onChange={(v) => (setTargetKind(v as AllocationTargetKind), setTarget(null), setSearch(''))}
+              options={ALLOCATION_TARGET_KINDS.map((k) => ({ id: k.id, label: k.label }))}
+            />
+          )}
+          {type === 'allocated-to' && targetKind === 'component' ? (
             <Select
               label="Component (shared twin)"
               value={target?.id ?? null}
@@ -237,6 +255,31 @@ function Relationships({ r, readOnly, baselineId }: { r: Requirement; readOnly: 
               onChange={(id) => setTarget({ id, label: id })}
               options={model.objects.filter(isComponent).map((c) => ({ id: c.id, label: `${c.id} ${c.name}` }))}
             />
+          ) : type === 'allocated-to' && targetKind === 'product-element' ? (
+            <TextField
+              label="Product element ID"
+              value={target?.id ?? ''}
+              onChange={(v) => setTarget(v.trim() ? { id: v.trim(), label: v.trim() } : null)}
+              description="The element's ID in the project's product structure (Project Management); checked by the server"
+            />
+          ) : type === 'allocated-to' && targetKind === 'sysml-model-element' ? (
+            sysml ? (
+              <ComboBox
+                label="SysML element"
+                placeholder="Search name or qualified name"
+                inputValue={search}
+                onInputChange={setSearch}
+                options={(sysmlCandidates.data ?? []).map((e) => ({ id: e.ref.id, label: `${e.qualifiedName ?? e.name ?? e.elementId} (${e.metaclass})` }))}
+                onSelect={(o) => setTarget({ id: o.id, label: o.label })}
+              />
+            ) : (
+              <TextField
+                label="SysML element (project/element ID)"
+                value={target?.id ?? ''}
+                onChange={(v) => setTarget(v.trim() ? { id: v.trim(), label: v.trim() } : null)}
+                description="The SysML Modeler is not available here to search; enter <sysmlProjectId>/<elementId>"
+              />
+            )
           ) : (
             <ComboBox
               label="Target requirement"

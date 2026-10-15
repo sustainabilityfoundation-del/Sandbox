@@ -26,7 +26,7 @@ describe('migrations and seed (AC-B1)', () => {
     try {
       const again = await migrateRequirements(env.pool)
       expect(again.applied).toEqual([])
-      expect(again.alreadyApplied).toEqual(['0001_initial.sql', '0002_outbox_retention.sql'])
+      expect(again.alreadyApplied).toEqual(['0001_initial.sql', '0002_outbox_retention.sql', '0003_origin_and_allocation_targets.sql'])
       await env.pool.query(`UPDATE requirements.schema_migrations SET checksum = 'x' WHERE version = '0001'`)
       await expect(migrateRequirements(env.pool)).rejects.toThrow(/changed after it was applied/)
     } finally {

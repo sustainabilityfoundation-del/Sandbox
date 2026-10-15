@@ -155,21 +155,23 @@ type Relations = NonNullable<ArtifactDescriptor['relations']>
  * - allocated-to a product element, as `{ module: 'product', kind: 'product-element', id: <element UUID> }`.
  *   An allocation target is a product element when its canonical ID is a UUID: the ID the host's
  *   TwinDirectory returns for it, else the stored ID. Allocations pin no target revision. Allocations to
- *   the static sample twin (ACT-100, ROD-120 …) have no native module and are not reported.
+ *   the static sample twin (ACT-100, ROD-120 …) have no native module and are not reported;
+ * - allocated-to a SysML Modeler element, as `{ module: 'sysml', kind: 'sysml-model-element', id }` with the
+ *   commit number recorded when the allocation was made as `toRevision`.
  */
 async function relationsOf(pool: Pool, twin: TwinDirectory | undefined, projectId: string, ids: string[]): Promise<Map<string, Relations>> {
   const out = new Map<string, Relations>()
   if (!ids.length) return out
   const add = (from: string, rel: Relations[number]) => out.set(from, [...(out.get(from) ?? []), rel])
-  const { rows } = await pool.query<{ from_id: string; type: string; to_id: string | null; to_twin_id: string | null; to_revision: number | null }>(
-    `SELECT l.from_requirement_id::text AS from_id, l.type, l.to_requirement_id::text AS to_id, l.to_twin_id, v.to_requirement_revision AS to_revision
+  const { rows } = await pool.query<{ from_id: string; type: string; to_id: string | null; to_twin_id: string | null; target_kind: string; to_revision: number | null; to_target_revision: number | null }>(
+    `SELECT l.from_requirement_id::text AS from_id, l.type, l.to_requirement_id::text AS to_id, l.to_twin_id, l.target_kind, v.to_requirement_revision AS to_revision, v.to_target_revision
        FROM requirements.relationships l
        JOIN requirements.relationship_revisions v ON v.relationship_id = l.id AND v.revision = l.current_revision
       WHERE l.project_id = $1 AND l.from_requirement_id = ANY($2::uuid[]) AND NOT l.deleted
       ORDER BY l.from_requirement_id, l.type, coalesce(l.to_requirement_id::text, l.to_twin_id)`,
     [projectId, ids],
   )
-  const targets = [...new Set(rows.flatMap((r) => (r.to_twin_id ? [r.to_twin_id] : [])))]
+  const targets = [...new Set(rows.flatMap((r) => (r.to_twin_id && r.target_kind === 'twin' ? [r.to_twin_id] : [])))]
   const known = twin && targets.length ? await twin.lookup(projectId, targets) : new Map()
   for (const r of rows) {
     if (r.to_id) {
@@ -177,6 +179,10 @@ async function relationsOf(pool: Pool, twin: TwinDirectory | undefined, projectI
       continue
     }
     if (!r.to_twin_id) continue
+    if (r.target_kind === 'sysml-model-element') {
+      add(r.from_id, { type: r.type, to: { module: 'sysml', kind: 'sysml-model-element', id: r.to_twin_id }, ...(r.to_target_revision != null ? { toRevision: r.to_target_revision } : {}) })
+      continue
+    }
     const resolved = known.get(r.to_twin_id)?.id
     const element = resolved && UUID.test(resolved) ? resolved : UUID.test(r.to_twin_id) ? r.to_twin_id : undefined
     if (element) add(r.from_id, { type: r.type, to: { ...PRODUCT_ELEMENT_REF, id: element.toLowerCase() } })
