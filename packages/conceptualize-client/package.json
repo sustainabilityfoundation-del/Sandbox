@@ -1,0 +1,17 @@
+{
+  "name": "@ews/conceptualize-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser client for the Conceptualize API: HTTP and explicit demo adapters of the SDK ConceptsService, the module's full typed client, natural-language helpers and an adapter contract test suite.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract-tests": "./src/contractTests.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/platform-sdk": "^1.5.0"
+  }
+}

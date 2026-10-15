@@ -19,6 +19,7 @@
     "ajv-formats": "3.0.1"
   },
   "devDependencies": {
+    "@ews/conceptualize-client": "^0.1.0",
     "@types/pg": "8.23.1"
   }
 }

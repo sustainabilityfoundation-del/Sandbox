@@ -12,9 +12,11 @@ type Prov = ImplementationDto['artifacts'][number]['provenance']
 
 const ID_PATTERN: Record<ArtifactRefDto['module'], RegExp> = {
   requirements: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-  sysml: /^[A-Z][A-Z0-9]*-[A-Za-z0-9._-]+$/,
-  cad: /^[A-Z][A-Z0-9]*-[A-Za-z0-9._-]+$/,
-  twin: /^[A-Z][A-Z0-9]*-[A-Za-z0-9._-]+$/,
+  // One module per artifact kind (contracts §3): SysML elements SYS-…, CAD representations CAD-…,
+  // physical components and saved results/verification records in the twin (ROD-120, ACT-100, OUT-…).
+  sysml: /^SYS-[A-Za-z0-9._-]+$/,
+  cad: /^CAD-[A-Za-z0-9._-]+$/,
+  twin: /^(?!SYS-|CAD-)[A-Z][A-Z0-9]*-[A-Za-z0-9._-]+$/,
   analysis: /^[A-Za-z][A-Za-z0-9._:-]{0,199}$/,
   external: /^(https?:\/\/\S+|[A-Za-z][\w.-]*:\S+|[\w .:/#-]{1,300})$/,
 }
