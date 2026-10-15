@@ -101,9 +101,9 @@ records only modelling assumptions it needs as `comment`/metadata on elements.
 ### 5.3 CAD (proposal CR-SYSML-03, to be reconciled by the coordinator)
 
 - Link owner: SysML (the `from` end, a part usage/definition) holds `@EWS::CadRepresentation
-  { ref = "<cad ArtifactRef id>"; revision = n; role = "part" | "assembly"; }`; CAD may hold the reverse
+  { cadRef = "<cad ArtifactRef id>"; revision = n; role = "part" | "assembly"; }`; CAD may hold the reverse
   link in its own data. Neither copies the other's model.
-- Interface traceability: SysML `port` usages may carry `@EWS::CadInterface { ref = "<cad feature id>"; }`.
+- Interface traceability: SysML `port` usages may carry `@EWS::CadInterface { cadRef = "<cad feature id>"; }`.
 - Mass properties: CAD publishes computed mass/inertia per revision; SysML shows them as read-time
   projections next to the modelled `mass` attribute and flags differences (no implicit write-back).
 - Change notification: both modules emit committed-change events; each side marks links stale when
