@@ -302,7 +302,8 @@ export class AssistantBackend {
     const policy = await this.policy(principal, projectId)
     return {
       policy,
-      modules: AI_MODULES.map((m) => ({ id: m.id, label: m.label, description: m.description, entitlement: m.entitlement ?? null, entitled: !m.entitlement || principal.entitlements.includes(m.entitlement) })),
+      modules: AI_MODULES.map((m) => ({ id: m.id, label: m.label, description: m.description, prefixes: m.prefixes, names: m.names ?? [], entitlement: m.entitlement ?? null, entitled: !m.entitlement || principal.entitlements.includes(m.entitlement) })),
+      entitlements: principal.entitlements,
       operationClasses: OPERATION_CLASSES,
       catalogue: OPERATION_CATALOGUE,
     }
