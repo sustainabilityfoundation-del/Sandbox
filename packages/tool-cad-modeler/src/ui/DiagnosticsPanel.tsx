@@ -37,6 +37,8 @@ export function DiagnosticsPanel({ engine, state, session }: { engine: CadEngine
             <dd>
               {regen.documentVersion} {state.regenerating ? '(regenerating newer version…)' : regen.documentVersion === state.doc.version ? '(current)' : '(stale)'}
             </dd>
+            <dt>Regeneration runs in</dt>
+            <dd>{regen.location === 'worker' ? 'the kernel worker (sketch solving and geometry off the UI thread)' : 'this thread (in-process)'}</dd>
             <dt>Duration</dt>
             <dd>{fmtNum(regen.durationMs, 1)} ms</dd>
             {regen.parts.map((p) => (

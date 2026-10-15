@@ -36,12 +36,12 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/tool-sysml': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
   'packages/tool-cad': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
   // The workspace may use every package, but only a tool's public entry point.
-  'apps/workspace': /^@ews\/(model-service|design-system|platform-sdk|tool-[\w-]+|requirements-client|conceptualize-client|projects-client)(\/(react|harness|testing|preferences|icon-names|styles\.css))?$/,
+  'apps/workspace': /^@ews\/(model-service|design-system|platform-sdk|tool-[\w-]+|requirements-client|conceptualize-client|sysml-client|cad-client|projects-client)(\/(react|harness|testing|preferences|icon-names|styles\.css))?$/,
   // Requirements module packages, checked once they exist. Only the client reaches the browser.
   'packages/requirements-client': /^@ews\/platform-sdk$/,
   'packages/reqif': /^$/,
   'services/requirements': /^@ews\/(platform-sdk|reqif)$/,
-  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service|settings-service|assistant-service|projects-service)$/,
+  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service|settings-service|assistant-service|cad-service|projects-service)$/,
   // Project Management (docs/specifications/project-management-contracts.md §3). Only the client reaches the browser.
   'services/projects': /^@ews\/platform-sdk$/,
   'packages/projects-client': /^@ews\/platform-sdk$/,
@@ -53,7 +53,7 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/tool-sysml-modeler': /^@ews\/(platform-sdk|design-system|sysml-client|sysml-core)(\/[\w.-]+)?$/,
   'packages/sysml-client': /^@ews\/sysml-core$/,
   'packages/sysml-core': /^$/,
-  'services/sysml': /^@ews\/sysml-core$/,
+  'services/sysml': /^@ews\/(sysml-core|platform-sdk)$/,
   // Design reasoning layer (docs/modules/design-reasoning/overview.md §3). Framework-free libraries;
   // the core may use the SDK's testing fixtures (sample twin) in its scenario tests.
   'packages/engineering-calc': /^@ews\/platform-sdk$/,

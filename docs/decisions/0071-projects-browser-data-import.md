@@ -1,4 +1,4 @@
-# ADR-0070: Explicit, user-confirmed import of browser twin data into the server
+# ADR-0071: Explicit, user-confirmed import of browser twin data into the server
 
 Status: Proposed (2026-10-15) — integration milestone 1, C8. Design only; implementation is increment I4.
 

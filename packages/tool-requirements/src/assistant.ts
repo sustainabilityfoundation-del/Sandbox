@@ -6,14 +6,18 @@ import {
   isComponent,
   readRequirement,
   requirementsFor,
+  type AssistantActionContext,
   type AssistantContribution,
   type AssistantActionResult,
+  type RequirementPatch,
+  type RequirementsService,
+  type ServiceProposal,
   type ChangeInput,
   type EngineeringObject,
   type ModelIndex,
 } from '@ews/platform-sdk'
 import { sysmlTrace } from './domain'
-import { addProposal, getAssistantConnection, type ProposalChange } from './proposals'
+import { getModuleClient, type RequirementsModuleClient } from '@ews/requirements-client'
 
 /**
  * Operations ChatGPT may request for Requirements Management. The platform
@@ -33,14 +37,15 @@ export const requirementsAssistant: AssistantContribution = {
         required: ['objectId'],
         additionalProperties: false,
       },
-      async run(args, { model }) {
+      async run(args, ctx) {
+        const { model } = ctx
         const objectId = argString(args, 'objectId')
-        const conn = getAssistantConnection()
+        const conn = connectionOf(ctx)
         const object = model.get(objectId)
         if (!object) throw new ActionError('not-found', `${objectId} does not exist.`)
         const component = isComponent(object) ? object : model.linkedObjects(objectId, 'represents', 'out').find(isComponent)
         if (!component) throw new ActionError('invalid-arguments', `${objectId} is a ${object.type} that does not represent a component.`)
-        if (conn) return readForComponentApi(conn, model, component)
+        if (conn?.client) return readForComponentApi({ ...conn, client: conn.client }, model, component)
         const requirements = requirementsFor(model, component.id).map(({ requirement, via }) => {
           const r = readRequirement(requirement)
           return {
@@ -82,9 +87,10 @@ export const requirementsAssistant: AssistantContribution = {
         required: ['requirementId'],
         additionalProperties: false,
       },
-      async run(args, { model }) {
+      async run(args, ctx) {
+        const { model } = ctx
         const id = argString(args, 'requirementId')
-        const conn = getAssistantConnection()
+        const conn = connectionOf(ctx)
         if (conn) return proposeApiEdit(conn, id, args)
         const target = model.get(id)
         if (!target || target.type !== 'requirement') throw new ActionError('not-found', `${id} is not a requirement.`)
@@ -109,10 +115,10 @@ export const requirementsAssistant: AssistantContribution = {
       description:
         'Search the canonical requirements in the Requirements service (API mode) by words in key, title, statement or rationale. Returns keys, titles, statements, lifecycle status and revisions.',
       parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },
-      async run(args) {
-        const conn = requireConnection()
+      async run(args, ctx) {
+        const conn = requireConnection(ctx)
         const text = argString(args, 'text')
-        const page = await conn.client.list({ text, limit: 20 })
+        const page = await conn.service.list({ projectId: conn.projectId, text, limit: 20 })
         return {
           kind: 'data',
           data: { total: page.total, requirements: page.items.map((r) => ({ key: r.key, id: r.id, title: r.title, statement: r.statement, status: r.status, revision: r.revision })) },
@@ -127,8 +133,9 @@ export const requirementsAssistant: AssistantContribution = {
       description:
         'Explain the quality findings of one requirement (deterministic validation and heuristics) with proposed improvements. Never rewrites or approves; necessity, feasibility, correctness and completeness need engineering judgement.',
       parameters: { type: 'object', properties: { requirementId: { type: 'string' } }, required: ['requirementId'], additionalProperties: false },
-      async run(args) {
-        const conn = requireConnection()
+      async run(args, ctx) {
+        const conn = requireConnection(ctx)
+        if (!conn.client) throw new ActionError('not-available', 'Quality checks need the Requirements API; the demo service has none.')
         const r = await resolveApi(conn, argString(args, 'requirementId'))
         const report = await conn.client.quality(r.id)
         const open = report.findings.filter((f) => !f.dismissal)
@@ -149,27 +156,64 @@ export const requirementsAssistant: AssistantContribution = {
   editableRelationships: [{ type: 'allocated-to', from: ['requirement'], to: ['assembly', 'part'] }],
 }
 
-// ---- API mode (Requirements service connected) ------------------------------------------------
-// Without a connection (e.g. the workspace before it wires the HTTP adapter) the twin-based
+// ---- service mode (headless, C9) -----------------------------------------------------------------
+// Operations get the Requirements service from the action context (PlatformServices), never from a
+// mounted view, so they work with every tool tab closed. The module client (API mode) is derived from
+// that service for the captured project; the demo service has none. Without a service the twin-based
 // behaviour above is unchanged.
 
-type Connection = NonNullable<ReturnType<typeof getAssistantConnection>>
+interface Connection {
+  service: RequirementsService
+  projectId: string
+  /** Full module client (API mode only), bound to the captured project. */
+  client?: RequirementsModuleClient
+}
 
-function requireConnection(): Connection {
-  const c = getAssistantConnection()
-  if (!c) throw new ActionError('not-available', 'The Requirements service is not connected here (open Requirements in API mode).')
+function connectionOf(ctx: AssistantActionContext): Connection | null {
+  const service = ctx.services?.requirements
+  if (!service) return null
+  const projectId = ctx.captured.projectId
+  return { service, projectId, client: getModuleClient(service, projectId) }
+}
+
+function requireConnection(ctx: AssistantActionContext): Connection {
+  const c = connectionOf(ctx)
+  if (!c) throw new ActionError('not-available', 'The Requirements service is not available here (no service in this host, or not entitled).')
   return c
 }
 
-async function resolveApi(conn: Connection, idOrKey: string) {
-  try {
-    return /^[0-9a-f-]{36}$/i.test(idOrKey) ? await conn.client.getRequirement(idOrKey) : await conn.client.resolve(idOrKey)
-  } catch {
-    throw new ActionError('not-found', `${idOrKey} is not a requirement in ${conn.projectId}.`)
-  }
+interface Current {
+  id: string
+  key: string
+  title: string
+  revision: number
+  statement: string
+  /** Absent when the service does not provide it (the SDK summary has no rationale). */
+  rationale?: string
 }
 
-async function readForComponentApi(conn: Connection, model: ModelIndex, component: EngineeringObject): Promise<AssistantActionResult> {
+async function resolveApi(conn: Connection, idOrKey: string): Promise<Current> {
+  const isUuid = /^[0-9a-f-]{36}$/i.test(idOrKey)
+  try {
+    if (conn.client) return isUuid ? await conn.client.getRequirement(idOrKey) : await conn.client.resolve(idOrKey)
+    const r = isUuid ? await conn.service.get(idOrKey, { projectId: conn.projectId }) : await conn.service.resolve(idOrKey, { projectId: conn.projectId })
+    if (r) return r
+  } catch {
+    /* reported below */
+  }
+  throw new ActionError('not-found', `${idOrKey} is not a requirement in ${conn.projectId}.`)
+}
+
+/**
+ * The write the Requirements editor makes (ui/Editor.tsx: the module client in API mode, the SDK
+ * service in demo mode), so the assistant path and the UI path are refused by the same rules.
+ */
+export async function saveRequirementEdit(conn: Connection, id: string, patch: RequirementPatch, opts: { expectedRevision: number; reason?: string }): Promise<{ revision: number }> {
+  if (conn.client) return conn.client.update(id, patch, opts)
+  return conn.service.update(id, patch, { ...opts, projectId: conn.projectId })
+}
+
+async function readForComponentApi(conn: Connection & { client: RequirementsModuleClient }, model: ModelIndex, component: EngineeringObject): Promise<AssistantActionResult> {
   const scope = [component.id, ...model.childrenOf(component.id).map((c) => c.id)]
   const parents: string[] = []
   for (let p = component.parentId; p; p = model.get(p)?.parentId) parents.push(p)
@@ -200,22 +244,48 @@ async function readForComponentApi(conn: Connection, model: ModelIndex, componen
   }
 }
 
-async function proposeApiEdit(conn: Connection, idOrKey: string, args: Record<string, unknown>): Promise<AssistantActionResult> {
+async function proposeApiEdit(conn: Connection, idOrKey: string, args: Record<string, unknown>): Promise<ServiceProposal> {
   if (args.status !== undefined) {
     throw new ActionError('not-allowed', 'Lifecycle status changes are review decisions and transitions; open the requirement in Requirements to request review, approve or retire it.')
   }
   const r = await resolveApi(conn, idOrKey)
-  const changes: ProposalChange[] = []
-  for (const field of ['statement', 'rationale'] as const) {
-    const proposed = argOptionalString(args, field)
-    if (proposed !== undefined && proposed !== r[field]) changes.push({ field, current: r[field], proposed })
+  const patch: RequirementPatch = {}
+  const preview: ServiceProposal['preview'] = []
+  for (const [field, label] of [
+    ['statement', 'Statement'],
+    ['rationale', 'Rationale'],
+  ] as const) {
+    // Passed to the service as given (no assistant-only rules): the server validates it exactly as it
+    // validates the editor's save (validation parity, C9), when the person applies the proposal.
+    const raw = args[field]
+    if (raw === undefined || raw === null) continue
+    if (typeof raw !== 'string') throw new ActionError('invalid-arguments', `“${field}” must be a string.`)
+    const proposed = raw
+    if (proposed === r[field]) continue
+    patch[field] = proposed
+    preview.push({ targetId: r.id, label: `${r.key} ${label}`, ...(r[field] !== undefined ? { current: r[field] } : {}), proposed, basis: 'user-statement' })
   }
-  if (!changes.length) throw new ActionError('no-op', 'Give a new statement or rationale that differs from the current text.')
-  const p = addProposal({ requirementId: r.id, key: r.key, expectedRevision: r.revision, changes, explanation: 'Requested in the conversation.' })
+  if (!preview.length) throw new ActionError('no-op', 'Give a new statement or rationale that differs from the current text.')
+  let applied: number | undefined
   return {
-    kind: 'data',
-    data: { proposalId: p.id, key: r.key, basedOnRevision: r.revision, changes, next: 'Open Requirements to preview the change and choose Apply or Reject. Nothing has changed yet.' },
-    summary: `Prepared a proposed edit of ${r.key} (rev ${r.revision}); review it in Requirements`,
+    kind: 'service-proposal',
+    module: 'requirements',
+    title: `Edit ${r.key} ${r.title}`,
+    explanation: `Creates revision ${r.revision + 1} of ${r.key} if it is still at revision ${r.revision} when you apply; otherwise nothing changes and the conflict is explained.`,
+    preview,
     inspected: [{ id: r.key, detail: `rev ${r.revision}` }],
+    async apply({ proposalId }) {
+      const saved = await saveRequirementEdit(conn, r.id, patch, { expectedRevision: r.revision, reason: `Assistant proposal ${proposalId}` })
+      applied = saved.revision
+      return { summary: `Saved ${r.key} revision ${saved.revision} (was ${r.revision})` }
+    },
+    async undo() {
+      if (applied === undefined) throw new Error('Nothing to undo.')
+      const restore: RequirementPatch = {}
+      if (patch.statement !== undefined) restore.statement = r.statement
+      if (patch.rationale !== undefined && r.rationale !== undefined) restore.rationale = r.rationale
+      const saved = await saveRequirementEdit(conn, r.id, restore, { expectedRevision: applied, reason: 'Undo assistant proposal' })
+      return { summary: `Restored the earlier text of ${r.key} as revision ${saved.revision}` }
+    },
   }
 }

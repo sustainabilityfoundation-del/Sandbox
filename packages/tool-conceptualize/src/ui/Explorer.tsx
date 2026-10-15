@@ -2,7 +2,8 @@ import { Badge, Button, EmptyState, IconButton, LoadingState, SearchField, Segme
 import { useToolViewState } from '@ews/platform-sdk/react'
 import type { ConceptListItem, Graph, Relationship } from '@ews/conceptualize-client'
 import { useMemo, useState, type KeyboardEvent } from 'react'
-import { MATURITIES, MATURITY, RELATION_LABEL, type ConceptualizeViewState } from '../domain'
+import { MATURITIES, MATURITY, RECORDS, RELATION_LABEL, type ConceptualizeViewState, type RecordsFilter } from '../domain'
+import { NewFunctionForm, RecordList } from './Knowledge'
 import { MaturityBadge } from './common'
 
 interface TreeNode {
@@ -188,23 +189,28 @@ export function GraphView({ graph, openId, onOpen }: { graph: Graph; openId: str
 
 export function ExplorerPanel({ graph, loading }: { graph: Graph | undefined; loading: boolean }) {
   const [state, setState] = useToolViewState<ConceptualizeViewState>()
-  const open = (id: string) => setState({ conceptId: id })
+  const open = (id: string) => setState({ conceptId: id, record: null })
   const filtered = useMemo(() => {
     if (!graph) return []
     const t = state.search.trim().toLowerCase()
     return graph.nodes.filter((n) => (state.maturity === 'all' || n.maturity === state.maturity) && (!t || `${n.key} ${n.name} ${n.summary} ${n.classifications.join(' ')}`.toLowerCase().includes(t)))
   }, [graph, state.search, state.maturity])
   const flat = !!state.search.trim() || state.maturity !== 'all'
+  const records = state.records ?? 'concepts'
+  const recordType = RECORDS.find((r) => r.value === records)?.type
   return (
     <div className="con-explorer" data-help-id="conceptualize.explorer">
-      <div className="con-explorer-bar">
-        <SearchField label="Search Concepts" placeholder="Search Concepts" value={state.search} onChange={(search) => setState({ search })} className="con-search" />
-        <Select ariaLabel="Maturity filter" size="sm" value={state.maturity} onChange={(m) => setState({ maturity: m as ConceptualizeViewState['maturity'] })} options={[{ id: 'all', label: 'All maturities' }, ...MATURITIES.map((m) => ({ id: m, label: MATURITY[m].label }))]} />
-        <SegmentedControl label="Explorer view" size="sm" value={state.explorerMode} onChange={(explorerMode) => setState({ explorerMode })} options={[{ value: 'tree', label: 'Tree', icon: 'tree' }, { value: 'graph', label: 'Graph', icon: 'relationship' }]} />
+      <div className="con-explorer-bar" data-help-id="conceptualize.explorer.records">
+        <Select ariaLabel="Record type" size="sm" value={records} onChange={(v) => setState({ records: v as RecordsFilter })} options={RECORDS.map((r) => ({ id: r.value, label: r.label }))} />
+        <SearchField label={recordType ? 'Search ' + RECORDS.find((r) => r.value === records)!.label : 'Search Concepts'} placeholder={recordType ? 'Search ' + RECORDS.find((r) => r.value === records)!.label.toLowerCase() : 'Search Concepts'} value={state.search} onChange={(search) => setState({ search })} className="con-search" />
+        {!recordType && <Select ariaLabel="Maturity filter" size="sm" value={state.maturity} onChange={(m) => setState({ maturity: m as ConceptualizeViewState['maturity'] })} options={[{ id: 'all', label: 'All maturities' }, ...MATURITIES.map((m) => ({ id: m, label: MATURITY[m].label }))]} />}
+        {!recordType && <SegmentedControl label="Explorer view" size="sm" value={state.explorerMode} onChange={(explorerMode) => setState({ explorerMode })} options={[{ value: 'tree', label: 'Tree', icon: 'tree' }, { value: 'graph', label: 'Graph', icon: 'relationship' }]} />}
       </div>
-      {loading && !graph && <LoadingState label="Loading Concepts" />}
-      {graph && state.explorerMode === 'graph' && <GraphView graph={graph} openId={state.conceptId} onOpen={open} />}
-      {graph && state.explorerMode === 'tree' && flat && (
+      {recordType && <RecordList type={recordType} />}
+      {recordType === 'function' && <NewFunctionForm />}
+      {!recordType && loading && !graph && <LoadingState label="Loading Concepts" />}
+      {!recordType && graph && state.explorerMode === 'graph' && <GraphView graph={graph} openId={state.conceptId} onOpen={open} />}
+      {!recordType && graph && state.explorerMode === 'tree' && flat && (
         <ul className="con-results" aria-label="Matching Concepts">
           {filtered.map((n) => (
             <li key={n.id}>
@@ -217,7 +223,7 @@ export function ExplorerPanel({ graph, loading }: { graph: Graph | undefined; lo
           {!filtered.length && <li className="con-muted">No Concept matches.</li>}
         </ul>
       )}
-      {graph && state.explorerMode === 'tree' && !flat && (graph.nodes.length ? <TreeView nodes={buildTree(graph)} openId={state.conceptId} onOpen={open} /> : <EmptyState title="No Concepts yet">Choose New concept and describe an idea in your own words.</EmptyState>)}
+      {!recordType && graph && state.explorerMode === 'tree' && !flat && (graph.nodes.length ? <TreeView nodes={buildTree(graph)} openId={state.conceptId} onOpen={open} /> : <EmptyState title="No Concepts yet">Choose New concept and describe an idea in your own words.</EmptyState>)}
     </div>
   )
 }

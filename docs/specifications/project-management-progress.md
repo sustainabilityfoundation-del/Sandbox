@@ -281,7 +281,7 @@ integrated into `main` except SDK 1.7.0; everything else is on `feature/project-
 | WS-1 current project, Project Home, New Project wizard, overview, switcher | implemented, browser-checked | `projects-flow` below |
 | C12 default tools per project | implemented, browser-checked | idem |
 | Project settings via the settings service (definitions registered, port wired) | implemented, browser-checked (wizard's unit system written; state ready) | overview screenshot |
-| C7 operation records, C8 browser data import | designed (ADR-0069, ADR-0070) | — |
+| C7 operation records, C8 browser data import | designed (ADR-0069, ADR-0071) | — |
 | Help pages, capability inventory entries, `projects.*` assistant actions | **not started** (actions wait for the WS-2 registry; help and inventory are next) | — |
 
 ## I1 acceptance (integration-milestone-1.md §2), 15 October 2026

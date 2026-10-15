@@ -209,6 +209,11 @@ library package EWS {
         attribute revision : Integer[0..1];
         attribute role : String[0..1];
     }
+    metadata def ProductElement {
+        doc /* The element represents a product element of Project Management's product registry (CR-PM-SYS-1): productElementId = "<product element UUID>", revision = its revision (absent = latest). The reference is owned by SysML; no product data is copied. */
+        attribute productElementId : String;
+        attribute revision : Integer[0..1];
+    }
     metadata def ConceptLink {
         doc /* The element realizes a Concept owned by Conceptualize (informational; Conceptualize owns the link). */
         attribute conceptId : String;

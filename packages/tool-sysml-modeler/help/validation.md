@@ -29,6 +29,7 @@ element. Every change also validates the elements it affects and reports the pro
 | SYSML-TRANSITION-STATES | warning | Transitions connect states |
 | SYSML-COMPOSITION-CYCLE | warning | A definition does not compose itself with a mandatory part |
 | SYSML-MANAGED-REQUIREMENT | error | ManagedRequirement metadata carries a requirement UUID |
+| SYSML-PRODUCT-REFERENCE | error | ProductElement metadata refers to a product element UUID (`productElementId`), with an integer revision or none |
 | SYSML-CAD-REFERENCE | error | CadRepresentation metadata refers to a CAD Modeler entity, `cadRef = "<document UUID>/<entity ID>"`, with an integer document revision (or none) |
 | SYSML-CONSTRAINT-FALSE | warning | A constraint that can be evaluated holds with the current values |
 | SYSML-UNSUPPORTED-METACLASS | info | Elements from other tools that this version keeps but does not interpret |

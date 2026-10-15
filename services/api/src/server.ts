@@ -17,6 +17,7 @@ import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsEventHub, migrateConc
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
 import { registerApiDocs } from './apiDocs'
 import { SYSML_BASE_PATH, sysmlPlugin } from '@ews/sysml-service'
+import { CAD_BASE_PATH, cadPlugin } from '@ews/cad-service'
 import {
   PROJECTS_BASE_PATH,
   PROJECT_SETTINGS_PAGE,
@@ -180,6 +181,9 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   // SysML Modeler (docs/specifications/sysml-program-contracts.md §7): migrates schema `sysml`; seeds the example outside production.
   registerApiDocs(app, { path: `${SYSML_BASE_PATH}/docs`, openapiUrl: `${SYSML_BASE_PATH}/openapi.json`, title: 'SysML Modeler API' })
   await app.register(sysmlPlugin, { prefix: SYSML_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, seed: !production, eventPollMs: options.eventPollMs })
+  // CAD Modeler documents (CR-CAD-2): migrates schema `cad`; entitlement tool:cad enforced by the plugin.
+  registerApiDocs(app, { path: `${CAD_BASE_PATH}/docs`, openapiUrl: `${CAD_BASE_PATH}/openapi.json`, title: 'CAD Modeler API' })
+  await app.register(cadPlugin, { prefix: CAD_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, eventPollMs: options.eventPollMs })
   // Project Management (CR-PM-API-5). It reads raw membership roles and applies the record state itself.
   registerApiDocs(app, { path: `${PROJECTS_BASE_PATH}/docs`, openapiUrl: `${PROJECTS_BASE_PATH}/openapi.json`, title: 'Project Management API' })
   const projectBlobs = options.blobs ?? memoryBlobStore()

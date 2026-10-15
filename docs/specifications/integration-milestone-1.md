@@ -14,6 +14,11 @@ Status vocabulary used everywhere (progress files, roadmap, About page, reports)
 Every report also says what each step ran against: **real service**, **contract/test adapter**, **scripted
 demo** or **live AI provider**.
 
+> **Priority (15 October 2026):** [demonstration D1](demo-ai-engineering.md) is the primary delivery objective: the
+> smallest credible end-to-end AI engineering workflow comes before broadening any module. Milestone items D1 does not
+> need wait. Standards-aware assurance is deferred ([E-ASSURE](../roadmap.md#deferred-epic-e-assure-standards-aware-development-assurance-and-safety-engineering),
+> [ADR-0070](../decisions/0070-development-assurance-boundaries.md)) and is not a prerequisite.
+
 ## 1. Current-state assessment (main f005102, 15 October 2026)
 
 An external review examined main at `ec16cf2`. Each of its findings, checked against the code now:
@@ -121,8 +126,8 @@ After each increment the coordinator reconciles progress files, ADR statuses, `d
 `npm run req:test:db`, `npm run concept:test:db` and the committed browser flows; and reports the exact revision,
 startup commands, a short walkthrough and remaining limitations.
 
-**Committed browser tests.** The coordinator creates `tests/e2e` (playwright-core, Apache-2.0, driving the
-installed Chrome) with the platform regression flows and the milestone workflow; module agents add their flows
+**Committed browser tests.** `tests/e2e` (created 15 October 2026; `npm run e2e`, see its README) uses playwright-core (Apache-2.0) driving the
+installed Chrome. It holds the platform regression flows and the milestone workflow; module agents add their flows
 there instead of only in session scratch folders.
 
 ## 6. Briefs and contracts amended by this document

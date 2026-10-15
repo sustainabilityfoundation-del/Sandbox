@@ -18,6 +18,7 @@
     "@ews/requirements-service": "^0.1.0",
     "@ews/settings-service": "^0.1.0",
     "@ews/sysml-service": "^0.1.0",
+    "@ews/cad-service": "^0.1.0",
     "@scalar/api-reference": "1.72.3",
     "fastify": "5.12.5",
     "pg": "8.23.0"

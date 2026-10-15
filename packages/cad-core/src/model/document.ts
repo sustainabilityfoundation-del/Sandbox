@@ -11,6 +11,7 @@ import {
   type CadDocument,
   type Feature,
   type Part,
+  type PlaneRef,
   type SketchFeature,
 } from './types'
 
@@ -118,11 +119,19 @@ function validatePart(part: Part): string[] {
     }
   }
   const sketchesSoFar = new Map<string, SketchFeature>()
+  const featuresSoFar = new Map<string, Feature>()
+  const bodiesSoFar = new Set<string>()
   if (!Array.isArray(part.parameters) || !Array.isArray(part.features) || !Array.isArray(part.semantics)) return [`Part ${part.id}: parameters, features and semantics must be lists.`]
   for (const f of part.features) {
-    if (!f || !['sketch', 'extrude', 'revolve'].includes((f as Feature).type)) {
-      problems.push(`Feature ${String((f as Feature | undefined)?.id)} has an unknown type “${String((f as Feature | undefined)?.type)}” (format 1.0 supports sketch, extrude, revolve).`)
+    if (!f || !FEATURE_TYPES.includes((f as Feature).type)) {
+      problems.push(`Feature ${String((f as Feature | undefined)?.id)} has an unknown type “${String((f as Feature | undefined)?.type)}” (format 1.x supports ${FEATURE_TYPES.join(', ')}).`)
       continue
+    }
+    for (const n of featureNames(f)) if (!names.has(n)) problems.push(`Feature ${f.id}: unknown parameter “${n}”.`)
+    if (f.type === 'sketch' || f.type === 'datum-plane') problems.push(...planeProblems(f.id, f.plane, featuresSoFar))
+    if (f.type === 'fillet' || f.type === 'chamfer') {
+      if (!Array.isArray(f.edges) || !f.edges.length) problems.push(`Feature ${f.id}: a ${f.type} needs at least one edge name.`)
+      if (f.target && !bodiesSoFar.has(f.target)) problems.push(`Feature ${f.id}: target body ${f.target} does not exist earlier in ${part.id}.`)
     }
     if (f.type === 'sketch') {
       const entities = new Map(f.entities.map((e) => [e.id, e]))
@@ -135,26 +144,39 @@ function validatePart(part: Part): string[] {
         const problem = checkConstraintReferences(entities, c)
         if (problem) problems.push(`Sketch ${f.id}, constraint ${c.id}: ${problem}`)
         if (isDimensional(c.type) && c.driving !== false && c.value === undefined) problems.push(`Sketch ${f.id}, constraint ${c.id}: a driving ${c.type} needs a value.`)
-        for (const n of namesIn(c.value)) if (!names.has(n)) problems.push(`Sketch ${f.id}, constraint ${c.id}: unknown parameter “${n}”.`)
       }
       sketchesSoFar.set(f.id, f)
-    } else {
+    } else if (f.type === 'extrude' || f.type === 'revolve') {
       if (!sketchesSoFar.has(f.sketch)) problems.push(`Feature ${f.id} refers to sketch ${f.sketch}, which does not exist earlier in ${part.id}.`)
-      for (const n of featureNames(f)) if (!names.has(n)) problems.push(`Feature ${f.id}: unknown parameter “${n}”.`)
+      if (f.operation === 'new') bodiesSoFar.add(f.id)
       if (f.type === 'revolve' && !['x-axis', 'y-axis'].includes(f.axis)) {
         const sk = sketchesSoFar.get(f.sketch)
         if (sk && sk.entities.find((e) => e.id === f.axis)?.type !== 'line') problems.push(`Feature ${f.id}: axis ${f.axis} is not a line of sketch ${f.sketch}.`)
       }
     }
+    featuresSoFar.set(f.id, f)
   }
   return problems
+}
+
+const FEATURE_TYPES: Feature['type'][] = ['sketch', 'extrude', 'revolve', 'fillet', 'chamfer', 'datum-plane']
+
+function planeProblems(id: string, plane: PlaneRef, earlier: Map<string, Feature>): string[] {
+  if (!plane || typeof plane !== 'object') return [`Feature ${id}: plane is missing.`]
+  if (plane.kind === 'standard') return ['XY', 'XZ', 'YZ'].includes(plane.plane) ? [] : [`Feature ${id}: unknown standard plane ${String(plane.plane)}.`]
+  if (plane.kind === 'datum') return earlier.get(plane.datum)?.type === 'datum-plane' ? [] : [`Feature ${id}: datum plane ${plane.datum} does not exist earlier in the part.`]
+  if (plane.kind === 'face') return typeof plane.face === 'string' && earlier.has(plane.face.split('/')[0]) ? [] : [`Feature ${id}: face ${String(plane.face)} does not belong to an earlier feature.`]
+  return [`Feature ${id}: unknown plane kind.`]
 }
 
 /** Parameter names a feature's own values use. */
 export function featureNames(f: Feature): string[] {
   if (f.type === 'extrude') return namesIn(f.extent.distance)
   if (f.type === 'revolve') return namesIn(f.angle)
-  return [...namesIn(f.plane.offset), ...f.constraints.flatMap((c) => namesIn(c.value))]
+  if (f.type === 'fillet') return namesIn(f.radius)
+  if (f.type === 'chamfer') return namesIn(f.distance)
+  if (f.type === 'datum-plane') return namesIn(f.plane?.offset)
+  return [...namesIn(f.plane?.offset), ...f.constraints.flatMap((c) => namesIn(c.value))]
 }
 
 /** Canonical JSON text of a document (sorted keys, two-space indentation, trailing newline). */

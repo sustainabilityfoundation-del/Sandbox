@@ -60,7 +60,7 @@ const ok = <T = any>(r: { status: number; body: T }, status = 200): T => {
 
 afterAll(async () => {
   await down().catch(() => undefined)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 })
 })
 
 describe('I1 acceptance (steps 1, 2, 5, 6) on real services', () => {

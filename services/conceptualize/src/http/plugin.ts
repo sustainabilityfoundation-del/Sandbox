@@ -7,6 +7,7 @@ import type { ConceptsEvent } from '@ews/platform-sdk'
 import { buildOpenApi } from './openapi'
 import { errorBody, registerRoute, type HostServices, type RouteSpec } from './route'
 import { registerConceptRoutes } from './routes'
+import { registerDesignRoutes } from './designRoutes'
 
 export type ConceptsPluginOptions = HostServices
 
@@ -50,6 +51,7 @@ export const conceptsPlugin: FastifyPluginAsync<ConceptsPluginOptions> = async (
   })
 
   registerConceptRoutes(app, services, registry)
+  registerDesignRoutes(app, services, registry)
 
   registerRoute(
     app,

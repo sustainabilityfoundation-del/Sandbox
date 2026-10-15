@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useModuleData, useResource } from '../data'
 import { formatDate, formatQuantity } from '../domain'
 import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, Section } from './common'
+import { EvidenceReviewControl } from './Knowledge'
 import { EvidenceForm, VerificationControl } from './EvidenceForm'
 
 // ---- stale and broken link detection (contracts §9: client-side through the SDK and the model index) ----
@@ -377,8 +378,9 @@ export function EvidenceList({ concept }: { concept: Concept }) {
             )}
             {e.assumptions.length > 0 && <p className="con-muted">Assumptions: {e.assumptions.join('; ')}</p>}
             <span className="con-muted">
-              For revision {e.conceptRevision}, {formatDate(e.createdAt)} by {e.createdBy}
+              {e.conceptRevision ? `For revision ${e.conceptRevision}, ` : ''}{formatDate(e.createdAt)} by {e.createdBy}
             </span>
+            <EvidenceReviewControl e={e} />
           </li>
         ))}
         {evidence.data && !evidence.data.length && <li className="con-muted">No evidence yet.</li>}

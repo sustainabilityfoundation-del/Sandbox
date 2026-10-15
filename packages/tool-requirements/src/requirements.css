@@ -103,8 +103,6 @@
   .req-page { display: flex; flex-direction: column; gap: var(--ws-space-3); padding-bottom: var(--ws-space-4); max-width: 1100px; }
   .req-page-title { margin: 0; font-size: var(--ws-font-title); font-weight: var(--ws-weight-medium); }
   .req-bulk { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--ws-space-2); margin-bottom: var(--ws-space-2); padding: var(--ws-space-2); border: 1px solid var(--ws-accent); border-radius: var(--ws-radius); background: var(--ws-accent-soft); }
-  .req-proposal { display: flex; flex-direction: column; gap: var(--ws-space-1); padding: var(--ws-space-2) var(--ws-space-3); border: 1px solid var(--ws-border); border-radius: var(--ws-radius); background: var(--ws-surface); }
-  .req-proposal-change { display: grid; grid-template-columns: 90px minmax(0, 1fr) minmax(0, 1fr); gap: var(--ws-space-2); }
 
   @container tool (max-width: 1400px) {
     .req-root.has-detail { grid-template-columns: minmax(0, 1fr) 400px; }
@@ -120,6 +118,5 @@
     .req-root.has-detail .req-collections { display: none; }
     .req-root.has-detail .req-detail { position: absolute; inset: 0; z-index: 5; border-left: 0; }
     .req-form-grid { grid-template-columns: minmax(0, 1fr); }
-    .req-proposal-change { grid-template-columns: minmax(0, 1fr); }
   }
 }

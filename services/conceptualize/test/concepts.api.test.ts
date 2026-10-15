@@ -271,7 +271,10 @@ describe('alternatives, AI provenance, comparison and selection (vertical slice 
     const after = (await env.call('rho', 'GET', `${BASE}/alternative-sets/${set.id}`)).body
     expect(after.members.map((m: { status: string }) => m.status)).toEqual(['selected', 'rejected', 'deferred'])
     // Revisiting: a superseding decision keeps the old record.
-    const revisit = await env.call('rui', 'POST', `${BASE}/decisions`, { title: 'Constraints changed: rack and pinion', rationale: 'Envelope relaxed to 150 mm.', setId: set.id, supersedesId: proposed.body.id, record: true, outcomes: [{ conceptId: c, outcome: 'accepted' }, { conceptId: a, outcome: 'deferred' }] }, idem())
+    // Reviewers do not author (R1-3); an administrator may create and record in one step.
+    expect((await env.call('rui', 'POST', `${BASE}/decisions`, { title: 'Self-recorded', rationale: 'x', setId: set.id, record: true, outcomes: [{ conceptId: c, outcome: 'accepted' }] }, idem())).status).toBe(403)
+    expect((await env.call('eli', 'POST', `${BASE}/decisions`, { title: 'Self-recorded', rationale: 'x', setId: set.id, record: true, outcomes: [{ conceptId: c, outcome: 'deferred' }] }, idem())).body.error.message).toMatch(/administrator/)
+    const revisit = await env.call('ada', 'POST', `${BASE}/decisions`, { title: 'Constraints changed: rack and pinion', rationale: 'Envelope relaxed to 150 mm.', setId: set.id, supersedesId: proposed.body.id, record: true, outcomes: [{ conceptId: c, outcome: 'accepted' }, { conceptId: a, outcome: 'deferred' }] }, idem())
     expect(revisit.status).toBe(201)
     expect((await get(a)).body.maturity).toBe('evaluated')
     expect((await get(c)).body.maturity).toBe('selected')

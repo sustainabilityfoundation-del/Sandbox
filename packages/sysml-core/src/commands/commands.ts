@@ -41,7 +41,7 @@ export type CreatableKind = (typeof CREATABLE_KINDS)[number]
 export const CONNECT_KINDS = ['connection', 'interface', 'flow', 'binding', 'succession', 'allocation'] as const
 export type ConnectKind = (typeof CONNECT_KINDS)[number]
 
-export const METADATA_KINDS = ['ManagedRequirement', 'CadRepresentation', 'ConceptLink'] as const
+export const METADATA_KINDS = ['ManagedRequirement', 'CadRepresentation', 'ProductElement', 'ConceptLink'] as const
 
 export type Command =
   | {

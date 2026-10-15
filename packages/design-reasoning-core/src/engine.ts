@@ -1,4 +1,4 @@
-import { CalcError, ERROR_TAXONOMY, evaluateModel, minBasis, type Basis } from '@ews/engineering-calc'
+import { CalcError, describeRange, ERROR_TAXONOMY, evaluateModel, minBasis, qualifyManifest, type Basis } from '@ews/engineering-calc'
 import { toDefinition } from './adapters/conceptualizeContractAdapter'
 import { BindingError, resolveInputs } from './bindings'
 import { paretoAnalysis } from './compare'
@@ -172,6 +172,8 @@ export function createReasoningEngine(deps: EngineDeps) {
       const fnRef = args.function as DesignRef
       const fn = await deps.knowledge.get('function', fnRef.id, ctx)
       if (!fn) throw new ToolCallError('not-found', `Function ${fnRef.id} does not exist.`)
+      const parent = args.parentConcept as DesignRef | undefined
+      if (!deps.knowledge.capabilities.functionAlternativeSets && !parent) throw new ToolCallError('not-implemented', 'This knowledge service cannot attach alternative sets to a Function yet (CR-C7); give parentConcept.')
       const performers = (await deps.knowledge.links(ctx, { to: designRef('function', fn.id), type: 'performs' })).map((l) => l.from.id)
       const existing = (await Promise.all(performers.map((id) => deps.knowledge.get('concept', id, ctx)))).filter(Boolean).map((c) => normalize(c!.name))
       const warnings: string[] = []
@@ -202,7 +204,7 @@ export function createReasoningEngine(deps: EngineDeps) {
           ],
         },
       }))
-      items.push({ op: 'createAlternativeSet', as: '$set', body: { name: args.setName as string, question: args.question as string, functionId: fn.id, memberIds: candidates.map((_, i) => `$c${i}`) } })
+      items.push({ op: 'createAlternativeSet', as: '$set', body: { name: args.setName as string, question: args.question as string, ...(deps.knowledge.capabilities.functionAlternativeSets ? { functionId: fn.id } : {}), ...(parent ? { parentConceptId: parent.id } : {}), memberIds: candidates.map((_, i) => `$c${i}`) } })
       const draft = newDraft(run, stepId, {
         title: `${candidates.length} candidate concepts for ${fn.key} ${fn.name}`,
         action: `Create ${candidates.length} alternative Concepts that perform ${fn.key}, grouped in one alternative set.`,
@@ -231,20 +233,29 @@ export function createReasoningEngine(deps: EngineDeps) {
       let draft: ProposalDraft | undefined
       const record = args.recordAsEvidence as { subjects: DesignRef[]; title: string } | undefined
       if (record) {
-        const checks = result.checks.map((c) => `${c.text}: ${c.satisfied ? 'satisfied' : 'violated'} (margin ${c.margin.toPrecision(4)} ${c.unit})`)
+        // C11: statuses say what they rest on; ranges say what kind they are.
+        const checks = result.checks.map((c) => `${c.text}: ${c.status} (${c.statusBasis === 'point' ? 'at the nominal point' : c.statusBasis === 'exact-bounds' ? 'proven with exact bounds' : 'from an enclosure'}; nominal margin ${c.margin.toPrecision(4)} ${c.unit})`)
+        const qualifications = qualifyManifest(result.manifest)
+        const limits = ['A reproducible calculation shows that these outputs follow from this model revision and these inputs. It does not establish that the model is valid for this design (model validation status: ' + result.manifest.limits.modelValidationStatus + '), and it does not establish that any requirement is satisfied.']
         draft = newDraft(run, stepId, {
           title: `Record calculation: ${record.title}`,
           action: `Record the result of ${model.key} as ${result.basis} evidence.`,
           rationale: `Deterministic evaluation of ${model.key} revision ${model.revision} by ${result.manifest.engine.name} ${result.manifest.engine.version}; Conceptualize re-verifies the manifest before accepting it.`,
+          qualifications,
+          limits,
           affected: record.subjects,
           expectedEffects: checks,
           evidence: [],
           assumptions: model.assumptions.map((a) => ({ text: a.id, ref: a })),
-          uncertainty: { summary: result.manifest.uncertainty === 'point' ? 'Point values; ranges not propagated.' : 'Interval bounds: exact where monotonicity is proven, enclosures otherwise (see each output).', ranges: Object.values(result.outputs).filter((o) => o.min !== undefined).map((o) => ({ name: o.symbol, min: o.min!, max: o.max!, unit: o.unit })) },
+          uncertainty: {
+            summary: result.manifest.uncertainty === 'point' ? 'Point values; ranges not propagated.' : 'Ranges propagated as bounds: exact where monotonicity is proven, enclosures otherwise; sampled values are not bounds.',
+            ranges: Object.values(result.outputs).flatMap((o) => (o.range.kind === 'point' ? [] : [{ name: o.symbol, min: o.range.min, max: o.range.max, unit: o.unit, kind: o.range.kind, quality: o.range.kind === 'bounds' ? o.range.quality : undefined }])),
+          },
           requiredApprovals: [{ permission: 'author', module: 'conceptualize', reason: 'Recording evidence' }],
           preview: [
             { label: 'New evidence', proposed: record.title, basis: result.basis },
-            ...Object.values(result.outputs).map((o) => ({ label: o.symbol, proposed: `${o.value.toPrecision(6)} ${o.unit}`, basis: result.basis })),
+            ...Object.values(result.outputs).map((o) => ({ label: o.symbol, proposed: o.range.kind === 'point' ? `${o.value.toPrecision(6)} ${o.unit} (point value)` : `${o.value.toPrecision(6)} ${o.unit}; ${describeRange(o.range)} ${o.range.min.toPrecision(6)}–${o.range.max.toPrecision(6)} ${o.unit}`, basis: result.basis })),
+            ...limits.map((l) => ({ label: 'Does not establish', proposed: l })),
             ...checks.map((c) => ({ label: 'Check', proposed: c, basis: result.basis })),
           ],
           items: [{ op: 'createEvidence', as: '$ev', body: { kind: 'calculation', title: record.title, summary: checks.join('; '), subjects: record.subjects, basis: result.basis, calculation: { modelId: model.id, modelRevision: model.revision, manifest: result.manifest } } }],
@@ -334,7 +345,7 @@ export function createReasoningEngine(deps: EngineDeps) {
 
     async 'reasoning.assess_change_impact'(args, ctx, run, stepId) {
       const change = args.change as ImpactChange
-      const report = await assessChangeImpact(change, { knowledge: deps.knowledge, ctx, twin: deps.twin?.() }, { maxDepth: args.maxDepth as number | undefined })
+      const report = await assessChangeImpact(change, { knowledge: deps.knowledge, ctx, twin: deps.twin?.(), requirements: deps.requirements }, { maxDepth: args.maxDepth as number | undefined })
       for (const item of report.items) {
         if (isDesignRef(item.ref)) continue
         if (item.ref.module === 'requirements' && deps.requirements) {
