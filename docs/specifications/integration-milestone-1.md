@@ -121,7 +121,7 @@ After each increment the coordinator reconciles progress files, ADR statuses, `d
 `npm run req:test:db`, `npm run concept:test:db` and the committed browser flows; and reports the exact revision,
 startup commands, a short walkthrough and remaining limitations.
 
-**Committed browser tests.** The coordinator creates `tests/e2e` (playwright-core, Apache-2.0, driving the
+**Committed browser tests.** `tests/e2e` (created 15 October 2026; `npm run e2e`, see its README) uses (playwright-core, Apache-2.0, driving the
 installed Chrome) with the platform regression flows and the milestone workflow; module agents add their flows
 there instead of only in session scratch folders.
 

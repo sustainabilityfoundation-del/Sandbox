@@ -1,0 +1,13 @@
+{
+  "name": "@ews/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Committed browser flows for the platform and the integration milestone (integration-milestone-1.md §5).",
+  "scripts": {
+    "e2e": "node run.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.55.0"
+  }
+}
