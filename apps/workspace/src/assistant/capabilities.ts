@@ -11,7 +11,7 @@
  * Requirements API operation exists without an entry here.
  */
 
-export type CapabilityModule = 'platform' | 'requirements' | 'sysml' | 'cad' | 'assistant' | 'conceptualize'
+export type CapabilityModule = 'platform' | 'requirements' | 'sysml' | 'cad' | 'cad-modeler' | 'assistant' | 'conceptualize'
 
 /** Where the capability is reached by a person. */
 export type CapabilitySurface = 'toolbar' | 'panel' | 'field' | 'header' | 'palette' | 'tree' | 'inspector' | 'dialog' | 'api'
@@ -154,6 +154,25 @@ export const CAPABILITIES: CapabilityEntry[] = [
   e({ id: 'conceptualize.evidence', module: 'conceptualize', surface: 'panel', label: 'Evidence records (preliminary and verified)', effect: 'mutation', status: 'implemented', coverage: 'partial', aiOperations: ['conceptualize.develop_alternatives'], note: 'The assistant records estimates only inside explorations; verified evidence is a person’s action (API: createEvidence).' }),
   e({ id: 'conceptualize.integration', module: 'conceptualize', surface: 'panel', label: 'Engineering integration: stale and broken links, change notifications', effect: 'query', status: 'implemented', coverage: 'none', note: 'Checked in the browser through the SDK (contracts §9).' }),
   e({ id: 'conceptualize.history', module: 'conceptualize', surface: 'panel', label: 'Revisions, history and AI provenance', effect: 'query', status: 'implemented', coverage: 'partial', aiOperations: ['conceptualize.read'], note: 'API: listConceptRevisions, conceptHistory, projectHistory.' }),
+  // ---- CAD Modeler (CAD program Phase 1; appended by the CAD agent, coordinator review) -------
+  // UI and assistant run the same typed cad-core commands (ADR-0023); mutations are service proposals.
+  e({ id: 'cad-modeler.new', module: 'cad-modeler', surface: 'toolbar', toolbarItem: 'new', label: 'New CAD document with one part', effect: 'mutation', status: 'implemented', coverage: 'equivalent', aiOperations: ['cad-modeler.new_document', 'cad-modeler.run_commands'], note: 'run_commands also creates a document when none is open.' }),
+  e({ id: 'cad-modeler.open', module: 'cad-modeler', surface: 'toolbar', toolbarItem: 'open', label: 'Open a native .ewscad file (other formats detected and explained)', effect: 'import', status: 'implemented', coverage: 'partial', aiOperations: ['cad-modeler.open_document'], note: 'The assistant opens native JSON it holds (for example from query get_document); it cannot read files from the user’s disk.' }),
+  e({ id: 'cad-modeler.save', module: 'cad-modeler', surface: 'toolbar', toolbarItem: 'save', label: 'Save the native parametric model (.ewscad download)', effect: 'export', status: 'implemented', coverage: 'shared', aiOperations: ['cad-modeler.export'], note: 'format ewscad; same session save.' }),
+  e({ id: 'cad-modeler.sketch', module: 'cad-modeler', surface: 'toolbar', toolbarItem: 'sketch', label: 'Create a sketch on a standard plane', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['cad-modeler.run_commands'], note: 'create_sketch.' }),
+  e({ id: 'cad-modeler.extrude', module: 'cad-modeler', surface: 'toolbar', toolbarItem: 'extrude', label: 'Extrude a profile (new body, join, cut), with preview', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['cad-modeler.run_commands'], note: 'extrude_profile / edit_feature; the assistant preview is the same dry run.' }),
+  e({ id: 'cad-modeler.revolve', module: 'cad-modeler', surface: 'toolbar', toolbarItem: 'revolve', label: 'Revolve a profile about an axis, with preview', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['cad-modeler.run_commands'], note: 'revolve_profile / edit_feature.' }),
+  e({ id: 'cad-modeler.undo', module: 'cad-modeler', surface: 'toolbar', toolbarItem: 'undo', label: 'Undo the last CAD transaction', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['cad-modeler.undo'] }),
+  e({ id: 'cad-modeler.redo', module: 'cad-modeler', surface: 'toolbar', toolbarItem: 'redo', label: 'Redo a CAD transaction', effect: 'mutation', status: 'implemented', coverage: 'none' }),
+  e({ id: 'cad-modeler.fit', module: 'cad-modeler', surface: 'toolbar', toolbarItem: 'fit', label: 'Fit the model in the 3D view', effect: 'view', status: 'implemented', coverage: 'none' }),
+  e({ id: 'cad-modeler.export-step', module: 'cad-modeler', surface: 'toolbar', toolbarItem: 'export-step', label: 'Export STEP AP242 with a structural check', effect: 'export', status: 'implemented', coverage: 'shared', aiOperations: ['cad-modeler.export'] }),
+  e({ id: 'cad-modeler.sketch-edit', module: 'cad-modeler', surface: 'panel', label: 'Sketch geometry, constraints, dimensions, construction, delete', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['cad-modeler.run_commands'] }),
+  e({ id: 'cad-modeler.parameters', module: 'cad-modeler', surface: 'panel', label: 'Parameters and expressions (create, edit, delete)', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['cad-modeler.run_commands'] }),
+  e({ id: 'cad-modeler.feature-tree', module: 'cad-modeler', surface: 'tree', label: 'Feature tree: status, edit, suppress, delete, rename', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['cad-modeler.describe_model', 'cad-modeler.run_commands'] }),
+  e({ id: 'cad-modeler.inspect', module: 'cad-modeler', surface: 'inspector', label: 'Face, body and feature properties; mass properties; stable face names', effect: 'query', status: 'implemented', coverage: 'equivalent', aiOperations: ['cad-modeler.query'] }),
+  e({ id: 'cad-modeler.semantics', module: 'cad-modeler', surface: 'inspector', label: 'Material, named interfaces and cross-module references', effect: 'mutation', status: 'implemented', coverage: 'partial', aiOperations: ['cad-modeler.run_commands', 'read_object'], note: 'The view validates twin components against the model; the assistant checks targets with read_object first. Other modules do not show CAD links yet.' }),
+  e({ id: 'cad-modeler.diagnostics', module: 'cad-modeler', surface: 'panel', label: 'Kernel, regeneration (rebuilt/reused), failures, STEP report, operation log', effect: 'query', status: 'implemented', coverage: 'equivalent', aiOperations: ['cad-modeler.query', 'cad-modeler.describe_model'] }),
+  e({ id: 'cad-modeler.viewport', module: 'cad-modeler', surface: 'panel', label: '3D view: orbit, pan, zoom, standard views, face picking and highlight', effect: 'view', status: 'implemented', coverage: 'partial', aiOperations: ['cad-modeler.query'], note: 'The assistant identifies faces by stable name (get_entities); camera control and viewport images are not available to it.' }),
 ]
 
 /** Assistant operations the platform itself offers (see toolSpecs.ts); listed for completeness checks. */

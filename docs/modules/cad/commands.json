@@ -1,0 +1,1852 @@
+{
+  "catalog": "ews-cad-commands",
+  "catalogVersion": "1.0.0",
+  "format": "ews-cad 1.x",
+  "conventions": {
+    "transaction": "Commands run in transactions: all commit or none. Optional expectedVersion fails with version-conflict when the document changed.",
+    "placeholders": "A create command may define \"ref\": \"$name\"; later commands in the same transaction may use \"$name\" for the created ID (the first string field of its result) or \"$name.field[.index]\".",
+    "units": "Lengths in mm, angles in degrees. Expressions may use parameters, + - * / % ^, functions (sin, cos, tan in degrees, sqrt, abs, min, max, …) and unit suffixes (mm, cm, m, in, ft, deg, rad).",
+    "errors": "Errors are { code, message, details? }; codes are listed per command.",
+    "ids": "IDs are deterministic within a document (prefix-counter) and never reused. Global references use the document UUID plus the entity ID."
+  },
+  "commands": [
+    {
+      "name": "set_document_metadata",
+      "category": "document",
+      "summary": "Set the document title or description.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Document title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [],
+      "errors": [
+        "invalid-input"
+      ],
+      "undo": "Restores the previous metadata.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "create_part",
+      "category": "part",
+      "summary": "Create an empty part (a container for parameters and a feature history).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Part name"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          },
+          "material": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "description": "Material name"
+              },
+              "density": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "kg/m³"
+              }
+            },
+            "required": [
+              "name",
+              "density"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ partId }",
+      "preconditions": [],
+      "errors": [
+        "invalid-input"
+      ],
+      "undo": "Removes the part.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "rename",
+      "category": "part",
+      "summary": "Rename a part or feature (display name only; IDs never change).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part or feature ID"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Display name"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The part or feature exists."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Restores the previous name.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "set_material",
+      "category": "part",
+      "summary": "Set the material of a part (used for mass properties).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part ID"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Material name"
+          },
+          "density": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Density in kg/m³"
+          }
+        },
+        "required": [
+          "partId",
+          "name",
+          "density"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The part exists."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Restores the previous material.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "create_parameter",
+      "category": "parameter",
+      "summary": "Create a named design parameter with an expression.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part ID"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "description": "Identifier used in expressions"
+          },
+          "expression": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Value. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "mm",
+              "deg",
+              "none"
+            ],
+            "default": "mm"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "partId",
+          "name",
+          "expression"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ parameterId }",
+      "preconditions": [
+        "The name is a valid identifier, not reserved (functions, constants, units) and unique in the part.",
+        "The expression only uses existing parameters and creates no cycle."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression",
+        "cycle"
+      ],
+      "undo": "Removes the parameter.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "set_parameter",
+      "category": "parameter",
+      "summary": "Change a parameter’s expression; dependent sketches and features regenerate.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part ID"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Parameter name"
+          },
+          "expression": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "New value. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          }
+        },
+        "required": [
+          "partId",
+          "name",
+          "expression"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ parameterId, value }",
+      "preconditions": [
+        "The parameter exists.",
+        "The expression only uses existing parameters and creates no cycle."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-expression",
+        "cycle"
+      ],
+      "undo": "Restores the previous expression.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "delete_parameter",
+      "category": "parameter",
+      "summary": "Delete an unused parameter.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part ID"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "partId",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "No parameter, dimension or feature uses it."
+      ],
+      "errors": [
+        "not-found",
+        "in-use"
+      ],
+      "undo": "Restores the parameter.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "create_sketch",
+      "category": "sketch",
+      "summary": "Create an empty sketch on a standard plane (XY, XZ or YZ), optionally offset along its normal.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part ID"
+          },
+          "plane": {
+            "type": "string",
+            "enum": [
+              "XY",
+              "XZ",
+              "YZ"
+            ]
+          },
+          "offset": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Offset along the plane normal. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Sketch name"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "partId",
+          "plane"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ sketchId }",
+      "preconditions": [
+        "The part exists."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Removes the sketch.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "set_sketch_plane",
+      "category": "sketch",
+      "summary": "Move a sketch to another standard plane or offset.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "plane": {
+            "type": "string",
+            "enum": [
+              "XY",
+              "XZ",
+              "YZ"
+            ]
+          },
+          "offset": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Offset along the plane normal. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          }
+        },
+        "required": [
+          "sketchId",
+          "plane"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The sketch exists."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-expression"
+      ],
+      "undo": "Restores the previous plane.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "add_point",
+      "category": "sketch",
+      "summary": "Add a point to a sketch.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "construction": {
+            "type": "boolean"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "sketchId",
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ pointId }",
+      "preconditions": [
+        "The sketch exists."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Removes the point.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "add_line",
+      "category": "sketch",
+      "summary": "Add a line segment between two points (existing point IDs or new coordinates).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "start": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "ID of an existing sketch point (or \"origin\")"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2,
+                "description": "Sketch coordinates [x, y] in mm."
+              }
+            ],
+            "description": "Start point"
+          },
+          "end": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "ID of an existing sketch point (or \"origin\")"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2,
+                "description": "Sketch coordinates [x, y] in mm."
+              }
+            ],
+            "description": "End point"
+          },
+          "construction": {
+            "type": "boolean",
+            "description": "Construction lines are ignored by profiles (e.g. revolution axes)."
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "sketchId",
+          "start",
+          "end"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ lineId, start, end }",
+      "preconditions": [
+        "The sketch exists; referenced points exist; start and end differ."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Removes the line and points it created.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "add_circle",
+      "category": "sketch",
+      "summary": "Add a circle (centre point and seed radius). Add a radius or diameter constraint to fix its size.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "center": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "ID of an existing sketch point (or \"origin\")"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2,
+                "description": "Sketch coordinates [x, y] in mm."
+              }
+            ],
+            "description": "Centre point"
+          },
+          "radius": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Seed radius in mm"
+          },
+          "construction": {
+            "type": "boolean"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "sketchId",
+          "center",
+          "radius"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ circleId, center }",
+      "preconditions": [
+        "The sketch exists; radius > 0."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Removes the circle.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "add_arc",
+      "category": "sketch",
+      "summary": "Add a circular arc, counter-clockwise from start to end around the centre.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "center": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "ID of an existing sketch point (or \"origin\")"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2,
+                "description": "Sketch coordinates [x, y] in mm."
+              }
+            ],
+            "description": "Centre point"
+          },
+          "start": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "ID of an existing sketch point (or \"origin\")"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2,
+                "description": "Sketch coordinates [x, y] in mm."
+              }
+            ],
+            "description": "Start point"
+          },
+          "end": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "ID of an existing sketch point (or \"origin\")"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2,
+                "description": "Sketch coordinates [x, y] in mm."
+              }
+            ],
+            "description": "End point"
+          },
+          "construction": {
+            "type": "boolean"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "sketchId",
+          "center",
+          "start",
+          "end"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ arcId, center, start, end }",
+      "preconditions": [
+        "The sketch exists; the three points differ."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Removes the arc.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "add_rectangle",
+      "category": "sketch",
+      "summary": "Add an axis-aligned rectangle: four lines with coincident corners, horizontal/vertical constraints and (by default) width and height dimensions.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "corner": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Lower-left corner [x, y] (default [0, 0]); the corner is fixed to the origin when it is [0, 0]."
+          },
+          "center": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Centre [x, y] instead of a corner."
+          },
+          "width": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Width (x). A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "height": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Height (y). A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "dimensions": {
+            "type": "boolean",
+            "default": true,
+            "description": "Add driving width and height dimensions."
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "sketchId",
+          "width",
+          "height"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ points: [4], lines: [bottom, right, top, left], constraints: [...], width?: constraintId, height?: constraintId }",
+      "preconditions": [
+        "The sketch exists; width and height are positive."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Removes the rectangle.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "apply_constraint",
+      "category": "constraint",
+      "summary": "Apply a geometric or dimensional constraint to sketch entities.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "coincident",
+              "horizontal",
+              "vertical",
+              "parallel",
+              "perpendicular",
+              "equal",
+              "fixed",
+              "point-on-line",
+              "point-on-circle",
+              "midpoint",
+              "tangent",
+              "concentric",
+              "distance",
+              "distance-x",
+              "distance-y",
+              "length",
+              "radius",
+              "diameter",
+              "angle"
+            ]
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 2,
+            "description": "Entity IDs in the order the type defines (see the constraint reference); \"origin\", \"x-axis\" and \"y-axis\" are always available."
+          },
+          "value": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Dimensional constraints only. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "driving": {
+            "type": "boolean",
+            "default": true,
+            "description": "false: a driven (reference) dimension that only measures."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "sketchId",
+          "type",
+          "entities"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ constraintId }",
+      "preconditions": [
+        "The entities exist and match the constraint signature.",
+        "A driving dimension has a value; length, radius and diameter are positive."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Removes the constraint.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "set_dimension",
+      "category": "constraint",
+      "summary": "Change the value of a dimensional constraint (a literal or an expression); the sketch and dependent features regenerate.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "constraintId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Constraint ID"
+          },
+          "value": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "New value. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          }
+        },
+        "required": [
+          "sketchId",
+          "constraintId",
+          "value"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The constraint exists and is dimensional."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Restores the previous value.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "set_dimension_driving",
+      "category": "constraint",
+      "summary": "Switch a dimension between driving (solved for) and driven (reference, measured only).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "constraintId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Constraint ID"
+          },
+          "driving": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sketchId",
+          "constraintId",
+          "driving"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The constraint is dimensional; a driving dimension has a value."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Restores the previous state.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "delete_constraint",
+      "category": "constraint",
+      "summary": "Remove a constraint from a sketch.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "constraintId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Constraint ID"
+          }
+        },
+        "required": [
+          "sketchId",
+          "constraintId"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The constraint exists."
+      ],
+      "errors": [
+        "not-found"
+      ],
+      "undo": "Restores the constraint.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "delete_sketch_entities",
+      "category": "sketch",
+      "summary": "Delete sketch entities; curves using deleted points and constraints referring to deleted entities are removed too.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "sketchId",
+          "ids"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ deleted: [...] }",
+      "preconditions": [
+        "Every ID exists in the sketch (implicit origin and axes cannot be deleted)."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Restores all removed entities and constraints.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "move_sketch_point",
+      "category": "sketch",
+      "summary": "Move a point’s drawn (seed) position; constraints still decide the solved position.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "pointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Point ID"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "sketchId",
+          "pointId",
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The point exists."
+      ],
+      "errors": [
+        "not-found"
+      ],
+      "undo": "Restores the previous position.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "set_construction",
+      "category": "sketch",
+      "summary": "Mark sketch curves as construction geometry (excluded from profiles) or normal geometry.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "construction": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sketchId",
+          "ids",
+          "construction"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "Every ID is a line, circle or arc of the sketch."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Restores the previous state.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "extrude_profile",
+      "category": "feature",
+      "summary": "Extrude the closed profile of a sketch along its normal: a new body, joined to a body, or cut from it.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "distance": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Extrusion depth (> 0). A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "reverse",
+              "symmetric"
+            ],
+            "default": "normal"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "new",
+              "join",
+              "cut"
+            ],
+            "default": "new",
+            "description": "new body, join (fuse) or cut. The first solid of a part is always a new body."
+          },
+          "target": {
+            "type": "string",
+            "description": "Body to join or cut (ID of the feature that created it). Default: the latest body."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Feature name"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "sketchId",
+          "distance"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ featureId }",
+      "preconditions": [
+        "The sketch exists; a literal distance is > 0; an explicit target is a body-creating feature earlier in the part."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Removes the feature.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "revolve_profile",
+      "category": "feature",
+      "summary": "Revolve the closed profile of a sketch about a sketch line or a sketch axis.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Sketch ID"
+          },
+          "axis": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A line of the sketch (often construction), or \"x-axis\" / \"y-axis\"."
+          },
+          "angle": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Angle in degrees, (0, 360]. Default 360. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "new",
+              "join",
+              "cut"
+            ],
+            "default": "new"
+          },
+          "target": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Feature name"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "sketchId",
+          "axis"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ featureId }",
+      "preconditions": [
+        "The axis is a line of the sketch or a sketch axis; a literal angle is in (0, 360]."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Removes the feature.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "edit_feature",
+      "category": "feature",
+      "summary": "Change an extrude or revolve: distance, direction, angle, axis, operation or target body.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "featureId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Feature ID"
+          },
+          "distance": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Extrude depth. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "reverse",
+              "symmetric"
+            ]
+          },
+          "angle": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Revolve angle. A number in document units (mm, deg) or an expression over part parameters, e.g. \"width / 2\" or \"1 in\"."
+          },
+          "axis": {
+            "type": "string",
+            "minLength": 1
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "new",
+              "join",
+              "cut"
+            ]
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Body to join or cut; null for the latest body."
+          }
+        },
+        "required": [
+          "featureId"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The feature is an extrude (distance, direction) or revolve (angle, axis); values are valid."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "invalid-expression"
+      ],
+      "undo": "Restores the previous definition.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "set_suppressed",
+      "category": "feature",
+      "summary": "Suppress or unsuppress a feature (suppressed features are skipped by regeneration; dependents are blocked).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "featureId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Feature ID"
+          },
+          "suppressed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "featureId",
+          "suppressed"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The feature exists."
+      ],
+      "errors": [
+        "not-found"
+      ],
+      "undo": "Restores the previous state.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "delete_feature",
+      "category": "feature",
+      "summary": "Delete a feature that no other feature depends on.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "featureId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Feature ID"
+          }
+        },
+        "required": [
+          "featureId"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "No later feature uses the sketch or targets the body.",
+        "No semantic annotation or external reference uses it."
+      ],
+      "errors": [
+        "not-found",
+        "in-use"
+      ],
+      "undo": "Restores the feature.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "add_semantic",
+      "category": "semantics",
+      "summary": "Annotate faces, features or parameters with engineering meaning (named interface, functional surface, design intent).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part ID"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "interface",
+              "functional-surface",
+              "design-intent",
+              "note"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Annotation name"
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "description": "Stable face names (e.g. \"ext-5/cap-end\"), feature or parameter IDs."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "partId",
+          "kind",
+          "name",
+          "targets"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ semanticId }",
+      "preconditions": [
+        "Feature and parameter targets exist; face names start with an existing feature ID."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input"
+      ],
+      "undo": "Removes the annotation.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "remove_semantic",
+      "category": "semantics",
+      "summary": "Remove an engineering annotation.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "semanticId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Annotation ID"
+          }
+        },
+        "required": [
+          "semanticId"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The annotation exists."
+      ],
+      "errors": [
+        "not-found"
+      ],
+      "undo": "Restores the annotation.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "add_reference",
+      "category": "reference",
+      "summary": "Link a CAD entity to an artifact of another module (twin component, requirement, SysML element, Concept). The target is referenced, never copied.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Part, feature, parameter or face name"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "represents",
+              "satisfies",
+              "verifies",
+              "realizes",
+              "traces",
+              "related"
+            ]
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "module": {
+                "type": "string",
+                "enum": [
+                  "twin",
+                  "requirements",
+                  "sysml",
+                  "conceptualize",
+                  "external"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Pin a revision; omit to follow the latest."
+              },
+              "kind": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "Display text captured when linking (not authoritative)."
+              }
+            },
+            "required": [
+              "module",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^\\$[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "Placeholder (\"$name\") that later commands in the same transaction can use instead of the new ID."
+          }
+        },
+        "required": [
+          "subject",
+          "role",
+          "target"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ referenceId }",
+      "preconditions": [
+        "The subject exists in the document.",
+        "The target is validated by the caller against the owning module (the UI does; the assistant receives its result)."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "precondition-failed"
+      ],
+      "undo": "Removes the reference.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
+      "name": "remove_reference",
+      "category": "reference",
+      "summary": "Remove a cross-module reference.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "referenceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Reference ID"
+          }
+        },
+        "required": [
+          "referenceId"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{}",
+      "preconditions": [
+        "The reference exists."
+      ],
+      "errors": [
+        "not-found"
+      ],
+      "undo": "Restores the reference.",
+      "effect": "mutation",
+      "transactional": true
+    }
+  ],
+  "queries": [
+    {
+      "name": "get_feature_tree",
+      "summary": "Parts, feature history in order, status, errors, warnings and dependencies of each feature.",
+      "input": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "get_parameters",
+      "summary": "Parameters of a part with expressions, evaluated values, errors and users.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Part ID (default: the first part)"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "get_sketch",
+      "summary": "Sketch entities (drawn and solved positions), constraints with values, constraint status, degrees of freedom, free points, redundant/conflicting constraints and closed profiles.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "sketchId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "sketchId"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "get_entities",
+      "summary": "Faces and edges of the bodies with stable names, surface/curve types, areas, lengths, centres and normals.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Part ID (default: the first part)"
+          },
+          "bodyId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "faces",
+              "edges",
+              "all"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "get_mass_properties",
+      "summary": "Volume, surface area, centre of mass, bounding box and (with a material) mass of each body.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Part ID (default: the first part)"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "get_dependencies",
+      "summary": "Dependency graph: parameter → parameter/feature, sketch → feature, body chain.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Part ID (default: the first part)"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "get_failures",
+      "summary": "Regeneration failures, blocked features, warnings and parameter errors.",
+      "input": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "get_regeneration_summary",
+      "summary": "Last regeneration: version, duration, kernel, rebuilt and reused features, body validity.",
+      "input": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "get_operation_log",
+      "summary": "Recent committed, rejected, undone and redone transactions with source and affected IDs.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "get_document",
+      "summary": "The complete native document (ews-cad JSON).",
+      "input": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "list_commands",
+      "summary": "The machine-readable command catalogue (names, input schemas, preconditions, errors).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    }
+  ],
+  "sessionOperations": [
+    {
+      "name": "undo",
+      "summary": "Restore the state before the last transaction (a new version).",
+      "effect": "mutation"
+    },
+    {
+      "name": "redo",
+      "summary": "Re-apply an undone transaction (a new version).",
+      "effect": "mutation"
+    },
+    {
+      "name": "regenerate_model",
+      "summary": "Regenerate the whole model; with full: true the cache is cleared first.",
+      "effect": "job"
+    },
+    {
+      "name": "dry_run",
+      "summary": "Execute a transaction and regenerate on a copy: predicted statuses and mass properties, nothing committed.",
+      "effect": "query"
+    },
+    {
+      "name": "export_step",
+      "summary": "Export the bodies of a part as STEP AP242 (exact B-rep, names, units, colours).",
+      "effect": "export"
+    },
+    {
+      "name": "save_document / open_document",
+      "summary": "Serialise or load the native ews-cad JSON file.",
+      "effect": "export"
+    }
+  ]
+}

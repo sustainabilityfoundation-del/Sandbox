@@ -1,0 +1,18 @@
+{
+  "name": "@ews/cad-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CAD Modeler core: open native parametric model, typed commands, transactions, sketch solver, dependency graph and regeneration. Framework- and kernel-free.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema/ews-cad.schema.json": "./schema/ews-cad.schema.json"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "tsx": "4.23.15"
+  }
+}

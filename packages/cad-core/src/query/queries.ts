@@ -1,0 +1,243 @@
+import { CadError, type CadErrorInfo } from '../errors'
+import { evaluateParameters } from '../expr/parameters'
+import { featureNames, findPart, findSketch } from '../model/document'
+import { isDimensional, type CadDocument, type Feature, type Part } from '../model/types'
+import type { BodyResult, FeatureResult, PartResult, RegenerationResult } from '../regen/engine'
+
+/**
+ * Structured observability (brief §9.2): what people see in the feature tree, sketcher, inspector
+ * and diagnostics, as plain data for the assistant and scripts. All functions are reads.
+ */
+
+function partResult(regen: RegenerationResult | undefined, partId: string): PartResult | undefined {
+  return regen?.parts.find((p) => p.partId === partId)
+}
+
+export interface FeatureTreeNode {
+  id: string
+  type: Feature['type']
+  name: string
+  suppressed: boolean
+  status: FeatureResult['status'] | 'not-regenerated'
+  error?: CadErrorInfo
+  warnings: CadErrorInfo[]
+  /** IDs this feature depends on (sketch, target body feature, parameters by name). */
+  dependsOn: string[]
+  details: Record<string, unknown>
+}
+
+export function featureTree(doc: CadDocument, regen?: RegenerationResult) {
+  return {
+    documentId: doc.documentId,
+    version: doc.version,
+    regeneratedVersion: regen?.documentVersion ?? null,
+    stale: regen ? regen.documentVersion !== doc.version : true,
+    parts: doc.parts.map((part) => {
+      const pr = partResult(regen, part.id)
+      const graph = dependencyGraph(doc, part.id)
+      return {
+        id: part.id,
+        name: part.name,
+        material: part.material ?? null,
+        bodies: (pr?.bodies ?? []).map((b) => b.bodyId),
+        features: part.features.map((f): FeatureTreeNode => {
+          const r = pr?.features.find((x) => x.featureId === f.id)
+          return {
+            id: f.id,
+            type: f.type,
+            name: f.name,
+            suppressed: !!f.suppressed,
+            status: r?.status ?? 'not-regenerated',
+            error: r?.error,
+            warnings: r?.warnings ?? [],
+            dependsOn: graph.edges.filter((e) => e.to === f.id).map((e) => e.from),
+            details: featureDetails(f, r),
+          }
+        }),
+      }
+    }),
+  }
+}
+
+function featureDetails(f: Feature, r?: FeatureResult): Record<string, unknown> {
+  if (f.type === 'sketch') {
+    const s = r?.sketch?.solution
+    return {
+      plane: f.plane.plane,
+      offset: f.plane.offset ?? 0,
+      entities: f.entities.length,
+      constraints: f.constraints.length,
+      constraintStatus: s?.status ?? null,
+      dof: s?.dof ?? null,
+      profileRegions: r?.sketch?.profile.regions.length ?? null,
+      profileIssues: r?.sketch?.profile.issues ?? [],
+    }
+  }
+  if (f.type === 'extrude') return { sketch: f.sketch, distance: f.extent.distance, direction: f.extent.direction, operation: f.operation, target: f.target ?? null, body: r?.bodyId ?? null }
+  return { sketch: f.sketch, axis: f.axis, angle: f.angle, operation: f.operation, target: f.target ?? null, body: r?.bodyId ?? null }
+}
+
+export function parameterTable(doc: CadDocument, partId: string) {
+  const part = findPart(doc, partId)
+  const scope = evaluateParameters(part)
+  return scope.parameters.map((p) => ({ ...p, description: part.parameters.find((x) => x.id === p.id)?.description, usedBy: usersOf(part, p.name) }))
+}
+
+function usersOf(part: Part, name: string): string[] {
+  return [...part.parameters.filter((p) => evaluateParameters({ parameters: [p] }).parameters[0].uses.includes(name)).map((p) => p.name), ...part.features.filter((f) => featureNames(f).includes(name)).map((f) => f.id)]
+}
+
+export function sketchDetails(doc: CadDocument, sketchId: string, regen?: RegenerationResult) {
+  const { part, sketch } = findSketch(doc, sketchId)
+  const r = partResult(regen, part.id)?.features.find((f) => f.featureId === sketchId)
+  const s = r?.sketch
+  const sol = s?.solution
+  return {
+    sketchId,
+    partId: part.id,
+    name: sketch.name,
+    plane: sketch.plane,
+    status: sol?.status ?? 'not-regenerated',
+    regenerationStatus: r?.status ?? 'not-regenerated',
+    dof: sol?.dof ?? null,
+    freePoints: sol?.freePoints ?? [],
+    freeCircles: sol?.freeCircles ?? [],
+    redundant: sol?.redundant ?? [],
+    conflicting: sol?.conflicting ?? [],
+    issues: sol?.issues ?? [],
+    entities: sketch.entities.map((e) => ({
+      ...e,
+      solved: e.type === 'point' ? (sol?.points[e.id] ?? null) : e.type === 'circle' || e.type === 'arc' ? { radius: sol?.radii[e.id] ?? null } : null,
+      free: e.type === 'point' ? !!sol?.freePoints.includes(e.id) : e.type === 'circle' ? !!sol?.freeCircles.includes(e.id) : undefined,
+    })),
+    constraints: sketch.constraints.map((c) => ({
+      ...c,
+      dimensional: isDimensional(c.type),
+      driving: isDimensional(c.type) ? c.driving !== false : undefined,
+      evaluated: s?.values[c.id] ?? sol?.driven[c.id] ?? null,
+      redundant: !!sol?.redundant.includes(c.id),
+      conflicting: !!sol?.conflicting.includes(c.id),
+    })),
+    profile: s ? { regions: s.profile.regions.map((g) => ({ area: g.area, outer: g.outer.segments.map((x) => x.entityId), holes: g.holes.map((h) => h.segments.map((x) => x.entityId)) })), issues: s.profile.issues } : null,
+  }
+}
+
+export interface MassProperties {
+  bodyId: string
+  volume: number
+  surfaceArea: number
+  centerOfMass: [number, number, number]
+  boundingBox: { min: [number, number, number]; max: [number, number, number]; size: [number, number, number] }
+  /** kg; only with a material. */
+  mass: number | null
+  material: { name: string; density: number } | null
+  valid: boolean
+  units: { length: 'mm'; volume: 'mm³'; area: 'mm²'; mass: 'kg' }
+}
+
+export function massProperties(doc: CadDocument, regen: RegenerationResult | undefined, partId: string): MassProperties[] {
+  const part = findPart(doc, partId)
+  const pr = partResult(regen, partId)
+  if (!pr) throw new CadError('regeneration-failed', 'The model has not been regenerated yet.')
+  return pr.bodies.map((b) => bodyMass(b, part))
+}
+
+function bodyMass(b: BodyResult, part: Part): MassProperties {
+  const a = b.analysis
+  const size = [0, 1, 2].map((k) => a.boundingBox.max[k] - a.boundingBox.min[k]) as [number, number, number]
+  return {
+    bodyId: b.bodyId,
+    volume: a.volume,
+    surfaceArea: a.area,
+    centerOfMass: a.centerOfMass,
+    boundingBox: { ...a.boundingBox, size },
+    mass: part.material ? (a.volume * 1e-9) * part.material.density : null,
+    material: part.material ?? null,
+    valid: a.valid,
+    units: { length: 'mm', volume: 'mm³', area: 'mm²', mass: 'kg' },
+  }
+}
+
+/** Faces and edges of a part's bodies with stable names (ADR-0024). */
+export function geometricEntities(regen: RegenerationResult | undefined, partId: string, options: { bodyId?: string; kind?: 'faces' | 'edges' | 'all' } = {}) {
+  const pr = partResult(regen, partId)
+  if (!pr) throw new CadError('regeneration-failed', 'The model has not been regenerated yet.')
+  return pr.bodies
+    .filter((b) => !options.bodyId || b.bodyId === options.bodyId)
+    .map((b) => ({
+      bodyId: b.bodyId,
+      counts: b.analysis.counts,
+      faces: options.kind === 'edges' ? undefined : b.analysis.faces,
+      edges: options.kind === 'faces' ? undefined : b.analysis.edges,
+    }))
+}
+
+export interface DependencyEdge {
+  from: string
+  to: string
+  kind: 'parameter' | 'sketch' | 'body'
+}
+
+/** Explicit dependency graph of a part: parameters → parameters/features, sketch → feature, body chain. */
+export function dependencyGraph(doc: CadDocument, partId: string) {
+  const part = findPart(doc, partId)
+  const scope = evaluateParameters(part)
+  const edges: DependencyEdge[] = []
+  for (const p of scope.parameters) for (const u of p.uses) edges.push({ from: `param:${u}`, to: `param:${p.name}`, kind: 'parameter' })
+  let latest: string | undefined
+  const lastOnBody = new Map<string, string>()
+  for (const f of part.features) {
+    for (const n of featureNames(f)) edges.push({ from: `param:${n}`, to: f.id, kind: 'parameter' })
+    if (f.type === 'sketch') continue
+    edges.push({ from: f.sketch, to: f.id, kind: 'sketch' })
+    if (f.operation === 'new') {
+      latest = f.id
+      lastOnBody.set(f.id, f.id)
+    } else {
+      const body = f.target ?? latest
+      if (body && lastOnBody.has(body)) {
+        edges.push({ from: lastOnBody.get(body)!, to: f.id, kind: 'body' })
+        lastOnBody.set(body, f.id)
+        latest = body
+      } else if (f.operation === 'join') {
+        latest = f.id
+        lastOnBody.set(f.id, f.id)
+      }
+    }
+  }
+  const nodes = [...scope.parameters.map((p) => ({ id: `param:${p.name}`, kind: 'parameter' as const, label: p.name })), ...part.features.map((f) => ({ id: f.id, kind: f.type, label: f.name }))]
+  return { partId, nodes, edges }
+}
+
+/** Everything downstream of a node (what regenerates when it changes). */
+export function downstreamOf(doc: CadDocument, partId: string, nodeId: string): string[] {
+  const { edges } = dependencyGraph(doc, partId)
+  const out = new Set<string>()
+  const stack = [nodeId]
+  while (stack.length) {
+    const n = stack.pop()!
+    for (const e of edges) if (e.from === n && !out.has(e.to)) (out.add(e.to), stack.push(e.to))
+  }
+  return [...out]
+}
+
+export function failures(regen: RegenerationResult | undefined) {
+  if (!regen) return []
+  return regen.parts.flatMap((p) =>
+    p.features
+      .filter((f) => f.status === 'failed' || f.status === 'blocked' || f.warnings.length)
+      .map((f) => ({ partId: p.partId, featureId: f.featureId, name: f.name, status: f.status, error: f.error ?? null, warnings: f.warnings })),
+  ).concat(regen.parts.flatMap((p) => p.parameters.filter((x) => x.error).map((x) => ({ partId: p.partId, featureId: `param:${x.name}`, name: x.name, status: 'failed' as const, error: x.error ?? null, warnings: [] }))))
+}
+
+/** Summary of the last regeneration: what was rebuilt and what came from the cache. */
+export function regenerationSummary(regen: RegenerationResult | undefined) {
+  if (!regen) return null
+  return {
+    documentVersion: regen.documentVersion,
+    ok: regen.ok,
+    durationMs: Math.round(regen.durationMs * 10) / 10,
+    kernel: regen.kernel,
+    parts: regen.parts.map((p) => ({ partId: p.partId, rebuilt: p.rebuilt, reused: p.reused, bodies: p.bodies.map((b) => ({ bodyId: b.bodyId, valid: b.analysis.valid, volume: b.analysis.volume, faces: b.analysis.counts.faces })) })),
+  }
+}
