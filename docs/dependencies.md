@@ -102,3 +102,18 @@ docs/modules/cad/kernel-selection.md §4), and do not forbid reverse engineering
 library. replicad releases 0.5.0–0.15.1 were AGPL-3.0: keep the exact pin at 1.1.0 (MIT).
 Not used: SolveSpace/libslvs (GPL-3), planegcs (LGPL, evaluation only), commercial kernels and
 translators (need approval).
+## SysML Modeler (added 15 October 2026, SysML agent; contracts §4)
+
+| Package | Version | Licence | Used by | Source |
+| --- | --- | --- | --- | --- |
+| elkjs | 0.11.1 (released 2026-03-03) | EPL-2.0 OR GPL-3.0-or-later; used under **EPL-2.0**, unmodified | tool-sysml-modeler (automatic diagram layout; the worker script `elk-worker.min.js` is loaded by URL on demand) | github.com/kieler/elkjs (Eclipse Layout Kernel) |
+
+No other new dependencies: the SysML semantic core, parser, serializer, repository and client are
+written for this module (TypeScript; `pg` and `fastify` versions as already used by the services).
+
+Downloaded for tests only, **not committed**: the OMG Systems Modeling community release
+`Systems-Modeling/SysML-v2-Release` at tag 2026-08 (examples, training models and library; EPL-2.0
+from tag 2026-04, earlier tags LGPL-3.0 and refused by the script), fetched with
+`npx tsx packages/sysml-core/scripts/fetch-official.ts` into `.data/sysml-release/<tag>` and used by
+the official-corpus conformance measurement (`npm run sysml:conformance`). The bundled platform model
+library (`packages/sysml-core/src/library/text.ts`) is written for this module and copies no OMG text.

@@ -31,8 +31,8 @@ beforeAll(async () => {
 beforeEach(() => setPlan('all'))
 
 describe('tool catalogue', () => {
-  it('contains exactly Requirements, SysML, CAD, Conceptualize and CAD Modeler; Analysis and Verification are retired', () => {
-    expect(getTools().map((t) => t.id)).toEqual(['requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler'])
+  it('contains exactly Requirements, SysML, CAD, Conceptualize, CAD Modeler and SysML Modeler; Analysis and Verification are retired', () => {
+    expect(getTools().map((t) => t.id)).toEqual(['requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler', 'sysml-modeler'])
     expect(getTool('analysis')).toBeUndefined()
     expect(getTool('verification')).toBeUndefined()
     // Their saved data keeps a readable source name.
@@ -43,8 +43,10 @@ describe('tool catalogue', () => {
     for (const tool of getTools()) {
       expect(tool.version).toMatch(/^\d+\.\d+\.\d+$/)
       expect(isSdkCompatible(tool.sdkVersion)).toBe(true)
-      // The CAD Modeler shares the CAD subscription (docs/specifications/cad-program-contracts.md §1).
-      expect(tool.entitlement).toBe(tool.id === 'cad-modeler' ? 'tool:cad' : `tool:${tool.id}`)
+      // The new modelers share the existing subscriptions during development (cad-program-contracts.md §1,
+      // sysml-program-contracts.md §1).
+      const shared: Record<string, string> = { 'cad-modeler': 'tool:cad', 'sysml-modeler': 'tool:sysml' }
+      expect(tool.entitlement).toBe(shared[tool.id] ?? `tool:${tool.id}`)
       for (const action of tool.assistant?.actions ?? []) expect(action.name.startsWith(`${tool.id}.`)).toBe(true)
     }
   })

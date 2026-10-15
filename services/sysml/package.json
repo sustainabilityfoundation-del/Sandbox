@@ -1,0 +1,21 @@
+{
+  "name": "@ews/sysml-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SysML Modeler service: PostgreSQL schema 'sysml' (commits, element versions, branches, tags), Systems Modeling API-aligned routes and platform extensions (typed transactions, text, validation, revert, diff, impact, events), OpenAPI. Hosted by @ews/api.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/sysml-core": "^0.1.0",
+    "fastify": "5.12.5",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}

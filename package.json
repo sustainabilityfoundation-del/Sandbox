@@ -39,7 +39,11 @@
     "cad:commands": "tsx packages/cad-core/scripts/write-catalog.ts",
     "cad:test": "vitest run packages/cad-core packages/cad-kernel packages/tool-cad-modeler",
     "cad:bench": "tsx packages/cad-kernel/scripts/bench.ts",
-    "cad:dev": "npm run dev -w @ews/tool-cad-modeler"
+    "cad:dev": "npm run dev -w @ews/tool-cad-modeler",
+    "sysml:dev": "npm run dev -w @ews/tool-sysml-modeler",
+    "sysml:test": "vitest run packages/sysml-core packages/sysml-client packages/tool-sysml-modeler",
+    "sysml:library": "tsx packages/sysml-core/scripts/fetch-official.ts",
+    "sysml:conformance": "vitest run --config packages/sysml-core/vitest.official.config.ts"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

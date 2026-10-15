@@ -1,0 +1,17 @@
+{
+  "name": "@ews/sysml-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser client of the SysML Modeler: SysmlClient over HTTP (/api/sysml/v1) and an explicit in-browser local adapter on the same semantic core, plus a contract test suite.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract-tests": "./src/contractTests.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/sysml-core": "^0.1.0"
+  }
+}

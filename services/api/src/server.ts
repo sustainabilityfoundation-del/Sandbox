@@ -16,6 +16,7 @@ import {
 import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsEventHub, migrateConcepts, seedConcepts, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
 import { registerApiDocs } from './apiDocs'
+import { SYSML_BASE_PATH, sysmlPlugin } from '@ews/sysml-service'
 
 /**
  * Development twin directory: the component IDs of the sample actuator twin
@@ -112,6 +113,9 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     reqifSchemaDir: options.reqifSchemaDir,
   })
   await app.register(conceptsPlugin, { prefix: CONCEPTS_BASE_PATH, pool: options.pool, events: conceptEvents, authenticate: auth.authenticate, roleOf: auth.roleOf })
+  // SysML Modeler (docs/specifications/sysml-program-contracts.md §7): migrates schema `sysml`; seeds the example outside production.
+  registerApiDocs(app, { path: `${SYSML_BASE_PATH}/docs`, openapiUrl: `${SYSML_BASE_PATH}/openapi.json`, title: 'SysML Modeler API' })
+  await app.register(sysmlPlugin, { prefix: SYSML_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, seed: !production, eventPollMs: options.eventPollMs })
   return {
     app,
     events,

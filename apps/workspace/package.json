@@ -20,6 +20,7 @@
     "@ews/tool-cad-modeler": "^0.1.0",
     "@ews/tool-requirements": "^1.0.0",
     "@ews/tool-sysml": "^1.0.0",
+    "@ews/tool-sysml-modeler": "^0.1.0",
     "driver.js": "1.8.0",
     "react": "^19.1.1",
     "react-aria-components": "^1.22.1",

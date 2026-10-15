@@ -41,11 +41,16 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/requirements-client': /^@ews\/platform-sdk$/,
   'packages/reqif': /^$/,
   'services/requirements': /^@ews\/(platform-sdk|reqif)$/,
-  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service)$/,
+  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service)$/,
   // Conceptualize (docs/specifications/conceptualize-contracts.md). Only the client reaches the browser.
   'packages/tool-conceptualize': /^@ews\/(platform-sdk|design-system|conceptualize-client)(\/[\w.-]+)?$/,
   'packages/conceptualize-client': /^@ews\/platform-sdk$/,
   'services/conceptualize': /^@ews\/platform-sdk$/,
+  // SysML Modeler (docs/specifications/sysml-program-contracts.md §3). Only the client and the framework-free core reach the browser.
+  'packages/tool-sysml-modeler': /^@ews\/(platform-sdk|design-system|sysml-client|sysml-core)(\/[\w.-]+)?$/,
+  'packages/sysml-client': /^@ews\/sysml-core$/,
+  'packages/sysml-core': /^$/,
+  'services/sysml': /^@ews\/sysml-core$/,
 }
 
 describe('package boundaries', () => {
