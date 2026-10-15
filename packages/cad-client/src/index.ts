@@ -10,3 +10,4 @@
 export { createHttpCadClient, type HttpCadConfig } from './http'
 export { createLocalCadClient } from './local'
 export * from './types'
+export { createCadReadService, type CadReadService, type CadReadResult, type CadEntitySummary, type CadMassPropertiesResult, type CadArtifactRefInput } from './read'
