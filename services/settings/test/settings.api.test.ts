@@ -28,7 +28,7 @@ describe('settings service', () => {
 
   it('returns defaults, then saves a valid change with If-Match and refuses a stale write', async () => {
     const v = await values('eli')
-    expect(v.effective['ai.limits.timeout']).toBe(45)
+    expect(v.effective['ai.limits.timeout']).toBe(90)
     const ok = await env.call('eli', 'PUT', `${B}/users/me/values?projectId=${PROJECT}`, { values: { 'ai.limits.timeout': 30, 'ai.access.requirements': 'read' } }, { 'if-match': v.user.etag })
     expect(ok.status).toBe(200)
     expect(ok.headers.etag).toBe(ok.body.etag)
@@ -47,7 +47,7 @@ describe('settings service', () => {
     }, { 'if-match': v.user.etag })
     expect(r.status).toBe(422)
     expect(Object.keys(r.body.error.details.fields).sort()).toEqual(['ai.ceiling.requirements', 'ai.connection.active', 'ai.limits.timeout', 'ai.made.up', 'ai.sharing.selection'])
-    expect((await values('rui')).effective['ai.limits.tool-calls']).toBe(6)
+    expect((await values('rui')).effective['ai.limits.tool-calls']).toBe(24)
   })
 
   it('lets only the administrator set project ceilings; a person can only narrow them', async () => {

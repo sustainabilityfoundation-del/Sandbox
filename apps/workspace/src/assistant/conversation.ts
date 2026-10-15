@@ -65,8 +65,10 @@ export type ChatMessage =
 
 type AssistantMessage = Extract<ChatMessage, { role: 'assistant' }>
 
-const MAX_STEPS = 8
-const HISTORY_LIMIT = 20
+/** Safety stop for one answer; the server enforces the person's operations-per-answer limit. */
+const MAX_STEPS = 64
+/** Items kept for the request; the server keeps only the person's "Conversation history" setting. */
+const HISTORY_LIMIT = 40
 
 interface ConversationState {
   service: AssistantService | null

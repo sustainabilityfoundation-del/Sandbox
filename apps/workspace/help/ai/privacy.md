@@ -12,7 +12,7 @@ Each request to the provider contains only:
 - instructions describing the assistant's role (no object names or document text in them);
 - your message, with the captured context: project, configuration, scenario, model revision and,
   depending on **Data sharing**, the attached selection (IDs, names, types) and the open tools;
-- the last few messages of the conversation (**Conversation history**, default 6);
+- the last few messages of the conversation (**Conversation history**, default 12);
 - the definitions of the operations you allow;
 - results of operations the model asked for in this answer.
 

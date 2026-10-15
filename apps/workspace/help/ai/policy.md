@@ -15,9 +15,9 @@ outside the list is refused and never runs). The browser only displays the setti
 | --- | --- | --- |
 | Access per module (Shared model and navigation, Requirements, Conceptualize, SysML Modeler, CAD Modeler, Illustrative tools, Help) | AI off, Read only, Read and propose changes | Off: no operations of the module are sent. Read only: reads, searches and calculations, no change previews |
 | Operation classes | Read objects, Search, Run calculations, Propose changes, Export files, Request external generation | A class that is off is never offered, in any module. Request external generation is off by default |
-| Operations per answer | 1–12 (default 6) | After this many operations the model must answer with what it has |
-| Maximum answer length | 256–16000 tokens (default 2000) | Output limit per model call (ChatGPT plan usage applies its own limits) |
-| Request timeout | 10–120 s (default 45) | The server stops waiting and reports a timeout |
+| Operations per answer | 1–60 (default 24) | After this many operations the model must answer with what it has |
+| Maximum answer length | 256–32000 tokens (default 4000) | Output limit per model call (ChatGPT plan usage applies its own limits) |
+| Request timeout | 10–300 s (default 90) | The server stops waiting and reports a timeout |
 
 Modules outside your subscription are never offered, whatever you choose. **Applying** a change always
 needs you, whatever you choose ([previews](help:ai.preview)).
