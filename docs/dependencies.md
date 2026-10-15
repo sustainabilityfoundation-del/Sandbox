@@ -74,3 +74,25 @@ interoperability tests (`npm run req:reqif:samples`, pinned commit).
 | @scalar/api-reference | 1.72.3 | MIT | api (interactive OpenAPI reference, served from the local package; hosted features off) | github.com/scalar/scalar |
 
 Planned (ADR-0014), not installed: Docusaurus, Storybook, TypeDoc.
+
+## CAD Modeler (added 15 October 2026, CAD agent; contracts §3)
+
+| Package | Version | Licence | Used by | Source |
+| --- | --- | --- | --- | --- |
+| replicad | 1.1.0 (released 2026-09-04) | MIT | cad-kernel (TypeScript API over OCCT; runs in the kernel worker) | github.com/sgenoud/replicad |
+| replicad-opencascadejs | 1.1.0 (released 2026-09-04) | LGPL-2.1-only (Open CASCADE Technology, LGPL-2.1 with the OCCT exception) | cad-kernel (OCCT compiled to WebAssembly, `replicad_single.wasm`, loaded at run time) | github.com/sgenoud/replicad (packages/replicad-opencascadejs); OCCT: dev.opencascade.org, github.com/Open-Cascade-SAS/OCCT |
+| flatbush, flatqueue | 4.6.2, 3.1.0 | ISC | transitive (replicad) | github.com/mourner/flatbush |
+| opentype.js, tiny-inflate, string.prototype.codepointat | 1.3.4, 1.0.3, 0.2.1 | MIT | transitive (replicad; text sketches, unused by us) | github.com/opentypejs/opentype.js |
+| three | 0.180.0 | MIT | tool-cad-modeler (3D viewport; same version as glb-viewer) | github.com/mrdoob/three.js |
+| @types/three | 0.180.0 | MIT | tool-cad-modeler (dev) | DefinitelyTyped |
+| ajv, tsx | 8.20.0, 4.23.15 | MIT | cad-core (dev: JSON Schema test, catalogue script) | see above |
+
+LGPL obligations for replicad-opencascadejs (OCCT): the WASM binary stays a separate file fetched by
+the kernel worker (`locateFile`) or read from a path in Node (`createNodeKernel({ wasmPath })`), so
+users can replace it with their own build; our code is not compiled into it. Ship the LGPL-2.1 text
+and the OCCT exception notice with distributions, state that the application uses Open CASCADE
+Technology, point to the exact source (package version above; OCCT version per the build, see
+docs/modules/cad/kernel-selection.md §4), and do not forbid reverse engineering for debugging the
+library. replicad releases 0.5.0–0.15.1 were AGPL-3.0: keep the exact pin at 1.1.0 (MIT).
+Not used: SolveSpace/libslvs (GPL-3), planegcs (LGPL, evaluation only), commercial kernels and
+translators (need approval).
