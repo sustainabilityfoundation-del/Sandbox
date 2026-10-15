@@ -26,6 +26,23 @@ What changed: `contract/quantities.ts` exports the platform unit algebra (`parse
 re-exports it.
 Why: one unit system for Conceptualize, the design reasoning calculation engine and other modules (design
 reasoning CR-S2, ADR-0044); avoids a second, divergent unit library.
+
+Settings contribution (AI connection sprint, docs/specifications/ai-connection.md §5a; additive, same 1.6.0):
+`contract/settings.ts` exports `SettingDefinition` (types boolean | enum | number with unit and range |
+string | secret-reference; `id` namespaced `<module>.<area>.<item>`, label, description, `helpId`, default,
+scope user | project, `requiresPermission?`, `ceiling?` naming a project setting that bounds a user setting,
+`group?`), `SettingsContribution` (one page per module), `SettingsService` (`get`, `subscribe`),
+`SETTING_ID_PATTERN`, `RESERVED_SETTING_NAMESPACES` (`ai.reasoning.*` for the design reasoning layer),
+`checkSettingValue`, `withinCeiling`, `clampToCeiling`, `validateSettingDefinitions` and
+`createMemorySettingsService`. `ToolDefinition.settings?: SettingsContribution`; `ToolApi.settings:
+SettingsService` (read-only effective values); `useSetting(id)` in `@ews/platform-sdk/react`; the harness
+mock host serves the tool's defaults (`createMockHost(tool, { settings })` overrides values). The platform
+renders the pages in the Settings centre (header, beside Help) and stores values in the settings service
+(`/api/settings/v1`), which validates every write with the same functions.
+Migration for tools: none. To contribute settings, add `settings: { page, definitions }` to the tool
+definition and read values with `useSetting`; server validation of a module's values needs its definitions
+registered on the API host (see docs/specifications/ai-connection-progress.md, change requests).
+Validated with: npm run check; npm run build:harnesses
 Migration for tools: none. Use these functions instead of writing unit handling. Further 1.6 additions (settings
 contribution, platform services for SysML and CAD) are recorded below as they land.
 Validated with: npm run check; npm run build:harnesses
