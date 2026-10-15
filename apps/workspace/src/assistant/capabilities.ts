@@ -202,16 +202,50 @@ export const CAPABILITIES: CapabilityEntry[] = [
 /** Assistant operations the platform itself offers (see toolSpecs.ts); listed for completeness checks. */
 export const PLATFORM_OPERATION_ENTRIES = ['read_object', 'search_objects', 'read_relationships', 'read_artifacts', 'read_help', 'propose_changes', 'select_objects', 'open_tool'] as const
 
+/**
+ * Engineering operations (queries, domain changes, jobs, exports, imports, external requests) and view controls
+ * (panels, filters, cameras, selection, windows) are measured separately (integration milestone 1 §4.5): a high
+ * share of covered view controls must not hide gaps in engineering operations, or the reverse.
+ */
+export type CapabilityKind = 'engineering' | 'view'
+
+export function kindOf(entry: CapabilityEntry): CapabilityKind {
+  return entry.effect === 'view' ? 'view' : 'engineering'
+}
+
+export interface KindSummary {
+  total: number
+  /** Not restricted. */
+  eligible: number
+  /** Shared or equivalent. */
+  covered: number
+  coveredShare: number
+}
+
 export interface CoverageSummary {
   total: number
   byCoverage: Record<AiCoverage, number>
   /** Share of non-restricted capabilities the assistant can do fully (shared or equivalent). */
   coveredShare: number
+  engineering: KindSummary
+  view: KindSummary
+}
+
+function kindSummary(entries: CapabilityEntry[]): KindSummary {
+  const eligible = entries.filter((e) => e.coverage !== 'restricted')
+  const covered = eligible.filter((e) => e.coverage === 'shared' || e.coverage === 'equivalent').length
+  return { total: entries.length, eligible: eligible.length, covered, coveredShare: eligible.length ? covered / eligible.length : 0 }
 }
 
 export function summarize(entries: CapabilityEntry[]): CoverageSummary {
   const byCoverage: Record<AiCoverage, number> = { shared: 0, equivalent: 0, partial: 0, none: 0, restricted: 0 }
   for (const entry of entries) byCoverage[entry.coverage]++
   const eligible = entries.length - byCoverage.restricted
-  return { total: entries.length, byCoverage, coveredShare: eligible ? (byCoverage.shared + byCoverage.equivalent) / eligible : 0 }
+  return {
+    total: entries.length,
+    byCoverage,
+    coveredShare: eligible ? (byCoverage.shared + byCoverage.equivalent) / eligible : 0,
+    engineering: kindSummary(entries.filter((e) => kindOf(e) === 'engineering')),
+    view: kindSummary(entries.filter((e) => kindOf(e) === 'view')),
+  }
 }
