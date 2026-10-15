@@ -191,7 +191,17 @@ export function getClient(): SysmlClient | undefined {
   return client
 }
 
-/** The shared session for a platform project (views and assistant actions use the same one). */
+/** The session of a platform project if a view opened one; never creates one (headless callers). */
+export function existingSession(platformProjectId: string): ModelerSession | undefined {
+  return sessions.get(platformProjectId)
+}
+
+/** Number of sessions (views) opened in this process (tests of headless operation). */
+export function sessionCount(): number {
+  return sessions.size
+}
+
+/** The shared session for a platform project (views use it; assistant actions only refresh an open one). */
 export function sessionFor(platformProjectId: string): ModelerSession | undefined {
   if (!client) return undefined
   let s = sessions.get(platformProjectId)
