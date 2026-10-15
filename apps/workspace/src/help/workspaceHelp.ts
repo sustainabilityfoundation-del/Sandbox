@@ -3,6 +3,8 @@ import type { AnyToolDefinition } from '@ews/platform-sdk/react'
 import { create } from 'zustand'
 import { canOpenTool } from '../platform/entitlements'
 import { getTools } from '../platform/registry'
+import { getPlatformModules, platformModuleIncluded } from '../platform/platformModules'
+import type { PlatformModuleContribution } from '@ews/platform-sdk'
 import { createHelpService, type HelpModuleSource } from './helpService'
 import { aiHelp, platformHelp } from './manifests'
 
@@ -42,9 +44,20 @@ function sourceFor(tool: AnyToolDefinition): HelpModuleSource {
   return s
 }
 
-/** Modules whose help can be listed: the platform's own, then every registered tool. */
+const moduleSources = new Map<PlatformModuleContribution, HelpModuleSource>()
+function moduleSourceFor(m: PlatformModuleContribution): HelpModuleSource {
+  let s = moduleSources.get(m)
+  if (!s) {
+    // Headless platform modules (SDK 1.8): listed like tools, filtered by their entitlement.
+    s = { moduleId: m.id, displayName: m.name, moduleVersion: m.help?.moduleVersion ?? '0.0.0', manifest: m.help, available: () => platformModuleIncluded(m) }
+    moduleSources.set(m, s)
+  }
+  return s
+}
+
+/** Modules whose help can be listed: the platform's own, every registered tool, then headless platform modules. */
 export function helpSources(): HelpModuleSource[] {
-  return [...platformSources.slice(0, 1), ...getTools().map(sourceFor), ...platformSources.slice(1)]
+  return [...platformSources.slice(0, 1), ...getTools().map(sourceFor), ...getPlatformModules().filter((m) => m.help).map(moduleSourceFor), ...platformSources.slice(1)]
 }
 
 /** Opens the Help Centre at a topic, or at the best topic for a context, with a fallback notice. */
