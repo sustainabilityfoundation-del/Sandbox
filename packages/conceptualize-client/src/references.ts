@@ -1,4 +1,4 @@
-import type { ProjectsService } from '@ews/platform-sdk'
+import type { CadService, ProjectsService, SysmlModelService } from '@ews/platform-sdk'
 
 /**
  * Resolution of references to the real modules (integration milestone 1, C3 and C5):
@@ -130,4 +130,49 @@ export function createSysmlModelerReferenceAdapter(options: { baseUrl: string; d
       }
     },
   }
+}
+
+/** SDK 1.8 read client of the SysML Modeler (`PlatformServices.sysml`). */
+export function createSysmlServicePort(sysml: SysmlModelService): ReferencePort {
+  return {
+    name: 'SysML Modeler (SDK read client)',
+    adapter: false,
+    supports: (ref) => ref.module === 'sysml' && referenceKind(ref) === 'sysml-model-element',
+    async resolve(projectId, ref) {
+      try {
+        const [r] = await sysml.resolve(projectId, [{ module: 'sysml', kind: 'sysml-model-element', id: ref.id, ...(ref.revision ? { revision: ref.revision } : {}) }])
+        if (!r || r.status === 'missing') return { state: 'missing', detail: 'The SysML Modeler has no such element in this project (or at that commit).' }
+        if (r.status === 'forbidden') return { state: 'unavailable', detail: 'You may not read the SysML Modeler here (entitlement or membership).' }
+        const e = r.element
+        return { state: 'found', label: `${e.name ?? e.shortName ?? e.elementId} (${e.metaclass})`, latest: e.latestRevision }
+      } catch (err) {
+        return { state: 'unavailable', detail: `SysML Modeler not reachable: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    },
+  }
+}
+
+/** SDK 1.8 read client of the CAD Modeler (`PlatformServices.cad`). */
+export function createCadServicePort(cad: CadService): ReferencePort {
+  return {
+    name: 'CAD Modeler (SDK read client)',
+    adapter: false,
+    supports: (ref) => ref.module === 'cad' && referenceKind(ref) === 'cad-modeler-entity',
+    async resolve(projectId, ref) {
+      try {
+        const r = await cad.summary(projectId, { module: 'cad', kind: 'cad-modeler-entity', id: ref.id, ...(ref.revision ? { revision: ref.revision } : {}) })
+        if (r.status === 'missing') return { state: 'missing', detail: r.message }
+        if (r.status === 'unavailable') return { state: 'unavailable', detail: r.message }
+        const v = r.value
+        return { state: 'found', label: `${v.label} (${v.entityType}, ${v.documentTitle})${v.archived ? ', archived' : ''}`, latest: v.latestRevision, ...(v.verifiedInGeometry ? {} : { detail: 'Named in the model; only regeneration confirms it in the geometry.' }) }
+      } catch (err) {
+        return { state: 'unavailable', detail: `CAD Modeler not reachable: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    },
+  }
+}
+
+/** Ports in order: SDK read clients, then the Project Management registry, then injected adapters. */
+export function referencePortsFor(services: { sysml?: SysmlModelService; cad?: CadService; projects?: ProjectsService }, extra: readonly ReferencePort[] = []): ReferencePort[] {
+  return [...(services.sysml ? [createSysmlServicePort(services.sysml)] : []), ...(services.cad ? [createCadServicePort(services.cad)] : []), ...(services.projects ? [createRegistryReferencePort(services.projects)] : []), ...extra]
 }

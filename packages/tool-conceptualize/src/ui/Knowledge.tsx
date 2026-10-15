@@ -801,12 +801,59 @@ export function DecisionRationale({ d }: { d: Decision }) {
 
 // ---- evidence: reviews -------------------------------------------------------------------------------------------------
 
+/** C11: how a result value is qualified. A sampled range is never presented as proven. */
+export function qualificationLabel(q: { kind: string; quality?: string }): string {
+  if (q.kind === 'point') return 'point value'
+  if (q.kind === 'sampled-range') return 'sampled range (not proven)'
+  return q.quality === 'exact' ? 'bounds (exact)' : 'bounds (enclosure)'
+}
+const STATUS_TONE: Record<string, 'success' | 'danger' | 'warning'> = { satisfied: 'success', violated: 'danger', uncertain: 'warning' }
+const STATUS_TITLE: Record<string, string> = {
+  satisfied: 'Computed by Conceptualize from the constraint bound: holds for the whole value set. A measurement, not a verification.',
+  violated: 'Computed by Conceptualize from the constraint bound: fails.',
+  uncertain: 'Not decided for the whole range (for example a sampled range): not shown as satisfied.',
+}
+
+/** Tool, source revision and results of an evidence record (D1, ADR-0070 item 3). */
+export function EvidenceResults({ e }: { e: Evidence }) {
+  const results = e.results ?? []
+  if (!results.length && !e.tool) return null
+  const src = e.source as { module?: string; id?: string; revision?: number; label?: string } | null | undefined
+  return (
+    <div className="con-stack" data-help-id="conceptualize.evidence.results">
+      <p className="con-muted">
+        {e.tool ? `Produced by ${e.tool.name} ${e.tool.version}` : 'Tool not recorded'}
+        {src?.id ? ` on ${src.label ?? `${src.module} ${src.id}`}${src.revision ? ` at revision ${src.revision}` : ' (latest revision, not pinned)'}` : ''}. Measured or computed values only; not a claim of adequacy, safety or compliance.
+      </p>
+      <ul className="con-rel-list">
+        {results.map((r, i) => (
+          <li key={i}>
+            <span>
+              {r.name}: <strong>{r.qualification.kind === 'point' ? formatQuantity({ value: r.value, unit: r.unit }) : formatQuantity({ min: r.min, max: r.max, unit: r.unit })}</strong>
+            </span>
+            <Badge tone="neutral">{qualificationLabel(r.qualification)}</Badge>
+            {r.constraint && <RefButton target={r.constraint} label={`vs constraint rev ${r.constraint.revision ?? '—'}`} />}
+            {r.status && (
+              <Badge tone={STATUS_TONE[r.status]} title={STATUS_TITLE[r.status]}>
+                {r.status}
+              </Badge>
+            )}
+            {r.margin != null && <span className="con-muted">margin {formatQuantity({ value: r.margin, unit: r.marginUnit ?? r.unit })}</span>}
+            {r.note && <span className="con-muted">{r.note}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export function EvidenceReviewControl({ e }: { e: Evidence }) {
   const { client, can, permissions } = useModuleData()
   const [note, setNote] = useState('')
   const { error, busy, run } = useRun()
   return (
     <div className="con-stack" data-help-id="conceptualize.evidence.review">
+      <EvidenceResults e={e} />
       <div className="con-row">
         {e.validationStatus && <Badge tone={e.validationStatus === 'accepted' ? 'success' : e.validationStatus === 'rejected' ? 'danger' : 'neutral'} title="Independent review of this record">{e.validationStatus}</Badge>}
         {e.manifest && <Badge tone="info" title="A reproducibility manifest is recorded">manifest</Badge>}

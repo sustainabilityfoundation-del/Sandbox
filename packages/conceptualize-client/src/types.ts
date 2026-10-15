@@ -3,7 +3,7 @@
  * /api/concepts/v1/openapi.json (source: services/conceptualize/src/http/schemas.ts).
  */
 import type { ArtifactModule, ConceptAbstraction, ConceptMaturity } from '@ews/platform-sdk'
-import type { AnyRef, DecisionValidity, DesignRef, EvidenceReview, InvalidationCondition, PinRef, ReviewFlagRecord, SupportRef } from './designTypes'
+import type { AnyRef, DecisionValidity, DesignRef, EvidenceResult, EvidenceResultInput, EvidenceReview, InvalidationCondition, PinRef, ReviewFlagRecord, SupportRef, ToolInfo } from './designTypes'
 export type * from './designTypes'
 
 /** Basis ladder (ADR-0043), lowest to highest: ai-hypothesis, assumption / user-assertion, assessment, estimate, calculated, evidence, decision. */
@@ -469,6 +469,9 @@ export interface Evidence {
   assumptionIds?: string[]
   reviews?: EvidenceReview[]
   validationStatus?: 'unreviewed' | 'accepted' | 'rejected'
+  /** D1: tool that produced the results (ADR-0070) and the results with their C11 qualification. */
+  tool?: ToolInfo | null
+  results?: EvidenceResult[]
 }
 
 export type EvidenceBasis = 'ai-hypothesis' | 'assumption' | 'assessment' | 'estimate' | 'calculated' | 'evidence'
@@ -490,6 +493,8 @@ export interface EvidenceCreate {
   manifest?: Record<string, unknown>
   source?: AnyRef
   assumptionIds?: string[]
+  tool?: ToolInfo
+  results?: EvidenceResultInput[]
 }
 
 export interface ImplementationArtifact {

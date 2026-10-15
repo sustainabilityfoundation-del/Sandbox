@@ -1,7 +1,7 @@
 import { Badge, Button, ComboBox, EmptyState, Notice, Select, TextField, type Tone } from '@ews/design-system'
 import type { ArtifactModule, ModelIndex, PlatformServices } from '@ews/platform-sdk'
 import { useModel, usePlatformServices, useSharedContext } from '@ews/platform-sdk/react'
-import { createRegistryReferencePort, isLegacyTwinReference, isRealModuleReference, referenceKind, scopedId, type ArtifactRefInput, type Concept, type Implementation, type ImplementationArtifact, type ReferencePort } from '@ews/conceptualize-client'
+import { referencePortsFor, isLegacyTwinReference, isRealModuleReference, referenceKind, scopedId, type ArtifactRefInput, type Concept, type Implementation, type ImplementationArtifact, type ReferencePort } from '@ews/conceptualize-client'
 import { registeredReferencePorts } from '../references'
 import { useEffect, useMemo, useState } from 'react'
 import { useModuleData, useResource } from '../data'
@@ -12,7 +12,7 @@ import { EvidenceForm, VerificationControl } from './EvidenceForm'
 
 // ---- stale and broken link detection (contracts §9: client-side through the SDK and the model index) ----
 
-export type LinkState = 'current' | 'stale' | 'broken' | 'follows-latest' | 'test-adapter' | 'unchecked'
+export type LinkState = 'current' | 'stale' | 'broken' | 'follows-latest' | 'test-adapter' | 'unchecked' | 'module-unavailable'
 export interface LinkStatus {
   state: LinkState
   detail: string
@@ -22,26 +22,26 @@ export interface LinkStatus {
   /** A legacy twin object of the illustrative tools (PRJ-ACT100 demo data). */
   demo?: boolean
 }
-export const LINK_TONE: Record<LinkState, Tone> = { current: 'success', stale: 'warning', broken: 'danger', 'follows-latest': 'neutral', 'test-adapter': 'warning', unchecked: 'neutral' }
-export const LINK_LABEL: Record<LinkState, string> = { current: 'Current', stale: 'Changed since linked', broken: 'Not found', 'follows-latest': 'Follows latest', 'test-adapter': 'Test adapter', unchecked: 'Not checked' }
+export const LINK_TONE: Record<LinkState, Tone> = { current: 'success', stale: 'warning', broken: 'danger', 'follows-latest': 'neutral', 'test-adapter': 'warning', unchecked: 'neutral', 'module-unavailable': 'neutral' }
+export const LINK_LABEL: Record<LinkState, string> = { current: 'Current', stale: 'Changed since linked', broken: 'Not found', 'follows-latest': 'Follows latest', 'test-adapter': 'Test adapter', unchecked: 'Not checked', 'module-unavailable': 'Module unavailable' }
 
 const TWIN_MODULES: ArtifactModule[] = ['sysml', 'cad', 'twin']
 
 /** Status of a version-aware reference: compared with the owning module's current revision. */
-/** Ports for real-module references: the Project Management registry first, then injected adapters. */
+/** Ports for real-module references: SDK 1.8 read clients, the Project Management registry, then injected adapters. */
 function portsFor(services: PlatformServices): ReferencePort[] {
-  return [...(services.projects ? [createRegistryReferencePort(services.projects)] : []), ...registeredReferencePorts()]
+  return referencePortsFor(services, registeredReferencePorts())
 }
 
 export async function checkArtifact(ref: { module: ArtifactModule; id: string; revision?: number | null; kind?: string | null }, ctx: { model: ModelIndex; services: PlatformServices; projectId: string }): Promise<LinkStatus> {
   if (isRealModuleReference(ref)) {
     const kind = referenceKind(ref)
     const port = portsFor(ctx.services).find((p) => p.supports(ref))
-    if (!port) return { state: 'unchecked', detail: `No read client for ${kind} references here yet (SysML and CAD Modeler read clients arrive with SDK 1.8; Project Management registry not available).` }
+    if (!port) return { state: 'module-unavailable', detail: `The module that owns ${kind} references is not available here (no read client in this host). The reference is kept.` }
     const via = { name: port.name, adapter: port.adapter }
     const r = await port.resolve(ctx.projectId, ref)
     if (r.state === 'missing') return { state: 'broken', detail: r.detail ?? 'Not found in the owning module. The Concept stays valid; relink or remove the reference.', via }
-    if (r.state === 'unavailable') return { state: 'unchecked', detail: r.detail ?? 'The owning module cannot be checked now.', via }
+    if (r.state === 'unavailable') return { state: 'module-unavailable', detail: r.detail ?? 'The owning module cannot be checked now. The reference is kept.', via }
     const label = r.label ?? ref.id
     if (!ref.revision || r.latest === undefined) return { state: 'follows-latest', detail: `${label}${r.latest !== undefined ? ` (rev ${r.latest})` : ''}${r.detail ? `. ${r.detail}` : ''}`, latest: r.latest, via }
     if (r.latest > ref.revision) return { state: 'stale', detail: `${label}: revision ${r.latest}, linked at ${ref.revision}.${port.adapter ? ' The adapter compares model revisions; the entity itself may be unchanged.' : ''}`, latest: r.latest, via }
@@ -51,14 +51,14 @@ export async function checkArtifact(ref: { module: ArtifactModule; id: string; r
   if (ref.module === 'external') return { state: 'unchecked', detail: 'External references are not checked automatically.' }
   if (ref.module === 'requirements') {
     const svc = ctx.services.requirements
-    if (!svc) return { state: 'unchecked', detail: 'The Requirements service is not available here.' }
+    if (!svc) return { state: 'module-unavailable', detail: 'The Requirements service is not available here. The reference is kept.' }
     try {
       const r = await svc.get(ref.id, { projectId: ctx.projectId })
       if (!r) return { state: 'broken', detail: 'The requirement no longer exists in Requirements (or is not visible to you).' }
       if (!ref.revision) return { state: 'follows-latest', detail: `${r.key} rev ${r.revision}`, latest: r.revision }
       return r.revision > ref.revision ? { state: 'stale', detail: `${r.key} is at revision ${r.revision}; linked at ${ref.revision}.`, latest: r.revision } : { state: 'current', detail: `${r.key} rev ${r.revision}`, latest: r.revision }
     } catch (e) {
-      return { state: 'unchecked', detail: `Requirements not reachable: ${e instanceof Error ? e.message : String(e)}` }
+      return { state: 'module-unavailable', detail: `Requirements not reachable: ${e instanceof Error ? e.message : String(e)}` }
     }
   }
   if (TWIN_MODULES.includes(ref.module) && isLegacyTwinReference(ref)) {

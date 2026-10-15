@@ -240,25 +240,57 @@ describe('decision and evidence extensions (CR-C5, CR-C6)', () => {
     expect(cleared.body).toMatchObject({ validity: 'valid', reviewFlags: [{ reason: 'Assumption revised', cleared: expect.objectContaining({ by: 'rui', note: 'Still within the margin' }) }] })
   })
 
-  it('needs a manifest for calculated evidence, refuses it from the assistant, and reviews evidence independently', async () => {
+  it('refuses calculated evidence it cannot re-verify (D6) and reviews evidence independently', async () => {
     const c = await concept('Calculated subject')
-    expect((await post('/evidence', { conceptId: c.id, kind: 'calculation', title: 'No manifest', basis: 'calculated' })).status).toBe(422)
     const manifest = { solver: 'hand', inputs: { F: '500 N' }, version: '1' }
+    const forged = await post('/evidence', { conceptId: c.id, kind: 'calculation', title: 'Forged calc', basis: 'calculated', manifest })
+    expect(forged.status).toBe(422)
+    expect(forged.body.error.details.fields.basis).toMatch(/re-verify/)
     expect((await post('/evidence', { conceptId: c.id, kind: 'calculation', title: 'AI calc', basis: 'calculated', manifest }, 'eli', assistant())).status).toBe(422)
-    const calc = await post('/evidence', { conceptId: c.id, kind: 'calculation', title: 'Buckling check', basis: 'calculated', manifest })
-    expect(calc.status).toBe(201)
-    expect(calc.body).toMatchObject({ basis: 'calculated', manifest, validationStatus: 'unreviewed' })
-    await expectConforms(env, 'getEvidence', 200, (await get(`/evidence/${calc.body.id}`)).body)
+    const est = await post('/evidence', { conceptId: c.id, kind: 'calculation', title: 'Buckling estimate', basis: 'estimate', manifest })
+    expect(est.status).toBe(201)
+    expect(est.body).toMatchObject({ basis: 'estimate', validationStatus: 'unreviewed', results: [], tool: null })
+    await expectConforms(env, 'getEvidence', 200, (await get(`/evidence/${est.body.id}`)).body)
     // The author cannot review their own evidence; a reviewer can; the assistant cannot.
-    expect((await post(`/evidence/${calc.body.id}/reviews`, { outcome: 'accepted' }, 'eli')).status).toBe(403)
-    expect((await post(`/evidence/${calc.body.id}/reviews`, { outcome: 'accepted' }, 'rui', assistant())).status).toBe(403)
-    const rev = await post(`/evidence/${calc.body.id}/reviews`, { outcome: 'accepted', method: 'Independent hand check' }, 'rui')
+    expect((await post(`/evidence/${est.body.id}/reviews`, { outcome: 'accepted' }, 'eli')).status).toBe(403)
+    expect((await post(`/evidence/${est.body.id}/reviews`, { outcome: 'accepted' }, 'rui', assistant())).status).toBe(403)
+    const rev = await post(`/evidence/${est.body.id}/reviews`, { outcome: 'accepted', method: 'Independent hand check' }, 'rui')
     expect(rev.status).toBe(200)
-    expect((await get(`/evidence/${calc.body.id}`)).body).toMatchObject({ validationStatus: 'accepted', reviews: [{ reviewer: 'rui', outcome: 'accepted' }] })
-    // A statement with basis calculated must cite calculated or verified evidence.
-    expect((await env.call('eli', 'PATCH', `${BASE}/concepts/${c.id}`, { expectedRevision: 1, statements: [{ kind: 'performance', text: 'Margin', basis: 'calculated' }] })).status).toBe(422)
-    const ok = await env.call('eli', 'PATCH', `${BASE}/concepts/${c.id}`, { expectedRevision: 1, statements: [{ kind: 'performance', text: 'Margin', basis: 'calculated', evidenceId: calc.body.id }] })
-    expect(ok.status).toBe(200)
+    expect((await get(`/evidence/${est.body.id}`)).body).toMatchObject({ validationStatus: 'accepted', reviews: [{ reviewer: 'rui', outcome: 'accepted' }] })
+    // A statement with basis calculated must cite calculated or verified evidence; an estimate is not enough.
+    expect((await env.call('eli', 'PATCH', `${BASE}/concepts/${c.id}`, { expectedRevision: 1, statements: [{ kind: 'performance', text: 'Margin', basis: 'calculated', evidenceId: est.body.id }] })).status).toBe(422)
+  })
+
+  it('records check results with C11 qualifications and computes their status from the pinned constraint bound (D1)', async () => {
+    const c = await concept('Checked part')
+    const envelope = (await post('/constraints', { kind: 'dimensional', statement: 'Length within 100 mm', bound: { symbol: 'L', operator: '<=', quantity: { value: 100, unit: 'mm' } }, subjects: [ref('concept', c.id)], status: 'active' })).body
+    const wall = (await post('/constraints', { kind: 'dimensional', statement: 'Wall at least 2 mm', bound: { symbol: 't', operator: '>=', quantity: { value: 2, unit: 'mm' } }, subjects: [ref('concept', c.id)], status: 'active' })).body
+    const source = { module: 'cad', kind: 'cad-modeler-entity', id: '7e57c0de-0000-4000-8000-00000000cad1/7e57c0de-0000-4000-8000-00000000cad1', revision: 3, label: 'Holder document rev 3' }
+    const tool = { name: 'CAD Modeler check (Open CASCADE)', version: '7.8.1' }
+    const results = [
+      { name: 'Bounding length', value: 9.4, unit: 'cm', qualification: { kind: 'point' }, constraint: ref('constraint', envelope.id) },
+      { name: 'Minimum wall', value: 1.5, unit: 'mm', qualification: { kind: 'point' }, constraint: { id: wall.id } },
+      { name: 'Wall over pockets (sampled)', min: 2.1, max: 3, unit: 'mm', qualification: { kind: 'sampled-range' }, constraint: ref('constraint', wall.id) },
+      { name: 'Wall over pockets (proven)', min: 2.1, max: 3, unit: 'mm', qualification: { kind: 'bounds', quality: 'enclosure' }, constraint: ref('constraint', wall.id) },
+      { name: 'Volume', value: 41200, unit: 'mm^3', qualification: { kind: 'point' } },
+    ]
+    const ev = await post('/evidence', { subjects: [ref('concept', c.id), ref('constraint', envelope.id), ref('constraint', wall.id)], kind: 'analysis', title: 'CAD check of the holder', basis: 'estimate', source, tool, results }, 'eli', assistant())
+    expect(ev.status, JSON.stringify(ev.body)).toBe(201)
+    await expectConforms(env, 'getEvidence', 200, (await get(`/evidence/${ev.body.id}`)).body)
+    expect(ev.body.tool).toEqual(tool)
+    expect(ev.body.source).toMatchObject({ module: 'cad', revision: 3 })
+    expect(ev.body.results.map((r: { status: string | null }) => r.status)).toEqual(['satisfied', 'violated', 'uncertain', 'satisfied', null])
+    expect(ev.body.results[0]).toMatchObject({ qualification: { kind: 'point' }, constraint: { type: 'constraint', id: envelope.id, revision: 1 }, marginUnit: 'mm' })
+    expect(ev.body.results[0].margin).toBeCloseTo(6, 9)
+    expect(ev.body.results[1].margin).toBeCloseTo(-0.5, 9)
+    expect(ev.body.provenance.sourceKind).toBe('assistant')
+    // A status that contradicts the bound is refused; results need a pinned source and the tool.
+    expect((await post('/evidence', { subjects: [ref('concept', c.id)], kind: 'analysis', title: 'x', basis: 'estimate', source, tool, results: [{ ...results[1], status: 'satisfied' }] })).status).toBe(422)
+    expect((await post('/evidence', { subjects: [ref('concept', c.id)], kind: 'analysis', title: 'x', basis: 'estimate', source: { ...source, revision: undefined }, tool, results })).status).toBe(422)
+    expect((await post('/evidence', { subjects: [ref('concept', c.id)], kind: 'analysis', title: 'x', basis: 'estimate', source, results })).status).toBe(422)
+    expect((await post('/evidence', { subjects: [ref('concept', c.id)], kind: 'analysis', title: 'x', basis: 'estimate', source, tool, results: [{ ...results[0], unit: 'kg' }] })).status).toBe(422)
+    // The assistant never records verified evidence.
+    expect((await post('/evidence', { subjects: [ref('concept', c.id)], kind: 'analysis', title: 'x', basis: 'evidence', source, tool, results, artifact: { module: 'twin', id: 'OUT-001' } }, 'eli', assistant())).status).toBe(422)
   })
 })
 

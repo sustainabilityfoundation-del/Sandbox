@@ -1,5 +1,5 @@
 import { ActionError, argOptionalString, argString, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposalItem } from '@ews/platform-sdk'
-import { createRegistryReferencePort, draftConcept, isLegacyTwinReference, isRealModuleReference, referenceKind, scopedId } from '@ews/conceptualize-client'
+import { draftConcept, referencePortsFor, isLegacyTwinReference, isRealModuleReference, referenceKind, scopedId } from '@ews/conceptualize-client'
 import type { ArtifactModule } from '@ews/platform-sdk'
 import { registeredReferencePorts } from './references'
 import { designActions, designDemo } from './assistantDesign'
@@ -251,14 +251,14 @@ const conceptActions: AssistantActionDefinition[] = [
       let resolved: { label: string; latest?: number; via: string; adapter: boolean } | undefined
       const notes: string[] = []
       if (isRealModuleReference(target)) {
-        const port = [...(ctx.services?.projects ? [createRegistryReferencePort(ctx.services.projects)] : []), ...registeredReferencePorts()].find((p) => p.supports(target))
+        const port = referencePortsFor(ctx.services ?? {}, registeredReferencePorts()).find((p) => p.supports(target))
         if (port) {
           const r = await port.resolve(projectId, target)
           if (r.state === 'missing') throw new ActionError('not-found', `${artifactId} was not found: ${r.detail ?? 'the owning module does not have it'}`)
           if (r.state === 'found') resolved = { label: r.label ?? artifactId, latest: r.latest, via: port.name, adapter: port.adapter }
-          else notes.push(`Not checked: ${r.detail ?? 'the owning module is not available'}.`)
+          else notes.push(`Module unavailable, not checked: ${r.detail ?? 'the owning module is not available'}. The reference is kept.`)
           if (port.adapter) notes.push(`Checked through ${port.name}.`)
-        } else notes.push(`Not checked: no read client for ${target.kind} references yet (SDK 1.8).`)
+        } else notes.push(`Module unavailable: no read client for ${target.kind} references in this host. The reference is kept.`)
       } else if (isLegacyTwinReference(target)) {
         if (projectId !== 'PRJ-ACT100') throw new ActionError('invalid-arguments', `${artifactId} is a twin object of the illustrative tools (PRJ-ACT100 demo). Reference a SysML Modeler element as <projectId>/<elementId>, a CAD Modeler entity as <documentUuid>/<entityId> or a product element by UUID.`)
         object = ctx.model.get(artifactId)

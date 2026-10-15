@@ -1,3 +1,4 @@
+import type { BoundLike } from '../domain/checks'
 import { randomUUID } from 'node:crypto'
 import { conflict, forbidden, invalid, notFound } from '../errors'
 import { KEY_PREFIX, roleAllows } from '../domain/rules'
@@ -80,6 +81,8 @@ interface EvidenceRow {
   conversation_id: string | null
   proposal_id: string | null
   applicability: Record<string, unknown>
+  tool: { name: string; version: string } | null
+  results: EvidenceDto['results']
   manifest: Record<string, unknown> | null
   source: EvidenceDto['source']
   assumption_ids: string[]
@@ -121,6 +124,8 @@ async function toEvidenceDtos(db: Queryable, rows: EvidenceRow[]): Promise<Evide
       subjects: subjects.filter((s) => s.evidence_id === r.id).map((s) => ({ module: 'conceptualize' as const, type: s.subject_type as never, id: s.subject_id, ...(s.subject_revision ? { revision: s.subject_revision } : {}) })),
       applicability: r.applicability,
       manifest: r.manifest,
+      tool: r.tool ?? null,
+      results: r.results ?? [],
       source: r.source,
       assumptionIds: r.assumption_ids,
       reviews: rv.map((x) => ({ id: x.id, outcome: x.outcome, method: x.method, note: x.note, reviewer: x.reviewer, reviewedAt: isoRequired(x.reviewed_at) })),
@@ -151,6 +156,56 @@ export async function listEvidence(db: Queryable, projectId: string, subjectId?:
  * evidence (basis evidence) needs an artifact reference and a person. Subjects may be any design records;
  * conceptId stays supported as the first subject.
  */
+type ResultIn = NonNullable<EvidenceCreateDto['results']>[number]
+type ResultOut = EvidenceDto['results'][number]
+
+/** Pins constraint references and computes each result's status from the constraint bound (domain/checks.ts). */
+async function checkResults(ctx: Ctx, results: ResultIn[], errors: Record<string, string>): Promise<ResultOut[]> {
+  const { checkAgainstBound } = await import('../domain/checks')
+  const out: ResultOut[] = []
+  for (const [i, r] of results.entries()) {
+    const path = `results.${i}`
+    let constraint: ResultOut['constraint'] = null
+    let status: ResultOut['status'] = null
+    let margin: number | null = null
+    let marginUnit: string | null = null
+    if (r.qualification.kind === 'point' && r.value == null) errors[`${path}.value`] = 'a point result needs a value'
+    if (r.qualification.kind !== 'point' && (r.min == null || r.max == null)) errors[`${path}.min`] = 'a range result needs min and max'
+    if (r.qualification.kind === 'bounds' && !r.qualification.quality) errors[`${path}.qualification.quality`] = 'bounds are exact or enclosure'
+    if (r.qualification.kind !== 'bounds' && r.qualification.quality) errors[`${path}.qualification.quality`] = 'quality applies to bounds only'
+    const qp = quantityProblem({ value: r.value ?? null, min: r.min ?? null, max: r.max ?? null, unit: r.unit })
+    if (qp) errors[`${path}.unit`] = qp
+    if (r.constraint) {
+      const ref = r.constraint as { type?: string; id: string; revision?: number }
+      if (ref.type && ref.type !== 'constraint') errors[`${path}.constraint`] = 'a constraint reference'
+      else {
+        const { rows } = await ctx.db.query<{ current_revision: number; bound: BoundLike | null; revision: number }>(
+          `SELECT c.current_revision, v.bound, v.revision FROM conceptualize.design_constraints c JOIN conceptualize.constraint_revisions v ON v.constraint_id = c.id AND v.revision = COALESCE($3, c.current_revision) WHERE c.id::text = $1 AND c.project_id = $2`,
+          [ref.id, ctx.projectId, ref.revision ?? null],
+        )
+        if (!rows[0]) errors[`${path}.constraint`] = ref.revision ? `constraint revision ${ref.revision} not found` : 'constraint not found in this project'
+        else {
+          constraint = { module: 'conceptualize', type: 'constraint', id: ref.id, revision: rows[0].revision }
+          if (rows[0].bound) {
+            try {
+              const o = checkAgainstBound(r, r.qualification, rows[0].bound)
+              status = o.status
+              margin = o.margin ?? null
+              marginUnit = o.margin !== undefined ? o.unit : null
+            } catch (e) {
+              errors[`${path}`] = e instanceof Error ? e.message : String(e)
+            }
+          }
+        }
+      }
+    }
+    if (r.status && status && r.status !== status) errors[`${path}.status`] = `the bound gives ${status}; status is computed by the service from the constraint`
+    if (r.status && !r.constraint) errors[`${path}.status`] = 'a status needs the constraint it is checked against'
+    out.push({ name: r.name.trim(), value: r.value ?? null, min: r.min ?? null, max: r.max ?? null, unit: r.unit, qualification: r.qualification, constraint, status, margin, marginUnit, note: (r.note ?? '').trim() })
+  }
+  return out
+}
+
 export async function createEvidence(ctx: Ctx, input: EvidenceCreateDto): Promise<EvidenceDto> {
   const subjects = [...(input.subjects ?? [])]
   if (input.conceptId && !subjects.some((s) => s.type === 'concept' && s.id === input.conceptId)) subjects.unshift({ module: 'conceptualize', type: 'concept', id: input.conceptId })
@@ -162,10 +217,17 @@ export async function createEvidence(ctx: Ctx, input: EvidenceCreateDto): Promis
   const errors: Record<string, string> = {}
   if (ctx.provenance.sourceKind === 'assistant' && input.basis === 'evidence') errors.basis = 'the assistant cannot record verified evidence; it records estimates or hypotheses'
   if (input.basis === 'evidence' && !input.artifact) errors.artifact = 'verified evidence references the authoritative result (artifact) in its owning module'
-  // ADR-0043: calculated evidence carries its reproducibility manifest; the assistant may not assert it until
-  // the service re-verifies manifests with the calculation engine (CR-C8, next sprint).
-  if (input.basis === 'calculated' && !input.manifest) errors.manifest = 'calculated evidence needs its reproducibility manifest'
-  if (input.basis === 'calculated' && ctx.provenance.sourceKind === 'assistant') errors.basis = 'the assistant cannot record calculated evidence until manifests are re-verified by the service (CR-C8)'
+  // Finding D6: a manifest the service cannot re-verify could be forged, so basis calculated is refused until
+  // calculation models (CR-C8) let the service re-evaluate it. Record the result as estimate or assessment.
+  if (input.basis === 'calculated') errors.basis = 'calculated evidence needs a calculation the service can re-verify (calculation models, CR-C8, are not available yet); record it as estimate or assessment'
+  if (ctx.provenance.sourceKind === 'assistant' && !['ai-hypothesis', 'assumption', 'assessment', 'estimate', 'calculated'].includes(input.basis)) errors.basis = 'the assistant records evidence as ai-hypothesis, assumption, assessment or estimate'
+  // ADR-0070 item 3: results identify the revision and tool they were produced with.
+  const results = await checkResults(ctx, input.results ?? [], errors)
+  if (results.length) {
+    const src = input.source as { module?: string; revision?: number } | undefined
+    if (!src || src.module === 'conceptualize' || !src.revision) errors.source = 'results need the source artifact with its revision (for example the CAD document revision)'
+    if (!input.tool) errors.tool = 'results need the tool name and version'
+  }
   if (input.artifact) {
     const p = artifactProblem(input.artifact)
     if (p) errors.artifact = p
@@ -196,8 +258,8 @@ export async function createEvidence(ctx: Ctx, input: EvidenceCreateDto): Promis
   const key = await nextKey(ctx, KEY_PREFIX.evidence, 'evidence')
   const [sourceKind, conversationId, proposalId] = prov(ctx)
   await ctx.db.query(
-    `INSERT INTO conceptualize.evidence (id, project_id, key, concept_id, concept_revision, kind, title, summary, basis, method, inputs, outputs, assumptions, artifact, supersedes_id, created_at, created_by, source_kind, conversation_id, proposal_id, applicability, manifest, source, assumption_ids)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+    `INSERT INTO conceptualize.evidence (id, project_id, key, concept_id, concept_revision, kind, title, summary, basis, method, inputs, outputs, assumptions, artifact, supersedes_id, created_at, created_by, source_kind, conversation_id, proposal_id, applicability, manifest, source, assumption_ids, tool, results)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
     [
       id,
       ctx.projectId,
@@ -223,6 +285,8 @@ export async function createEvidence(ctx: Ctx, input: EvidenceCreateDto): Promis
       input.manifest ? JSON.stringify(input.manifest) : null,
       input.source ? JSON.stringify(input.source) : null,
       input.assumptionIds ?? [],
+      input.tool ? JSON.stringify(input.tool) : null,
+      JSON.stringify(results),
     ],
   )
   for (const s of subjects) {

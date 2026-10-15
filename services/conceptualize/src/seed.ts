@@ -378,6 +378,9 @@ async function seedCompactActuator(ctx: Ctx) {
   })
 }
 
+/** Fixed IDs of the seeded design constraints (fresh databases; existing development databases keep theirs). */
+export const CONSTRAINT_SEED_IDS = { envelope: 'c57c0000-0000-4000-8000-000000000001', load: 'c57c0000-0000-4000-8000-000000000002' }
+
 export const FUNCTION_SEED_IDS = {
   linearForce: 'f0ce0000-0000-4000-8000-000000000001',
   effort: 'f0ce0000-0000-4000-8000-000000000002',
@@ -432,7 +435,7 @@ export async function seedDesignKnowledge(pool: Pool): Promise<boolean> {
       subjects: [{ module: 'conceptualize', type: 'function', id: fn.id }],
       status: 'active',
       reason: 'Seeded example',
-    })
+    }, { id: CONSTRAINT_SEED_IDS.envelope })
     await createConstraint(ctx, {
       kind: 'mathematical',
       statement: 'REQ-001 operating load as F ≥ 12 kN in the maximum-load scenario',
@@ -442,7 +445,7 @@ export async function seedDesignKnowledge(pool: Pool): Promise<boolean> {
       subjects: [{ module: 'conceptualize', type: 'concept', id: SEED_IDS.actuator }],
       status: 'active',
       reason: 'Seeded example',
-    })
+    }, { id: CONSTRAINT_SEED_IDS.load })
     const { rows: all } = await ctx.db.query<{ id: string }>('SELECT id FROM conceptualize.concepts WHERE project_id = $1', [SEED_PROJECT])
     await assumptionsFromStatements(ctx, all.map((c) => c.id))
   })

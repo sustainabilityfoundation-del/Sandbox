@@ -157,6 +157,35 @@ Deviations 1–5 accepted.
   - The assistant browser flow now expects the refusal.
 - **Integration need**: replace the SysML adapter with `PlatformServices.sysml` (and add `cad`) when SDK 1.8 ships. `ReferencePort` is the seam.
 
+### Demonstration D1 (D1-CON), merged main with SDK 1.8
+
+1. **`ConceptsService.getConstraint`** (SDK 1.8 `ConstraintSummary`):
+   - Implemented in the HTTP service, which reads the latest revision as well when a specific revision is requested.
+   - Implemented in the demo service, with two labelled demo constraints (`DEMO_CONSTRAINT_IDS`).
+   - Contract suite test added and run on the demo adapter and on the HTTP adapter (editor, and a SysML/CAD-only user through the SDK read subset).
+   - The seed constraints now have fixed IDs (`CONSTRAINT_SEED_IDS`, fresh databases).
+2. **Assistant operations** (headless: they use only `services.concepts`; service proposals):
+   - `conceptualize.revise_constraint`: a new revision with a required reason. Statement, bound and strength only; status stays a person's action.
+   - `conceptualize.record_evidence`: a check result with the source `ArtifactRef` and its revision, tool name and version, point results (C11 `kind: 'point'`) checked against pinned constraints, and the subjects. Basis is `estimate` by default (assessment, assumption and ai-hypothesis are allowed), never `evidence`.
+   - `conceptualize.review_flags`: decisions under review or invalidated, with open flags, impact reports and stale pins.
+   - Policy classes appended in a COORDINATOR REVIEW commit.
+3. **Evidence results (C11 storage for D1)**:
+   - Migration `0005_evidence_results.sql` adds `evidence.tool` and `evidence.results`.
+   - Results keep their qualification unchanged (`point`, `sampled-range`, `bounds` with exact or enclosure).
+   - With a constraint, the **service computes the status** from the bound at the pinned revision, with unit conversion and margin for points (`domain/checks.ts`). A given status must match. Ranges are `satisfied` only for proven bounds; a sampled range is always `uncertain`.
+   - ADR-0070 item 3: results require a revision-pinned source and the tool name and version.
+   - The UI shows tool, source revision, qualification labels and the status, with the text "measured or computed values only".
+4. **Reference resolution**:
+   - `referencePortsFor(services)` uses `PlatformServices.sysml` (SDK 1.8, wired in API mode), `PlatformServices.cad` (when present), then the Project Management registry, then injected adapters.
+   - The workspace no longer registers the HTTP SysML adapter. It stays available as a labelled adapter for hosts without SDK 1.8.
+   - A missing reference shows *Not found*. An unavailable module, or a host with no read client, shows **Module unavailable**: the reference is kept and nothing is shown as an error.
+5. **Finding D6 fixed by refusal**: basis `calculated` is refused for evidence until CR-C8 lets the service re-verify a calculation (422, "record it as estimate or assessment").
+   - I chose refusal over silently storing `assessment`, so the caller learns that the claim is not supported.
+   - Evidence stored as `calculated` before this change is unchanged (no data rewrite). Statements and scores citing it still pass the old check; CR-C8 will re-verify.
+6. CR-PM-REG-2 (artifact source): done earlier (0842362).
+- **Open question for the coordinator**: what basis CAD kernel measurements should carry. They are deterministic measurements of a pinned revision. Without a re-verifiable form they are recorded as `estimate`, which overstates their uncertainty. A kernel-measurement basis or a CAD-side reproducibility record would fix this (CR-C8/C11 follow-up).
+- C8 calculation models work in progress is kept in `git stash` ("C8 WIP"). It will become migration 0006 after D1.
+
 ### Settings Conceptualize would contribute to a future SDK `SettingsContribution`
 
 | Setting | Scope | Today |

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ArtifactSummary, NativeRef, ProjectsService } from '@ews/platform-sdk'
-import { createRegistryReferencePort, createSysmlModelerReferenceAdapter, isLegacyTwinReference, isRealModuleReference, referenceKind } from './references'
+import { createRegistryReferencePort, createSysmlModelerReferenceAdapter, isLegacyTwinReference, isRealModuleReference, referenceKind, referencePortsFor } from './references'
 
 const PE = '7e57c0de-0000-4000-8000-00000000a001'
 const DOC = '7e57c0de-0000-4000-8000-0000000000d0'
@@ -75,5 +75,49 @@ describe('SysML Modeler adapter (labelled, until SDK 1.8)', () => {
     expect(await port.resolve('PRJ-1', { module: 'sysml', id: 'p1/e1', revision: 5 })).toMatchObject({ state: 'found', label: 'Spindle (Drill rig)', latest: 7 })
     expect((await port.resolve('PRJ-1', { module: 'sysml', id: 'p1/e2' })).state).toBe('missing')
     expect((await port.resolve('PRJ-1', { module: 'sysml', id: 'p2/e1' })).state).toBe('missing')
+  })
+})
+
+describe('SDK 1.8 read clients (PlatformServices.sysml, .cad)', () => {
+  const SP = '5f1c2e9a-0000-4000-8000-0000000000aa'
+  const EL = '3f1c2e9a-0000-4000-8000-000000000001'
+  const DOC = '7e57c0de-0000-4000-8000-00000000cad1'
+  it('resolves SysML Modeler elements and reports missing and forbidden honestly', async () => {
+    const sysml = {
+      contractVersion: '1.0.0',
+      mode: 'api' as const,
+      listProjects: async () => [],
+      find: async () => [],
+      subscribe: () => () => undefined,
+      resolve: async (_p: string, refs: { id: string }[]) =>
+        refs.map((r) =>
+          r.id === `${SP}/${EL}`
+            ? { status: 'resolved' as const, ref: r as never, element: { ref: r as never, sysmlProjectId: SP, elementId: EL, metaclass: 'PartDefinition', name: 'Holder', types: [], revision: 3, latestRevision: 5 } }
+            : r.id.endsWith('forbidden')
+              ? { status: 'forbidden' as const, ref: r as never }
+              : { status: 'missing' as const, ref: r as never },
+        ),
+    }
+    const [port] = referencePortsFor({ sysml })
+    expect(port).toMatchObject({ adapter: false, name: 'SysML Modeler (SDK read client)' })
+    expect(await port.resolve('PRJ-1', { module: 'sysml', id: `${SP}/${EL}`, revision: 3 })).toEqual({ state: 'found', label: 'Holder (PartDefinition)', latest: 5 })
+    expect((await port.resolve('PRJ-1', { module: 'sysml', id: `${SP}/gone` })).state).toBe('missing')
+    expect((await port.resolve('PRJ-1', { module: 'sysml', id: `${SP}/forbidden` })).state).toBe('unavailable')
+  })
+  it('resolves CAD Modeler entities and keeps missing and unavailable apart', async () => {
+    const cad = {
+      summary: async (_p: string, ref: { id: string }) =>
+        ref.id === `${DOC}/body-1`
+          ? { status: 'resolved' as const, value: { ref: { module: 'cad' as const, kind: 'cad-modeler-entity' as const, id: ref.id, revision: 4 }, documentId: DOC, entityId: 'body-1', entityType: 'part', label: 'Body', documentTitle: 'Holder', pinned: true, latestRevision: 6, archived: false, verifiedInGeometry: true } }
+          : ref.id.endsWith('kernel')
+            ? { status: 'unavailable' as const, reason: 'kernel-unavailable' as const, message: 'The kernel is not available.' }
+            : { status: 'missing' as const, reason: 'entity-not-found' as const, message: 'No such entity.' },
+      massProperties: async () => ({ status: 'unavailable' as const, reason: 'service-unavailable' as const, message: 'n/a' }),
+    }
+    const [port] = referencePortsFor({ cad })
+    expect(await port.resolve('PRJ-1', { module: 'cad', id: `${DOC}/body-1`, revision: 4 })).toEqual({ state: 'found', label: 'Body (part, Holder)', latest: 6 })
+    expect(await port.resolve('PRJ-1', { module: 'cad', id: `${DOC}/gone` })).toEqual({ state: 'missing', detail: 'No such entity.' })
+    expect(await port.resolve('PRJ-1', { module: 'cad', id: `${DOC}/kernel` })).toEqual({ state: 'unavailable', detail: 'The kernel is not available.' })
+    expect(referencePortsFor({}).length).toBe(0)
   })
 })
