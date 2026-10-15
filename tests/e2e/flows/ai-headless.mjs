@@ -57,6 +57,7 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
   const { captureContext } = await import('/workspace/src/assistant/conversation.ts')
   const { availableOperations } = await import('/workspace/src/assistant/toolSpecs.ts')
   const { serviceHandlers } = await import('/workspace/src/assistant/serviceProposals.ts')
+  const RUN = `C-HEADLESS-${Date.now().toString(36)}`
   const proposals = new Map()
   let seq = 0
   const env = createWorkspaceEnvironment({
@@ -69,7 +70,7 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
   })
   const run = async (name, args) => {
     const captured = captureContext(false)
-    const out = await executeToolCall({ id: `hl-${name}`, name, arguments: args }, { captured, source: { kind: 'conversation', conversationId: 'C-HEADLESS', messageId: 'M1', label: 'headless flow' }, env })
+    const out = await executeToolCall({ id: `hl-${name}`, name, arguments: args }, { captured, source: { kind: 'conversation', conversationId: RUN, messageId: 'M1', label: 'headless flow' }, env })
     return out
   }
   // Seeded Conceptualize data, found through the operations themselves.
@@ -126,7 +127,7 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
   if (created) {
     const handlers = serviceHandlers(created.proposalId)
     try {
-      applied = handlers ? (await handlers.apply({ conversationId: 'C-HEADLESS', proposalId: created.proposalId, messageId: 'M1' })).summary : 'no handlers'
+      applied = handlers ? (await handlers.apply({ conversationId: RUN, proposalId: created.proposalId, messageId: 'M1' })).summary : 'no handlers'
     } catch (e) {
       applied = `failed: ${e.message}`
     }

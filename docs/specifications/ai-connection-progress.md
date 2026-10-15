@@ -179,3 +179,42 @@ bit holder*, *Draft requirements for the drill bit holder*.
   sign-in (owner). Owner acceptance: pending.
 - Next increment: owner connects and runs the tutorial; then CR-AI-1/2 (Conceptualize operations for named
   alternatives and requirement wording), CR-AI-3 (module settings registration), streaming answers.
+
+## 8. Sprint 2: headless AI operation boundary (integration milestone 1 I5, C9, C13)
+
+Status: **ready for coordinator review** (merged base: main `be2bb2a`). Decision: [ADR-0049](../decisions/0049-ai-persisted-proposals-and-headless-contributions.md).
+Status vocabulary per [integration-milestone-1.md](integration-milestone-1.md): items below are **implemented** and
+**tested**; none is **integrated** (not on main) or **owner-accepted** yet.
+
+| Scope item | State | Ran against |
+| --- | --- | --- |
+| Headless contribution registry (`registerPlatformModule`, CR-PM-WS-2 moved to AI) feeding assistant, Help Service, Settings centre; `assistantContributions()` single read path | implemented, tested (`platformModules.test.ts`; a module without a view runs its operation, shows help and settings) | unit, browser flow |
+| SDK 1.8.0 (pending): `DeclarativeProposal`, `ModuleOperation`, `ExpectedRevision`, `ActionEffect`, `PlatformModuleContribution` | implemented (COORDINATOR REVIEW commit) | — |
+| Proposals persisted, versioned (`assistant.proposals`, schema 1), project- and actor-scoped; declarative, twin and closure kinds | implemented, tested | real service, real PostgreSQL |
+| Apply gateway: identity, membership, entitlements, confirmation, C13 project scope, operations re-validated against module OpenAPI, expected revisions, idempotency, placeholders, resumable partial failure | implemented, tested (`proposals.api.test.ts`, 10 tests) | real Conceptualize and Requirements APIs on PostgreSQL |
+| Proposal reopened after a **server restart** and applied | tested (restart test builds a new server on the same database) | real services |
+| Proposal reopened in a **fresh browser session** (declarative applied by the server; twin refused as stale with explanation, refreshed preview applied) | tested (`tests/e2e/flows/ai-fake-provider.mjs`) | real services, **fake provider** |
+| Stale proposal refused with explanation ("… changed since the preview: revision 1 → 2"), nothing written | tested (API and browser) | real services |
+| C13: proposal of project A refused while the current project is B (server and browser); operations whose path names another project refused when stored | tested | real services; browser unit test |
+| Refusals told to the model on its next turn (and shown to the person) | implemented, tested (unit, browser flow) | fake provider |
+| UI/AI validation parity: the same invalid input refused identically through the UI path and the AI path | tested for Conceptualize (`createConcept`) and Requirements (`createRequirement`) | real services |
+| Every engineering operation available and succeeding with **all tool tabs closed** | tested (`tests/e2e/flows/ai-headless.mjs`): 22 operations of workspace, help, illustrative SysML/CAD and Conceptualize succeed; a Conceptualize change applied with no view mounted. Known failing (listed with CRs, flow passes while they fail, fails if a passing one regresses): Requirements (`search`, `explain_quality` need the view connection; `read_for_component`, `update` already pass), SysML Modeler (`sessionFor`), CAD Modeler (`cadSession.active`) | real services |
+| Engineering-operation vs view-control coverage measured separately | implemented, tested (`capabilities.test.ts`; coverage dialog shows both) | unit |
+| Conversations keyed by project (one stored conversation per project; switching project switches it) | implemented; not exercised end to end (no project switcher on main yet) | — |
+
+### What is still a fallback or missing
+
+- No product module returns `DeclarativeProposal` yet: Conceptualize, Requirements and SysML Modeler changes are
+  closure fallbacks (labelled; applicable only in the preparing window). The browser flow proves the declarative
+  path with a clearly labelled test-only module. **CR-AI-8 (Conceptualize, Requirements, SysML Modeler):** return
+  `DeclarativeProposal` with `ifMatch` and `expected` instead of `apply` closures; the gateway already allows their APIs.
+- Requirements, SysML Modeler and CAD Modeler operations that depend on a view (assigned by the coordinator to
+  their agents).
+- Declarative undo (compensating operations), multi-module atomicity (reported and resumable instead), and the
+  SDK 1.7 `confirmation` prompt in the card (the server enforces it; the card has no input for the phrase yet).
+- Observation for the Requirements agent: its event hub `close()` is not idempotent (a second call releases the
+  same client twice).
+
+### Verification (this sprint)
+
+See §8.1 below (filled after the full run).
