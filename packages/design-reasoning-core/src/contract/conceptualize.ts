@@ -192,7 +192,13 @@ export interface EvidenceRecord extends RecordBase {
   basis: Basis
   applicability?: string
   /** Calculation model executed, with the manifest (CR-C8). */
-  calculation?: { modelId: string; modelRevision: number; manifest: CalculationManifest }
+  calculation?: {
+    modelId: string
+    modelRevision: number
+    manifest: CalculationManifest
+    /** Set by Conceptualize when it accepted the evidence (CR-C8). */
+    verification?: CalculationVerification
+  }
   /**
    * C11: derived by Conceptualize from the VERIFIED manifest (qualifyManifest), never taken from the client.
    * Stored and displayed unchanged: result kinds, bound quality, proven statuses and the manifest limits.
@@ -283,6 +289,17 @@ export interface TradeScore {
   evidenceOutput?: string
   /** C11: set by Conceptualize from the evidence's qualifications (client values are ignored). */
   qualification?: ScoreQualification
+}
+
+/** Outcome of Conceptualize's re-verification of a calculation manifest (CR-C8). */
+export interface CalculationVerification {
+  verifiedAt: string
+  /** Version of @ews/engineering-calc that re-evaluated the manifest. */
+  engineVersion: string
+  manifestVersion: 1 | 2 | 3
+  ok: true
+  /** Whether the output digest matched exactly (informational; values are compared with a tolerance). */
+  exactDigestMatch?: boolean
 }
 
 /** C11 qualification of a trade-study score taken from calculated evidence. */

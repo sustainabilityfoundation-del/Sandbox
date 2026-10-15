@@ -71,6 +71,7 @@ describe('C11 propagation through design-reasoning-core', () => {
     const ev = (await k.get('evidence', applied.results[0].ids.$ev, editor))!
     expect(ev.qualifications).toEqual(draft.qualifications)
     expect(ev.qualifications).toEqual(qualifyManifest(ev.calculation!.manifest))
+    expect(ev.calculation!.verification).toMatchObject({ ok: true, engineVersion: '0.3.0', manifestVersion: 3, exactDigestMatch: true })
   })
 
   it('ignores qualifications supplied by a client: Conceptualize derives them from the verified manifest', async () => {

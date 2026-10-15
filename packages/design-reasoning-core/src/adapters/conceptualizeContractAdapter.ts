@@ -1,4 +1,4 @@
-import { BASIS_RANK, qualifyManifest, validateModel, verifyManifest, type Basis, type CalculationModelDefinition } from '@ews/engineering-calc'
+import { BASIS_RANK, ENGINE_VERSION, qualifyManifest, validateModel, verifyManifest, type Basis, type CalculationModelDefinition } from '@ews/engineering-calc'
 import {
   ConceptualizeError,
   type AlternativeSetRecord,
@@ -7,6 +7,7 @@ import {
   type BatchItem,
   type BatchRequest,
   type BatchResponse,
+  type CalculationVerification,
   type CalculationModelRecord,
   type ConceptRecord,
   type ConceptualizeKnowledgeApi,
@@ -333,17 +334,19 @@ export function createConceptualizeTestAdapter(options: ConceptualizeTestAdapter
         if (b.basis !== 'calculated') checkBasis(ctx, b.basis, 'Evidence')
         if (!b.subjects.length) fail('invalid', 'Evidence needs at least one subject.')
         for (const s of b.subjects) if (!exists(s)) fail('not-found', `Evidence subject ${s.type} ${s.id} does not exist.`)
+        let verification: CalculationVerification | undefined
         if (b.basis === 'calculated' || b.calculation) {
           const calc = b.calculation ?? fail('invalid', 'Evidence with basis “calculated” needs the calculation model reference and its manifest (CR-C8).')
           const model = getRecord('calculation-model', calc.modelId, calc.modelRevision) ?? fail('not-found', `Calculation model ${calc.modelId} revision ${calc.modelRevision} does not exist.`)
           const verdict = verifyManifest(toDefinition(model), calc.manifest)
           if (!verdict.ok) fail('invalid', `The calculation could not be reproduced: ${verdict.reasons.join(' ')}`, { reasons: verdict.reasons })
           if (BASIS_RANK[b.basis] > BASIS_RANK[calc.manifest.basis]) fail('invalid', `The manifest supports basis “${calc.manifest.basis}”, not “${b.basis}”.`)
+          verification = { verifiedAt: now(), engineVersion: ENGINE_VERSION, manifestVersion: (calc.manifest.manifestVersion ?? 1) as 1 | 2 | 3, ok: true, exactDigestMatch: verdict.exactDigestMatch }
         }
         const id = newId()
         const rec: EvidenceRecord = {
           id, key: nextKey('evidence', ctx.projectId), projectId: ctx.projectId, createdAt: now(), provenance: provenance(ctx),
-          kind: b.kind, title: b.title, summary: b.summary ?? '', subjects: b.subjects, basis: b.basis, applicability: b.applicability, calculation: b.calculation, source: b.source,
+          kind: b.kind, title: b.title, summary: b.summary ?? '', subjects: b.subjects, basis: b.basis, applicability: b.applicability, calculation: b.calculation ? { modelId: b.calculation.modelId, modelRevision: b.calculation.modelRevision, manifest: b.calculation.manifest, verification } : undefined, source: b.source,
           // C11: derived from the verified manifest, never from the client.
           qualifications: b.calculation ? qualifyManifest(b.calculation.manifest) : undefined,
           supersedesId: b.supersedesId, version: b.supersedesId ? (state.evidence.get(b.supersedesId)?.version ?? 0) + 1 : 1, reviews: [], validationStatus: 'unreviewed',
