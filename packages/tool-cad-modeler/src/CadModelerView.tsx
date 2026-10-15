@@ -94,7 +94,15 @@ export default function CadModelerView() {
         <header className="cadm-stage-header">
           <strong className="cadm-doc-title">{state.doc.metadata.title}</strong>
           <span className="cadm-muted">v{state.doc.version}</span>
-          {dirty ? <StatusBadge status="unsaved" /> : <StatusBadge status="saved" label="Saved to file" />}
+          {dirty ? (
+            <StatusBadge status="unsaved" />
+          ) : session.documents.find((d) => d.id === open.id)?.everSaved ? (
+            <StatusBadge status="saved" label="Saved to file" />
+          ) : (
+            <Badge tone="warning" icon="unsaved" title="This document exists only in this window until you save it">
+              Not saved to a file
+            </Badge>
+          )}
           {state.regenerating ? (
             <Badge tone="info" icon="spinner" spin>
               Regenerating
@@ -180,12 +188,12 @@ function Welcome({ update, kernel }: { update: (u: Partial<CadModelerViewState>)
         }
       >
         Parametric part modeling on an exact B-rep kernel (Open CASCADE, running in a Web Worker): constrained sketches, extrude and revolve, parameters and regeneration. Save as the open .ewscad format; export STEP AP242. Use <strong>Open</strong> in the toolbar for a saved model.
-        {kernel === 'loading' && (
-          <span className="cadm-block">
-            <Spinner size={14} label="Loading the kernel" /> Loading the geometry kernel…
-          </span>
-        )}
       </EmptyState>
+      {kernel === 'loading' && (
+        <div className="cadm-row" role="status">
+          <Spinner size={14} label="Loading the kernel" /> <span className="cadm-muted">Loading the geometry kernel…</span>
+        </div>
+      )}
     </div>
   )
 }

@@ -219,6 +219,9 @@ describe('parametric part on the OCCT kernel', () => {
     const mesh = await e.mesh(b.bodyId)
     expect(mesh.indices.length % 3).toBe(0)
     expect(mesh.faceRanges).toHaveLength(b.analysis.counts.faces)
+    // Ranges refer to face indices of the analysis (not kernel hash codes), each face exactly once.
+    expect(mesh.faceRanges.map((r) => r.face).sort((x, y) => x - y)).toEqual([...Array(b.analysis.counts.faces).keys()])
+    expect(mesh.faceRanges.reduce((s, r) => s + r.count, 0)).toBe(mesh.indices.length)
     expect(mesh.edgePositions.length).toBeGreaterThan(0)
     for (let i = 0; i < 12; i++) await e.execute({ commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'width', expression: String(80 + i) } }] })
     // Cache keeps a bounded number of shapes (current + recent generations).

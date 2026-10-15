@@ -54,7 +54,7 @@ function PartSection({ part, state, vs, onSelect, onEdit, engine }: { part: Part
             const r = pr?.features.find((x) => x.featureId === f.id)
             return (
               <li key={f.id} className={cx('cadm-tree-item', isSelected(f.id) && 'is-selected', f.suppressed && 'is-suppressed')}>
-                <Button variant="quiet" size="sm" className="cadm-tree-button" onPress={() => onSelect({ kind: 'feature', id: f.id })} aria-label={`${i + 1}. ${f.name} (${f.type}, ${r?.status ?? 'pending'})`}>
+                <Button variant="quiet" size="sm" className="cadm-tree-button justify-start!" onPress={() => onSelect({ kind: 'feature', id: f.id })} aria-label={`${i + 1}. ${f.name} (${f.type}, ${r?.status ?? 'pending'})`}>
                   <AppIcon name={ICON[f.type]} size="sm" />
                   <span className="cadm-tree-name">{f.name}</span>
                   <span className="cadm-muted cadm-mono">{f.id}</span>
@@ -82,7 +82,7 @@ function PartSection({ part, state, vs, onSelect, onEdit, engine }: { part: Part
           <ul className="cadm-list">
             {pr.bodies.map((b) => (
               <li key={b.bodyId}>
-                <Button variant="quiet" size="sm" className={cx('cadm-tree-button', isSelected(b.bodyId) && 'is-selected')} onPress={() => onSelect({ kind: 'body', id: b.bodyId })}>
+                <Button variant="quiet" size="sm" className={cx("cadm-tree-button justify-start!", isSelected(b.bodyId) && "is-selected")} onPress={() => onSelect({ kind: 'body', id: b.bodyId })}>
                   <AppIcon name="cad-representation" size="sm" />
                   <span className="cadm-tree-name">{b.name}</span>
                   <span className="cadm-muted">{fmtNum(b.analysis.volume, 1)} mm³</span>

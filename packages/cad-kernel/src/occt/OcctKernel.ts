@@ -220,11 +220,18 @@ export class OcctKernel implements GeometryKernel {
       for (let k = g.start; k < g.start + g.count - 1; k++) segs.push(e.lines[k * 3], e.lines[k * 3 + 1], e.lines[k * 3 + 2], e.lines[k * 3 + 3], e.lines[k * 3 + 4], e.lines[k * 3 + 5])
       edgeRanges.push({ edge: g.edgeId, start: startSeg, count: segs.length / 6 - startSeg })
     }
+    // The mesher reports faces and edges by OCCT hash code; map them to indices of shape.faces/edges
+    // (the order ShapeAnalysis uses), falling back to group order.
+    const faceIndex = new Map<number, number>()
+    shape.faces.forEach((f, i) => faceIndex.set(f.hashCode, i))
+    const edgeIndex = new Map<number, number>()
+    shape.edges.forEach((x, i) => edgeIndex.set(x.hashCode, i))
+    for (const r of edgeRanges) r.edge = edgeIndex.get(r.edge) ?? -1
     return {
       positions: Float32Array.from(m.vertices),
       normals: Float32Array.from(m.normals),
       indices: Uint32Array.from(m.triangles),
-      faceRanges: m.faceGroups.map((g) => ({ face: g.faceId, start: g.start, count: g.count })),
+      faceRanges: m.faceGroups.map((g, i) => ({ face: faceIndex.get(g.faceId) ?? i, start: g.start, count: g.count })),
       edgePositions: Float32Array.from(segs),
       edgeRanges,
     }

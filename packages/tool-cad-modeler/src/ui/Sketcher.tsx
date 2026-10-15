@@ -90,12 +90,12 @@ export function Sketcher({ sketch, result, selected, onToggle }: Props) {
       <circle className="cadm-sk-origin" cx={0} cy={0} r={unit * 1.2} />
       {sketch.entities.map((e) => {
         const label = `${e.type} ${e.id}${e.construction ? ' (construction)' : ''}${free.has(e.id) ? ', not fully defined' : ''}`
-        const common = { key: e.id, tabIndex: 0, role: 'button', 'aria-pressed': selected.includes(e.id), 'aria-label': label, onClick: () => onToggle(e.id), onKeyDown: keyToggle(e.id) }
+        const common = { tabIndex: 0, role: 'button', 'aria-pressed': selected.includes(e.id), 'aria-label': label, onClick: () => onToggle(e.id), onKeyDown: keyToggle(e.id) }
         if (e.type === 'line') {
           const a = S(pts.get(e.start)!)
           const b = S(pts.get(e.end)!)
           return (
-            <g {...common} className={cls(e.id, cx('cadm-sk-entity', e.construction && 'is-construction'))}>
+            <g key={e.id} {...common} className={cls(e.id, cx('cadm-sk-entity', e.construction && 'is-construction'))}>
               <line className="cadm-sk-hit" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
               <line className="cadm-sk-curve" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
             </g>
@@ -104,7 +104,7 @@ export function Sketcher({ sketch, result, selected, onToggle }: Props) {
         if (e.type === 'circle') {
           const c = S(pts.get(e.center)!)
           return (
-            <g {...common} className={cls(e.id, cx('cadm-sk-entity', e.construction && 'is-construction'))}>
+            <g key={e.id} {...common} className={cls(e.id, cx('cadm-sk-entity', e.construction && 'is-construction'))}>
               <circle className="cadm-sk-hit" cx={c[0]} cy={c[1]} r={radius(e.id)} />
               <circle className="cadm-sk-curve" cx={c[0]} cy={c[1]} r={radius(e.id)} />
             </g>
@@ -123,7 +123,7 @@ export function Sketcher({ sketch, result, selected, onToggle }: Props) {
           const p1 = S(t)
           const d = `M ${p0[0]} ${p0[1]} A ${r} ${r} 0 ${large} 0 ${p1[0]} ${p1[1]}`
           return (
-            <g {...common} className={cls(e.id, cx('cadm-sk-entity', e.construction && 'is-construction'))}>
+            <g key={e.id} {...common} className={cls(e.id, cx('cadm-sk-entity', e.construction && 'is-construction'))}>
               <path className="cadm-sk-hit" d={d} />
               <path className="cadm-sk-curve" d={d} />
             </g>
@@ -131,7 +131,7 @@ export function Sketcher({ sketch, result, selected, onToggle }: Props) {
         }
         const p = S(pts.get(e.id)!)
         return (
-          <g {...common} className={cls(e.id, 'cadm-sk-point')}>
+          <g key={e.id} {...common} className={cls(e.id, 'cadm-sk-point')}>
             <circle cx={p[0]} cy={p[1]} r={unit * 1.6} />
           </g>
         )

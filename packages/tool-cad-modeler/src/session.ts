@@ -35,7 +35,7 @@ export interface DownloadFile {
 }
 
 export interface SessionSnapshot {
-  documents: { id: string; title: string; version: number; dirty: boolean; fileName: string }[]
+  documents: { id: string; title: string; version: number; dirty: boolean; everSaved: boolean; fileName: string }[]
   activeId: string | null
   kernel: { status: 'not-started' | 'loading' | 'ready' | 'failed'; info?: GeometryKernel['info']; loadMs?: number; error?: string }
   lastExport: { fileName: string; inspection: StepInspection; documentVersion: number } | null
@@ -106,7 +106,7 @@ export class CadSession {
 
   private build(): SessionSnapshot {
     return {
-      documents: [...this.docs.values()].map((d) => ({ id: d.id, title: d.engine.document.metadata.title, version: d.engine.document.version, dirty: this.isDirty(d), fileName: d.fileName })),
+      documents: [...this.docs.values()].map((d) => ({ id: d.id, title: d.engine.document.metadata.title, version: d.engine.document.version, dirty: this.isDirty(d), everSaved: d.savedVersion !== null, fileName: d.fileName })),
       activeId: this.activeId,
       kernel: this.kernelState,
       lastExport: this.lastExport,

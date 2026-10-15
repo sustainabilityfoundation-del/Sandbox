@@ -85,7 +85,7 @@
   }
   /* Phone: viewport on top, panels below; the page scrolls. */
   @container tool (max-width: 700px) {
-    .cadm-root { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(300px, 48%) minmax(0, 1fr); }
+    .cadm-root { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(360px, 55%) minmax(0, 1fr); }
     .cadm-stage { grid-row: 1; }
     .cadm-side { grid-row: 2; border-right: 0; border-top: 1px solid var(--ws-border); }
     .cadm-view-tools { max-width: calc(100% - 2 * var(--ws-space-2)); }
