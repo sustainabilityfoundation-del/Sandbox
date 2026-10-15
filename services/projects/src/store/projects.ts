@@ -18,6 +18,7 @@ import { audit, emit, iso, isoRequired, type Ctx } from './context'
 import type { Queryable } from '../ports'
 import { createMilestone } from './milestones'
 import { createWorkItem } from './workItems'
+import { recordPending } from '../provisioning'
 
 export interface ProjectRow {
   id: string
@@ -168,9 +169,14 @@ export async function createProject(ctx: Ctx, input: CreateProjectInput, extra: 
     Object.keys(requested.settings).length === 0 ? 'not-needed' : ctx.services.settings ? 'pending' : 'unavailable',
     ctx.now,
   ])
-  for (const m of input.modules ?? []) {
-    if (!/^[a-z][a-z0-9-]{0,39}$/.test(m)) throw invalid(`Invalid module ID ${m}.`, { modules: 'format' })
-    await ctx.db.query(`INSERT INTO projects.module_states (project_id, module, enabled, status, updated_at) VALUES ($1,$2,true,'not-needed',$3) ON CONFLICT DO NOTHING`, [id, m, ctx.now])
+  // Every installed module is recorded as pending in this transaction and provisioned after commit (C1).
+  const installed = ctx.services.modules ?? []
+  await recordPending(ctx.db, id, installed)
+  if (input.modules) {
+    const unknown = input.modules.filter((m) => !installed.some((i) => i.module === m))
+    if (unknown.length) throw invalid(`Unknown or not installed module(s): ${unknown.join(', ')}.`, { modules: 'unknown' })
+    // Disabling a module hides it in this project; it never deletes anything.
+    await ctx.db.query(`UPDATE projects.module_states SET enabled = (module = ANY($2)) WHERE project_id = $1 AND module <> 'settings'`, [id, input.modules])
   }
 
   // Planning items from the template and the wizard (never engineering artifacts).
@@ -360,11 +366,20 @@ export async function creationRecord(ctx: Ctx, projectId: string) {
 }
 
 export async function moduleStates(ctx: Ctx, projectId: string) {
-  const { rows } = await ctx.db.query<{ module: string; enabled: boolean; status: string; attempts: number; last_error: string | null; updated_at: Date }>(
+  const { rows } = await ctx.db.query<{ module: string; name: string; enabled: boolean; status: string; reason: string; attempts: number; last_error: string | null; updated_at: Date }>(
     'SELECT * FROM projects.module_states WHERE project_id = $1 ORDER BY module',
     [projectId],
   )
-  return rows.map((r) => ({ module: r.module, enabled: r.enabled, status: r.status, attempts: r.attempts, ...(r.last_error ? { lastError: r.last_error } : {}), updatedAt: isoRequired(r.updated_at) }))
+  return rows.map((r) => ({
+    module: r.module,
+    name: r.name || r.module,
+    enabled: r.enabled,
+    status: r.status === 'provisioned' ? 'ready' : r.status,
+    ...(r.reason ? { reason: r.reason } : {}),
+    attempts: r.attempts,
+    ...(r.last_error ? { lastError: r.last_error } : {}),
+    updatedAt: isoRequired(r.updated_at),
+  }))
 }
 
 export async function setModuleState(db: Queryable, projectId: string, module: string, status: string, error: string | null, now: Date) {

@@ -4,6 +4,7 @@ import type { ProjectsEventType } from '@ews/platform-sdk'
 import { ServiceError } from '../errors'
 import type { BlobStore } from '../blob/blobStore'
 import type { MembershipPort, ProjectSettingsPort } from '../ports'
+import type { ProvisioningModule } from '../provisioning'
 
 /** How a change came about: recorded with revisions, links and audit events. */
 export interface Provenance {
@@ -18,6 +19,8 @@ export interface StoreServices {
   memberships: MembershipPort
   blobs: BlobStore
   settings?: ProjectSettingsPort
+  /** Installed modules to provision (C1). */
+  modules?: ProvisioningModule[]
 }
 
 /** Everything a store function needs: one transaction, the acting user, the project and the provenance. */

@@ -28,6 +28,9 @@ import { createWorkItem, getWorkItem, listWorkItems, updateWorkItem, workItemHis
 import { createMilestone, getMilestone, listMilestones, updateMilestone } from '../store/milestones'
 import { addDocumentVersion, createDocument, getDocument, listDocuments, readDocumentVersion, updateDocument } from '../store/documents'
 import { registerRoute, type HostServices, type RequestContext, type RouteSpec } from './route'
+import { runProvisioning } from '../provisioning'
+import { workspaceDefaults } from '../domain/workspace'
+import { registerProductRoutes } from './productRoutes'
 import * as S from './schemas'
 
 const P = Type.Object({ projectId: Type.String({ minLength: 1, maxLength: 100 }) })
@@ -63,7 +66,7 @@ async function applyInitialSettings(services: HostServices, projectId: string, v
   const ctxBase = { projectId, actor, provenance: { sourceKind: 'system' as const }, role: 'administrator', services: { memberships: services.memberships, blobs: services.blobs } }
   try {
     await services.settings.write(projectId, values, actor)
-    await withTransaction(services.pool, ctxBase, (ctx) => setModuleState(ctx.db, projectId, 'settings', 'provisioned', null, ctx.now))
+    await withTransaction(services.pool, ctxBase, (ctx) => setModuleState(ctx.db, projectId, 'settings', 'ready', null, ctx.now))
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     await withTransaction(services.pool, ctxBase, (ctx) => setModuleState(ctx.db, projectId, 'settings', 'failed', message.slice(0, 1000), ctx.now)).catch(() => undefined)
@@ -122,6 +125,7 @@ export function registerProjectRoutes(app: FastifyInstance, services: HostServic
       if (!rc.dryRun && handled.status === 201 && !handled.headers?.['Idempotency-Replayed']) {
         const body = handled.body as { id: string; requestedSettings: Record<string, boolean | number | string | null> }
         await applyInitialSettings(services, body.id, body.requestedSettings, rc.principal.userId)
+        await runProvisioning(services.pool, body.id, services.modules ?? [], rc.principal.userId, { templateId: input.templateId })
       }
       if (handled.body && typeof handled.body === 'object' && 'requestedSettings' in (handled.body as object)) {
         const { requestedSettings: _ignored, ...project } = handled.body as Record<string, unknown>
@@ -189,6 +193,8 @@ export function registerProjectRoutes(app: FastifyInstance, services: HostServic
         await recordOpened(ctx, rc.projectId)
         return {}
       })
+      // Retries provisioning that is still pending or failed (C1); a module failure never blocks opening.
+      if (state === 'active') await runProvisioning(services.pool, rc.projectId, services.modules ?? [], rc.principal.userId)
       return { body: await projectContext(rc) }
     },
   })
@@ -213,8 +219,29 @@ export function registerProjectRoutes(app: FastifyInstance, services: HostServic
       modules,
       settings: { available, source: services.settings?.description ?? 'settings service not connected', values, requested },
       creation,
+      workspace: workspaceDefaults({ legacy: project.legacy, modules }),
     }
   }
+
+  route({
+    method: 'POST',
+    path: '/projects/{projectId}/provision',
+    operationId: 'provisionProject',
+    tag: 'Projects',
+    summary: 'Retry module provisioning (pending or failed modules; all of them with force)',
+    description: 'Idempotent per module (key <projectId>:provision:<module>). A blank project never receives artifacts from provisioning.',
+    params: P,
+    query: Type.Object({ force: Type.Optional(Type.Boolean()) }, { additionalProperties: false }),
+    permission: 'administer',
+    responses: { 200: { description: 'Module states after the attempt', schema: Type.Array(ref('ModuleState')) as never }, 403: E403 },
+    handler: async (rc) => {
+      const project = await rc.read((ctx) => loadProject(ctx.db, rc.projectId))
+      await runProvisioning(services.pool, rc.projectId, services.modules ?? [], rc.principal.userId, { templateId: project.template_id, force: rc.query.force === true })
+      return { body: await rc.read((ctx) => moduleStates(ctx, rc.projectId)) }
+    },
+  })
+
+  registerProductRoutes(route)
 
   route({
     method: 'GET',

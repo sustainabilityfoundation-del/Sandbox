@@ -1,40 +1,9 @@
-/**
- * Structural copy of the SDK 1.6 `SettingDefinition` (packages/platform-sdk/src/contract/settings.ts on
- * feature/ai-connection, not on main yet). Replace by `import type { SettingDefinition } from '@ews/platform-sdk'`
- * once the settings contract lands; the shapes are identical for the variants used here.
- */
-interface BaseSettingDefinition {
-  id: string
-  label: string
-  description: string
-  helpId?: string
-  scope: 'user' | 'project'
-  requiresPermission?: 'editor' | 'reviewer' | 'administrator'
-  ceiling?: string
-  group?: string
-}
-export type SettingDefinition =
-  | (BaseSettingDefinition & { type: 'boolean'; default: boolean })
-  | (BaseSettingDefinition & { type: 'enum'; options: { value: string; label: string; description?: string }[]; default: string })
-  | (BaseSettingDefinition & { type: 'number'; unit?: string; min: number; max: number; step?: number; integer?: boolean; default: number })
-  | (BaseSettingDefinition & { type: 'string'; maxLength: number; pattern?: string; default: string })
+import { checkSettingValue, type SettingDefinition } from '@ews/platform-sdk'
 
-/** Checks a value against its definition (same rules as the SDK's checkSettingValue). Returns a problem or null. */
-export function checkProjectSetting(def: SettingDefinition, value: unknown): string | null {
-  switch (def.type) {
-    case 'boolean':
-      return typeof value === 'boolean' ? null : `${def.label} must be true or false.`
-    case 'enum':
-      return typeof value === 'string' && def.options.some((o) => o.value === value) ? null : `${def.label} must be one of ${def.options.map((o) => o.value).join(', ')}.`
-    case 'number':
-      if (typeof value !== 'number' || !Number.isFinite(value)) return `${def.label} must be a number.`
-      if (def.integer && !Number.isInteger(value)) return `${def.label} must be a whole number.`
-      return value < def.min || value > def.max ? `${def.label} must be between ${def.min} and ${def.max}${def.unit ? ` ${def.unit}` : ''}.` : null
-    case 'string':
-      if (typeof value !== 'string') return `${def.label} must be text.`
-      return value.length > def.maxLength ? `${def.label} must be at most ${def.maxLength} characters.` : null
-  }
-}
+export type { SettingDefinition }
+
+/** Checks a value against its definition (the SDK rule the settings service applies on the server). */
+export const checkProjectSetting = (def: SettingDefinition, value: unknown): string | null => checkSettingValue(def, value)
 
 /**
  * Project settings definitions (CR-PM-SET-1). The host registers them with the settings service

@@ -1,5 +1,6 @@
 import { Type, type TSchema } from '@sinclair/typebox'
 import { ARTIFACT_CATEGORIES, ARTIFACT_LIFECYCLES } from '@ews/platform-sdk'
+import { PRODUCT_SCHEMAS } from './productRoutes'
 import { DISCIPLINES, DOCUMENT_KINDS, DOCUMENT_LIFECYCLES, LINK_TYPES, MILESTONE_STATUSES, PRIORITIES, PROJECT_STATES, PROJECT_STATUSES, ROLES, WORK_ITEM_KINDS } from '../domain/rules'
 
 /** Request and response schemas (TypeBox → JSON Schema, published as OpenAPI components by `$id`). */
@@ -108,7 +109,19 @@ export const Template = Type.Object(
   { $id: 'Template' },
 )
 
-export const ModuleState = Type.Object({ module: Type.String(), enabled: Type.Boolean(), status: Type.String(), attempts: Type.Integer(), lastError: Type.Optional(Type.String()), updatedAt: DateTime }, { $id: 'ModuleState' })
+export const ModuleState = Type.Object(
+  {
+    module: Type.String(),
+    name: Type.String(),
+    enabled: Type.Boolean(),
+    status: L('pending', 'ready', 'not-needed', 'failed', 'unavailable'),
+    reason: Type.Optional(Type.String()),
+    attempts: Type.Integer(),
+    lastError: Type.Optional(Type.String()),
+    updatedAt: DateTime,
+  },
+  { $id: 'ModuleState' },
+)
 
 export const ProjectContext = Type.Object(
   {
@@ -117,6 +130,7 @@ export const ProjectContext = Type.Object(
     permissions: Type.Array(Type.String()),
     modules: Type.Array(Type.Ref('ModuleState')),
     settings: Type.Object({ available: Type.Boolean(), source: Type.String(), values: Type.Record(Type.String(), SettingValue), requested: Type.Record(Type.String(), SettingValue) }),
+    workspace: Type.Object({ defaultTools: Type.Array(Type.String(), { description: 'Tools the workspace opens for this project (C12)' }), demoToolsLabelled: Type.Boolean() }),
     creation: Nullable(Type.Object({ templateId: Type.String(), templateVersion: Type.Integer(), requested: Type.Record(Type.String(), Type.Unknown()), duplicatedFrom: Nullable(Type.String()), createdAt: DateTime, createdBy: Type.String() })),
   },
   { $id: 'ProjectContext' },
@@ -306,6 +320,7 @@ export const ProjectsEvent = Type.Object({ eventId: Type.String(), type: Type.St
 export const DryRun = Type.Object({ dryRun: Type.Literal(true), result: Type.Unknown() }, { $id: 'DryRun' })
 
 export const SCHEMAS: TSchema[] = [
+  ...PRODUCT_SCHEMAS,
   ErrorSchema,
   Project,
   ProjectPage,

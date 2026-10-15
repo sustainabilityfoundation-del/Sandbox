@@ -31,3 +31,7 @@ export async function projectState(pool: Pool, projectId: string): Promise<'acti
   return rows[0]?.state
 }
 export { seedLegacyProject, LEGACY_PROJECT } from './store/legacy'
+export { productTwinDirectory, composeTwinDirectories, type TwinDirectoryLike, type TwinObjectInfo } from './twinDirectory'
+export { importLegacyProduct, LEGACY_COMPONENTS, LEGACY_ELEMENT_IDS } from './store/legacyProduct'
+export { runProvisioning, type ProvisioningModule } from './provisioning'
+export { NEW_PROJECT_TOOLS, LEGACY_PROJECT_TOOLS, workspaceDefaults } from './domain/workspace'

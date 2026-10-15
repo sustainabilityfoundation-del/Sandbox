@@ -44,8 +44,8 @@ describe('project creation and lifecycle', () => {
     const ctx = await env.call('eli', 'POST', `${P(p.id)}/open`)
     expect(ctx.status).toBe(200)
     await expectConforms(env, 'openProject', 200, ctx.body)
-    expect(ctx.body.modules).toEqual([expect.objectContaining({ module: 'settings', status: 'not-needed' })])
-    expect(ctx.body.settings).toMatchObject({ available: false, values: {}, requested: {} })
+    expect(ctx.body.modules.map((m: { module: string; status: string }) => `${m.module}:${m.status}`)).toEqual(["conceptualize:not-needed", "requirements:not-needed", "settings:not-needed", "sysml:not-needed"])
+    expect(ctx.body.settings).toMatchObject({ available: true, values: {}, requested: {} })
     expect(ctx.body.project.counts).toEqual({ members: 1, artifacts: 0, openWorkItems: 0, milestones: 0, documents: 0 })
   })
 
@@ -59,7 +59,8 @@ describe('project creation and lifecycle', () => {
     expect(new Set(art.items.map((a: { category: string }) => a.category))).toEqual(new Set(['milestone', 'work-item']))
     const ctx = (await env.call('eli', 'GET', `${P(p.id)}/context`)).body
     expect(ctx.settings.requested).toEqual({ 'projects.units.system': 'si', 'projects.units.length': 'm', 'projects.conventions.drawing-projection': 'first-angle' })
-    expect(ctx.modules).toContainEqual(expect.objectContaining({ module: 'settings', status: 'unavailable' }))
+    expect(ctx.modules).toContainEqual(expect.objectContaining({ module: "settings", status: "ready" }))
+    expect(ctx.settings.values).toEqual({ "projects.units.system": "si", "projects.units.length": "m", "projects.conventions.drawing-projection": "first-angle" })
     expect(ctx.creation).toMatchObject({ templateId: 'mechanical-product', templateVersion: 1 })
   })
 

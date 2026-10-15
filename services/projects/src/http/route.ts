@@ -8,6 +8,7 @@ import { DryRunResult, withReadTransaction, withTransaction, type Ctx, type Prov
 import type { EventHub } from '../events/hub'
 import type { BlobStore } from '../blob/blobStore'
 import type { MembershipPort, Principal, ProjectSettingsPort } from '../ports'
+import type { ProvisioningModule } from '../provisioning'
 
 export interface HostServices {
   pool: Pool
@@ -19,6 +20,8 @@ export interface HostServices {
   roleOf: (userId: string, projectId: string) => Promise<Role | string | null>
   memberships: MembershipPort
   settings?: ProjectSettingsPort
+  /** Installed modules, provisioned after a project is created (C1). Absent: none recorded. */
+  modules?: ProvisioningModule[]
   /** Upload limit per document version in bytes (default 200 MB). */
   maxUploadBytes?: number
 }
@@ -121,7 +124,7 @@ export function provenanceOf(request: FastifyRequest): Provenance {
 export function registerRoute(app: FastifyInstance, services: HostServices, spec: RouteSpec, registry: RouteSpec[]) {
   registry.push(spec)
   const url = spec.path.replace(/\{(\w+)\}/g, ':$1')
-  const store: StoreServices = { memberships: services.memberships, blobs: services.blobs, settings: services.settings }
+  const store: StoreServices = { memberships: services.memberships, blobs: services.blobs, settings: services.settings, modules: services.modules }
   app.route({
     method: spec.method,
     url,
