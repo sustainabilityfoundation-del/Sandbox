@@ -9,6 +9,7 @@ dist-harness
 # Requirements research: user-supplied copyrighted source PDFs are never committed
 docs/research/requirements/sources/
 docs/research/design-reasoning/sources/
+docs/research/cad/sources/
 # Local development data (embedded PostgreSQL data directory, attachment storage)
 .data/
 .env
