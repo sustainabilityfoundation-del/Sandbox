@@ -17,7 +17,25 @@ import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsEventHub, migrateConc
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
 import { registerApiDocs } from './apiDocs'
 import { SYSML_BASE_PATH, sysmlPlugin } from '@ews/sysml-service'
-import { PROJECTS_BASE_PATH, createProjectsEventHub, memoryBlobStore, migrateProjects, projectState, projectsPlugin, seedLegacyProject, type BlobStore, type ProjectsEventHub } from '@ews/projects-service'
+import {
+  PROJECTS_BASE_PATH,
+  PROJECT_SETTINGS_PAGE,
+  PROJECT_SETTING_DEFINITIONS,
+  composeTwinDirectories,
+  createProjectsEventHub,
+  importLegacyProduct,
+  memoryBlobStore,
+  migrateProjects,
+  moduleEnablementDefinitions,
+  productTwinDirectory,
+  projectState,
+  projectsPlugin,
+  seedLegacyProject,
+  type BlobStore,
+  type ProjectSettingsPort,
+  type ProjectsEventHub,
+  type ProvisioningModule,
+} from '@ews/projects-service'
 import { platformMemberships } from './platform/memberships'
 import { SETTINGS_BASE_PATH, SettingsRegistry, settingsPlugin, type SettingsStore } from '@ews/settings-service'
 import { AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS, ASSISTANT_BASE_PATH, CredentialVault, ProviderRegistry, assistantPlugin, createFakeProvider, createOpenAIProvider, registerOAuthCallback, type AssistantBackend } from '@ews/assistant-service'
@@ -47,6 +65,18 @@ export const SAMPLE_TWIN: TwinDirectory = staticTwinDirectory(
   },
   'development directory of the sample actuator twin',
 )
+
+/**
+ * Modules hosted here, provisioned for every new project (integration milestone 1, C1). None needs a provisioning
+ * step today: each keys its data by project ID and creates its per-project space on the first write (SysML: a SysML
+ * project created by the person). CAD joins when services/cad is hosted. A module's own `provision()` replaces
+ * `lazyReason` when its ArtifactSource ships (CR-PM-REG-1…4).
+ */
+export const INSTALLED_MODULES: ProvisioningModule[] = [
+  { module: 'requirements', name: 'Requirements', lazyReason: 'Requirements stores data by project ID; its project space appears with the first requirement.' },
+  { module: 'conceptualize', name: 'Conceptualize', lazyReason: 'Conceptualize stores data by project ID; its project space appears with the first concept.' },
+  { module: 'sysml', name: 'SysML Modeler', lazyReason: 'A SysML model is created in the SysML Modeler when you start modelling; none exists in a new project.' },
+]
 
 export interface ServerOptions {
   pool: Pool
@@ -106,7 +136,9 @@ export async function prepareDatabase(pool: Pool, opts: { seed: boolean; twin?: 
     seed = { seeded: seed.seeded || conceptSeed.seeded, message: `${seed.message} ${conceptSeed.message}` }
     // Registers the existing example project PRJ-ACT100 in the project registry (idempotent; Q3).
     const legacy = await seedLegacyProject(pool)
-    seed = { seeded: seed.seeded || legacy.seeded, message: `${seed.message} ${legacy.message}` }
+    // Its components become product elements with their twin IDs as aliases (C2, ADR-0063; additive, idempotent).
+    const legacyProduct = await importLegacyProduct(pool, { memberships: platformMemberships(), blobs: memoryBlobStore() })
+    seed = { seeded: seed.seeded || legacy.seeded || legacyProduct.seeded, message: `${seed.message} ${legacy.message} ${legacyProduct.message}` }
   }
   return { platform, requirements, concepts, projects, seed }
 }
@@ -136,7 +168,8 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   await app.register(requirementsPlugin, {
     prefix: BASE_PATH,
     pool: options.pool,
-    twin: options.twin ?? SAMPLE_TWIN,
+    // Allocation targets: the product registry first (C2, CR-PM-API-3), then the static development directory.
+    twin: composeTwinDirectories(productTwinDirectory(options.pool), options.twin ?? SAMPLE_TWIN),
     storage: options.storage,
     events,
     authenticate: auth.authenticate,
@@ -150,10 +183,34 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   // Project Management (CR-PM-API-5). It reads raw membership roles and applies the record state itself.
   registerApiDocs(app, { path: `${PROJECTS_BASE_PATH}/docs`, openapiUrl: `${PROJECTS_BASE_PATH}/openapi.json`, title: 'Project Management API' })
   const projectBlobs = options.blobs ?? memoryBlobStore()
-  await app.register(projectsPlugin, { prefix: PROJECTS_BASE_PATH, pool: options.pool, events: projectEvents, blobs: projectBlobs, authenticate: auth.authenticate, roleOf: auth.membershipRole, memberships: platformMemberships() })
+  // Project settings live in the settings service (CR-PM-SET-1); the port writes them as the acting administrator.
+  const projectSettings: ProjectSettingsPort = {
+    description: 'settings service (/api/settings/v1, project scope)',
+    async write(projectId, values, actor) {
+      if (!settingsStore) throw new Error('The settings service is not ready.')
+      const result = await settingsStore.write('project', projectId, values, { ifMatch: '*', actor: { userId: actor, role: await auth.roleOf(actor, projectId) }, projectId })
+      return { revision: result.revision }
+    },
+    async read(projectId) {
+      if (!settingsStore) throw new Error('The settings service is not ready.')
+      return (await settingsStore.read('project', projectId)).values
+    },
+  }
+  await app.register(projectsPlugin, {
+    prefix: PROJECTS_BASE_PATH,
+    pool: options.pool,
+    events: projectEvents,
+    blobs: projectBlobs,
+    authenticate: auth.authenticate,
+    roleOf: auth.membershipRole,
+    memberships: platformMemberships(),
+    modules: INSTALLED_MODULES,
+    settings: projectSettings,
+  })
   // Settings (SDK 1.6) and the AI connection (docs/specifications/ai-connection.md §5, §5a).
   const settingsRegistry = new SettingsRegistry()
   settingsRegistry.register(AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS)
+  settingsRegistry.register(PROJECT_SETTINGS_PAGE, [...PROJECT_SETTING_DEFINITIONS, ...moduleEnablementDefinitions(INSTALLED_MODULES.map((m) => ({ id: m.module, name: m.name })))])
   let settingsStore: SettingsStore | undefined
   registerApiDocs(app, { path: `${SETTINGS_BASE_PATH}/docs`, openapiUrl: `${SETTINGS_BASE_PATH}/openapi.json`, title: 'Settings API' })
   await app.register(settingsPlugin, { prefix: SETTINGS_BASE_PATH, pool: options.pool, registry: settingsRegistry, authenticate: auth.authenticate, roleOf: auth.roleOf, onReady: (s) => (settingsStore = s) })
