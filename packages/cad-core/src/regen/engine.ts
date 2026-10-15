@@ -71,6 +71,8 @@ export interface RegenerationResult {
   /** True when every feature is ok or suppressed. */
   ok: boolean
   kernel: GeometryKernel['info']
+  /** Where this regeneration ran (set by the regenerator). */
+  location?: 'in-process' | 'worker'
 }
 
 interface CachedShape {

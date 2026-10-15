@@ -48,7 +48,7 @@ async function dryRunFor(docId: string | undefined, commands: CommandCall[], exp
   const open = cadSession.document(docId)
   if (docId && !open) throw new ActionError('not-found', `CAD document ${docId} is not open.`)
   // Without an open document the commands are previewed on a new, empty document.
-  const engine = open?.engine ?? new CadEngine({ kernel: cadSession.getKernel(), document: createDocument({ documentId: 'preview', title: 'New document' }) })
+  const engine = open?.engine ?? new CadEngine({ ...cadSession.engineOptions(), document: createDocument({ documentId: 'preview', title: 'New document' }) })
   const version = expectedVersion ?? engine.document.version
   const dry = await engine.dryRun({ commands, expectedVersion: version, source: 'assistant' })
   if (!open) await engine.dispose()

@@ -8,6 +8,7 @@ import {
   serializeDocument,
   type CadDocument,
   type GeometryKernel,
+  type Regenerator,
 } from '@ews/cad-core'
 import { detectFormat, inspectStep, type StepInspection } from '@ews/cad-kernel'
 import { CadClientError, newIdempotencyKey, type CadClient, type CadDocumentSummary, type CadProvenance } from '@ews/cad-client'
@@ -78,6 +79,13 @@ export class CadSession {
   }
   configureDownloads(fn: (file: DownloadFile) => void) {
     this.downloader = fn
+  }
+
+  /** Kernel and regenerator for new engines: the worker's regenerator when the kernel provides one. */
+  engineOptions(): { kernel: GeometryKernel; regenerator?: Regenerator } {
+    const kernel = this.getKernel()
+    const regenerator = (kernel as { createRegenerator?: () => Regenerator }).createRegenerator?.()
+    return regenerator ? { kernel, regenerator } : { kernel }
   }
 
   /** The window's kernel (started on first use). */
@@ -166,7 +174,7 @@ export class CadSession {
   /** New document with one empty part (the part is created by the create_part command). */
   async newDocument(options: { title?: string; partName?: string; source?: 'user' | 'assistant'; empty?: boolean } = {}): Promise<OpenDocument> {
     const title = options.title ?? `Untitled ${++this.untitled}`
-    const engine = new CadEngine({ kernel: this.getKernel(), document: createDocument({ title, createdAt: new Date().toISOString(), writer: WRITER }) })
+    const engine = new CadEngine({ ...this.engineOptions(), document: createDocument({ title, createdAt: new Date().toISOString(), writer: WRITER }) })
     const d = this.add(engine, `${fileStem(title)}${FILE_EXTENSION}`, null)
     if (!options.empty) await engine.execute({ commands: [{ command: 'create_part', input: { name: options.partName ?? 'Part 1' } }], label: 'Create part', source: options.source ?? 'user' })
     return d
@@ -185,7 +193,7 @@ export class CadSession {
       if (this.isDirty(existing)) throw new CadError('precondition-failed', `“${doc.metadata.title}” is already open with unsaved changes. Save or close it first.`)
       this.close(existing.id)
     }
-    const engine = new CadEngine({ kernel: this.getKernel() })
+    const engine = new CadEngine(this.engineOptions())
     await engine.open(doc)
     return this.add(engine, fileName, doc.version)
   }
@@ -300,7 +308,7 @@ export class CadSession {
     const existing = this.docs.get(documentId)
     if (existing && this.isDirty(existing)) throw new CadError('precondition-failed', `“${existing.engine.document.metadata.title}” is open with unsaved changes. Save it to a file or close it first.`)
     if (existing) this.close(existing.id)
-    const engine = new CadEngine({ kernel: this.getKernel() })
+    const engine = new CadEngine(this.engineOptions())
     await engine.open(got.document)
     const d = this.add(engine, `${fileStem(got.document.metadata.title)}${FILE_EXTENSION}`, got.document.version)
     // An older revision opens as a read-back: saving it again needs the current revision as base.

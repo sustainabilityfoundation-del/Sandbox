@@ -8,7 +8,8 @@ import { createDocument, findPart, validateDocument } from './model/document'
 import { validateSchema } from './model/jsonSchema'
 import type { CadDocument } from './model/types'
 import { failures } from './query/queries'
-import { regenerate, RegenerationCache, type RegenerationResult } from './regen/engine'
+import type { RegenerationResult } from './regen/engine'
+import { localRegenerator, type Regenerator } from './regen/regenerator'
 
 export interface EngineState {
   doc: CadDocument
@@ -25,6 +26,8 @@ export interface EngineState {
 
 export interface EngineOptions {
   kernel: GeometryKernel
+  /** Where regeneration runs; default in-process with the kernel (the browser passes the worker's). */
+  regenerator?: Regenerator
   document?: CadDocument
   clock?: () => string
 }
@@ -56,7 +59,7 @@ export interface DryRunResult {
  */
 export class CadEngine {
   private history: DocumentHistory
-  private readonly cache = new RegenerationCache()
+  private readonly regenerator: Regenerator
   private regen?: RegenerationResult
   private regenError?: CadErrorInfo
   private pending = 0
@@ -67,6 +70,7 @@ export class CadEngine {
 
   constructor(private readonly options: EngineOptions) {
     this.kernel = options.kernel
+    this.regenerator = options.regenerator ?? localRegenerator(options.kernel)
     this.history = new DocumentHistory(options.document ?? createDocument(), { clock: options.clock })
     this.snapshot = this.buildState()
   }
@@ -111,10 +115,10 @@ export class CadEngine {
     this.emit()
     const run = this.chain.then(async () => {
       try {
-        if (options.full) await this.cache.clear(this.kernel)
+        if (options.full) await this.regenerator.clear()
         const doc = this.history.document
         if (this.regen && this.regen.documentVersion === doc.version && this.regen.documentId === doc.documentId && !options.full) return this.regen
-        const result = await regenerate(doc, this.kernel, this.cache, { evict: true })
+        const result = await this.regenerator.regenerate(doc, { evict: true })
         // A newer version may have been committed meanwhile; the next queued run handles it.
         if (result.documentVersion === this.history.document.version) {
           this.regen = result
@@ -183,7 +187,7 @@ export class CadEngine {
     if (!outcome.ok) return { ...base, ok: false, error: outcome.error, failedIndex: outcome.failedIndex }
     let predicted: RegenerationResult
     try {
-      predicted = await this.chain.then(() => regenerate(outcome.doc, this.kernel, this.cache, { evict: false }))
+      predicted = await this.chain.then(() => this.regenerator.regenerate(outcome.doc, { evict: false }))
     } catch (e) {
       return { ...base, ok: false, error: toErrorInfo(e), predictedVersion: outcome.version }
     }
@@ -231,6 +235,6 @@ export class CadEngine {
   }
 
   async dispose(): Promise<void> {
-    await this.cache.clear(this.kernel).catch(() => undefined)
+    await this.regenerator.clear().catch(() => undefined)
   }
 }

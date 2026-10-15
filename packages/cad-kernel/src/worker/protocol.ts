@@ -1,7 +1,7 @@
 import type { GeometryKernel } from '@ews/cad-core'
 
 /** Methods of GeometryKernel callable over the worker boundary. */
-export type KernelMethod = Exclude<keyof GeometryKernel, 'info'>
+export type KernelMethod = Exclude<keyof GeometryKernel, 'info'> | 'regenerate' | 'clearRegeneration'
 
 export interface KernelRequest {
   id: number
