@@ -11,7 +11,7 @@
  * Requirements API operation exists without an entry here.
  */
 
-export type CapabilityModule = 'platform' | 'requirements' | 'sysml' | 'cad' | 'assistant'
+export type CapabilityModule = 'platform' | 'requirements' | 'sysml' | 'cad' | 'assistant' | 'sysml-modeler'
 
 /** Where the capability is reached by a person. */
 export type CapabilitySurface = 'toolbar' | 'panel' | 'field' | 'header' | 'palette' | 'tree' | 'inspector' | 'dialog' | 'api'
@@ -134,6 +134,21 @@ export const CAPABILITIES: CapabilityEntry[] = [
   e({ id: 'cad.visibility', module: 'cad', surface: 'toolbar', toolbarItem: 'visibility', label: 'Hide or show parts in a view', effect: 'view', status: 'mock', coverage: 'none' }),
   e({ id: 'cad.snapshot', module: 'cad', surface: 'panel', label: 'Save a representation snapshot', effect: 'mutation', status: 'mock', coverage: 'none' }),
   e({ id: 'cad.export', module: 'cad', surface: 'panel', label: 'Native CAD model, geometric checks, STL export', effect: 'export', status: 'restricted', coverage: 'restricted', note: 'Not implemented: needs a real CAD kernel (development plan sprints 8–9). Listed so it is never presented as available.' }),
+
+  // ---- SysML Modeler (appended by the SysML agent; API /api/sysml/v1, typed commands in @ews/sysml-core) ----
+  e({ id: 'sysml-modeler.add', module: 'sysml-modeler', surface: 'toolbar', toolbarItem: 'add', label: 'Add a package, definition or usage (Add dialog, Add member)', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['sysml-modeler.propose_commands'], note: 'Both issue createElement through a transaction; the assistant path is a previewed service proposal.' }),
+  e({ id: 'sysml-modeler.connect', module: 'sysml-modeler', surface: 'toolbar', toolbarItem: 'connect', label: 'Connect parts or ports (connection, interface, flow, binding, succession, allocation)', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['sysml-modeler.propose_commands'], note: 'Command connect.' }),
+  e({ id: 'sysml-modeler.general', module: 'sysml-modeler', surface: 'toolbar', toolbarItem: 'general', label: 'General View of a namespace (projection, automatic layout)', effect: 'view', status: 'implemented', coverage: 'partial', aiOperations: ['sysml-modeler.read_element', 'sysml-modeler.find_elements'], note: 'The assistant reads the same model content; it does not open or arrange the view.' }),
+  e({ id: 'sysml-modeler.interconnection', module: 'sysml-modeler', surface: 'toolbar', toolbarItem: 'interconnection', label: 'Interconnection View of a part definition', effect: 'view', status: 'implemented', coverage: 'partial', aiOperations: ['sysml-modeler.read_element'], note: 'The assistant reads parts, ports and connections; it does not open the view.' }),
+  e({ id: 'sysml-modeler.text', module: 'sysml-modeler', surface: 'toolbar', toolbarItem: 'text', label: 'Edit a namespace as SysML v2 text with preview and apply (identity-preserving)', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['sysml-modeler.propose_text', 'sysml-modeler.read_element'], note: 'Command applyText in both paths.' }),
+  e({ id: 'sysml-modeler.validate', module: 'sysml-modeler', surface: 'toolbar', toolbarItem: 'validate', label: 'Validation results (17 rules)', effect: 'query', status: 'implemented', coverage: 'shared', aiOperations: ['sysml-modeler.validate'] }),
+  e({ id: 'sysml-modeler.history', module: 'sysml-modeler', surface: 'toolbar', toolbarItem: 'history', label: 'Commit history with provenance', effect: 'query', status: 'implemented', coverage: 'equivalent', aiOperations: ['sysml-modeler.explain_commit'] }),
+  e({ id: 'sysml-modeler.undo', module: 'sysml-modeler', surface: 'toolbar', toolbarItem: 'undo', label: 'Undo a commit (compensating commit)', effect: 'mutation', status: 'implemented', coverage: 'partial', aiOperations: ['sysml-modeler.propose_commands'], note: 'The assistant undoes its own applied proposals (proposal undo → revert); it has no operation to revert other commits.' }),
+  e({ id: 'sysml-modeler.browser', module: 'sysml-modeler', surface: 'tree', label: 'Model browser: containment tree, search, kind filter', effect: 'query', status: 'implemented', coverage: 'equivalent', aiOperations: ['sysml-modeler.find_elements', 'sysml-modeler.read_element'] }),
+  e({ id: 'sysml-modeler.properties', module: 'sysml-modeler', surface: 'panel', label: 'Properties: rename, typing, specialization, multiplicity, value, direction, abstract, documentation, delete', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['sysml-modeler.propose_commands'], note: 'rename, setTyping, addSpecialization, setMultiplicity, setValue, setDirection, setAbstract, setDocumentation, deleteElement.' }),
+  e({ id: 'sysml-modeler.impact', module: 'sysml-modeler', surface: 'panel', label: 'Referenced by (impact analysis)', effect: 'query', status: 'implemented', coverage: 'shared', aiOperations: ['sysml-modeler.impact'] }),
+  e({ id: 'sysml-modeler.schema', module: 'sysml-modeler', surface: 'api', label: 'Command schemas and supported metaclasses (schema discovery)', effect: 'query', status: 'implemented', coverage: 'shared', aiOperations: ['sysml-modeler.describe_commands'] }),
+  e({ id: 'sysml-modeler.projects', module: 'sysml-modeler', surface: 'header', label: 'Choose or create a SysML project and branch', effect: 'view', status: 'implemented', coverage: 'none', note: 'Branch and tag creation are API-only in this version.' }),
 ]
 
 /** Assistant operations the platform itself offers (see toolSpecs.ts); listed for completeness checks. */
