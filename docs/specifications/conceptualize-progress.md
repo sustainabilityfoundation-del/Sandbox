@@ -130,6 +130,33 @@ Deviations 1–5 accepted.
   Migration `0004_pm_artifact_modules.sql` widens the CHECKs additively. SDK `ArtifactModule` widening plus the
   Integration labels are in COORDINATOR REVIEW commit e54b302.
 
+### References to the real modules (integration milestone 1, C3 and C5)
+
+- Server shape rules (`artifactProblem`):
+  - `sysml` / `sysml-model-element`: id `<projectId>/<elementId>`, both UUIDs; revision = commit number.
+  - `cad` / `cad-modeler-entity`: id `<documentUuid>/<entityId>`; revision = document revision.
+  - `product` / `product-element`; `projects` kinds.
+  - Unscoped `SYS-…`, `CAD-…` and twin IDs stay valid as **legacy twin objects** (PRJ-ACT100 demo data). Existence is checked by clients through the owning module, as before (contracts §9).
+- Resolution (`conceptualize-client/src/references.ts`) through `ReferencePort`s:
+  - `createRegistryReferencePort(services.projects)` is the real SDK 1.7 path (`ProjectsService.resolve`). It covers product elements and project entities, and covers SysML/CAD Modeler entities once CR-PM-REG-3/4 register them.
+  - `createSysmlModelerReferenceAdapter` is a **labelled adapter** until the SDK 1.8 read client. It reads the SysML Modeler HTTP API and checks existence at the head of the default branch, comparing commit numbers only.
+  - The workspace registers that adapter (`apps/workspace/src/platform/services.ts`, `registerReferencePort` from `@ews/tool-conceptualize`).
+  - No CAD Modeler adapter: the CAD service (C4) is not on main, so CAD Modeler references show *Not checked* until the registry or the SDK 1.8 `cad` client resolves them.
+- UI:
+  - The picker offers SysML Modeler element, CAD Modeler entity, Product element and Project document (ID plus optional revision).
+  - The legacy twin is a separate "Demo twin object" choice, shown in PRJ-ACT100 only.
+  - Statuses show an **adapter** badge when an adapter checked them and a **Demo twin** badge for legacy objects.
+- Assistant `link_artifact`:
+  - Infers the scheme from the ID and checks it through the ports (missing → not-found).
+  - Pins the given or latest revision.
+  - Refuses legacy twin IDs outside PRJ-ACT100.
+- Help (implementation, getting started, AI) no longer uses `CAD-…`/`SYS-…` as the example.
+- **Finding for the coordinator**:
+  - The AI access policy (AI-connection merge) refuses `conceptualize.request_realization` by default (class `external-generation` off).
+  - The demo assistant's reply then says "That needs Conceptualize, which isn't included in your subscription", but the user is entitled. The refusal message should name the policy class.
+  - The assistant browser flow now expects the refusal.
+- **Integration need**: replace the SysML adapter with `PlatformServices.sysml` (and add `cad`) when SDK 1.8 ships. `ReferencePort` is the seam.
+
 ### Settings Conceptualize would contribute to a future SDK `SettingsContribution`
 
 | Setting | Scope | Today |

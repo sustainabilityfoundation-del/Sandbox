@@ -377,6 +377,19 @@ describe('Project Management references (CR-PM-CON-1)', () => {
     expect(ev.body.artifact).toMatchObject({ module: 'projects', id: DOC })
     const link = await post(`/concepts/${c.id}/links`, { relation: 'references', artifact: { module: 'projects', kind: 'document', id: DOC } })
     expect(link.status).toBe(201)
+    // C3: SysML Modeler elements and CAD Modeler entities (scoped IDs, pinned revisions).
+    const real = await post('/implementations', {
+      name: 'Housing in the modelers',
+      conceptIds: [c.id],
+      artifacts: [
+        { module: 'sysml', kind: 'sysml-model-element', id: '5f1c2e9a-0000-4000-8000-0000000000aa/3f1c2e9a-0000-4000-8000-000000000001', revision: 12 },
+        { module: 'cad', kind: 'cad-modeler-entity', id: `${DOC}/body-1`, revision: 4 },
+      ],
+    })
+    expect(real.status, JSON.stringify(real.body)).toBe(201)
+    expect(real.body.artifacts.map((a: { kind: string; revision: number }) => [a.kind, a.revision]).sort()).toEqual([['cad-modeler-entity', 4], ['sysml-model-element', 12]])
+    expect((await post('/implementations', { name: 'Bad', conceptIds: [c.id], artifacts: [{ module: 'sysml', kind: 'sysml-model-element', id: 'SYS-003' }] })).status).toBe(422)
+    expect((await post('/implementations', { name: 'Bad', conceptIds: [c.id], artifacts: [{ module: 'cad', kind: 'cad-modeler-entity', id: 'not-a-uuid/body-1' }] })).status).toBe(422)
     // Shape checks: UUIDs and known kinds only.
     expect((await post('/implementations', { name: 'Bad', conceptIds: [c.id], artifacts: [{ module: 'product', id: 'PE-1' }] })).status).toBe(422)
     expect((await post('/implementations', { name: 'Bad', conceptIds: [c.id], artifacts: [{ module: 'product', kind: 'part', id: PRODUCT }] })).status).toBe(422)

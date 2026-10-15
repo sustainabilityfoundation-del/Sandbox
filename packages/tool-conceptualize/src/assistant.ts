@@ -1,7 +1,9 @@
 import { ActionError, argOptionalString, argString, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposalItem } from '@ews/platform-sdk'
-import { draftConcept } from '@ews/conceptualize-client'
+import { createRegistryReferencePort, draftConcept, isLegacyTwinReference, isRealModuleReference, referenceKind, scopedId } from '@ews/conceptualize-client'
+import type { ArtifactModule } from '@ews/platform-sdk'
+import { registeredReferencePorts } from './references'
 import { designActions, designDemo } from './assistantDesign'
-import { assistantProvenance, connection, proposal, resolve, string } from './assistantShared'
+import { assistantProvenance, connection, proposal, resolve, string, UUID } from './assistantShared'
 import { GENERATOR, generateExploration } from './ai/generator'
 import { formatQuantity, KIND_LABEL } from './domain'
 
@@ -232,28 +234,52 @@ const conceptActions: AssistantActionDefinition[] = [
   {
     name: 'conceptualize.link_artifact',
     label: 'Prepare an implementation link',
-    description: 'Prepare a ConceptImplementation linking a Concept to an artifact of another module: a SysML element (SYS-…), a CAD representation (CAD-…), a component or saved result of the twin (ROD-120, OUT-…), an analysis result (test adapter) or an external document. The reference pins the artifact’s current revision.',
-    parameters: { type: 'object', properties: { conceptId: string, artifactId: string, module: { type: 'string', enum: ['sysml', 'cad', 'twin', 'analysis', 'external'] } }, required: ['conceptId', 'artifactId'], additionalProperties: false },
+    description:
+      'Prepare a ConceptImplementation linking a Concept to an artifact of another module: a SysML Modeler element (<projectId>/<elementId>, revision = commit number), a CAD Modeler entity (<documentUuid>/<entityId>, revision = document revision), a Project Management product element (UUID) or project document (UUID, module projects), an analysis result (test adapter) or an external document. The reference is checked through the owning module and pinned to the given or current revision. Twin objects (SYS-…, CAD-…, ROD-…) are only the PRJ-ACT100 demo.',
+    parameters: { type: 'object', properties: { conceptId: string, artifactId: string, module: { type: 'string', enum: ['sysml', 'cad', 'product', 'projects', 'twin', 'analysis', 'external'] }, revision: { type: 'integer', minimum: 1 } }, required: ['conceptId', 'artifactId'], additionalProperties: false },
     async run(args, ctx) {
-      const { client } = connection(ctx)
+      const { client, projectId } = connection(ctx)
       const c = await resolve(client, argString(args, 'conceptId'))
       const artifactId = argString(args, 'artifactId')
-      const module = (argOptionalString(args, 'module') ?? (artifactId.startsWith('CAD-') ? 'cad' : artifactId.startsWith('SYS-') ? 'sysml' : /^https?:/.test(artifactId) ? 'external' : 'twin')) as 'sysml' | 'cad' | 'twin' | 'analysis' | 'external'
-      const object = ['sysml', 'cad', 'twin'].includes(module) ? ctx.model.get(artifactId) : undefined
-      if (['sysml', 'cad', 'twin'].includes(module) && !object) throw new ActionError('not-found', `${artifactId} is not in the model.`)
+      const given = argOptionalString(args, 'module') as ArtifactModule | undefined
+      const scoped = scopedId(artifactId)
+      const module: ArtifactModule =
+        given ?? (scoped ? (UUID.test(scoped.container) ? 'cad' : 'sysml') : UUID.test(artifactId) ? 'product' : artifactId.startsWith('CAD-') ? 'cad' : artifactId.startsWith('SYS-') ? 'sysml' : /^https?:/.test(artifactId) ? 'external' : 'twin')
+      const target = { module, id: artifactId, kind: referenceKind({ module, id: artifactId }) ?? (module === 'projects' ? 'document' : undefined) }
+      const pinned = typeof args.revision === 'number' ? args.revision : undefined
+      let object: { id: string; name: string; type: string; revision: number } | undefined
+      let resolved: { label: string; latest?: number; via: string; adapter: boolean } | undefined
+      const notes: string[] = []
+      if (isRealModuleReference(target)) {
+        const port = [...(ctx.services?.projects ? [createRegistryReferencePort(ctx.services.projects)] : []), ...registeredReferencePorts()].find((p) => p.supports(target))
+        if (port) {
+          const r = await port.resolve(projectId, target)
+          if (r.state === 'missing') throw new ActionError('not-found', `${artifactId} was not found: ${r.detail ?? 'the owning module does not have it'}`)
+          if (r.state === 'found') resolved = { label: r.label ?? artifactId, latest: r.latest, via: port.name, adapter: port.adapter }
+          else notes.push(`Not checked: ${r.detail ?? 'the owning module is not available'}.`)
+          if (port.adapter) notes.push(`Checked through ${port.name}.`)
+        } else notes.push(`Not checked: no read client for ${target.kind} references yet (SDK 1.8).`)
+      } else if (isLegacyTwinReference(target)) {
+        if (projectId !== 'PRJ-ACT100') throw new ActionError('invalid-arguments', `${artifactId} is a twin object of the illustrative tools (PRJ-ACT100 demo). Reference a SysML Modeler element as <projectId>/<elementId>, a CAD Modeler entity as <documentUuid>/<entityId> or a product element by UUID.`)
+        object = ctx.model.get(artifactId)
+        if (!object) throw new ActionError('not-found', `${artifactId} is not in the demo twin.`)
+        notes.push('Demo: a twin object of the illustrative SysML or mock CAD tool (PRJ-ACT100), not the SysML or CAD Modeler.')
+      }
+      const revision = pinned ?? object?.revision ?? resolved?.latest
+      const name = object?.name ?? resolved?.label ?? artifactId
       let implementationId: string | undefined
       return proposal({
         title: `Link ${c.key} to ${artifactId}`,
-        explanation: `Creates an implementation of ${c.key} that references ${artifactId}${object ? ` (${object.name}, revision ${object.revision})` : ''}. The Concept’s identity does not change if this implementation is replaced later.`,
+        explanation: `Creates an implementation of ${c.key} that references ${artifactId}${name !== artifactId ? ` (${name}${revision ? `, revision ${revision}` : ''})` : ''}. The Concept’s identity does not change if this implementation is replaced later.`,
         preview: [
-          { label: 'New implementation', proposed: `${c.name} realized by ${object?.name ?? artifactId}`, targetId: c.id },
-          { label: 'Artifact reference', proposed: `${module}:${artifactId}${object ? ` pinned at revision ${object.revision}` : ''}` },
+          { label: 'New implementation', proposed: `${c.name} realized by ${name}`, targetId: c.id },
+          { label: 'Artifact reference', proposed: `${module}${target.kind ? ` (${target.kind})` : ''}:${artifactId}${revision ? ` pinned at revision ${revision}` : ' following the latest revision'}` },
         ],
-        ...(module === 'analysis' ? { assumptions: ['Analysis references come from a labelled test adapter: no Analysis module exists.'] } : {}),
-        inspected: object ? [{ id: object.id, detail: `revision ${object.revision}` }] : [],
+        ...(module === 'analysis' || notes.length ? { assumptions: [...(module === 'analysis' ? ['Analysis references come from a labelled test adapter: no Analysis module exists.'] : []), ...notes] } : {}),
+        inspected: object ? [{ id: object.id, detail: `revision ${object.revision} (demo twin)` }] : resolved ? [{ id: artifactId, detail: `${resolved.via}${resolved.latest ? `, revision ${resolved.latest}` : ''}` }] : [],
         async apply(p) {
           const impl = await client.createImplementation(
-            { name: `${c.name}: ${object?.name ?? artifactId}`, conceptIds: [c.id], artifacts: [{ module, id: artifactId, ...(object ? { revision: object.revision, kind: object.type, label: `${object.id} ${object.name}` } : { label: artifactId }) }], reason: `Assistant proposal ${p.proposalId}` },
+            { name: `${c.name}: ${name}`, conceptIds: [c.id], artifacts: [{ module, id: artifactId, ...(revision ? { revision } : {}), ...(object ? { kind: object.type, label: `${object.id} ${object.name} (demo twin)` } : { ...(target.kind ? { kind: target.kind } : {}), label: name }) }], reason: `Assistant proposal ${p.proposalId}` },
             { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:link` },
           )
           implementationId = impl.id
@@ -379,6 +405,9 @@ export const conceptsDemo: DemoPlanner = (text, ctx) => {
   if ((m = /\bdecompose\s+(CON-\d{3,})\s+into\s+(.+)$/i.exec(t))) {
     const children = m[2].replace(/\.$/, '').split(/,|\band\b/).map((s) => s.trim()).filter(Boolean)
     return { reply: `I prepared a decomposition of ${m[1].toUpperCase()}.${note}`, calls: [{ name: 'conceptualize.decompose', arguments: { conceptId: m[1].toUpperCase(), children } }] }
+  }
+  if ((m = /\blink\s+(CON-\d{3,})\s+(?:to|with)\s+([A-Za-z0-9._-]+\/[A-Za-z0-9._:-]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(t))) {
+    return { reply: `I prepared an implementation linking ${m[1].toUpperCase()} to ${m[2]}; the reference is checked through the owning module.${note}`, calls: [{ name: 'conceptualize.link_artifact', arguments: { conceptId: m[1].toUpperCase(), artifactId: m[2] } }] }
   }
   if ((m = /\blink\s+(CON-\d{3,})\s+(?:to|with)\s+([A-Z]{2,4}-\d+)\b/i.exec(t))) {
     return { reply: `I prepared an implementation linking ${m[1].toUpperCase()} to ${m[2].toUpperCase()}.${note}`, calls: [{ name: 'conceptualize.link_artifact', arguments: { conceptId: m[1].toUpperCase(), artifactId: m[2].toUpperCase() } }] }

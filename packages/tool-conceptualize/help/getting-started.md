@@ -18,4 +18,5 @@ related: [conceptualize.concept.create, conceptualize.alternatives, conceptualiz
 5. In **Alternatives**, compare the options in the trade study and **Decide**. A reviewer records
    accepted or rejected outcomes.
 6. In the Concept workspace, tab **Implementations**, add an implementation and **Link artifact**
-   (for example CAD-120). Replacing the artifact later does not change the Concept.
+   (for example a SysML Modeler element or CAD Modeler entity by its ID). Replacing the artifact later
+   does not change the Concept.

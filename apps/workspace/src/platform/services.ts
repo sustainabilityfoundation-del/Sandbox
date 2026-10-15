@@ -1,5 +1,6 @@
 import type { ConceptsService, PlatformServices, RequirementsService } from '@ews/platform-sdk'
-import { createDemoConceptsService, createHttpConceptsService } from '@ews/conceptualize-client'
+import { createDemoConceptsService, createHttpConceptsService, createSysmlModelerReferenceAdapter } from '@ews/conceptualize-client'
+import { registerReferencePort } from '@ews/tool-conceptualize'
 import { createDemoRequirementsService, createHttpRequirementsService } from '@ews/requirements-client'
 import { create } from 'zustand'
 import { workspaceHelp } from '../help/workspaceHelp'
@@ -68,6 +69,11 @@ function createConcepts(settings: ServiceSettings): ConceptsService {
   if (settings.requirementsMode === 'demo') return createDemoConceptsService({ latencyMs: 80 })
   return createHttpConceptsService({ baseUrl: '/api/concepts/v1', devUser: settings.devUser })
 }
+
+// Conceptualize resolves SysML Modeler references through this labelled adapter until the SDK 1.8 read
+// client (PlatformServices.sysml) exists; product elements and the other real modules go through
+// services.projects (integration milestone 1, C5). Appended by the Conceptualize agent.
+if (serviceSettings.requirementsMode === 'api') registerReferencePort(createSysmlModelerReferenceAdapter({ baseUrl: '/api/sysml/v1', devUser: serviceSettings.devUser }))
 
 export const workspaceServices: PlatformServices = { requirements: createRequirements(serviceSettings), help: workspaceHelp, concepts: createConcepts(serviceSettings) }
 

@@ -26,6 +26,10 @@ const ID_PATTERN: Record<ArtifactRefDto['module'], RegExp> = {
   projects: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 }
 
+// SysML Modeler project and element IDs are UUIDs (services/sysml routes).
+const SYSML_ELEMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const CAD_ENTITY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/i
+
 /** Kinds per module where the owner defines them; an omitted kind is the module's default. */
 const KINDS: Partial<Record<ArtifactRefDto['module'], string[]>> = {
   product: ['product-element'],
@@ -40,6 +44,11 @@ const KINDS: Partial<Record<ArtifactRefDto['module'], string[]>> = {
  */
 export function artifactProblem(a: ArtifactRefDto): string | null {
   if (!ID_PATTERN[a.module]) return `unknown module ${a.module}`
+  // C3: SysML Modeler elements and CAD Modeler entities (scoped IDs, revision = commit number or document
+  // revision). The unscoped SYS-…/CAD-… IDs are the legacy twin objects of the illustrative tools.
+  const kind = a.kind ?? (a.id.includes('/') && (a.module === 'sysml' || a.module === 'cad') ? (a.module === 'sysml' ? 'sysml-model-element' : 'cad-modeler-entity') : undefined)
+  if (a.module === 'sysml' && kind === 'sysml-model-element') return SYSML_ELEMENT.test(a.id) ? null : 'a SysML Modeler element is referenced as <projectId>/<elementId>'
+  if (a.module === 'cad' && kind === 'cad-modeler-entity') return CAD_ENTITY.test(a.id) ? null : 'a CAD Modeler entity is referenced as <documentUuid>/<entityId>'
   if (!ID_PATTERN[a.module].test(a.id)) {
     return a.module === 'requirements' ? 'a requirement is referenced by its canonical UUID (resolve keys such as REQ-001 first)' : a.module === 'product' || a.module === 'projects' ? `${a.module} artifacts are referenced by their UUID` : `"${a.id}" is not a valid ${a.module} identifier`
   }

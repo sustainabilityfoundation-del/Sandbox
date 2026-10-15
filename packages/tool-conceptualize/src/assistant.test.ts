@@ -4,6 +4,7 @@ import { sampleModel } from '@ews/platform-sdk/testing'
 import { createDemoConceptsService, createHttpConceptsService } from '@ews/conceptualize-client'
 import { generateExploration } from './ai/generator'
 import { conceptsAssistant, conceptsDemo } from './assistant'
+import { registerReferencePort } from './references'
 
 const OWNER = 'Develop three alternative concepts for a compact mechanical actuator capable of delivering 500 N of linear force within a 100 mm envelope.'
 const ASSISTANT_BASES = ['ai-hypothesis', 'assumption', 'estimate']
@@ -131,5 +132,44 @@ describe('design-knowledge operations (Design Reasoning P1)', () => {
       { op: 'createFunction', as: '$fn', body: { name: 'Reject heat', reason: 'Assistant proposal CP-9' } },
       { op: 'createLink', as: '$l1', body: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: 'c6' }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } },
     ])
+  })
+})
+
+describe('implementation links to the real modules (C3, C5)', () => {
+  const fetchFor = (calls: { url: string; body: any }[]) =>
+    (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = String(input)
+      calls.push({ url, body: init.body ? JSON.parse(String(init.body)) : undefined })
+      const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } })
+      if (url.includes('/concepts?')) return json({ items: [{ id: 'c1', key: 'CON-001', name: 'Drive' }], total: 1, limit: 20, offset: 0 })
+      if (url.endsWith('/concepts/c1')) return json({ id: 'c1', key: 'CON-001', name: 'Drive', revision: 1, statements: [] })
+      if (url.endsWith('/implementations')) return json({ id: 'i1', key: 'IMP-009' }, 201)
+      return json({})
+    }) as typeof globalThis.fetch
+  const ctxFor = (projectId: string, concepts: ReturnType<typeof createHttpConceptsService>) => {
+    const c = context({ concepts })
+    return { ...c, captured: { ...c.captured, projectId } }
+  }
+
+  it('checks a SysML Modeler element through an injected port and pins its revision', async () => {
+    const off = registerReferencePort({ name: 'Fake SysML adapter', adapter: true, supports: (r) => r.module === 'sysml' && r.id.includes('/'), resolve: async () => ({ state: 'found', label: 'Spindle (Drill rig)', latest: 7 }) })
+    try {
+      const calls: { url: string; body: any }[] = []
+      const concepts = createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch: fetchFor(calls) })
+      const p = (await action('conceptualize.link_artifact').run({ conceptId: 'CON-001', artifactId: 'p1/e1' }, ctxFor('PRJ-NEW', concepts))) as ServiceProposal
+      expect(p.preview[1].proposed).toBe('sysml (sysml-model-element):p1/e1 pinned at revision 7')
+      expect(p.assumptions?.join(' ')).toMatch(/Fake SysML adapter/)
+      await p.apply({ conversationId: 'C-3', proposalId: 'CP-1', messageId: 'M1' })
+      const body = calls.find((c) => c.url.endsWith('/implementations'))!.body
+      expect(body.artifacts).toEqual([{ module: 'sysml', id: 'p1/e1', revision: 7, kind: 'sysml-model-element', label: 'Spindle (Drill rig)' }])
+    } finally {
+      off()
+    }
+  })
+
+  it('keeps legacy twin objects to the PRJ-ACT100 demo', async () => {
+    const concepts = createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch: fetchFor([]) })
+    await expect(action('conceptualize.link_artifact').run({ conceptId: 'CON-001', artifactId: 'CAD-120' }, ctxFor('PRJ-NEW', concepts))).rejects.toThrow(/PRJ-ACT100 demo/)
+    expect(conceptsDemo('Link CON-001 to p1/e1', { selectionIds: [] })?.calls[0]).toEqual({ name: 'conceptualize.link_artifact', arguments: { conceptId: 'CON-001', artifactId: 'p1/e1' } })
   })
 })
