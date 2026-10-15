@@ -125,7 +125,7 @@ export const isoRequired = (d: Date | string): string => new Date(d).toISOString
 export const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
 
 export interface AuditInput {
-  entityType: 'project' | 'membership' | 'artifact' | 'link' | 'work-item' | 'milestone' | 'document'
+  entityType: 'project' | 'membership' | 'artifact' | 'link' | 'work-item' | 'milestone' | 'document' | 'product-element' | 'breakdown'
   entityId: string
   action: string
   revision?: number | null

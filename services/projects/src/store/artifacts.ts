@@ -64,7 +64,9 @@ export function artifactJson(r: ArtifactRow) {
 export type ArtifactJson = ReturnType<typeof artifactJson>
 
 export interface OwnArtifact {
-  kind: 'task' | 'issue' | 'risk' | 'milestone' | 'document'
+  kind: 'task' | 'issue' | 'risk' | 'milestone' | 'document' | 'product-element' | 'breakdown'
+  /** Owning module: 'projects' (default) or 'product' (product registry, ADR-0063). */
+  module?: 'projects' | 'product'
   nativeId: string
   category: ArtifactCategory
   key: string
@@ -76,9 +78,10 @@ export interface OwnArtifact {
 
 /** Registers or updates one of Project Management's own entities in the registry (same transaction). Returns the artifact ID. */
 export async function registerOwn(ctx: Ctx, a: OwnArtifact): Promise<string> {
+  const module = a.module ?? 'projects'
   const existing = await ctx.db.query<{ id: string; revision: number }>(
-    `SELECT id, revision FROM projects.artifacts WHERE project_id = $1 AND module = 'projects' AND kind = $2 AND native_id = $3 FOR UPDATE`,
-    [ctx.projectId, a.kind, a.nativeId],
+    `SELECT id, revision FROM projects.artifacts WHERE project_id = $1 AND module = $4 AND kind = $2 AND native_id = $3 FOR UPDATE`,
+    [ctx.projectId, a.kind, a.nativeId, module],
   )
   let id: string
   let revision: number
@@ -95,8 +98,8 @@ export async function registerOwn(ctx: Ctx, a: OwnArtifact): Promise<string> {
     revision = 1
     await ctx.db.query(
       `INSERT INTO projects.artifacts (id, project_id, module, kind, native_id, category, key, title, lifecycle, module_state, version_value, version_at, source, open_link, created_at, created_by, modified_at, modified_by, confirmed_at)
-       VALUES ($1,$2,'projects',$3,$4,$5,$6,$7,$8,$9,$10,$11,'projects',$12,$11,$13,$11,$13,$11)`,
-      [id, ctx.projectId, a.kind, a.nativeId, a.category, a.key, a.title, a.lifecycle, a.moduleState, String(a.version), ctx.now, JSON.stringify({ toolId: 'projects', params: { kind: a.kind, id: a.nativeId } }), ctx.actor],
+       VALUES ($1,$2,$14,$3,$4,$5,$6,$7,$8,$9,$10,$11,'projects',$12,$11,$13,$11,$13,$11)`,
+      [id, ctx.projectId, a.kind, a.nativeId, a.category, a.key, a.title, a.lifecycle, a.moduleState, String(a.version), ctx.now, JSON.stringify({ toolId: 'projects', params: { kind: a.kind, id: a.nativeId } }), ctx.actor, module],
     )
     await emit(ctx, 'artifact.registered', id, 1)
   }
