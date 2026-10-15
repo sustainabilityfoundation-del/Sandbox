@@ -60,7 +60,7 @@ function predictionItems(dry: DryRunResult): ServiceProposalItem[] {
  * 4. else the project's only stored document. With several, the caller must choose (documentId).
  * Documents stored in another project are refused (C13).
  */
-export async function resolveDocument(args: Record<string, unknown>, ctx: AssistantActionContext, options: { allowNone?: boolean } = {}): Promise<OpenDocument | undefined> {
+export async function resolveDocument(args: Record<string, unknown>, ctx: AssistantActionContext, options: { allowNone?: boolean; createsDocument?: boolean } = {}): Promise<OpenDocument | undefined> {
   const projectId = ctx.captured.projectId
   const id = typeof args.documentId === 'string' ? args.documentId : undefined
   const inProject = (d: OpenDocument) => (d.stored?.projectId ?? d.projectId ?? projectId) === projectId
@@ -87,6 +87,8 @@ export async function resolveDocument(args: Record<string, unknown>, ctx: Assist
   // The window's views may show another project; look for this project's open documents too.
   const openHere = cadSession.openDocuments().filter(inProject)
   if (openHere.length === 1) return openHere[0]
+  // With a view mounted, an unnamed target means what the person sees: nothing open → a new document.
+  if (options.allowNone && cadSession.viewMounted) return undefined
   if (store) {
     let docs
     try {
@@ -95,6 +97,8 @@ export async function resolveDocument(args: Record<string, unknown>, ctx: Assist
       throw new ActionError('unavailable', (e as Error).message)
     }
     if (docs.length === 1) return cadSession.document(docs[0].id) ?? load(docs[0].id)
+    // A self-contained creation (starting with create_part) makes a new document instead of guessing.
+    if (docs.length > 1 && options.allowNone && options.createsDocument) return undefined
     if (docs.length > 1) throw new ActionError('invalid-arguments', `Project ${projectId} has ${docs.length} CAD documents; pass documentId (${docs.slice(0, 8).map((d) => `${d.id} “${d.title}”`).join(', ')}). See cad-modeler.list_documents.`)
   }
   if (options.allowNone) return undefined
@@ -206,7 +210,7 @@ const actions: AssistantActionDefinition[] = [
     async run(args, ctx) {
       const commands = validateCalls(args.commands)
       const projectId = ctx.captured.projectId
-      const { open, version, dry } = await dryRunFor(await resolveDocument(args, ctx, { allowNone: true }), commands, args.expectedVersion as number | undefined)
+      const { open, version, dry } = await dryRunFor(await resolveDocument(args, ctx, { allowNone: true, createsDocument: commands[0]?.command === 'create_part' }), commands, args.expectedVersion as number | undefined)
       const persist = persistsOnApply()
       if (!dry.ok) {
         const where = dry.failedIndex !== undefined && dry.failedIndex >= 0 ? ` (command ${dry.failedIndex + 1}, ${commands[dry.failedIndex]?.command})` : ''

@@ -136,6 +136,32 @@ describe('C9: every cad-modeler operation with no view mounted', () => {
     expect(await refused(action('cad-modeler.describe_model').run({}, ctx(A)))).toMatchObject({ code: 'invalid-arguments' })
   })
 
+  it('a transaction starting with create_part makes a new document even when the project has several', async () => {
+    await stored(A, 'One')
+    await stored(A, 'Two')
+    const p = await propose('cad-modeler.run_commands', { commands: [{ command: 'create_part', input: { name: 'Fresh' } }] })
+    expect(p.title).toMatch(/new CAD document/)
+    await p.apply(provenance)
+    expect((await store.list(A)).length).toBe(3)
+    // With nothing open (the new document is open and active now, so close it), editing without documentId is ambiguous.
+    for (const d of cadSession.openDocuments()) cadSession.close(d.id)
+    expect(await refused(action('cad-modeler.run_commands').run({ commands: [{ command: 'set_document_metadata', input: { title: 'x' } }] }, ctx()))).toMatchObject({ code: 'invalid-arguments' })
+  })
+
+  it('with a view mounted and nothing open, run_commands creates a new document (not a stored one)', async () => {
+    await stored(A, 'Stored')
+    const detach = cadSession.attachView()
+    try {
+      const p = await propose('cad-modeler.run_commands', { commands: [{ command: 'create_part', input: { name: 'Plate' } }] })
+      expect(p.title).toMatch(/new CAD document/)
+      await p.apply(provenance)
+      // The view's explicit Save stores it; nothing was saved automatically.
+      expect((await store.list(A)).map((d) => d.title)).toEqual(['Stored'])
+    } finally {
+      detach()
+    }
+  })
+
   it('defines the same operations as the tool registers (all covered here)', () => {
     expect(cadModelerTool.assistant!.actions.map((a) => a.name).sort()).toEqual(
       ['cad-modeler.describe_model', 'cad-modeler.export', 'cad-modeler.list_documents', 'cad-modeler.new_document', 'cad-modeler.open_document', 'cad-modeler.query', 'cad-modeler.run_commands', 'cad-modeler.save_document', 'cad-modeler.undo'].sort(),
