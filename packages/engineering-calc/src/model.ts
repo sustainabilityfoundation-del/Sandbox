@@ -189,7 +189,7 @@ export function compileModel(definition: CalculationModelDefinition): CompiledMo
       fail('model', e)
     }
   }
-  if (problems.length) throw new CalcError('model', `The calculation model has ${problems.length} problem${problems.length === 1 ? '' : 's'}: ${problems[0].message}`, { problems })
+  if (problems.length) throw new CalcError(problems.every((p) => p.code === problems[0].code) ? problems[0].code : 'model', `The calculation model has ${problems.length} problem${problems.length === 1 ? '' : 's'}: ${problems[0].message}`, { problems })
 
   const digest = digestOf({
     grammar: definition.grammar,

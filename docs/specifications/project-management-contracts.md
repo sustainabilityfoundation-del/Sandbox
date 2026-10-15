@@ -1,5 +1,7 @@
 # Project Management: agreed contracts, ownership and governance
 
+> **Amended (15 October 2026)** by the coordinator's [integration milestone 1](integration-milestone-1.md): shared contracts C1–C13, the acceptance workflow and the status vocabulary there take precedence where they are more specific.
+
 Status: agreed by the coordinator, 15 October 2026, before delegation. Brief: [project-management.md](project-management.md).
 Progress: [project-management-progress.md](project-management-progress.md).
 
