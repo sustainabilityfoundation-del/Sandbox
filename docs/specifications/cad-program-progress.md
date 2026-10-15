@@ -28,6 +28,29 @@ Branch: `feature/cad`. Worktree: `C:\Users\kimge.000\Documents\Sandbox-cad`. Mai
 | 3D viewport, geometry off the UI thread | three.js viewport; OCCT in a Web Worker | `get_entities` (stable face names) | browser pixel check; Diagnostics shows worker |
 | Export STEP | Export STEP (AP242 + structural report) | `export {format: step}` | kernel.test (inspection + re-import); browser |
 
+## D1-CAD (demonstration D1, docs/specifications/demo-ai-engineering.md)
+
+| # | Increment | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | `add_regular_polygon { sketchId, center, sides, size: { acrossFlats \| circumradius }, rotation }` | **Done.** Lines with equal-length and point-on-circle constraints on a construction circumcircle; centre dimensioned; rotation fixed; size as one driving dimension (across flats via a tangent inscribed circle). Fully constrained (DOF 0), editable, solver-checked. UI: Polygon in the sketch tools | `cad-kernel/src/d1.test.ts` (area = √3/2·AF², DOF 0 after a parameter change, pentagon by circumradius, invalid input) |
+| 2 | `pattern_linear { features, direction, count, spacing }` (format 1.2 `pattern-linear`) | **Done.** Count and spacing are expressions. Occurrences are rebuilt from the source sketch on shifted planes (deterministic, cached). Stable face names `<pattern>/i<k>-<feature>-<role>`. The kernel measures the gap between neighbouring occurrences (`GeometryKernel.distance`, optional, implemented in OCCT and the worker). UI: Pattern toolbar form | d1.test: exact volume, 7 named faces per occurrence, names unchanged after a spacing change, fresh regeneration identical, count from a parameter, invalid count fails with a reason |
+| 3 | Parameter bindings `{ ref: ArtifactRef with revision, quantity?, note? }` | **Done.** `bind_parameter` / `unbind_parameter`. Shown and removable in the Parameters panel; included in `parameterTable` (describe_model). No value is copied | d1.test, contracts test (strict JSON Schema 1.2) |
+| 4 | `cad-modeler.check` | **Done** (headless, read-only). Bounds are read through `ConceptsService.getConstraint`; caller-supplied bounds are refused. Measures bound parameters, named dimensions, bounding size, volume, area, mass, pattern spacing, count and gap, and solid validity. Units are converted. Results follow ADR-0070 item 3; assumptions are listed | `tool-cad-modeler/src/assistant.d1.test.ts` (real OCCT, fake Conceptualize with two constraint revisions) |
+| 5 | `cad-modeler.check_bindings` | **Done.** Bindings pinned to superseded revisions, with the old and new bounds; re-binding clears them | assistant.d1.test |
+| 6 | Headless STEP export with read-back | **Done.** `cad-modeler.export { format: 'step', return: true }` returns the file (name, media type, size, SHA-256, content), the structural inspection and the read-back (re-import: solid count, bounding box within 1e-3 mm, volume within 1e-6 relative). Download proposals also report the read-back | assistant.d1.test |
+| 7 | Host helper | **Done.** `createWorkspaceCadService({ baseUrl, devUser, client? })` exported from `@ews/tool-cad-modeler`; it uses the window's shared kernel worker | assistant.d1.test |
+
+Not verified yet:
+- A real Conceptualize `getConstraint` (tests use a fake that implements the SDK 1.8 contract).
+- The workspace wiring of `PlatformServices.cad` (the coordinator's).
+- A browser run of D1 with a live model.
+
+Example values exist only in test fixtures, as a generic block with hexagonal pockets.
+
+For Project Management, a STEP export in a project document should keep `documentId`,
+`documentRevision`, `modelVersion` and the read-back next to the file. The export result carries
+all of them.
+
 ## Sprint 3 (after the I1 merge, main 34b868f)
 
 | Item | Status | Evidence |
@@ -363,3 +386,4 @@ The top items are below; the full list is in [backlog.md](../modules/cad/backlog
 | 2026-10-15 | Project Management readiness (ae98423): part UUIDs, descriptive events (migration 0002), refusal for readers. Docs and ADR-0027 (cf55b88). Merged main at SDK 1.7.0 (69355eb), then CR-PM-REG-4 (artifact source) and CR-PM-CAD-1. |
 | 2026-10-15 | Integration milestone 1. Merged main (ccb5e61; conflicts in the services/api registration, root scripts and boundaries, both sides kept). C4/C13 tests (f454872), C5 read client (a271119), C9 headless operations (c8dca69). The sprint2 browser flow passed 20/20 on the merged code after an API restart; one run timed out on Vite's cold compile, and the rerun passed. |
 | 2026-10-15 | Sprint 3. ADR-0027 answers (8ef547d). C13 view (cc2d107), deep link (d35b8bc), both merged by the coordinator in 34b868f. Merged main (129db68). Settings (64f03b1 + COORDINATOR REVIEW 5685337), product-reference validation (49e292f), C9 target fix (7d94782), e2e flow (d46aa4b). |
+| 2026-10-15 | D1-CAD. Merged main (14b0f9f). Items 1–3 (0382b7f), 4–5 (1b3c05b, plus COORDINATOR REVIEW d9bf061 for the capability inventory and AI catalogue), 6–7 (e5569f8). |
