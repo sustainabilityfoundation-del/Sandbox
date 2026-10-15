@@ -185,6 +185,18 @@ Deviations 1–5 accepted.
 6. CR-PM-REG-2 (artifact source): done earlier (0842362).
 - **Open question for the coordinator**: what basis CAD kernel measurements should carry. They are deterministic measurements of a pinned revision. Without a re-verifiable form they are recorded as `estimate`, which overstates their uncertainty. A kernel-measurement basis or a CAD-side reproducibility record would fix this (CR-C8/C11 follow-up).
 - C8 calculation models work in progress is kept in `git stash` ("C8 WIP"). It will become migration 0006 after D1.
+- **Decision (coordinator, 15 Oct)**: for D1, CAD kernel measurements are recorded as `estimate`, with the tool and pinned-revision provenance that is already required.
+- **Backlog, after D1 (CR-C8/C11 extension)**: a CAD-side reproducibility record, re-verified by Conceptualize on the server before it accepts basis `calculated`.
+  - The record holds the document revision, kernel name and version, measurement spec and results digest.
+  - Re-verification is a Node regeneration (`@ews/cad-kernel/node`).
+
+### Project scoping (integration milestone 1, C13)
+
+`test/scoping.test.ts` (5 tests, real PostgreSQL) uses a second project with memberships.
+- Project B starts empty. Project A records are never visible through B (reads, search, graph).
+- Writes through B to A records answer 404 (concept, function, constraint status).
+- Every reference from a B record to an A record is refused with a 4xx and leaves A unchanged, in a batch as well (rolled back). This covers relationships, design links in either direction, sub-functions, children, `performs`, constraint, assumption and evidence subjects, result constraints, decision outcomes and pins, alternative sets and implementations.
+- Events are delivered per project. Non-members get 403.
 
 ### Settings Conceptualize would contribute to a future SDK `SettingsContribution`
 
