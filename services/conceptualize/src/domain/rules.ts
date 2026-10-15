@@ -210,7 +210,7 @@ export function wouldCreateCycle(edges: { from: string; to: string }[], from: st
 // ---- implementations, links, trade studies -------------------------------------------------------------------
 
 export const IMPLEMENTATION_STATUSES = ['candidate', 'in-development', 'implemented', 'retired'] as const
-export const ARTIFACT_MODULES = ['requirements', 'sysml', 'cad', 'analysis', 'twin', 'external'] as const
+export const ARTIFACT_MODULES = ['requirements', 'sysml', 'cad', 'analysis', 'twin', 'external', 'product', 'projects'] as const
 export const LINK_RELATIONS = ['satisfies', 'derives', 'refines', 'proposes', 'references'] as const
 export const LINK_MEANING: Record<(typeof LINK_RELATIONS)[number], string> = {
   satisfies: 'The Concept is intended to satisfy the requirement (design intent; not verification)',

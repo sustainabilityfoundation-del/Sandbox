@@ -12,7 +12,7 @@ import { migrate, type MigrationResult } from './db/migrate'
 export { conceptsPlugin, type ConceptsPluginOptions } from './http/plugin'
 export { buildOpenApi, BASE_PATH as CONCEPTS_BASE_PATH, API_VERSION as CONCEPTS_API_VERSION } from './http/openapi'
 export { createEventHub as createConceptsEventHub, type EventHub as ConceptsEventHub } from './events/hub'
-export { seedConcepts, seedDesignKnowledge, SEED_IDS as CONCEPT_SEED_IDS, SEED_REQUIREMENTS as CONCEPT_SEED_REQUIREMENTS, FUNCTION_SEED_IDS } from './seed'
+export { seedConcepts, seedDesignKnowledge, SEED_IDS as CONCEPT_SEED_IDS, SEED_REQUIREMENTS as CONCEPT_SEED_REQUIREMENTS, FUNCTION_SEED_IDS, CONSTRAINT_SEED_IDS } from './seed'
 export { ServiceError as ConceptsError } from './errors'
 export { PERMISSIONS as CONCEPT_PERMISSIONS, RELATIONSHIP_RULES as CONCEPT_RELATIONSHIP_RULES, MATURITIES, BASES, STATEMENT_KINDS, wouldCreateCycle } from './domain/rules'
 export { parseUnit, convert, sameDimension, dimensionName, quantityProblem, COMMON_UNITS } from './domain/units'
@@ -25,3 +25,4 @@ export const CONCEPT_MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url
 export function migrateConcepts(pool: Pool): Promise<MigrationResult> {
   return migrate(pool, { schema: 'conceptualize', directory: CONCEPT_MIGRATIONS_DIR })
 }
+export { createConceptsArtifactSource, CONCEPTS_ARTIFACT_KINDS, lifecycleOf as conceptsLifecycleOf } from './artifactSource'

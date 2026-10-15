@@ -108,6 +108,84 @@ Deviations 1–5 accepted.
   `R1_OPERATION` in `http/openapi.ts`), the v1 Concept-link `createLink` carries `x-r1-note`. Mapping in the
   API help page.
 
+### Project Management integration (CR-PM-REG-2, CR-PM-CON-1)
+
+- `createConceptsArtifactSource(pool, events)` (`services/conceptualize/src/artifactSource.ts`, exported
+  from `@ews/conceptualize-service`): SDK 1.7 `ArtifactSource`. Kinds: concept, function, constraint,
+  assumption, alternative-set, trade-study, decision, evidence, concept-implementation. `list` pages in a
+  stable order (kind, key, id; keyset cursor, max 500), `describe` omits unknown refs and other projects,
+  descriptors carry the module state verbatim, the §5 lifecycle mapping (`conceptsLifecycleOf`), version
+  (revision; evidence is immutable), container (set → parent Concept, study and decision → set) and
+  module-owned relations (relationships, design links, realizes, evidence subjects). `subscribe` reads the
+  outbox after commit through the new `EventHub.subscribeAll` and itemises each event: implementation events
+  name their Concept, so the Concept and its implementations are upserted, and link events upsert the link's
+  `from` record. Anything it cannot itemise is sent as `reconcile`. `provision` for a blank template answers
+  `not-needed` and creates nothing. Kinds are `navigable: false`, with no `open`, because tools have no
+  deep-link parameters yet. Tests: `test/artifactSource.test.ts` (5, real PostgreSQL), covering the §7 checks
+  and a new project that stays empty.
+- **Integration need**: the API host wires `createConceptsArtifactSource(options.pool, conceptEvents)` into the
+  Project Management plugin (coordinator).
+- `ArtifactRef.module` accepts `product` (kind `product-element`, UUID) and `projects` (kinds document, task,
+  issue, risk, milestone, project-baseline; UUID) in implementations, evidence and Concept links.
+  Migration `0004_pm_artifact_modules.sql` widens the CHECKs additively. SDK `ArtifactModule` widening plus the
+  Integration labels are in COORDINATOR REVIEW commit e54b302.
+
+### References to the real modules (integration milestone 1, C3 and C5)
+
+- Server shape rules (`artifactProblem`):
+  - `sysml` / `sysml-model-element`: id `<projectId>/<elementId>`, both UUIDs; revision = commit number.
+  - `cad` / `cad-modeler-entity`: id `<documentUuid>/<entityId>`; revision = document revision.
+  - `product` / `product-element`; `projects` kinds.
+  - Unscoped `SYS-…`, `CAD-…` and twin IDs stay valid as **legacy twin objects** (PRJ-ACT100 demo data). Existence is checked by clients through the owning module, as before (contracts §9).
+- Resolution (`conceptualize-client/src/references.ts`) through `ReferencePort`s:
+  - `createRegistryReferencePort(services.projects)` is the real SDK 1.7 path (`ProjectsService.resolve`). It covers product elements and project entities, and covers SysML/CAD Modeler entities once CR-PM-REG-3/4 register them.
+  - `createSysmlModelerReferenceAdapter` is a **labelled adapter** until the SDK 1.8 read client. It reads the SysML Modeler HTTP API and checks existence at the head of the default branch, comparing commit numbers only.
+  - The workspace registers that adapter (`apps/workspace/src/platform/services.ts`, `registerReferencePort` from `@ews/tool-conceptualize`).
+  - No CAD Modeler adapter: the CAD service (C4) is not on main, so CAD Modeler references show *Not checked* until the registry or the SDK 1.8 `cad` client resolves them.
+- UI:
+  - The picker offers SysML Modeler element, CAD Modeler entity, Product element and Project document (ID plus optional revision).
+  - The legacy twin is a separate "Demo twin object" choice, shown in PRJ-ACT100 only.
+  - Statuses show an **adapter** badge when an adapter checked them and a **Demo twin** badge for legacy objects.
+- Assistant `link_artifact`:
+  - Infers the scheme from the ID and checks it through the ports (missing → not-found).
+  - Pins the given or latest revision.
+  - Refuses legacy twin IDs outside PRJ-ACT100.
+- Help (implementation, getting started, AI) no longer uses `CAD-…`/`SYS-…` as the example.
+- **Finding for the coordinator**:
+  - The AI access policy (AI-connection merge) refuses `conceptualize.request_realization` by default (class `external-generation` off).
+  - The demo assistant's reply then says "That needs Conceptualize, which isn't included in your subscription", but the user is entitled. The refusal message should name the policy class.
+  - The assistant browser flow now expects the refusal.
+- **Integration need**: replace the SysML adapter with `PlatformServices.sysml` (and add `cad`) when SDK 1.8 ships. `ReferencePort` is the seam.
+
+### Demonstration D1 (D1-CON), merged main with SDK 1.8
+
+1. **`ConceptsService.getConstraint`** (SDK 1.8 `ConstraintSummary`):
+   - Implemented in the HTTP service, which reads the latest revision as well when a specific revision is requested.
+   - Implemented in the demo service, with two labelled demo constraints (`DEMO_CONSTRAINT_IDS`).
+   - Contract suite test added and run on the demo adapter and on the HTTP adapter (editor, and a SysML/CAD-only user through the SDK read subset).
+   - The seed constraints now have fixed IDs (`CONSTRAINT_SEED_IDS`, fresh databases).
+2. **Assistant operations** (headless: they use only `services.concepts`; service proposals):
+   - `conceptualize.revise_constraint`: a new revision with a required reason. Statement, bound and strength only; status stays a person's action.
+   - `conceptualize.record_evidence`: a check result with the source `ArtifactRef` and its revision, tool name and version, point results (C11 `kind: 'point'`) checked against pinned constraints, and the subjects. Basis is `estimate` by default (assessment, assumption and ai-hypothesis are allowed), never `evidence`.
+   - `conceptualize.review_flags`: decisions under review or invalidated, with open flags, impact reports and stale pins.
+   - Policy classes appended in a COORDINATOR REVIEW commit.
+3. **Evidence results (C11 storage for D1)**:
+   - Migration `0005_evidence_results.sql` adds `evidence.tool` and `evidence.results`.
+   - Results keep their qualification unchanged (`point`, `sampled-range`, `bounds` with exact or enclosure).
+   - With a constraint, the **service computes the status** from the bound at the pinned revision, with unit conversion and margin for points (`domain/checks.ts`). A given status must match. Ranges are `satisfied` only for proven bounds; a sampled range is always `uncertain`.
+   - ADR-0070 item 3: results require a revision-pinned source and the tool name and version.
+   - The UI shows tool, source revision, qualification labels and the status, with the text "measured or computed values only".
+4. **Reference resolution**:
+   - `referencePortsFor(services)` uses `PlatformServices.sysml` (SDK 1.8, wired in API mode), `PlatformServices.cad` (when present), then the Project Management registry, then injected adapters.
+   - The workspace no longer registers the HTTP SysML adapter. It stays available as a labelled adapter for hosts without SDK 1.8.
+   - A missing reference shows *Not found*. An unavailable module, or a host with no read client, shows **Module unavailable**: the reference is kept and nothing is shown as an error.
+5. **Finding D6 fixed by refusal**: basis `calculated` is refused for evidence until CR-C8 lets the service re-verify a calculation (422, "record it as estimate or assessment").
+   - I chose refusal over silently storing `assessment`, so the caller learns that the claim is not supported.
+   - Evidence stored as `calculated` before this change is unchanged (no data rewrite). Statements and scores citing it still pass the old check; CR-C8 will re-verify.
+6. CR-PM-REG-2 (artifact source): done earlier (0842362).
+- **Open question for the coordinator**: what basis CAD kernel measurements should carry. They are deterministic measurements of a pinned revision. Without a re-verifiable form they are recorded as `estimate`, which overstates their uncertainty. A kernel-measurement basis or a CAD-side reproducibility record would fix this (CR-C8/C11 follow-up).
+- C8 calculation models work in progress is kept in `git stash` ("C8 WIP"). It will become migration 0006 after D1.
+
 ### Settings Conceptualize would contribute to a future SDK `SettingsContribution`
 
 | Setting | Scope | Today |

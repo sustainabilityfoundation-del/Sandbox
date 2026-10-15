@@ -143,7 +143,7 @@ async function insertRevision(ctx: Ctx, id: string, revision: number, c: { kind:
   )
 }
 
-export async function createConstraint(ctx: Ctx, input: ConstraintCreateDto, options: { origin?: { conceptId: string; statementId: string } } = {}): Promise<ConstraintOut> {
+export async function createConstraint(ctx: Ctx, input: ConstraintCreateDto, options: { origin?: { conceptId: string; statementId: string }; id?: string } = {}): Promise<ConstraintOut> {
   const statedBasis = input.source?.kind === 'stated' ? input.source.basis : undefined
   if (input.basis && statedBasis && input.basis !== statedBasis) throw invalid('basis and source.basis disagree.', { basis: 'differs from source.basis' })
   const basis: Basis = input.basis ?? statedBasis ?? (ctx.provenance.sourceKind === 'assistant' ? 'ai-hypothesis' : 'user-assertion')
@@ -158,7 +158,7 @@ export async function createConstraint(ctx: Ctx, input: ConstraintCreateDto, opt
   }
   if (source.kind === 'derived') await requireRefs(ctx.db, ctx.projectId, [{ type: source.from.type, id: source.from.id }], 'source.from')
   if (input.subjects?.length) await requireRefs(ctx.db, ctx.projectId, input.subjects, 'subjects')
-  const id = randomUUID()
+  const id = (options.id ?? randomUUID())
   const key = await nextKey(ctx, KEY_PREFIX.constraint, 'design_constraints')
   await ctx.db.query(
     `INSERT INTO conceptualize.design_constraints (id, project_id, key, current_revision, status, created_at, created_by, updated_at, updated_by) VALUES ($1,$2,$3,1,$4,$5,$6,$5,$6)`,

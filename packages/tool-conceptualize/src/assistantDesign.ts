@@ -1,7 +1,7 @@
 import { ActionError, argOptionalString, argString, type AssistantActionDefinition, type DemoPlanner, type ServiceProposalItem } from '@ews/platform-sdk'
 import type { BatchItem, ConstraintKind, DesignEntityType, DesignRef, Quantity } from '@ews/conceptualize-client'
 import { formatQuantity } from './domain'
-import { assistantProvenance, connection, proposal, resolve, resolveRef, string } from './assistantShared'
+import { assistantProvenance, connection, proposal, resolve, resolveRef, string, UUID } from './assistantShared'
 
 /**
  * Assistant operations for design knowledge (Design Reasoning P1: Functions, Constraints, Assumptions,
@@ -312,6 +312,163 @@ export const designActions: AssistantActionDefinition[] = [
   },
 ]
 
+// ---- D1-CON: constraint revisions, evidence from checks, review flags (headless: services only) ----------------
+
+const OPS = ['<=', '<', '=', '>=', '>', 'in-range'] as const
+const fmtBound = (b: { symbol?: string; operator: string; quantity: Quantity } | null | undefined) => (b ? `${b.symbol ? `${b.symbol} ` : ''}${b.operator} ${formatQuantity(b.quantity)}` : 'no bound')
+
+async function constraintOf(client: ReturnType<typeof connection>['client'], idOrKey: string) {
+  if (UUID.test(idOrKey)) return client.constraint(idOrKey)
+  const r = await resolveRef(client, idOrKey, ['constraint'])
+  return client.constraint(r.ref.id)
+}
+
+designActions.push(
+  {
+    name: 'conceptualize.revise_constraint',
+    label: 'Prepare a constraint revision',
+    description:
+      'Prepare a new revision of a design constraint (CST-… or UUID): statement, bound (operator, value or min/max, unit, symbol) and strength, with a required reason. Status changes (activate, relax, retire) stay a person’s action. Decisions that pinned the earlier revision show it as stale.',
+    parameters: {
+      type: 'object',
+      properties: { constraintId: string, reason: string, statement: string, operator: { type: 'string', enum: [...OPS] }, value: { type: 'number' }, min: { type: 'number' }, max: { type: 'number' }, unit: string, symbol: string, strength: { type: 'string', enum: ['hard', 'soft', 'preference'] } },
+      required: ['constraintId', 'reason'],
+      additionalProperties: false,
+    },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const c = await constraintOf(client, argString(args, 'constraintId'))
+      const reason = argString(args, 'reason')
+      const statement = argOptionalString(args, 'statement')
+      const strength = argOptionalString(args, 'strength') as 'hard' | 'soft' | 'preference' | undefined
+      const num = (k: string) => (typeof args[k] === 'number' ? (args[k] as number) : undefined)
+      const boundChanged = ['operator', 'value', 'min', 'max', 'unit', 'symbol'].some((k) => args[k] !== undefined)
+      let bound = c.bound
+      if (boundChanged) {
+        const operator = (argOptionalString(args, 'operator') ?? c.bound?.operator ?? '<=') as (typeof OPS)[number]
+        const unit = argOptionalString(args, 'unit') ?? c.bound?.quantity.unit
+        if (!unit) throw new ActionError('invalid-arguments', `${c.key} has no bound yet; give the unit.`)
+        const quantity: Quantity = operator === 'in-range' ? { unit, min: num('min') ?? c.bound?.quantity.min ?? null, max: num('max') ?? c.bound?.quantity.max ?? null } : { unit, value: num('value') ?? c.bound?.quantity.value ?? null }
+        const symbol = argOptionalString(args, 'symbol') ?? c.bound?.symbol
+        bound = { operator, quantity, ...(symbol ? { symbol } : {}) }
+      }
+      if (!statement && !strength && !boundChanged) throw new ActionError('no-op', 'Nothing to revise: give a statement, bound or strength.')
+      const patch = { ...(statement ? { statement } : {}), ...(strength ? { strength } : {}), ...(boundChanged ? { bound } : {}) }
+      let revised: { id: string; revision: number } | undefined
+      return proposal({
+        title: `Revise ${c.key}`,
+        explanation: `New revision ${c.revision + 1} of ${c.key} (${reason}). Decisions and evidence that pinned revision ${c.revision} keep it and show it as superseded.`,
+        preview: [
+          ...(statement ? [{ label: 'Statement', current: c.statement, proposed: statement, targetId: c.id, basis: 'ai-hypothesis' as const }] : []),
+          ...(boundChanged ? [{ label: 'Bound', current: fmtBound(c.bound), proposed: fmtBound(bound), targetId: c.id, basis: 'ai-hypothesis' as const }] : []),
+          ...(strength ? [{ label: 'Strength', current: c.strength, proposed: strength, targetId: c.id, basis: 'ai-hypothesis' as const }] : []),
+          { label: 'Reason', proposed: reason },
+        ],
+        ...(c.source.kind === 'requirement' ? { assumptions: [`${c.key} formalizes ${c.source.ref.label ?? 'a requirement'}; revise the requirement in Requirements too if its value changes.`] } : {}),
+        inspected: [{ id: c.key, detail: `revision ${c.revision}` }],
+        async apply(p) {
+          const r = await client.updateConstraint(c.id, { ...patch, reason }, { expectedRevision: c.revision, provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:revise` })
+          revised = { id: r.id, revision: r.revision }
+          return { summary: `${r.key} is at revision ${r.revision}`, createdIds: [r.id] }
+        },
+        async undo() {
+          if (!revised) return { summary: 'Nothing to undo.' }
+          const back = { ...(statement ? { statement: c.statement } : {}), ...(strength ? { strength: c.strength } : {}), ...(boundChanged ? { bound: c.bound } : {}) }
+          const r = await client.updateConstraint(c.id, { ...back, reason: `Undo of an assistant proposal (restores revision ${c.revision})` }, { expectedRevision: revised.revision })
+          return { summary: `${r.key} restored as revision ${r.revision} (history kept)` }
+        },
+      })
+    },
+  },
+  {
+    name: 'conceptualize.record_evidence',
+    label: 'Prepare an evidence record from a check',
+    description:
+      'Prepare an evidence record from a check result (for example a CAD Modeler check): the source artifact with its revision (e.g. the CAD document revision), the tool name and version, the measured values with units, each optionally checked against a constraint (CST-…), and the subjects (constraints, Concepts, Functions). Values are points (C11 qualification kind point). Conceptualize computes satisfied/violated from the constraint bound at its current revision; nothing is claimed beyond what was measured. Basis is estimate unless given; the assistant never records verified evidence.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: string,
+        subjects: { type: 'array', items: string, minItems: 1, maxItems: 20 },
+        source: { type: 'object', properties: { module: { type: 'string', enum: ['cad', 'sysml', 'product', 'projects', 'requirements', 'analysis', 'external'] }, kind: string, id: string, revision: { type: 'integer', minimum: 1 }, label: string }, required: ['module', 'id', 'revision'], additionalProperties: false },
+        tool: { type: 'object', properties: { name: string, version: string }, required: ['name', 'version'], additionalProperties: false },
+        results: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 100,
+          items: { type: 'object', properties: { name: string, value: { type: 'number' }, unit: string, constraintId: string, note: string }, required: ['name', 'value', 'unit'], additionalProperties: false },
+        },
+        basis: { type: 'string', enum: ['estimate', 'assessment', 'assumption', 'ai-hypothesis'] },
+        kind: { type: 'string', enum: ['analysis', 'calculation', 'test', 'review', 'estimate'] },
+        summary: string,
+      },
+      required: ['title', 'subjects', 'source', 'tool', 'results'],
+      additionalProperties: false,
+    },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const title = argString(args, 'title')
+      const subjects = await Promise.all((args.subjects as unknown[]).map((k) => resolveRef(client, String(k), ['concept', 'function', 'constraint', 'assumption', 'decision'])))
+      const source = args.source as { module: string; kind?: string; id: string; revision: number; label?: string }
+      const tool = args.tool as { name: string; version: string }
+      const basis = (argOptionalString(args, 'basis') ?? 'estimate') as 'estimate' | 'assessment' | 'assumption' | 'ai-hypothesis'
+      const kind = (argOptionalString(args, 'kind') ?? 'analysis') as 'analysis' | 'calculation' | 'test' | 'review' | 'estimate'
+      const raw = args.results as { name: string; value: number; unit: string; constraintId?: string; note?: string }[]
+      const checked = await Promise.all(raw.map(async (r) => ({ r, c: r.constraintId ? await constraintOf(client, r.constraintId) : undefined })))
+      const results = checked.map(({ r, c }) => ({ name: r.name, value: r.value, unit: r.unit, qualification: { kind: 'point' as const }, ...(c ? { constraint: { module: 'conceptualize' as const, type: 'constraint' as const, id: c.id, revision: c.revision } } : {}), ...(r.note ? { note: r.note } : {}) }))
+      const allSubjects = [...subjects.map((x) => x.ref), ...checked.flatMap(({ c }) => (c && !subjects.some((x) => x.ref.id === c.id) ? [{ module: 'conceptualize' as const, type: 'constraint' as const, id: c.id }] : []))]
+      let createdId: string | undefined
+      return proposal({
+        title: `Record evidence: ${title}`,
+        explanation: `Records what ${tool.name} ${tool.version} measured on ${source.label ?? `${source.module} ${source.id}`} at revision ${source.revision}. Conceptualize computes each status from the constraint bound; the record states measured values only, not adequacy or compliance.`,
+        preview: [
+          { label: 'Source', proposed: `${source.module}${source.kind ? ` (${source.kind})` : ''} ${source.id} @ revision ${source.revision}` },
+          { label: 'Tool', proposed: `${tool.name} ${tool.version}` },
+          ...checked.map(({ r, c }): ServiceProposalItem => ({ label: `Result: ${r.name}`, proposed: `${r.value} ${r.unit} (point)${c ? ` vs ${c.key} ${fmtBound(c.bound)} (rev ${c.revision})` : ''}`, ...(c ? { targetId: c.id } : {}), basis: basis === 'assessment' ? 'estimate' : basis })),
+          { label: 'Subjects', proposed: subjects.map((x) => x.key).join(', ') },
+        ],
+        assumptions: [`Basis ${basis}: a measured result of the pinned revision, not verified evidence.`],
+        inspected: [{ id: `${source.module}:${source.id}`, detail: `revision ${source.revision}` }],
+        async apply(p) {
+          const ev = await client.createEvidence({ subjects: allSubjects, kind, title, ...(argOptionalString(args, 'summary') ? { summary: argOptionalString(args, 'summary') } : {}), basis, source: source as never, tool, results }, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:evidence` })
+          createdId = ev.id
+          const statuses = (ev.results ?? []).filter((r) => r.status).map((r) => `${r.name}: ${r.status}`)
+          return { summary: `Recorded ${ev.key}${statuses.length ? ` (${statuses.join(', ')})` : ''}`, createdIds: [ev.id] }
+        },
+        async undo() {
+          if (!createdId) return { summary: 'Nothing to undo.' }
+          return { summary: 'Evidence records are immutable; review it as rejected in Conceptualize if it should not be used.' }
+        },
+      })
+    },
+  },
+  {
+    name: 'conceptualize.review_flags',
+    label: 'Read decision validity and review flags',
+    description: 'List recorded decisions that are under review or invalidated (optionally for one Concept, CON-…), with their open review flags, impact reports and stale pins. Read-only.',
+    parameters: { type: 'object', properties: { conceptId: string, includeValid: { type: 'boolean' } }, additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const conceptArg = argOptionalString(args, 'conceptId')
+      const concept = conceptArg ? await resolveRef(client, conceptArg, ['concept']) : undefined
+      const decisions = (await client.decisions(concept ? { conceptId: concept.ref.id } : {})).filter((d) => d.status === 'recorded')
+      const shown = args.includeValid === true ? decisions : decisions.filter((d) => d.validity && d.validity !== 'valid')
+      const rows = await Promise.all(
+        shown.map(async (d) => {
+          const r = await client.rationale(d.id)
+          return { key: d.key, title: d.title, validity: d.validity ?? 'valid', openFlags: (d.reviewFlags ?? []).filter((f) => !f.cleared).map((f) => ({ reason: f.reason, by: f.by, at: f.at, ...(f.impactReportId ? { impactReportId: f.impactReportId } : {}) })), stale: r.stale }
+        }),
+      )
+      return {
+        kind: 'data',
+        data: { decisions: rows, checked: decisions.length },
+        summary: rows.length ? `${rows.length} decision(s) need attention` : `No recorded decision is under review or invalidated${concept ? ` for ${concept.key}` : ''}`,
+        inspected: decisions.slice(0, 20).map((d) => ({ id: d.key, detail: d.validity ?? 'valid' })),
+      }
+    },
+  },
+)
+
 const KEYS = /\b((?:CON|FN|CST|ASM|DEC|EVD)-\d{3,})\b/gi
 const keysIn = (t: string) => [...t.matchAll(KEYS)].map((m) => m[1].toUpperCase())
 
@@ -336,6 +493,13 @@ export const designDemo: DemoPlanner = (text) => {
   if ((m = /\b((?:CON|FN|CST|ASM)-\d{3,})\s+(performs|depends-on|depends on|constrains|interfaces-with|interfaces with|derived-from|derived from|supported-by|supported by)\s+((?:CON|FN|CST|ASM|EVD)-\d{3,})\b/i.exec(t))) {
     const type = m[2].toLowerCase().replace(/\s+/g, '-')
     return { reply: `I prepared a ${type} link from ${m[1].toUpperCase()} to ${m[3].toUpperCase()}.${note}`, calls: [{ name: 'conceptualize.create_link', arguments: { type, from: m[1].toUpperCase(), to: m[3].toUpperCase() } }] }
+  }
+  if ((m = /\b(?:revise|change|set)\s+(CST-\d{3,})\s+(?:to\s+)?(-?\d+(?:\.\d+)?)\s*([A-Za-z%°][\w^*/°%]*)?(?:\s+(?:because|as)\s+(.+))?$/i.exec(t))) {
+    return { reply: `I prepared a new revision of ${m[1].toUpperCase()}.${note}`, calls: [{ name: 'conceptualize.revise_constraint', arguments: { constraintId: m[1].toUpperCase(), value: Number(m[2]), ...(m[3] ? { unit: m[3] } : {}), reason: m[4]?.trim() || 'Changed in the conversation' } }] }
+  }
+  if (/\b(?:which|what|any)\b.*\bdecisions?\b.*\b(?:review|flag|invalid)/i.test(t)) {
+    const c = /\b(CON-\d{3,})\b/i.exec(t)
+    return { reply: `Here are the decisions under review or invalidated.${note}`, calls: [{ name: 'conceptualize.review_flags', arguments: c ? { conceptId: c[1].toUpperCase() } : {} }] }
   }
   if ((m = /\b(?:why|rationale|explain)\b.*?(DEC-\d{3,})/i.exec(t))) {
     return { reply: `Here is what ${m[1].toUpperCase()} rests on, assembled from the records (no model involved).${note}`, calls: [{ name: 'conceptualize.rationale', arguments: { decisionId: m[1].toUpperCase() } }] }

@@ -91,6 +91,10 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   'conceptualize.rationale': 'read',
   'conceptualize.traverse': 'read',
   'conceptualize.search_design': 'search',
+  // D1-CON (appended by the Conceptualize agent, COORDINATOR REVIEW)
+  'conceptualize.revise_constraint': 'propose',
+  'conceptualize.record_evidence': 'propose',
+  'conceptualize.review_flags': 'read',
   'sysml-modeler.describe_commands': 'read',
   'sysml-modeler.matrix': 'read',
   'sysml-modeler.coverage': 'read',

@@ -369,12 +369,50 @@ export const Rationale = Type.Object(
 
 // ---- evidence (CR-C6) -------------------------------------------------------------------------------------------
 
+/** C11 qualification of a result value, kept unchanged from the producing tool. */
+export const ResultQualification = Type.Object(
+  { kind: L('point', 'sampled-range', 'bounds'), quality: Type.Optional(L('exact', 'enclosure')), note: Type.Optional(Text(500)) },
+  { $id: 'ResultQualification', additionalProperties: false, description: 'point: one value. sampled-range: values seen, not a proven range (never satisfied). bounds: exact (attained) or enclosure (contains the true range).' },
+)
+export const EvidenceResultInput = Type.Object(
+  {
+    name: Text(200, 1),
+    value: Type.Optional(Nullable(Type.Number())),
+    min: Type.Optional(Nullable(Type.Number())),
+    max: Type.Optional(Nullable(Type.Number())),
+    unit: Type.String({ maxLength: 60 }),
+    qualification: ResultQualification,
+    constraint: Type.Optional(Type.Union([DesignRef, Type.Object({ id: Uuid, revision: Type.Optional(Type.Integer({ minimum: 1 })) }, { additionalProperties: false })], { description: 'The constraint the result is checked against (pinned; current revision when omitted)' })),
+    status: Type.Optional(L('satisfied', 'violated', 'uncertain')),
+    note: Type.Optional(Text(1000)),
+  },
+  { $id: 'EvidenceResultInput', additionalProperties: false, description: 'A measured or computed result. With a constraint, the service computes status from the constraint bound; a given status must match.' },
+)
+export const EvidenceResult = Type.Object(
+  {
+    name: Type.String(),
+    value: Nullable(Type.Number()),
+    min: Nullable(Type.Number()),
+    max: Nullable(Type.Number()),
+    unit: Type.String(),
+    qualification: ResultQualification,
+    constraint: Nullable(DesignRef),
+    status: Nullable(L('satisfied', 'violated', 'uncertain')),
+    margin: Nullable(Type.Number()),
+    marginUnit: Nullable(Type.String()),
+    note: Type.String(),
+  },
+  { $id: 'EvidenceResult' },
+)
+export const ToolInfo = Type.Object({ name: Text(200, 1), version: Text(100, 1) }, { $id: 'ToolInfo', additionalProperties: false, description: 'Tool that produced the results, e.g. the CAD kernel (ADR-0070 item 3)' })
 export const EvidenceExtensions = {
   subjects: Type.Optional(Type.Array(DesignRef, { maxItems: 50 })),
   applicability: Type.Optional(Type.Union([Text(2000), Type.Record(Type.String(), Type.Unknown())], { description: 'Where the evidence applies (R1: text; structured objects are kept)' })),
   manifest: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: 'Reproducibility manifest (required for basis calculated)' })),
   source: Type.Optional(AnyRef),
   assumptionIds: Type.Optional(Type.Array(Uuid, { maxItems: 50 })),
+  tool: Type.Optional(ToolInfo),
+  results: Type.Optional(Type.Array(EvidenceResultInput, { maxItems: 200 })),
 }
 export const EvidenceReview = Type.Object(
   { id: Uuid, outcome: L('accepted', 'rejected'), method: Type.String(), note: Type.String(), reviewer: Type.String(), reviewedAt: Timestamp },
@@ -561,10 +599,12 @@ export const EvidenceV = Type.Object(
     manifest: Nullable(Type.Record(Type.String(), Type.Unknown())),
     source: Nullable(AnyRef),
     assumptionIds: Type.Array(Uuid),
+    tool: Nullable(ToolInfo),
+    results: Type.Array(EvidenceResult),
     reviews: Type.Array(EvidenceReview),
     validationStatus: L('unreviewed', 'accepted', 'rejected'),
   },
-  { $id: 'Evidence', description: 'Immutable. basis evidence = verified (needs an artifact reference and a person); calculated needs a manifest; validationStatus is derived from append-only reviews.' },
+  { $id: 'Evidence', description: 'Immutable. basis evidence = verified (a person, with an artifact reference). basis calculated is refused until the service can re-verify a calculation (CR-C8; finding D6). Results carry their C11 qualification and a service-computed status against pinned constraints; results need a revision-pinned source and the tool name and version (ADR-0070). validationStatus is derived from append-only reviews.' },
 )
 export const EvidenceCreateV = Type.Object({ ...BaseEvidenceCreate.properties, conceptId: Type.Optional(Uuid), ...EvidenceExtensions }, { $id: 'EvidenceCreate', additionalProperties: false })
 export type EvidenceCreateVDto = Static<typeof EvidenceCreateV>

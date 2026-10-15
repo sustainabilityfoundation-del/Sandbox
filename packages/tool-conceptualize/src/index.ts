@@ -8,6 +8,7 @@ import pkg from '../package.json'
 export type { ConceptualizeViewState } from './domain'
 export { conceptsDemo } from './assistant'
 export { generateExploration } from './ai/generator'
+export { registerReferencePort } from './references'
 
 /**
  * Conceptualize: Concepts (implementation-independent engineering ideas), their decomposition,

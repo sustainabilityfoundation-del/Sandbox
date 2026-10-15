@@ -1,7 +1,8 @@
 import { Badge, Button, ComboBox, EmptyState, Notice, Select, TextField, type Tone } from '@ews/design-system'
-import type { ArtifactModule, EngineeringObject, ModelIndex, PlatformServices } from '@ews/platform-sdk'
+import type { ArtifactModule, ModelIndex, PlatformServices } from '@ews/platform-sdk'
 import { useModel, usePlatformServices, useSharedContext } from '@ews/platform-sdk/react'
-import type { ArtifactRefInput, Concept, Implementation, ImplementationArtifact } from '@ews/conceptualize-client'
+import { referencePortsFor, isLegacyTwinReference, isRealModuleReference, referenceKind, scopedId, type ArtifactRefInput, type Concept, type Implementation, type ImplementationArtifact, type ReferencePort } from '@ews/conceptualize-client'
+import { registeredReferencePorts } from '../references'
 import { useEffect, useMemo, useState } from 'react'
 import { useModuleData, useResource } from '../data'
 import { formatDate, formatQuantity } from '../domain'
@@ -11,49 +12,72 @@ import { EvidenceForm, VerificationControl } from './EvidenceForm'
 
 // ---- stale and broken link detection (contracts §9: client-side through the SDK and the model index) ----
 
-export type LinkState = 'current' | 'stale' | 'broken' | 'follows-latest' | 'test-adapter' | 'unchecked'
+export type LinkState = 'current' | 'stale' | 'broken' | 'follows-latest' | 'test-adapter' | 'unchecked' | 'module-unavailable'
 export interface LinkStatus {
   state: LinkState
   detail: string
   latest?: number
+  /** Checked through a labelled adapter (not an SDK read client). */
+  via?: { name: string; adapter: boolean }
+  /** A legacy twin object of the illustrative tools (PRJ-ACT100 demo data). */
+  demo?: boolean
 }
-export const LINK_TONE: Record<LinkState, Tone> = { current: 'success', stale: 'warning', broken: 'danger', 'follows-latest': 'neutral', 'test-adapter': 'warning', unchecked: 'neutral' }
-export const LINK_LABEL: Record<LinkState, string> = { current: 'Current', stale: 'Changed since linked', broken: 'Not found', 'follows-latest': 'Follows latest', 'test-adapter': 'Test adapter', unchecked: 'Not checked' }
+export const LINK_TONE: Record<LinkState, Tone> = { current: 'success', stale: 'warning', broken: 'danger', 'follows-latest': 'neutral', 'test-adapter': 'warning', unchecked: 'neutral', 'module-unavailable': 'neutral' }
+export const LINK_LABEL: Record<LinkState, string> = { current: 'Current', stale: 'Changed since linked', broken: 'Not found', 'follows-latest': 'Follows latest', 'test-adapter': 'Test adapter', unchecked: 'Not checked', 'module-unavailable': 'Module unavailable' }
 
 const TWIN_MODULES: ArtifactModule[] = ['sysml', 'cad', 'twin']
 
 /** Status of a version-aware reference: compared with the owning module's current revision. */
-export async function checkArtifact(ref: { module: ArtifactModule; id: string; revision?: number | null }, ctx: { model: ModelIndex; services: PlatformServices; projectId: string }): Promise<LinkStatus> {
+/** Ports for real-module references: SDK 1.8 read clients, the Project Management registry, then injected adapters. */
+function portsFor(services: PlatformServices): ReferencePort[] {
+  return referencePortsFor(services, registeredReferencePorts())
+}
+
+export async function checkArtifact(ref: { module: ArtifactModule; id: string; revision?: number | null; kind?: string | null }, ctx: { model: ModelIndex; services: PlatformServices; projectId: string }): Promise<LinkStatus> {
+  if (isRealModuleReference(ref)) {
+    const kind = referenceKind(ref)
+    const port = portsFor(ctx.services).find((p) => p.supports(ref))
+    if (!port) return { state: 'module-unavailable', detail: `The module that owns ${kind} references is not available here (no read client in this host). The reference is kept.` }
+    const via = { name: port.name, adapter: port.adapter }
+    const r = await port.resolve(ctx.projectId, ref)
+    if (r.state === 'missing') return { state: 'broken', detail: r.detail ?? 'Not found in the owning module. The Concept stays valid; relink or remove the reference.', via }
+    if (r.state === 'unavailable') return { state: 'module-unavailable', detail: r.detail ?? 'The owning module cannot be checked now. The reference is kept.', via }
+    const label = r.label ?? ref.id
+    if (!ref.revision || r.latest === undefined) return { state: 'follows-latest', detail: `${label}${r.latest !== undefined ? ` (rev ${r.latest})` : ''}${r.detail ? `. ${r.detail}` : ''}`, latest: r.latest, via }
+    if (r.latest > ref.revision) return { state: 'stale', detail: `${label}: revision ${r.latest}, linked at ${ref.revision}.${port.adapter ? ' The adapter compares model revisions; the entity itself may be unchanged.' : ''}`, latest: r.latest, via }
+    return { state: 'current', detail: `${label} (rev ${r.latest})`, latest: r.latest, via }
+  }
   if (ref.module === 'analysis') return { state: 'test-adapter', detail: 'No Analysis module exists: this reference comes from a labelled test adapter and is not checked.' }
   if (ref.module === 'external') return { state: 'unchecked', detail: 'External references are not checked automatically.' }
   if (ref.module === 'requirements') {
     const svc = ctx.services.requirements
-    if (!svc) return { state: 'unchecked', detail: 'The Requirements service is not available here.' }
+    if (!svc) return { state: 'module-unavailable', detail: 'The Requirements service is not available here. The reference is kept.' }
     try {
       const r = await svc.get(ref.id, { projectId: ctx.projectId })
       if (!r) return { state: 'broken', detail: 'The requirement no longer exists in Requirements (or is not visible to you).' }
       if (!ref.revision) return { state: 'follows-latest', detail: `${r.key} rev ${r.revision}`, latest: r.revision }
       return r.revision > ref.revision ? { state: 'stale', detail: `${r.key} is at revision ${r.revision}; linked at ${ref.revision}.`, latest: r.revision } : { state: 'current', detail: `${r.key} rev ${r.revision}`, latest: r.revision }
     } catch (e) {
-      return { state: 'unchecked', detail: `Requirements not reachable: ${e instanceof Error ? e.message : String(e)}` }
+      return { state: 'module-unavailable', detail: `Requirements not reachable: ${e instanceof Error ? e.message : String(e)}` }
     }
   }
-  if (TWIN_MODULES.includes(ref.module)) {
+  if (TWIN_MODULES.includes(ref.module) && isLegacyTwinReference(ref)) {
+    // Legacy twin objects of the illustrative SysML and mock CAD tools: the PRJ-ACT100 demo.
     const o = ctx.model.get(ref.id)
-    if (!o) return { state: 'broken', detail: `${ref.id} is not in the model (deleted or replaced). The Concept stays valid; relink or remove the reference.` }
-    if (!ref.revision) return { state: 'follows-latest', detail: `${o.name} (rev ${o.revision})`, latest: o.revision }
-    return o.revision > ref.revision ? { state: 'stale', detail: `${o.name} changed: revision ${o.revision}, linked at ${ref.revision}.`, latest: o.revision } : { state: 'current', detail: `${o.name} (rev ${o.revision})`, latest: o.revision }
+    if (!o) return { state: 'broken', detail: `${ref.id} is not in the demo twin (deleted or replaced). The Concept stays valid; relink or remove the reference.`, demo: true }
+    if (!ref.revision) return { state: 'follows-latest', detail: `${o.name} (rev ${o.revision}, demo twin)`, latest: o.revision, demo: true }
+    return o.revision > ref.revision ? { state: 'stale', detail: `${o.name} changed: revision ${o.revision}, linked at ${ref.revision} (demo twin).`, latest: o.revision, demo: true } : { state: 'current', detail: `${o.name} (rev ${o.revision}, demo twin)`, latest: o.revision, demo: true }
   }
   return { state: 'unchecked', detail: '' }
 }
 
-function useStatuses(refs: { key: string; module: ArtifactModule; id: string; revision?: number | null }[]) {
+function useStatuses(refs: { key: string; module: ArtifactModule; id: string; revision?: number | null; kind?: string | null }[]) {
   const model = useModel()
   const services = usePlatformServices()
   const { projectId } = useSharedContext()
   const [statuses, setStatuses] = useState<Record<string, LinkStatus>>({})
   const [nonce, setNonce] = useState(0)
-  const sig = refs.map((r) => `${r.key}:${r.module}:${r.id}:${r.revision ?? ''}`).join('|')
+  const sig = refs.map((r) => `${r.key}:${r.module}:${r.kind ?? ''}:${r.id}:${r.revision ?? ''}`).join('|')
   // Change notifications: a committed change of a linked requirement re-checks the references.
   useEffect(() => {
     const svc = services.requirements
@@ -77,38 +101,88 @@ function useStatuses(refs: { key: string; module: ArtifactModule; id: string; re
 export function LinkStatusBadge({ status }: { status: LinkStatus | undefined }) {
   if (!status) return null
   return (
-    <Badge tone={LINK_TONE[status.state]} title={status.detail}>
-      {LINK_LABEL[status.state]}
-    </Badge>
+    <>
+      <Badge tone={LINK_TONE[status.state]} title={status.detail}>
+        {LINK_LABEL[status.state]}
+      </Badge>
+      {status.via?.adapter && (
+        <Badge tone="warning" title={`Checked through ${status.via.name}`}>
+          adapter
+        </Badge>
+      )}
+      {status.demo && (
+        <Badge tone="neutral" title="Object of the illustrative SysML or mock CAD tool (PRJ-ACT100 demo data), not the SysML or CAD Modeler">
+          Demo twin
+        </Badge>
+      )}
+    </>
   )
 }
 
 // ---- implementations ----------------------------------------------------------------------------------------
 
-const MODULE_LABEL: Record<ArtifactModule, string> = { requirements: 'Requirement', sysml: 'SysML element', cad: 'CAD representation', twin: 'Component or saved result', analysis: 'Analysis (test adapter)', external: 'External document or URL' }
-const MODULE_TYPES: Partial<Record<ArtifactModule, string[]>> = { sysml: ['sysml-element'], cad: ['cad-representation'], twin: ['assembly', 'part'] }
+const MODULE_LABEL: Record<ArtifactModule, string> = { requirements: 'Requirement', sysml: 'SysML element', cad: 'CAD representation', twin: 'Component or saved result', analysis: 'Analysis (test adapter)', external: 'External document or URL', projects: 'Project document', product: 'Product element', conceptualize: 'Conceptualize record' }
 
-/** Picks a version-aware artifact reference: twin objects from the model (pinned to their current revision), others typed. */
+type PickerChoice = 'sysml-modeler' | 'cad-modeler' | 'product' | 'projects' | 'demo-twin' | 'analysis' | 'external'
+const CHOICES: { id: PickerChoice; label: string; module: ArtifactModule; kind?: string; field?: string; revisionLabel?: string }[] = [
+  { id: 'sysml-modeler', label: 'SysML Modeler element', module: 'sysml', kind: 'sysml-model-element', field: 'SysML project / element ID (<projectId>/<elementId>)', revisionLabel: 'Commit number (empty = follow latest)' },
+  { id: 'cad-modeler', label: 'CAD Modeler entity', module: 'cad', kind: 'cad-modeler-entity', field: 'CAD document / entity ID (<documentUuid>/<entityId>)', revisionLabel: 'Document revision (empty = follow latest)' },
+  { id: 'product', label: MODULE_LABEL.product, module: 'product', kind: 'product-element', field: 'Product element UUID (Project Management)', revisionLabel: 'Revision (empty = follow latest)' },
+  { id: 'projects', label: MODULE_LABEL.projects, module: 'projects', kind: 'document', field: 'Project document UUID (Project Management)', revisionLabel: 'Revision (empty = follow latest)' },
+  { id: 'demo-twin', label: 'Demo twin object (illustrative tools)', module: 'cad' },
+  { id: 'analysis', label: MODULE_LABEL.analysis, module: 'analysis', kind: 'analysis-result', field: 'Test-adapter result ID' },
+  { id: 'external', label: MODULE_LABEL.external, module: 'external', kind: 'document', field: 'URL or document reference' },
+]
+const DEMO_TYPES = ['sysml-element', 'cad-representation', 'assembly', 'part']
+const demoModule = (type: string): ArtifactModule => (type === 'sysml-element' ? 'sysml' : type === 'cad-representation' ? 'cad' : 'twin')
+const ID_HINT: Partial<Record<PickerChoice, RegExp>> = {
+  'sysml-modeler': /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  'cad-modeler': /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[^/\s]+$/i,
+  product: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  projects: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+}
+
+/**
+ * Picks a version-aware artifact reference. Real modules (SysML Modeler, CAD Modeler, Project Management) by
+ * ID and revision, checked through the owning module; the legacy twin objects only in the PRJ-ACT100 demo.
+ */
 function ArtifactPicker({ onPick, busy, label }: { onPick: (ref: ArtifactRefInput) => void; busy?: boolean; label: string }) {
   const model = useModel()
-  const [module, setModule] = useState<ArtifactModule>('cad')
+  const { projectId } = useSharedContext()
+  const demo = projectId === 'PRJ-ACT100'
+  const choices = CHOICES.filter((c) => c.id !== 'demo-twin' || demo)
+  const [choice, setChoice] = useState<PickerChoice>('sysml-modeler')
   const [typed, setTyped] = useState('')
-  const objects = useMemo(() => model.objects.filter((o) => MODULE_TYPES[module]?.includes(o.type)), [model, module])
-  const pick = (o: EngineeringObject) => onPick({ module, id: o.id, revision: o.revision, kind: o.type, label: `${o.id} ${o.name}` })
+  const [revision, setRevision] = useState('')
+  const c = choices.find((x) => x.id === choice) ?? choices[0]
+  const objects = useMemo(() => model.objects.filter((o) => DEMO_TYPES.includes(o.type)), [model])
+  const id = typed.trim()
+  const rev = revision.trim() === '' ? undefined : Number(revision)
+  const idOk = !ID_HINT[c.id] || ID_HINT[c.id]!.test(id)
+  const revOk = rev === undefined || (Number.isInteger(rev) && rev >= 1)
+  const scoped = scopedId(id)
   return (
     <div className="con-inline-form" data-help-id="conceptualize.implementation.link">
-      <Select label="Artifact type" size="sm" value={module} onChange={(m) => setModule(m as ArtifactModule)} options={(['cad', 'sysml', 'twin', 'analysis', 'external'] as ArtifactModule[]).map((m) => ({ id: m, label: MODULE_LABEL[m] }))} />
-      {MODULE_TYPES[module] ? (
-        <ComboBox label={label} placeholder="Search the model" options={objects.map((o) => ({ id: o.id, label: `${o.id} ${o.name}`, description: `revision ${o.revision}` }))} onSelect={(opt) => pick(objects.find((o) => o.id === opt.id)!)} />
+      <Select label="Artifact type" size="sm" value={c.id} onChange={(m) => (setChoice(m as PickerChoice), setTyped(''), setRevision(''))} options={choices.map((x) => ({ id: x.id, label: x.label }))} />
+      {c.id === 'demo-twin' ? (
+        <>
+          <ComboBox label={label} placeholder="Search the demo twin" options={objects.map((o) => ({ id: o.id, label: `${o.id} ${o.name}`, description: `${o.type}, revision ${o.revision}` }))} onSelect={(opt) => {
+            const o = objects.find((x) => x.id === opt.id)!
+            onPick({ module: demoModule(o.type), id: o.id, revision: o.revision, kind: o.type, label: `${o.id} ${o.name} (demo twin)` })
+          }} />
+          <Badge tone="neutral">Demo: illustrative SysML and mock CAD objects of PRJ-ACT100</Badge>
+        </>
       ) : (
         <>
-          <TextField label={module === 'analysis' ? 'Test-adapter result ID' : 'URL or document reference'} value={typed} onChange={setTyped} />
-          <Button size="sm" variant="outlined" icon="link" isPending={busy} isDisabled={!typed.trim()} onPress={() => onPick({ module, id: typed.trim(), label: typed.trim(), kind: module === 'analysis' ? 'analysis-result' : 'document' })}>
+          <TextField label={c.field ?? 'ID'} value={typed} onChange={setTyped} />
+          {c.revisionLabel && <TextField label={c.revisionLabel} value={revision} onChange={setRevision} className="con-num" />}
+          <Button size="sm" variant="outlined" icon="link" isPending={busy} isDisabled={!id || !idOk || !revOk} onPress={() => onPick({ module: c.module, id, ...(rev ? { revision: rev } : {}), ...(c.kind ? { kind: c.kind } : {}), label: scoped ? `${c.label} ${scoped.entity}` : id })}>
             {label}
           </Button>
+          {id && !idOk && <span className="con-muted">Format: {c.field}</span>}
         </>
       )}
-      {module === 'analysis' && <Badge tone="warning">Test adapter: no Analysis module exists</Badge>}
+      {c.id === 'analysis' && <Badge tone="warning">Test adapter: no Analysis module exists</Badge>}
     </div>
   )
 }
@@ -162,7 +236,7 @@ function ImplementationCard({ impl }: { impl: Implementation }) {
   const { client, invalidate, can } = useModuleData()
   const [error, setError] = useState<unknown>(null)
   const [showRemoved, setShowRemoved] = useState(false)
-  const refs = impl.artifacts.filter((a) => !a.removed).map((a) => ({ key: a.id, module: a.module, id: a.artifactId, revision: a.revision }))
+  const refs = impl.artifacts.filter((a) => !a.removed).map((a) => ({ key: a.id, module: a.module, id: a.artifactId, revision: a.revision, kind: a.kind }))
   const statuses = useStatuses(refs)
   const run = async (fn: () => Promise<unknown>) => {
     setError(null)
@@ -269,7 +343,7 @@ export function RequirementLinks({ concept }: { concept: Concept }) {
   const services = usePlatformServices()
   const { projectId } = useSharedContext()
   const links = useResource(() => client.links({ conceptId: concept.id }), [client, concept.id])
-  const statuses = useStatuses((links.data ?? []).map((l) => ({ key: l.id, module: l.artifact.module, id: l.artifact.id, revision: l.artifact.revision })))
+  const statuses = useStatuses((links.data ?? []).map((l) => ({ key: l.id, module: l.artifact.module, id: l.artifact.id, revision: l.artifact.revision, kind: l.artifact.kind })))
   const [options, setOptions] = useState<{ id: string; label: string; revision: number }[]>([])
   const [relation, setRelation] = useState<'satisfies' | 'refines' | 'derives'>('satisfies')
   const [error, setError] = useState<unknown>(null)
@@ -397,8 +471,8 @@ export function IntegrationPage() {
   const graph = useResource(() => client.graph(), [client])
   const names = new Map((graph.data?.nodes ?? []).map((n) => [n.id, `${n.key} ${n.name}`]))
   const refs = [
-    ...(impls.data ?? []).flatMap((i) => i.artifacts.filter((a) => !a.removed).map((a) => ({ key: `a:${a.id}`, module: a.module, id: a.artifactId, revision: a.revision, label: a.label || a.artifactId, concepts: i.conceptIds, via: i.key }))),
-    ...(links.data ?? []).map((l) => ({ key: `l:${l.id}`, module: l.artifact.module, id: l.artifact.id, revision: l.artifact.revision ?? null, label: l.artifact.label || l.artifact.id, concepts: [l.conceptId], via: l.relation })),
+    ...(impls.data ?? []).flatMap((i) => i.artifacts.filter((a) => !a.removed).map((a) => ({ key: `a:${a.id}`, module: a.module, id: a.artifactId, revision: a.revision, kind: a.kind, label: a.label || a.artifactId, concepts: i.conceptIds, via: i.key }))),
+    ...(links.data ?? []).map((l) => ({ key: `l:${l.id}`, module: l.artifact.module, id: l.artifact.id, revision: l.artifact.revision ?? null, kind: l.artifact.kind, label: l.artifact.label || l.artifact.id, concepts: [l.conceptId], via: l.relation })),
   ]
   const statuses = useStatuses(refs)
   const notifications = refs.filter((r) => statuses[r.key]?.state === 'stale' || statuses[r.key]?.state === 'broken')

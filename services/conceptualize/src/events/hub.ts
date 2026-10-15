@@ -35,6 +35,8 @@ export const toEvent = (r: OutboxRow): ConceptsEvent => ({
 
 export interface EventHub {
   subscribe(projectId: string, listener: (event: ConceptsEvent) => void): () => void
+  /** Committed events of every project (artifact sources for Project Management, CR-PM-REG-2). */
+  subscribeAll(listener: (event: ConceptsEvent) => void): () => void
   /** Published events after `afterEventId` (exclusive), oldest first. Unknown ID → `undefined`. */
   readAfter(projectId: string, afterEventId: string | null, limit?: number): Promise<ConceptsEvent[] | undefined>
   /** Publish and deliver pending events now (tests and shutdown). */
@@ -56,6 +58,7 @@ export async function createEventHub(pool: Pool, options: { pollMs?: number; onE
   const retentionHours = options.retentionHours ?? DEFAULT_RETENTION_HOURS
   if (!(retentionHours > 0)) throw new Error('The outbox retention must be a positive number of hours.')
   const listeners = new Map<string, Set<(e: ConceptsEvent) => void>>()
+  const allListeners = new Set<(e: ConceptsEvent) => void>()
   const onError = options.onError ?? ((e) => console.error('[conceptualize events]', e))
   let lastDelivered = Number((await pool.query<{ m: string | null }>('SELECT max(delivery_seq) AS m FROM conceptualize.outbox')).rows[0].m ?? 0)
   let closed = false
@@ -92,7 +95,7 @@ export async function createEventHub(pool: Pool, options: { pollMs?: number; onE
       for (const r of rows) {
         lastDelivered = Math.max(lastDelivered, Number(r.delivery_seq))
         const event = toEvent(r)
-        for (const l of listeners.get(r.project_id) ?? []) {
+        for (const l of [...(listeners.get(r.project_id) ?? []), ...allListeners]) {
           try {
             l(event)
           } catch (e) {
@@ -153,6 +156,10 @@ export async function createEventHub(pool: Pool, options: { pollMs?: number; onE
       set.add(l)
       listeners.set(projectId, set)
       return () => set.delete(l)
+    },
+    subscribeAll(l) {
+      allListeners.add(l)
+      return () => allListeners.delete(l)
     },
     async readAfter(projectId, afterEventId, limit = 1000) {
       let after = 0
