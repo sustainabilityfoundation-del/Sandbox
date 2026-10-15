@@ -1,0 +1,157 @@
+/* Tool: SysML Modeler. Design tokens only (AGENTS.md, "Design system"); lays out against the `tool` container. */
+@layer components {
+  .smod-root {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(280px, 340px);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: 'status status status' 'left center right';
+    height: 100%;
+    min-height: 0;
+    background: var(--ws-bg);
+    color: var(--ws-text);
+  }
+  .smod-pad { padding: var(--ws-space-4); }
+  .smod-statusbar {
+    grid-area: status;
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2);
+    padding: var(--ws-space-1) var(--ws-space-3);
+    border-bottom: 1px solid var(--ws-border);
+    background: var(--ws-surface);
+    font-size: var(--ws-font-size-sm);
+  }
+  .smod-project { font-weight: var(--ws-weight-medium); }
+  .smod-spacer { flex: 1; }
+  .smod-muted { color: var(--ws-text-3); font-size: var(--ws-font-size-sm); }
+  .smod-mono { font-family: var(--ws-mono); font-size: var(--ws-font-size-xs); }
+  .smod-wrap { overflow-wrap: anywhere; }
+  .smod-panes { display: none; }
+
+  .smod-left { grid-area: left; min-height: 0; border-right: 1px solid var(--ws-border); background: var(--ws-surface); display: flex; flex-direction: column; }
+  .smod-center { grid-area: center; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+  .smod-right { grid-area: right; min-height: 0; overflow: auto; border-left: 1px solid var(--ws-border); background: var(--ws-surface); }
+
+  /* ---- browser ---- */
+  .smod-browser { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  .smod-browser-filters { display: flex; flex-direction: column; gap: var(--ws-space-2); padding: var(--ws-space-2); border-bottom: 1px solid var(--ws-border); }
+  .smod-tree { flex: 1; overflow: auto; padding: var(--ws-space-1) 0; }
+  .smod-tree-row {
+    display: flex; align-items: center; gap: var(--ws-space-1);
+    min-height: var(--ws-row-h);
+    padding: 0 var(--ws-space-2) 0 calc(var(--ws-space-2) + var(--smod-indent, 0px));
+    cursor: pointer; outline: none; white-space: nowrap;
+    font-size: var(--ws-font-size-sm);
+  }
+  .smod-tree-row[data-depth='1'] { --smod-indent: 14px; }
+  .smod-tree-row[data-depth='2'] { --smod-indent: 28px; }
+  .smod-tree-row[data-depth='3'] { --smod-indent: 42px; }
+  .smod-tree-row[data-depth='4'] { --smod-indent: 56px; }
+  .smod-tree-row[data-depth='5'] { --smod-indent: 70px; }
+  .smod-tree-row[data-depth='6'] { --smod-indent: 84px; }
+  .smod-tree-row[data-depth='7'], .smod-tree-row[data-depth='8'], .smod-tree-row[data-depth='9'], .smod-tree-row[data-depth='10'], .smod-tree-row[data-depth='11'], .smod-tree-row[data-depth='12'] { --smod-indent: 98px; }
+  .smod-tree-row:hover { background: var(--ws-state-hover); }
+  .smod-tree-row:focus-visible { box-shadow: inset 0 0 0 2px var(--ws-focus); }
+  .smod-tree-row.is-selected { background: var(--ws-selected); color: var(--ws-selected-text); }
+  .smod-twisty { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; }
+  .smod-twisty.is-leaf { visibility: hidden; }
+  .smod-tree-name { overflow: hidden; text-overflow: ellipsis; }
+  .smod-tree-kind { margin-left: auto; padding-left: var(--ws-space-2); color: var(--ws-text-3); font-size: var(--ws-font-size-xs); overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---- diagram ---- */
+  .smod-diagram { display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--ws-diagram-bg); }
+  .smod-diagram-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); padding: var(--ws-space-1) var(--ws-space-3); border-bottom: 1px solid var(--ws-border); background: var(--ws-surface); }
+  .smod-diagram-title { font-size: var(--ws-font-size-sm); }
+  .smod-diagram-note { margin: var(--ws-space-2) var(--ws-space-3) 0; }
+  .smod-canvas-scroll { flex: 1; overflow: auto; min-height: 0; }
+  .smod-canvas { display: block; user-select: none; }
+  .smod-node { cursor: pointer; outline: none; }
+  .smod-node > rect { fill: var(--ws-surface); stroke: var(--ws-diagram-stroke); stroke-width: 1.5; }
+  .smod-node.is-definition > rect { fill: var(--ws-surface-2); }
+  .smod-node.is-requirement > rect { fill: var(--ws-info-soft); stroke: var(--ws-info); }
+  .smod-node.is-context > rect { fill: none; stroke: var(--ws-diagram-stroke-strong); stroke-width: 2; }
+  .smod-node:hover > rect { stroke: var(--ws-diagram-stroke-strong); stroke-width: 2; }
+  .smod-node:focus-visible > rect { stroke: var(--ws-focus); stroke-width: 3; }
+  .smod-node.is-selected > rect { fill: var(--ws-diagram-selected); stroke: var(--ws-accent); stroke-width: 2.5; }
+  .smod-node.is-context.is-selected > rect { fill: none; }
+  .smod-node-keyword { fill: var(--ws-text-3); font-size: 11px; font-family: var(--ws-font-sans); }
+  .smod-node-name { fill: var(--ws-text); font-size: 14px; font-weight: 600; font-family: var(--ws-font-sans); }
+  .smod-node-sep { stroke: var(--ws-diagram-stroke); stroke-width: 1; }
+  .smod-node-compartment { fill: var(--ws-text-3); font-size: 10.5px; font-style: italic; font-family: var(--ws-font-sans); }
+  .smod-node-item { fill: var(--ws-text-2); font-size: 12px; font-family: var(--ws-mono); }
+  .smod-node-item.is-selected { fill: var(--ws-accent); font-weight: 600; }
+  .smod-port { cursor: pointer; outline: none; }
+  .smod-port > rect { fill: var(--ws-surface); stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.5; }
+  .smod-port.is-conjugated > rect { fill: var(--ws-diagram-stroke-strong); }
+  .smod-port.is-selected > rect { stroke: var(--ws-accent); stroke-width: 2.5; }
+  .smod-port:focus-visible > rect { stroke: var(--ws-focus); stroke-width: 3; }
+  .smod-port-label { fill: var(--ws-text-2); font-size: 11px; font-family: var(--ws-font-sans); }
+  .smod-edge { outline: none; }
+  .smod-edge path { fill: none; stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.5; }
+  .smod-edge path.smod-edge-hit { stroke: transparent; stroke-width: 10; }
+  .smod-edge.is-typing path, .smod-edge.is-satisfy path, .smod-edge.is-allocate path, .smod-edge.is-flow path { stroke-dasharray: 6 4; }
+  .smod-edge.is-satisfy path:not(.smod-edge-hit) { stroke: var(--ws-info); }
+  .smod-edge.is-flow path:not(.smod-edge-hit) { stroke: var(--ws-accent); }
+  .smod-edge.is-selected path:not(.smod-edge-hit) { stroke: var(--ws-accent); stroke-width: 2.5; }
+  .smod-edge:focus-visible path:not(.smod-edge-hit) { stroke: var(--ws-focus); stroke-width: 3; }
+  .smod-edge-label { fill: var(--ws-text-2); font-size: 11px; font-family: var(--ws-font-sans); }
+  .smod-marker-hollow { fill: var(--ws-surface); stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.2; }
+  .smod-marker-filled { fill: var(--ws-diagram-stroke-strong); }
+  .smod-marker-open { fill: none; stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.4; }
+
+  /* ---- text editor ---- */
+  .smod-text { display: flex; flex-direction: column; gap: var(--ws-space-2); padding: var(--ws-space-3); }
+  .smod-text-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); }
+  .smod-code { font-family: var(--ws-mono); font-size: 13px; line-height: 1.5; white-space: pre; tab-size: 4; min-height: 360px; }
+
+  /* ---- diagnostics and change lists ---- */
+  .smod-diags { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .smod-diag { display: flex; align-items: flex-start; gap: var(--ws-space-2); padding: var(--ws-space-1) var(--ws-space-2); border-radius: var(--ws-radius-sm); font-size: var(--ws-font-size-sm); }
+  .smod-diag.is-error { color: var(--ws-danger); }
+  .smod-diag.is-warning { color: var(--ws-warning); }
+  .smod-diag.is-info { color: var(--ws-text-2); }
+  .smod-diag.is-clickable { cursor: pointer; }
+  .smod-diag.is-clickable:hover { background: var(--ws-state-hover); }
+  .smod-diag:focus-visible { outline: 2px solid var(--ws-focus); }
+  .smod-diag-text { flex: 1; color: var(--ws-text); overflow-wrap: anywhere; }
+  .smod-diag-rule { color: var(--ws-text-3); font-family: var(--ws-mono); font-size: var(--ws-font-size-xs); }
+  .smod-changes { display: flex; flex-direction: column; gap: var(--ws-space-2); padding: var(--ws-space-3); border: 1px solid var(--ws-border); border-radius: var(--ws-radius); background: var(--ws-surface); }
+  .smod-changes header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); }
+  .smod-changes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--ws-space-1); }
+
+  /* ---- inspector ---- */
+  .smod-inspector { display: flex; flex-direction: column; gap: var(--ws-space-3); padding: var(--ws-space-3); }
+  .smod-inspector-head { display: flex; gap: var(--ws-space-2); align-items: flex-start; }
+  .smod-inspector-title { font-size: var(--ws-font-title); }
+  .smod-actions { display: flex; flex-wrap: wrap; gap: var(--ws-space-1); }
+  .smod-form { display: flex; flex-direction: column; gap: var(--ws-space-2); }
+  .smod-row { flex-direction: row; flex-wrap: wrap; align-items: flex-end; }
+  .smod-narrow { width: 7rem; }
+  .smod-field { display: flex; flex-direction: column; gap: var(--ws-space-1); }
+  .smod-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-1); }
+  .smod-chip { display: inline-flex; align-items: center; }
+  .smod-links { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+  .smod-links li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); }
+
+  /* ---- panels ---- */
+  .smod-panel { display: flex; flex-direction: column; gap: var(--ws-space-2); padding: var(--ws-space-3); }
+  .smod-panel-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); }
+  .smod-history { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--ws-space-2); }
+  .smod-commit { display: flex; flex-direction: column; gap: var(--ws-space-1); padding: var(--ws-space-2) var(--ws-space-3); border: 1px solid var(--ws-border); border-radius: var(--ws-radius); background: var(--ws-surface); align-items: flex-start; }
+  .smod-commit-head { display: flex; gap: var(--ws-space-2); align-items: baseline; }
+  .smod-commit-summary { overflow-wrap: anywhere; }
+  .smod-commit-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); color: var(--ws-text-3); font-size: var(--ws-font-size-xs); }
+
+  /* ---- tablet: properties below the view ---- */
+  @container tool (max-width: 1100px) {
+    .smod-root { grid-template-columns: minmax(200px, 240px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(180px, 38%); grid-template-areas: 'status status' 'left center' 'left right'; }
+    .smod-right { border-left: none; border-top: 1px solid var(--ws-border); }
+  }
+  /* ---- phone: one pane at a time ---- */
+  @container tool (max-width: 700px) {
+    .smod-root { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: 'status' 'panes' 'main'; }
+    .smod-panes { display: inline-flex; grid-area: panes; margin: var(--ws-space-1) var(--ws-space-2); justify-self: start; }
+    .smod-left, .smod-center, .smod-right { grid-area: main; display: none; border: none; }
+    .smod-root[data-pane='browser'] .smod-left { display: flex; }
+    .smod-root[data-pane='view'] .smod-center { display: flex; }
+    .smod-root[data-pane='properties'] .smod-right { display: block; }
+  }
+}

@@ -269,3 +269,9 @@ function lowerBound(s: Semantics, featureId: string): number {
   const first = s.ownedMembers(range['@id'])[0]
   return first?.['@type'] === 'LiteralInteger' ? Number(first.value) : 0
 }
+
+/** Metaclasses a usage of the given metaclass may be typed by (for editors and the assistant). */
+export function expectedTypeKinds(metaclass: string): string[] | undefined {
+  if (metaclass === 'ReferenceUsage') return ['Type']
+  return TYPE_KINDS[metaclass] ?? Object.entries(TYPE_KINDS).find(([k]) => isKindOf(metaclass, k))?.[1]
+}
