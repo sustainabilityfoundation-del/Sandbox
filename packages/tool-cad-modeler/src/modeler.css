@@ -77,6 +77,7 @@
   .cadm-log li { font-size: var(--ws-font-size-sm); }
 
   .cadm-welcome { display: grid; place-items: center; height: 100%; padding: var(--ws-space-6); }
+  .cadm-remote { flex: none; padding: var(--ws-space-2) var(--ws-space-3) 0; }
 
   /* Tablet: narrower panel. */
   @container tool (max-width: 1000px) {

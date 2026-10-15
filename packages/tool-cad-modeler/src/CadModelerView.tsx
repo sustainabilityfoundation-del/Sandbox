@@ -1,7 +1,8 @@
 import './modeler.css'
 import type { SketchFeature } from '@ews/cad-core'
-import { Badge, Button, EmptyState, Spinner, StatusBadge, Tab, TabList, TabPanel, Tabs, useToasts } from '@ews/design-system'
-import { useToolViewState, useUnsavedChanges } from '@ews/platform-sdk/react'
+import { Badge, Button, EmptyState, Notice, Spinner, StatusBadge, Tab, TabList, TabPanel, Tabs, useToasts } from '@ews/design-system'
+import { useSharedContext, useToolViewState, useUnsavedChanges } from '@ews/platform-sdk/react'
+import { OpenDialog } from './ui/OpenDialog'
 import { useCallback, useEffect, type KeyboardEvent } from 'react'
 import { plateCommands } from './assistant'
 import { cadSession, useCadSession, useEngineState } from './session'
@@ -17,6 +18,10 @@ import type { CadModelerViewState, PanelTab } from './viewState'
 export default function CadModelerView() {
   const [vs, setVs] = useToolViewState<CadModelerViewState>()
   const session = useCadSession()
+  const { projectId } = useSharedContext()
+  useEffect(() => {
+    if (session.store) cadSession.watchProject(projectId)
+  }, [projectId, session.store])
   const open = cadSession.document(vs.documentId) ?? cadSession.document(session.activeId)
   const state = useEngineState(open?.engine)
   const update = useCallback((u: Partial<CadModelerViewState>) => setVs(u), [setVs])
@@ -57,7 +62,25 @@ export default function CadModelerView() {
     }
   }
 
-  if (!open || !state) return <Welcome update={update} kernel={session.kernel.status} />
+  const dialog = vs.dialog === 'open' && session.store && (
+    <OpenDialog projectId={projectId} onClose={() => update({ dialog: null })} onOpened={(id) => update({ dialog: null, documentId: id, editing: null, selection: [], tab: 'model', viewRequest: { kind: 'fit', seq: Date.now() } })} />
+  )
+  if (!open || !state)
+    return (
+      <>
+        <Welcome update={update} kernel={session.kernel.status} canOpenStored={!!session.store} />
+        {dialog}
+      </>
+    )
+  const entry = session.documents.find((d) => d.id === open.id)
+  const reloadRemote = async () => {
+    try {
+      const d = await cadSession.openFromStore(entry!.stored!.projectId, open.id)
+      update({ documentId: d.id, selection: [] })
+    } catch (e) {
+      useToasts.getState().push({ tone: 'danger', title: 'Cannot open the latest revision', body: e instanceof Error ? e.message : String(e) })
+    }
+  }
 
   const editingSketch = vs.editing?.kind === 'sketch' ? vs.editing.sketchId : null
   const sketchPart = editingSketch ? state.doc.parts.find((p) => p.features.some((f) => f.id === editingSketch)) : undefined
@@ -94,9 +117,16 @@ export default function CadModelerView() {
         <header className="cadm-stage-header">
           <strong className="cadm-doc-title">{state.doc.metadata.title}</strong>
           <span className="cadm-muted">v{state.doc.version}</span>
+          {entry?.stored && (
+            <Badge tone="info" icon="repository" title={`Stored in the ${session.store?.mode === 'local' ? 'local store of this browser tab' : 'CAD service'}, project ${entry.stored.projectId}`}>
+              Revision {entry.stored.revision}
+            </Badge>
+          )}
           {dirty ? (
             <StatusBadge status="unsaved" />
-          ) : session.documents.find((d) => d.id === open.id)?.everSaved ? (
+          ) : entry?.stored ? (
+            <StatusBadge status="saved" label="Saved" />
+          ) : entry?.everSaved ? (
             <StatusBadge status="saved" label="Saved to file" />
           ) : (
             <Badge tone="warning" icon="unsaved" title="This document exists only in this window until you save it">
@@ -125,6 +155,21 @@ export default function CadModelerView() {
             </Button>
           )}
         </header>
+        {entry?.remoteRevision && (
+          <div className="cadm-remote" role="status">
+            <Notice
+              tone="warning"
+              title={`Revision ${entry.remoteRevision} was saved by someone else`}
+              actions={
+                <Button size="sm" variant="outlined" icon="sync" isDisabled={dirty} onPress={reloadRemote}>
+                  Open the latest revision
+                </Button>
+              }
+            >
+              {dirty ? 'You have unsaved changes: save them to a file first, or they would be lost. Saving here would be refused (no overwrite).' : 'This view shows an older revision.'}
+            </Notice>
+          </div>
+        )}
         {sketch ? (
           <div className="cadm-sketch-stage">
             <Sketcher
@@ -154,11 +199,12 @@ export default function CadModelerView() {
           {state.regen && <span>Last regeneration {state.regen.durationMs.toFixed(0)} ms</span>}
         </footer>
       </main>
+      {dialog}
     </div>
   )
 }
 
-function Welcome({ update, kernel }: { update: (u: Partial<CadModelerViewState>) => void; kernel: string }) {
+function Welcome({ update, kernel, canOpenStored }: { update: (u: Partial<CadModelerViewState>) => void; kernel: string; canOpenStored: boolean }) {
   const start = async (example: boolean) => {
     try {
       const d = await cadSession.newDocument({ title: example ? 'Bracket plate' : undefined, partName: example ? 'Plate' : undefined })
@@ -184,10 +230,15 @@ function Welcome({ update, kernel }: { update: (u: Partial<CadModelerViewState>)
             <Button variant="outlined" icon="cad-representation" onPress={() => start(true)}>
               Example: plate with hole
             </Button>
+            {canOpenStored && (
+              <Button variant="outlined" icon="repository" onPress={() => update({ dialog: 'open' })}>
+                Open from project
+              </Button>
+            )}
           </div>
         }
       >
-        Parametric part modeling on an exact B-rep kernel (Open CASCADE, running in a Web Worker): constrained sketches, extrude and revolve, parameters and regeneration. Save as the open .ewscad format; export STEP AP242. Use <strong>Open</strong> in the toolbar for a saved model.
+        Parametric part modeling on an exact B-rep kernel (Open CASCADE, running in a Web Worker): constrained sketches, extrude and revolve, parameters and regeneration. Save revisions to the project{canOpenStored ? '' : ' (when the CAD service is connected)'} or as an open .ewscad file; export STEP AP242. Use <strong>Open</strong> in the toolbar for a saved model.
       </EmptyState>
       {kernel === 'loading' && (
         <div className="cadm-row" role="status">

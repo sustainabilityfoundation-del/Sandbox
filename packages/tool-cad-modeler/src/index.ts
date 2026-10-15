@@ -1,11 +1,12 @@
 import { useToasts } from '@ews/design-system'
-import type { ToolApi } from '@ews/platform-sdk'
-import { defineTool } from '@ews/platform-sdk/react'
+import { defineTool, type ToolDefinition } from '@ews/platform-sdk/react'
 import { lazy } from 'react'
 import pkg from '../package.json'
 import { cadModelerAssistant } from './assistant'
 import { cadModelerHelp } from './help'
+import { createHttpCadClient, createLocalCadClient, type CadClient } from '@ews/cad-client'
 import { createWorkerKernel } from '@ews/cad-kernel/worker-client'
+import { chooseFile } from './files'
 import { cadSession, setDefaultKernelFactory } from './session'
 import { INITIAL_VIEW_STATE, type CadModelerViewState } from './viewState'
 
@@ -20,32 +21,27 @@ const fail = (title: string, e: unknown) => useToasts.getState().push({ tone: 'd
 
 const docOf = (vs: CadModelerViewState) => cadSession.document(vs.documentId)
 
-/** Opens a native file chosen by the user (a file picker created on demand, no visible input). */
-function chooseFile(api: ToolApi<CadModelerViewState>) {
-  if (typeof document === 'undefined') return
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.ewscad,.json,.step,.stp,.iges,.igs,.stl,.3mf,.sldprt,.ipt,.catpart,.prt,.x_t,.jt,.3dm,.fcstd,application/json'
-  input.onchange = async () => {
-    const file = input.files?.[0]
-    if (!file) return
-    try {
-      const d = await cadSession.openText(await file.text(), file.name)
-      api.updateViewState({ documentId: d.id, editing: null, selection: [], tab: 'model', viewRequest: { kind: 'fit', seq: Date.now() } })
-      useToasts.getState().push({ tone: 'success', title: `Opened ${file.name}`, body: `Version ${d.engine.document.version}, regenerated from the native model.` })
-    } catch (e) {
-      fail(`Cannot open ${file.name}`, e)
-    }
-  }
-  input.click()
-}
-
 /**
  * CAD Modeler (ADR-0020): parametric part modeling on an exact B-rep kernel (Open CASCADE in a Web
  * Worker). Every toolbar action and dialog runs typed commands from @ews/cad-core, the same ones the
  * assistant proposes. Separate from the mock CAD tool (`cad`) during Phases 0–1 (contracts §1).
  */
-export const cadModelerTool = defineTool<CadModelerViewState>({
+export interface CadModelerOptions {
+  /**
+   * Where documents are stored besides files: 'api' (the CAD document service, /api/cad/v1), 'local'
+   * (an explicit in-browser store, labelled) or 'files' (default: files only).
+   */
+  mode?: 'api' | 'local' | 'files'
+  baseUrl?: string
+  /** Development identity (X-Dev-User) in API mode. */
+  devUser?: string
+  client?: CadClient
+}
+
+export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefinition<CadModelerViewState> {
+  const client = options.client ?? (options.mode === 'api' ? createHttpCadClient({ baseUrl: options.baseUrl ?? '/api/cad/v1', devUser: options.devUser }) : options.mode === 'local' ? createLocalCadClient() : null)
+  cadSession.configureStore(client)
+  return defineTool<CadModelerViewState>({
   id: 'cad-modeler',
   name: 'CAD Modeler',
   description: 'Parametric part modeling: constrained sketches, extrude and revolve, parameters and regeneration on an exact B-rep kernel; native open format and STEP AP242 export.',
@@ -61,7 +57,7 @@ export const cadModelerTool = defineTool<CadModelerViewState>({
   assistant: cadModelerAssistant,
   help: cadModelerHelp,
   keepMounted: true,
-  toolbar: ({ api, viewState }) => {
+  toolbar: ({ api, viewState, context }) => {
     const s = viewState.status
     const run = (title: string, fn: () => Promise<unknown> | unknown) => async () => {
       try {
@@ -82,16 +78,41 @@ export const cadModelerTool = defineTool<CadModelerViewState>({
           api.updateViewState({ documentId: d.id, editing: { kind: 'new-sketch' }, selection: [], tab: 'edit' })
         }),
       },
-      { type: 'button', id: 'open', label: 'Open', icon: 'artifact', title: 'Open a native .ewscad file (other formats are identified and explained)', onClick: () => chooseFile(api) },
+      {
+        type: 'button',
+        id: 'open',
+        label: 'Open',
+        icon: 'artifact',
+        title: client ? 'Open a document of this project, or a native .ewscad file' : 'Open a native .ewscad file (other formats are identified and explained)',
+        onClick: () => (client ? api.updateViewState({ dialog: 'open' }) : chooseFile(api)),
+      },
       {
         type: 'button',
         id: 'save',
         label: 'Save',
-        icon: 'save',
+        icon: client ? 'repository' : 'save',
         priority: 'primary',
         disabled: !s.hasDoc,
-        title: s.dirty ? 'Save the parametric model as .ewscad (unsaved changes)' : 'Save the parametric model as .ewscad',
-        onClick: run('Cannot save', () => cadSession.save(viewState.documentId)),
+        title: client
+          ? `Save a new revision in project ${context?.projectId ?? 'the current project'} (${client.mode === 'api' ? 'CAD service' : 'local store in this browser tab'})`
+          : s.dirty
+            ? 'Save the parametric model as .ewscad (unsaved changes)'
+            : 'Save the parametric model as .ewscad',
+        onClick: run('Cannot save', async () => {
+          if (!client) return cadSession.save(viewState.documentId)
+          const projectId = api.getContext().projectId
+          const r = await cadSession.saveToStore(projectId, viewState.documentId)
+          useToasts.getState().push({ tone: 'success', title: r.unchanged ? 'No changes to save' : `Saved revision ${r.revision}`, body: `Project ${projectId}${client.mode === 'local' ? ' (local store in this browser tab)' : ''}.` })
+        }),
+      },
+      {
+        type: 'button',
+        id: 'download',
+        label: 'Save file',
+        icon: 'save',
+        disabled: !s.hasDoc,
+        title: 'Download the parametric model as an open .ewscad file',
+        onClick: run('Cannot save the file', () => cadSession.save(viewState.documentId)),
       },
       { type: 'separator', id: 'sep-1' },
       {
@@ -145,4 +166,8 @@ export const cadModelerTool = defineTool<CadModelerViewState>({
       },
     ]
   },
-})
+  })
+}
+
+/** The CAD Modeler with files only (tests, hosts without the CAD service). The workspace uses createCadModelerTool. */
+export const cadModelerTool = createCadModelerTool()

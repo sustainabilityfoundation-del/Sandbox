@@ -10,6 +10,7 @@ import {
   type GeometryKernel,
 } from '@ews/cad-core'
 import { detectFormat, inspectStep, type StepInspection } from '@ews/cad-kernel'
+import { CadClientError, newIdempotencyKey, type CadClient, type CadDocumentSummary, type CadProvenance } from '@ews/cad-client'
 import { useSyncExternalStore } from 'react'
 import pkg from '../package.json'
 
@@ -26,6 +27,10 @@ export interface OpenDocument {
   /** Version last saved to a file (null: never saved). */
   savedVersion: number | null
   fileName: string
+  /** Where the document is stored in the CAD service (API mode), and its revision there. */
+  stored?: { projectId: string; revision: number }
+  /** A newer revision saved elsewhere (from service events). */
+  remoteRevision?: number
 }
 
 export interface DownloadFile {
@@ -35,7 +40,9 @@ export interface DownloadFile {
 }
 
 export interface SessionSnapshot {
-  documents: { id: string; title: string; version: number; dirty: boolean; everSaved: boolean; fileName: string }[]
+  documents: { id: string; title: string; version: number; dirty: boolean; everSaved: boolean; fileName: string; stored: { projectId: string; revision: number } | null; remoteRevision: number | null }[]
+  /** The CAD document service (API mode) or an explicit local store; null: files only. */
+  store: { mode: CadClient['mode'] } | null
   activeId: string | null
   kernel: { status: 'not-started' | 'loading' | 'ready' | 'failed'; info?: GeometryKernel['info']; loadMs?: number; error?: string }
   lastExport: { fileName: string; inspection: StepInspection; documentVersion: number } | null
@@ -106,7 +113,8 @@ export class CadSession {
 
   private build(): SessionSnapshot {
     return {
-      documents: [...this.docs.values()].map((d) => ({ id: d.id, title: d.engine.document.metadata.title, version: d.engine.document.version, dirty: this.isDirty(d), everSaved: d.savedVersion !== null, fileName: d.fileName })),
+      documents: [...this.docs.values()].map((d) => ({ id: d.id, title: d.engine.document.metadata.title, version: d.engine.document.version, dirty: this.isDirty(d), everSaved: d.savedVersion !== null, fileName: d.fileName, stored: d.stored ?? null, remoteRevision: d.remoteRevision ?? null })),
+      store: this.store ? { mode: this.store.mode } : null,
       activeId: this.activeId,
       kernel: this.kernelState,
       lastExport: this.lastExport,
@@ -216,6 +224,90 @@ export class CadSession {
     this.lastExport = { fileName: file.name, inspection, documentVersion: result.version }
     this.emit()
     return { file, inspection, version: result.version }
+  }
+
+  // ---- CAD document service (CR-CAD-2) ------------------------------------------------------
+
+  private store: CadClient | null = null
+  private storeEvents: (() => void) | null = null
+  private storeProject: string | null = null
+
+  /** Uses the CAD document service (API mode) or an explicit local store; null: files only. */
+  configureStore(client: CadClient | null) {
+    this.storeEvents?.()
+    this.storeEvents = null
+    this.storeProject = null
+    this.store = client
+    this.emit()
+  }
+
+  get storeClient(): CadClient | null {
+    return this.store
+  }
+
+  /** Listens to committed-change events of a project; marks open documents saved elsewhere. */
+  watchProject(projectId: string) {
+    if (!this.store || this.storeProject === projectId) return
+    this.storeEvents?.()
+    this.storeProject = projectId
+    this.storeEvents = this.store.subscribe(projectId, (e) => {
+      const d = this.docs.get(e.documentId)
+      if (!d || e.revision === undefined || !d.stored || e.revision <= d.stored.revision) return
+      d.remoteRevision = e.revision
+      this.emit()
+    })
+  }
+
+  listStored(projectId: string): Promise<CadDocumentSummary[]> {
+    if (!this.store) throw new CadError('unsupported', 'No CAD document service is connected; use files.')
+    return this.store.list(projectId)
+  }
+
+  /**
+   * Saves the document as a new revision in the service (or creates it). Optimistic concurrency: the
+   * revision last loaded or saved is sent as expectedRevision; a conflict never overwrites.
+   */
+  async saveToStore(projectId: string, id?: string | null, options: { message?: string; provenance?: CadProvenance } = {}): Promise<{ revision: number; unchanged: boolean }> {
+    if (!this.store) throw new CadError('unsupported', 'No CAD document service is connected; use Save file.')
+    const d = this.require(id)
+    const doc = d.engine.document
+    const stamped: CadDocument = { ...doc, metadata: { ...doc.metadata, modifiedAt: new Date().toISOString(), writer: WRITER } }
+    const common = { idempotencyKey: newIdempotencyKey(), message: options.message, provenance: options.provenance }
+    try {
+      if (d.stored && d.stored.projectId !== projectId) throw new CadError('precondition-failed', `This document is stored in project ${d.stored.projectId}, not ${projectId}.`)
+      const out = d.stored
+        ? await this.store.save(projectId, d.id, stamped, { ...common, expectedRevision: d.stored.revision })
+        : { ...(await this.store.create(projectId, stamped, common)), unchanged: false }
+      d.stored = { projectId, revision: out.summary.revision }
+      d.remoteRevision = undefined
+      d.savedVersion = doc.version
+      this.watchProject(projectId)
+      this.emit()
+      return { revision: out.summary.revision, unchanged: out.unchanged }
+    } catch (e) {
+      if (e instanceof CadClientError && e.code === 'conflict' && e.details?.currentRevision)
+        throw new CadError('version-conflict', `Revision ${e.details.currentRevision} was saved by someone else since you opened revision ${d.stored?.revision}. Nothing was overwritten. Open the latest revision (your changes stay in this window until you close it), or save this one to a file.`, { currentRevision: e.details.currentRevision })
+      if (e instanceof CadClientError && e.details?.reason === 'document-exists') throw new CadError('precondition-failed', `${e.message} Open it from the project instead.`)
+      if (e instanceof CadClientError) throw new CadError(e.code === 'unavailable' ? 'kernel-unavailable' : 'invalid-input', e.message, e.details)
+      throw e
+    }
+  }
+
+  /** Opens a stored document (the current or a given revision) and regenerates it. */
+  async openFromStore(projectId: string, documentId: string, revision?: number): Promise<OpenDocument> {
+    if (!this.store) throw new CadError('unsupported', 'No CAD document service is connected.')
+    const got = await this.store.get(projectId, documentId, revision)
+    const existing = this.docs.get(documentId)
+    if (existing && this.isDirty(existing)) throw new CadError('precondition-failed', `“${existing.engine.document.metadata.title}” is open with unsaved changes. Save it to a file or close it first.`)
+    if (existing) this.close(existing.id)
+    const engine = new CadEngine({ kernel: this.getKernel() })
+    await engine.open(got.document)
+    const d = this.add(engine, `${fileStem(got.document.metadata.title)}${FILE_EXTENSION}`, got.document.version)
+    // An older revision opens as a read-back: saving it again needs the current revision as base.
+    d.stored = { projectId, revision: got.summary.revision }
+    this.watchProject(projectId)
+    this.emit()
+    return d
   }
 
   /** For tests. */

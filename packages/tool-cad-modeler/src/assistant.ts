@@ -241,9 +241,35 @@ const actions: AssistantActionDefinition[] = [
   {
     name: 'cad-modeler.open_document',
     label: 'Prepare opening a CAD document',
-    description: 'Propose opening a native ews-cad document given as JSON (for example one read earlier with query get_document). It is validated before the preview.',
-    parameters: { type: 'object', properties: { document: { type: 'object' }, fileName: { type: 'string' } }, required: ['document'], additionalProperties: false },
-    async run(args) {
+    description:
+      'Propose opening a CAD document: a document stored in the project (documentId, optional revision; see cad-modeler.list_documents) or a native ews-cad document given as JSON (document). It is validated before the preview and regenerated when opened.',
+    parameters: { type: 'object', properties: { documentId: { type: 'string' }, revision: { type: 'integer' }, document: { type: 'object' }, fileName: { type: 'string' } }, additionalProperties: false },
+    async run(args, ctx) {
+      if (typeof args.documentId === 'string') {
+        const store = cadSession.storeClient
+        if (!store) throw new ActionError('not-allowed', 'No CAD document service is connected in this window; pass the native document as JSON instead.')
+        const projectId = ctx.captured.projectId
+        const revision = typeof args.revision === 'number' ? args.revision : undefined
+        let found
+        try {
+          found = await store.get(projectId, args.documentId, revision)
+        } catch (e) {
+          throw new ActionError('not-found', (e as Error).message)
+        }
+        return {
+          kind: 'service-proposal',
+          module: MODULE,
+          title: `Open “${found.summary.title}” from ${projectId}`,
+          explanation: `Opens revision ${found.revision.revision} of ${found.summary.id} (current revision ${found.summary.revision}) and regenerates it.`,
+          preview: [{ targetId: found.summary.id, label: 'Open stored document', proposed: `${found.summary.title}, revision ${found.revision.revision} by ${found.revision.actor}` }],
+          inspected: [{ id: found.summary.id, detail: `stored CAD document, revision ${found.summary.revision}` }],
+          async apply() {
+            const d = await cadSession.openFromStore(projectId, found.summary.id, revision)
+            return { summary: `Opened “${found.summary.title}” revision ${found.revision.revision}`, createdIds: [d.id] }
+          },
+        }
+      }
+      if (!args.document) throw new ActionError('invalid-arguments', 'Give a documentId (stored in the project) or a document (native JSON).')
       const text = JSON.stringify(args.document)
       let doc: CadDocument
       try {
@@ -260,6 +286,49 @@ const actions: AssistantActionDefinition[] = [
         async apply() {
           const d = await cadSession.openDocument(doc, typeof args.fileName === 'string' ? args.fileName : undefined)
           return { summary: `Opened “${doc.metadata.title}”`, createdIds: [d.id] }
+        },
+      }
+    },
+  },
+  {
+    name: 'cad-modeler.list_documents',
+    label: 'List stored CAD documents',
+    description: 'CAD documents stored in the current project (CAD service), with current revision, author and time. Empty with an explanation when no service is connected.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    async run(_args, ctx) {
+      const store = cadSession.storeClient
+      if (!store) return { kind: 'data', data: { documents: [], note: 'No CAD document service is connected in this window (files only).' }, summary: 'No CAD document service connected' }
+      try {
+        const documents = await store.list(ctx.captured.projectId)
+        return { kind: 'data', data: { projectId: ctx.captured.projectId, store: store.mode, documents }, summary: `Found ${documents.length} stored CAD document(s) in ${ctx.captured.projectId}`, inspected: documents.map((d) => ({ id: d.id, detail: `${d.title}, revision ${d.revision}` })) }
+      } catch (e) {
+        throw new ActionError('unavailable', (e as Error).message)
+      }
+    },
+  },
+  {
+    name: 'cad-modeler.save_document',
+    label: 'Prepare saving a CAD revision',
+    description:
+      'Propose saving the active document as a new revision in the project (CAD service). The revision records this conversation and proposal as its provenance. A newer revision saved by someone else makes Apply fail without overwriting anything.',
+    parameters: { type: 'object', properties: { message: { type: 'string' }, documentId }, additionalProperties: false },
+    async run(args, ctx) {
+      const store = cadSession.storeClient
+      if (!store) throw new ActionError('not-allowed', 'No CAD document service is connected in this window; use cad-modeler.export with format ewscad to download the file.')
+      const d = cadSession.document(args.documentId as string | undefined)
+      if (!d) throw new ActionError('not-found', 'No CAD Modeler document is open.')
+      const projectId = ctx.captured.projectId
+      const message = typeof args.message === 'string' ? args.message : ''
+      const base = d.stored?.revision
+      return {
+        kind: 'service-proposal',
+        module: MODULE,
+        title: `Save “${d.engine.document.metadata.title}” to ${projectId}`,
+        explanation: base ? `Creates revision ${base + 1} (based on revision ${base}).` : 'Stores the document in the project as revision 1.',
+        preview: [{ targetId: d.id, label: 'Revision', current: base ? `revision ${base}` : 'not stored', proposed: `${base ? `revision ${base + 1}` : 'revision 1'}${message ? `: ${message}` : ''} (model version ${d.engine.document.version})` }],
+        async apply(provenance) {
+          const r = await cadSession.saveToStore(projectId, d.id, { message, provenance: { sourceKind: 'assistant', ...provenance } })
+          return { summary: r.unchanged ? `No changes since revision ${r.revision}` : `Saved revision ${r.revision} in ${projectId}` }
         },
       }
     },

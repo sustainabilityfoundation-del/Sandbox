@@ -24,6 +24,8 @@ export interface CadModelerViewState {
   editing: Editing | null
   selection: SelectionItem[]
   showEdges: boolean
+  /** Open dialog (documents of the project in the CAD service). */
+  dialog?: 'open' | null
   viewRequest: { kind: ViewPreset; seq: number } | null
   /** Mirror of session flags so the toolbar re-renders when they change. */
   status: { hasDoc: boolean; canUndo: boolean; canRedo: boolean; hasBody: boolean; dirty: boolean; busy: boolean }

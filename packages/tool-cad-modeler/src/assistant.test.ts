@@ -5,6 +5,7 @@ import { sampleModel } from '@ews/platform-sdk/testing'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { cadModelerTool } from './index'
 import { cadSession, type DownloadFile } from './session'
+import { createLocalCadClient } from '@ews/cad-client'
 
 /**
  * The AI workflow end to end on the real kernel: demo planning, typed command proposals with a
@@ -129,5 +130,49 @@ describe('CAD Modeler tool definition', () => {
     const ops = new Set(help.contextMappings.map((c) => c.operation))
     expect(cadModelerTool.assistant!.actions.filter((a) => !ops.has(a.name)).map((a) => a.name)).toEqual([])
     expect(cadModelerTool.entitlement).toBe('tool:cad')
+  })
+})
+
+describe('CAD document service from the tool (local adapter, same contract as the API)', () => {
+  it('saves revisions, refuses stale saves, records assistant provenance, lists and opens revisions', async () => {
+    const store = createLocalCadClient({ actor: 'eli' })
+    cadSession.configureStore(store)
+    try {
+      await (await propose('cad-modeler.run_commands', { commands: cadModelerTool.assistant!.demo!('create a plate 40 x 20 x 5 in cad', { selectionIds: [] })!.calls[0].arguments.commands as never })).apply(provenance)
+      const d = cadSession.active!
+      expect(await cadSession.saveToStore('PRJ-ACT100')).toEqual({ revision: 1, unchanged: false })
+      expect(cadSession.getSnapshot().documents[0]).toMatchObject({ stored: { projectId: 'PRJ-ACT100', revision: 1 }, dirty: false })
+
+      // Someone else saves revision 2 of the same document (another window).
+      const other = await store.get('PRJ-ACT100', d.id)
+      const otherDoc = { ...other.document, metadata: { ...other.document.metadata, title: 'Edited elsewhere' } }
+      await store.save('PRJ-ACT100', d.id, otherDoc, { expectedRevision: 1, idempotencyKey: 'k-other' })
+      await d.engine.execute({ commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'thickness', expression: '6' } }] })
+      await expect(cadSession.saveToStore('PRJ-ACT100')).rejects.toMatchObject({ code: 'version-conflict' })
+      expect((await store.revisions('PRJ-ACT100', d.id)).map((r) => r.revision)).toEqual([2, 1])
+
+      // Keep the local changes in a file (as the UI notice asks), then open the latest revision.
+      await expect(cadSession.openFromStore('PRJ-ACT100', d.id)).rejects.toThrow(/unsaved changes/)
+      cadSession.save(d.id)
+      // Open the latest, change, save through an assistant proposal: provenance is recorded.
+      const reopened = await cadSession.openFromStore('PRJ-ACT100', d.id)
+      expect(reopened.engine.document.metadata.title).toBe('Edited elsewhere')
+      await reopened.engine.execute({ commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'thickness', expression: '7' } }] })
+      const listed = (await call('cad-modeler.list_documents', {})) as { data: { documents: { id: string; revision: number }[] } }
+      expect(listed.data.documents).toEqual([expect.objectContaining({ id: d.id, revision: 2 })])
+      const save = await propose('cad-modeler.save_document', { message: 'thicker' })
+      expect(save.preview[0]).toMatchObject({ current: 'revision 2', proposed: expect.stringMatching(/^revision 3: thicker/) })
+      expect((await save.apply(provenance)).summary).toBe('Saved revision 3 in PRJ-ACT100')
+      const revs = await store.revisions('PRJ-ACT100', d.id)
+      expect(revs[0]).toMatchObject({ revision: 3, message: 'thicker', source: { sourceKind: 'assistant' } })
+
+      // Open revision 1 through the assistant.
+      const open = await propose('cad-modeler.open_document', { documentId: d.id, revision: 1 })
+      await open.apply(provenance)
+      expect(cadSession.active!.engine.document.parts[0].parameters.find((p) => p.name === 'thickness')?.expression).toBe('5')
+      expect(cadSession.active!.engine.regeneration!.parts[0].bodies[0].analysis.volume).toBeCloseTo(40 * 20 * 5, 6)
+    } finally {
+      cadSession.configureStore(null)
+    }
   })
 })
