@@ -95,8 +95,8 @@ export default function ModelerView() {
         <span className="smod-spacer" />
         <Badge tone="neutral">SysML v2 subset · not a conformance claim</Badge>
       </div>
+      <div className="smod-panes">
       <SegmentedControl
-        className="smod-panes"
         label="Pane"
         size="sm"
         value={vs.pane}
@@ -107,6 +107,7 @@ export default function ModelerView() {
           { value: 'properties', label: 'Properties', icon: 'tune' },
         ]}
       />
+      </div>
       <aside className="smod-left" aria-label="Model browser">
         <ModelBrowser model={model} revision={state.revision} />
       </aside>

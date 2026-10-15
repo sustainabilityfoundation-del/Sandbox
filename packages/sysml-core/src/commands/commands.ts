@@ -148,9 +148,17 @@ export function resolveRef(model: Model, ref: unknown, placeholders: Map<string,
     if (!el) throw new CommandError('not-found', `No element ${r}.`)
     return el
   }
-  const hit = semanticsOf(model).resolveQualified(model.rootId, splitQualifiedName(r))
-  if (!hit) throw new CommandError('not-found', `No ${what} named “${r}”.`)
-  return hit.element
+  const segments = splitQualifiedName(r)
+  const s = semanticsOf(model)
+  const hit = s.resolveQualified(model.rootId, segments)
+  if (hit) return hit.element
+  // Convenience for people and the assistant: a simple name that is unique in the model (not the library).
+  if (segments.length === 1) {
+    const matches = [...model.elements()].filter((e) => e.declaredName === segments[0] && !isKindOf(e['@type'], 'Relationship'))
+    if (matches.length === 1) return matches[0]
+    if (matches.length > 1) throw new CommandError('invalid', `“${r}” is ambiguous: ${matches.slice(0, 6).map((m) => s.qualifiedName(m['@id']) ?? m['@type']).join(', ')}. Use a qualified name.`)
+  }
+  throw new CommandError('not-found', `No ${what} named “${r}”.`)
 }
 
 function writable(ctx: CommandContext, el: Element): Element {

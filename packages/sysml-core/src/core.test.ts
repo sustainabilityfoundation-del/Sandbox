@@ -328,3 +328,13 @@ describe('large-model baseline', () => {
     expect(txMs).toBeLessThan(5000)
   })
 })
+
+describe('element references', () => {
+  it('accept a unique simple name and refuse an ambiguous one', () => {
+    const m = model('package A { part def Motor; part def Pump { part motor : Motor; } } package B { part def Pump; }')
+    const r = applyTransaction(m, { commands: [{ op: 'rename', elementId: 'Motor', name: 'Engine' }] })
+    expect(r.ok).toBe(true)
+    const amb = applyTransaction(m, { commands: [{ op: 'rename', elementId: 'Pump', name: 'P2' }] })
+    expect(!amb.ok && amb.error.message).toMatch(/ambiguous: A::Pump, B::Pump/)
+  })
+})

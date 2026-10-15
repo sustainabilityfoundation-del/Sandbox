@@ -2,7 +2,7 @@
 @layer components {
   .smod-root {
     display: grid;
-    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(280px, 340px);
+    grid-template-columns: minmax(200px, 270px) minmax(0, 1fr) minmax(260px, 330px);
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas: 'status status status' 'left center right';
     height: 100%;
@@ -144,14 +144,14 @@
   .smod-commit-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); color: var(--ws-text-3); font-size: var(--ws-font-size-xs); }
 
   /* ---- tablet: properties below the view ---- */
-  @container tool (max-width: 1100px) {
+  @container tool (max-width: 900px) {
     .smod-root { grid-template-columns: minmax(200px, 240px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(180px, 38%); grid-template-areas: 'status status' 'left center' 'left right'; }
     .smod-right { border-left: none; border-top: 1px solid var(--ws-border); }
   }
   /* ---- phone: one pane at a time ---- */
   @container tool (max-width: 700px) {
     .smod-root { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: 'status' 'panes' 'main'; }
-    .smod-panes { display: inline-flex; grid-area: panes; margin: var(--ws-space-1) var(--ws-space-2); justify-self: start; }
+    .smod-panes { display: block; grid-area: panes; margin: var(--ws-space-1) var(--ws-space-2); justify-self: start; }
     .smod-left, .smod-center, .smod-right { grid-area: main; display: none; border: none; }
     .smod-root[data-pane='browser'] .smod-left { display: flex; }
     .smod-root[data-pane='view'] .smod-center { display: flex; }
