@@ -60,7 +60,7 @@ export function summarize(model: Model, id: string): ElementSummary | undefined 
       out.value = v.kind === 'unknown' ? undefined : formatValue(v)
     }
   } else if (isKindOf(el['@type'], 'Type')) {
-    const g = s.generals(id)
+    const g = s.explicitGenerals(id)
     if (g.length) out.generals = g.map((x) => s.qualifiedName(x) ?? s.label(x))
   }
   const doc = s.ownedMembers(id).find((m) => m['@type'] === 'Documentation')

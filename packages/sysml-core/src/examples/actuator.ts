@@ -105,6 +105,7 @@ export const ACTUATOR_EXAMPLE = `package ActuatorSystem {
         item def StopCommand;
         item def FaultDetected;
         state def ActuatorModes {
+            entry; then idle;
             state idle;
             state positioning;
             state fault;
@@ -201,6 +202,14 @@ export const ACTUATOR_EXAMPLE = `package ActuatorSystem {
         requirement load : LoadRequirement;
         requirement massLimit : MassRequirement;
         requirement stroke : StrokeRequirement;
+        verification def MassTest {
+            doc /* Weigh the assembled actuator on a calibrated scale. */
+            subject actuator : LinearActuator;
+            objective {
+                verify massLimit;
+            }
+        }
+        verification massTest : MassTest;
     }
 
     package Product {

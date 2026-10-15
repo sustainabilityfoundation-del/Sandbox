@@ -1,7 +1,7 @@
 import { Badge, IconButton, LoadingState, Notice, cx } from '@ews/design-system'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { Graph, GraphEdge } from '../projection/graph'
-import { CHAR_W, HEADER_H, LINE_H, layoutGraph, type LaidOutNode, type Layout } from '../projection/layout'
+import { CHAR_W, HEADER_H, LINE_H, layoutGraph, type DiagramMode, type LaidOutNode, type Layout } from '../projection/layout'
 import { useViewState } from './hooks'
 
 /**
@@ -20,7 +20,10 @@ const EDGE_LABEL: Record<GraphEdge['kind'], string> = {
   flow: 'flow',
   binding: 'binding',
   succession: 'succession',
+  transition: 'transition',
 }
+
+export const MODE_TITLE: Record<DiagramMode, string> = { general: 'General View', interconnection: 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View' }
 
 function wrap(text: string, width: number): string[] {
   const max = Math.max(8, Math.floor(width / CHAR_W))
@@ -37,15 +40,19 @@ function wrap(text: string, width: number): string[] {
   return out
 }
 
-export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph: Graph; mode: 'general' | 'interconnection'; revision: number; title: string; onOpen?: (elementId: string) => void; onUp?: () => void }) {
+export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph: Graph; mode: DiagramMode; revision: number; title: string; onOpen?: (elementId: string) => void; onUp?: () => void }) {
   const [vs, update] = useViewState()
-  const [layout, setLayout] = useState<Layout | null>(null)
+  // The layout is kept with the graph it was computed for: while a new one is computed the previous
+  // one stays visible, but fitting waits for the layout of the current graph.
+  const [laid, setLaid] = useState<{ graph: Graph; layout: Layout } | null>(null)
+  const layout = laid?.layout ?? null
+  const current = laid?.graph === graph
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
     setError(null)
     layoutGraph(graph, mode).then(
-      (l) => alive && setLayout(l),
+      (l) => alive && setLaid({ graph, layout: l }),
       (e) => alive && setError(e instanceof Error ? e.message : String(e)),
     )
     return () => {
@@ -62,12 +69,12 @@ export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph:
   // Fit wide diagrams to the available width when a different diagram is shown.
   useEffect(() => {
     const key = `${mode}:${title}`
-    if (layout && fittedFor.current !== key) {
+    if (layout && current && fittedFor.current !== key) {
       fittedFor.current = key
       update({ zoom: fit(layout) })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout, mode, title])
+  }, [layout, current, mode, title])
   const select = (id: string) => update({ selectedId: id })
   const key = (id: string) => (e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -82,6 +89,13 @@ export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph:
     const selected = vs.selectedId === node.elementId
     let y = n.y + HEADER_H
     const lines: React.ReactNode[] = []
+    if (node.shape)
+      return (
+        <g key={node.id} className={cx('smod-initial', node.shape === 'final' && 'is-final')} role="img" aria-label={node.shape === 'final' ? 'done' : node.keyword === 'initial' ? 'initial state' : 'start'}>
+          {node.shape === 'final' && <circle className="smod-final-ring" cx={n.x + n.width / 2} cy={n.y + n.height / 2} r={n.width / 2} />}
+          <circle cx={n.x + n.width / 2} cy={n.y + n.height / 2} r={node.shape === 'final' ? n.width / 2 - 5 : n.width / 2} />
+        </g>
+      )
     if (!node.isContext) {
       for (const c of node.compartments) {
         lines.push(<line key={`sep-${c.title}`} className="smod-node-sep" x1={n.x} x2={n.x + n.width} y1={y} y2={y} />)
@@ -112,7 +126,7 @@ export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph:
           onDoubleClick={() => !node.isContext && onOpen?.(node.elementId)}
           onKeyDown={key(node.elementId)}
         >
-          <rect x={n.x} y={n.y} width={n.width} height={n.height} rx={node.isContext ? 10 : 6} />
+          <rect x={n.x} y={n.y} width={n.width} height={n.height} rx={node.isContext ? 10 : node.metaclass.includes('State') ? 14 : node.metaclass.includes('Action') ? 12 : 6} />
           <text className="smod-node-keyword" x={n.x + n.width / 2} y={n.y + 17} textAnchor="middle">
             «{node.keyword}»{node.shortName ? ` <${node.shortName}>` : ''}
           </text>
@@ -142,7 +156,7 @@ export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph:
   return (
     <div className="smod-diagram" data-help-id={`sysml-modeler.views.${mode}`}>
       <div className="smod-diagram-bar">
-        <strong className="smod-diagram-title">{mode === 'general' ? 'General View' : 'Interconnection View'}: {title}</strong>
+        <strong className="smod-diagram-title">{MODE_TITLE[mode]}: {title}</strong>
         <Badge tone="info">SysML v2 view (projection)</Badge>
         {onUp && <IconButton label="Up to the owning namespace" icon="arrow-right" size="sm" className="smod-up" onPress={onUp} />}
         <span className="smod-spacer" />
@@ -158,7 +172,7 @@ export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph:
       {!layout && !error && <LoadingState label="Laying out the diagram" />}
       {layout && (
         <div className="smod-canvas-scroll" ref={scroller}>
-          <svg className="smod-canvas" width={Math.ceil(layout.width * zoom) + 40} height={Math.ceil(layout.height * zoom) + 40} viewBox={`-20 -20 ${layout.width + 40} ${layout.height + 40}`} role="group" aria-label={`${mode === 'general' ? 'General' : 'Interconnection'} View diagram with ${graph.nodes.length} nodes and ${graph.edges.length} edges`}>
+          <svg className="smod-canvas" width={Math.ceil(layout.width * zoom) + 40} height={Math.ceil(layout.height * zoom) + 40} viewBox={`-20 -20 ${layout.width + 40} ${layout.height + 40}`} role="group" aria-label={`${MODE_TITLE[mode]} diagram with ${graph.nodes.length} nodes and ${graph.edges.length} edges`}>
             <defs>
               <marker id="smod-tri" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse">
                 <path d="M1,1 L11,6 L1,11 Z" className="smod-marker-hollow" />

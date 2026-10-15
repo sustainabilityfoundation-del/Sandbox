@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { resolveRef } from './commands/commands'
+import { relationshipMatrix, requirementCoverage } from './query/matrix'
 import { applyChanges, diffModels, invertChanges } from './commands/changes'
 import { COMMAND_SCHEMAS } from './commands/schemas'
 import { applyTransaction } from './commands/transaction'
@@ -14,7 +16,7 @@ import { parse } from './syntax/parser'
 import { serialize } from './syntax/serializer'
 import { loadText } from './syntax/text'
 import { evaluate, featureValue, formatValue } from './units/evaluate'
-import { validate } from './validation/validate'
+import { cadRepresentations, validate } from './validation/validate'
 
 const P = (body: string) => `package P {\n    private import ScalarValues::*;\n    private import ISQ::*;\n    private import SI::*;\n${body}\n}`
 
@@ -145,6 +147,14 @@ describe('validation rules', () => {
   })
   it('SYSML-MANAGED-REQUIREMENT', () => {
     expect(rules(model('package A { requirement def R { @EWS::ManagedRequirement { requirementId = "REQ-001"; } } }'))).toEqual(['SYSML-MANAGED-REQUIREMENT'])
+  })
+  it('SYSML-CAD-REFERENCE and CAD representation refs (CR-SYSML-03)', () => {
+    expect(rules(model('package A { part def R { @EWS::CadRepresentation { cadRef = "CAD-120"; } } }'))).toEqual(['SYSML-CAD-REFERENCE'])
+    expect(rules(model('package A { part def R { @EWS::CadRepresentation { cadRef = "0e7c2c1a-4b7d-4f7e-9a51-2f3c6c1d9a10/e12"; revision = 0; } } }'))).toEqual(['SYSML-CAD-REFERENCE'])
+    const m = model('package A { part def R { @EWS::CadRepresentation { cadRef = "0e7c2c1a-4b7d-4f7e-9a51-2f3c6c1d9a10/e12"; revision = 4; role = "part"; } } part def S; }')
+    expect(rules(m)).toEqual([])
+    expect(cadRepresentations(m)).toEqual([{ elementId: id(m, 'A::R'), metadataId: expect.any(String), ref: { module: 'cad', kind: 'cad-modeler-entity', id: '0e7c2c1a-4b7d-4f7e-9a51-2f3c6c1d9a10/e12', revision: 4 }, role: 'part', valid: true }])
+    expect(cadRepresentations(m, id(m, 'A::S'))).toEqual([])
   })
   it('SYSML-CONSTRAINT-FALSE', () => {
     expect(rules(model(P('    part def S { attribute x : Real = 2; constraint { x > 3 } }')))).toEqual(['SYSML-CONSTRAINT-FALSE'])
@@ -336,5 +346,61 @@ describe('element references', () => {
     expect(r.ok).toBe(true)
     const amb = applyTransaction(m, { commands: [{ op: 'rename', elementId: 'Pump', name: 'P2' }] })
     expect(!amb.ok && amb.error.message).toMatch(/ambiguous: A::Pump, B::Pump/)
+  })
+})
+
+describe('relationship matrices and requirement coverage', () => {
+  it('satisfy matrix: every requirement is a row (also unsatisfied ones); satisfying features are columns', async () => {
+    const m = model(ACTUATOR_EXAMPLE)
+    const mx = relationshipMatrix(m, 'satisfy')
+    expect(mx.rows.map((r) => r.label)).toEqual(['ActuatorSystem::Requirements::load', 'ActuatorSystem::Requirements::massLimit', 'ActuatorSystem::Requirements::stroke'])
+    expect(mx.cols.map((c) => c.label)).toEqual(['ActuatorSystem::Product::act100'])
+    expect(mx.cells).toHaveLength(3)
+  })
+
+  it('allocate matrix uses feature chains as axis labels; connect matrix is part-by-part', async () => {
+    const m = model(ACTUATOR_EXAMPLE)
+    const alloc = relationshipMatrix(m, 'allocate')
+    expect(alloc.rows.map((r) => r.label)).toEqual(['ActuatorSystem::Software::controlLoop'])
+    expect(alloc.cols.map((c) => c.label)).toEqual(['act100.controller'])
+    const conn = relationshipMatrix(m, 'connect', id(m, 'ActuatorSystem::Architecture::LinearActuator'))
+    expect(conn.rows.map((r) => r.label)).toEqual(conn.cols.map((c) => c.label))
+    const driverSupply = conn.cells.find((c) => conn.rows.find((r) => r.key === c.row)?.label.endsWith('supply') && conn.cols.find((x) => x.key === c.col)?.label.endsWith('driver'))
+    expect(driverSupply?.relationships.map((r) => r.metaclass)).toEqual(['InterfaceUsage'])
+  })
+
+  it('coverage: satisfied, verified, both or not covered; managed links counted', async () => {
+    const m = model(ACTUATOR_EXAMPLE)
+    const r = applyTransaction(m, { commands: [{ op: 'createElement', ownerId: 'ActuatorSystem::Requirements', kind: 'RequirementUsage', name: 'noise', typeIds: ['ActuatorSystem::Requirements::StrokeRequirement'] }, { op: 'setMetadata', elementId: 'ActuatorSystem::Requirements::load', metadata: 'ManagedRequirement', values: { requirementId: '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001', revision: 2 } }] })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const cov = requirementCoverage(r.model)
+    const by = Object.fromEntries(cov.requirements.map((x) => [x.label.split('::').pop()!, x] as const))
+    expect(by.massLimit.status).toBe('satisfied-and-verified')
+    expect(by.massLimit.verifiedBy.map((v) => v.label)).toContain('ActuatorSystem::Requirements::massTest')
+    expect(by.load.status).toBe('satisfied')
+    expect(by.load.managed).toEqual({ requirementId: '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001', revision: 2 })
+    expect(by.noise.status).toBe('not-covered')
+    expect(cov.counts).toMatchObject({ total: 4, 'satisfied-and-verified': 1, satisfied: 2, 'not-covered': 1, linkedToManaged: 1 })
+  })
+})
+
+describe('implicit library specializations (derived, not stored)', () => {
+  it('definitions and usages without explicit generals specialize the library base type or feature', () => {
+    const r = loadText('package P { part def A; part def B :> A; part p; part q : B; action def Run { action step; first start; then step; then done; } state def S { state s1; } }')
+    expect(r.diagnostics).toEqual([])
+    const s = semanticsOf(r.model)
+    const q = (n: string) => resolveRef(r.model, n)['@id']
+    expect(s.qualifiedName(s.impliedGeneral(q('P::A'))!)).toBe('Parts::Part')
+    expect(s.generals(q('P::B'))).toEqual([q('P::A')])
+    expect(s.conformsTo(q('P::B'), q('Parts::Part'))).toBe(true)
+    expect(s.qualifiedName(s.generals(q('P::p'))[0])).toBe('Parts::parts')
+    expect(s.generals(q('P::q'))).toEqual([q('P::B')])
+    // State definitions are actions: StateAction specializes Action.
+    expect(s.conformsTo(q('P::S'), q('Actions::Action'))).toBe(true)
+    // Not stored: no relationship was added, the explicit generals stay as written.
+    expect(s.explicitGenerals(q('P::A'))).toEqual([])
+    expect([...r.model.elements()].some((e) => e.isImplied === true)).toBe(false)
+    expect(serialize(r.model)).not.toContain('Parts::Part')
   })
 })

@@ -1,6 +1,8 @@
 import { ActionError, argOptionalString, argString, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { SysmlClientError, type SysmlClient, type TransactionOutcome } from '@ews/sysml-client'
-import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, checkCommandShape, findElements, impact, incomingReferences, isTextEditableNamespace, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
+import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, checkCommandShape, findElements, relationshipMatrix, requirementCoverage, impact, incomingReferences, isTextEditableNamespace, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
+import { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from './projection/behavior'
+import type { Graph } from './projection/graph'
 import { getClient, sessionFor } from './session'
 
 /**
@@ -279,6 +281,83 @@ const linkRequirement: AssistantActionDefinition = {
   },
 }
 
+const matrixAction: AssistantActionDefinition = {
+  name: 'sysml-modeler.matrix',
+  label: 'SysML relationship matrix',
+  description: 'Relationship matrix (Grid View): satisfy (requirements × satisfying features), allocate (sources × targets) or connect (parts × parts of a part definition, given as scope). Rows include unsatisfied requirements.',
+  parameters: { type: 'object', properties: { kind: { type: 'string', enum: ['satisfy', 'allocate', 'connect'] }, scope: { type: 'string', description: 'Namespace (or part definition for connect); default: whole model' }, ...projectArg }, required: ['kind'], additionalProperties: false },
+  run: async (args, ctx) => {
+    const t = await target(ctx, argOptionalString(args, 'projectId'))
+    const kind = argString(args, 'kind') as 'satisfy' | 'allocate' | 'connect'
+    const scopeRef = argOptionalString(args, 'scope')
+    const scope = scopeRef ? element(t.model, scopeRef)['@id'] : t.model.rootId
+    const m = relationshipMatrix(t.model, kind, scope)
+    const label = new Map([...m.rows, ...m.cols].map((a) => [a.key, a.label]))
+    const cells = m.cells.map((c) => ({ row: label.get(c.row), col: label.get(c.col), relationships: c.relationships.map((r) => r.metaclass) }))
+    const emptyRows = m.rows.filter((r) => !m.cells.some((c) => c.row === r.key)).map((r) => r.label)
+    return { kind: 'data', summary: `${kind} matrix: ${m.rows.length} × ${m.cols.length}, ${cells.length} filled cells`, data: { kind, rows: m.rows.map((r) => r.label), columns: m.cols.map((c) => c.label), cells, rowsWithoutRelationships: emptyRows, notes: m.notes } }
+  },
+}
+
+const coverageAction: AssistantActionDefinition = {
+  name: 'sysml-modeler.coverage',
+  label: 'SysML requirement coverage',
+  description: 'Requirement coverage: for each requirement usage, the features that satisfy it, the verification cases that verify it, its managed-requirement link, and a status (satisfied-and-verified, satisfied, verified, not-covered). gapsOnly lists only incomplete ones.',
+  parameters: { type: 'object', properties: { scope: { type: 'string' }, gapsOnly: { type: 'boolean' }, ...projectArg }, additionalProperties: false },
+  run: async (args, ctx) => {
+    const t = await target(ctx, argOptionalString(args, 'projectId'))
+    const scopeRef = argOptionalString(args, 'scope')
+    const report = requirementCoverage(t.model, scopeRef ? element(t.model, scopeRef)['@id'] : t.model.rootId)
+    const list = report.requirements.filter((r) => args.gapsOnly !== true || r.status !== 'satisfied-and-verified')
+    return {
+      kind: 'data',
+      summary: `${report.counts.total} requirements: ${report.counts['satisfied-and-verified']} satisfied and verified, ${report.counts['not-covered']} not covered`,
+      data: { counts: report.counts, requirements: list.map((r) => ({ requirement: r.label, shortName: r.shortName, status: r.status, satisfiedBy: r.satisfiedBy.map((x) => x.label), verifiedBy: r.verifiedBy.map((x) => x.label), managedRequirementId: r.managed?.requirementId, pinnedRevision: r.managed?.revision })), note: 'Satisfaction is a modelled claim and verification a modelled objective; test results are records in Requirements Management.' },
+      inspected: list.slice(0, 10).map((r) => ({ id: r.id, detail: `${r.label}: ${r.status}` })),
+    }
+  },
+}
+
+const behaviourAction: AssistantActionDefinition = {
+  name: 'sysml-modeler.behavior',
+  label: 'SysML behaviour (action flow or state machine)',
+  description: 'Reads the Action Flow View (actions, successions, flows, parameters) or State Transition View (states, entry/do/exit actions, transitions with triggers and guards) of an action or state definition/usage. Descriptive only: nothing is executed or simulated.',
+  parameters: { type: 'object', properties: { view: { type: 'string', enum: ['action-flow', 'state-transition'] }, element: { type: 'string', description: 'Qualified name or ID of the action/state definition or usage (or an element inside it); default: the first one in the model' }, ...projectArg }, required: ['view'], additionalProperties: false },
+  run: async (args, ctx) => {
+    const t = await target(ctx, argOptionalString(args, 'projectId'))
+    const view = argString(args, 'view') as 'action-flow' | 'state-transition'
+    const find = view === 'action-flow' ? actionFlowContext : stateTransitionContext
+    const ref = argOptionalString(args, 'element')
+    let contextId = ref ? find(t.model, element(t.model, ref)['@id']) : undefined
+    if (!ref) for (const el of t.model.elements()) if (!t.model.isLibrary(el['@id']) && find(t.model, el['@id']) === el['@id']) { contextId = el['@id']; break }
+    if (!contextId) throw new ActionError('not-found', ref ? `${ref} is not inside an ${view === 'action-flow' ? 'action' : 'state'} definition or usage with ${view === 'action-flow' ? 'actions' : 'states'}.` : 'The model has no behaviour of that kind.')
+    const g: Graph = view === 'action-flow' ? actionFlowView(t.model, contextId) : stateTransitionView(t.model, contextId)
+    const s = semanticsOf(t.model)
+    const nodes = g.nodes[0]?.children ?? []
+    const name = (id: string) => nodes.find((n) => n.id === id)?.name ?? (id.startsWith('initial:') ? '(initial)' : (g.nodes[0]?.ports.find((p) => p.id === id)?.name ?? nodes.flatMap((n) => n.ports).find((p) => p.id === id)?.name ?? id))
+    return {
+      kind: 'data',
+      summary: (() => {
+        const count = (k: string) => g.edges.filter((e) => e.kind === k).length
+        const real = nodes.filter((n) => !n.shape)
+        if (view === 'state-transition') {
+          const initial = g.edges.find((e) => e.source.startsWith('initial:'))
+          return `${s.qualifiedName(contextId) ?? s.label(contextId)}: ${real.length} states (${real.map((n) => n.name).join(', ')}), ${count('transition')} transitions${initial ? `, initial state ${name(initial.target)}` : ''}; triggers: ${[...new Set(g.edges.filter((e) => e.kind === 'transition' && e.label).map((e) => e.label!.split(' (')[0]))].join(', ') || 'none'}`
+        }
+        return `${s.qualifiedName(contextId) ?? s.label(contextId)}: ${real.length} actions (${real.map((n) => n.name).join(', ')}), ${count('succession')} successions, ${count('flow')} flows`
+      })(),
+      data: {
+        view,
+        context: s.qualifiedName(contextId),
+        parameters: g.nodes[0]?.ports.map((p) => p.name),
+        nodes: nodes.filter((n) => n.shape !== 'initial').map((n) => ({ name: n.name, keyword: n.keyword, compartments: n.compartments.map((c) => ({ title: c.title, items: c.items.map((i) => i.text) })), parameters: n.ports.length ? n.ports.map((p) => p.name) : undefined })),
+        edges: g.edges.map((e) => ({ kind: e.kind, from: name(e.source), to: name(e.target), label: e.label })),
+        notes: g.notes,
+      },
+    }
+  },
+}
+
 // ---- scripted demo planning (DEMO ONLY; no model provider) -----------------------------------
 const THERMAL = `package Thermal {
     doc /* Demo elaboration: thermal management of the motor (heat sink and temperature monitoring). */
@@ -320,11 +399,18 @@ export const sysmlModelerDemo: AssistantContribution['demo'] = (text) => {
     }
   }
   if ((m = /link (?:the )?(?:sysml )?(?:requirement )?([w:]+) (?:to|with) (REQ-d+)/i.exec(t))) return { reply: `I prepared a proposal to link ${m[1]} to the managed requirement ${m[2]}.`, calls: [{ name: 'sysml-modeler.link_requirement', arguments: { element: m[1], requirement: m[2] } }] }
+  if (/(requirement )?coverage|requirements? (?:are|is) not (?:satisfied|covered|verified)|unsatisfied requirements/i.test(t)) return { reply: 'This is the requirement coverage of the SysML model (modelled satisfaction and verification).', calls: [{ name: 'sysml-modeler.coverage', arguments: { gapsOnly: /not|gap|unsatisfied/i.test(t) } }] }
+  if ((m = /(satisfy|satisfaction|allocation|allocate|connection|connect) matrix/i.exec(t))) {
+    const kind = /^satisf/i.test(m[1]) ? 'satisfy' : /^alloc/i.test(m[1]) ? 'allocate' : 'connect'
+    return { reply: `Here is the ${kind} matrix.`, calls: [{ name: 'sysml-modeler.matrix', arguments: kind === 'connect' ? { kind, scope: 'LinearActuator' } : { kind } }] }
+  }
+  if (/state machine|state transition|states of|transitions/i.test(t)) return { reply: 'This is the state machine as modelled (descriptive, not simulated).', calls: [{ name: 'sysml-modeler.behavior', arguments: { view: 'state-transition' } }] }
+  if (/action flow|control loop|actions of/i.test(t)) return { reply: 'This is the action flow as modelled (descriptive, not executed).', calls: [{ name: 'sysml-modeler.behavior', arguments: { view: 'action-flow' } }] }
   if ((m = /find (?:the )?(?:sysml )?(?:element|part|definition)s? (?:named |called )?([\w']+)/i.exec(t))) return { reply: `Elements matching “${m[1]}”:`, calls: [{ name: 'sysml-modeler.find_elements', arguments: { text: m[1] } }] }
   return null
 }
 
 export const sysmlModelerAssistant: AssistantContribution = {
-  actions: [describeCommands, findElementsAction, readElement, validateAction, impactAction, explainCommit, proposeCommands, proposeText, linkRequirement],
+  actions: [describeCommands, findElementsAction, readElement, validateAction, impactAction, explainCommit, matrixAction, coverageAction, behaviourAction, proposeCommands, proposeText, linkRequirement],
   demo: sysmlModelerDemo,
 }

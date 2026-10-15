@@ -107,6 +107,12 @@ translators (need approval).
 | Package | Version | Licence | Used by | Source |
 | --- | --- | --- | --- | --- |
 | elkjs | 0.11.1 (released 2026-03-03) | EPL-2.0 OR GPL-3.0-or-later; used under **EPL-2.0**, unmodified | tool-sysml-modeler (automatic diagram layout; the worker script `elk-worker.min.js` is loaded by URL on demand) | github.com/kieler/elkjs (Eclipse Layout Kernel) |
+| @codemirror/state | 6.7.6 (released 2026-09-22) | MIT | tool-sysml-modeler (SysML text editor) | github.com/codemirror/state |
+| @codemirror/view | 6.43.13 (released 2026-09-22) | MIT | tool-sysml-modeler (SysML text editor) | github.com/codemirror/view |
+| @codemirror/language | 6.12.4 (released 2026-06-25) | MIT | tool-sysml-modeler (highlighting via StreamLanguage, bracket matching) | github.com/codemirror/language |
+| @codemirror/autocomplete | 6.20.3 (released 2026-06-03) | MIT | tool-sysml-modeler (keyword and model-name completion) | github.com/codemirror/autocomplete |
+| @codemirror/commands | 6.11.1 (released 2026-09-15) | MIT | tool-sysml-modeler (keymaps, undo history) | github.com/codemirror/commands |
+| @lezer/highlight | 1.2.5 (released 2026-09-28) | MIT | tool-sysml-modeler (highlight tags) | github.com/lezer-parser/highlight |
 
 No other new dependencies: the SysML semantic core, parser, serializer, repository and client are
 written for this module (TypeScript; `pg` and `fastify` versions as already used by the services).

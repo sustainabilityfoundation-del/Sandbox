@@ -117,6 +117,9 @@ export interface TransactionRequest {
 
 type Db = Pick<PoolClient, 'query'>
 
+/** Runs inside the commit transaction (idempotency records); throwing rolls the commit back. */
+export type OnCommit<T> = (db: PoolClient, result: T) => Promise<void>
+
 const MAX_CACHE = 24
 
 export class SysmlRepository {
@@ -177,7 +180,7 @@ export class SysmlRepository {
   }
 
   /** Creates a project with branch `main` and commit #1 (the root namespace, plus optional initial text). */
-  async createProject(actor: string, input: { name: string; description?: string; platformProjectId: string; initialText?: string; source?: CommitSource; id?: string }): Promise<{ project: ProjectRow; branch: BranchRow; commit: CommitRow }> {
+  async createProject(actor: string, input: { name: string; description?: string; platformProjectId: string; initialText?: string; source?: CommitSource; id?: string }, onCommit?: OnCommit<{ project: ProjectRow; branch: BranchRow; commit: CommitRow }>): Promise<{ project: ProjectRow; branch: BranchRow; commit: CommitRow }> {
     const empty = new Model({ library: this.library })
     let model = empty
     let commands: Command[] = []
@@ -199,6 +202,7 @@ export class SysmlRepository {
       const [project] = await this.q<ProjectRow>('SELECT * FROM sysml.projects WHERE id = $1', [projectId], db)
       const [branch] = await this.q<BranchRow>('SELECT * FROM sysml.branches WHERE id = $1', [branchId], db)
       this.remember(commit.id, model)
+      await onCommit?.(db, { project, branch, commit })
       return { project, branch, commit }
     })
   }
@@ -215,7 +219,7 @@ export class SysmlRepository {
     return b
   }
 
-  async createBranch(projectId: string, actor: string, name: string, headCommitId: string): Promise<BranchRow> {
+  async createBranch(projectId: string, actor: string, name: string, headCommitId: string, onCommit?: OnCommit<BranchRow>): Promise<BranchRow> {
     const commit = await this.getCommit(projectId, headCommitId)
     const model = await this.loadModel(projectId, commit.id)
     return this.tx(async (db, now) => {
@@ -233,6 +237,7 @@ export class SysmlRepository {
       await emit(db, { type: 'sysml.branch-created', projectId, entityId: id, branchId: id, actor, at: now })
       void model
       const [b] = await this.q<BranchRow>('SELECT * FROM sysml.branches WHERE id = $1', [id], db)
+      await onCommit?.(db, b)
       return b
     })
   }
@@ -241,7 +246,7 @@ export class SysmlRepository {
     return this.q<TagRow>('SELECT * FROM sysml.tags WHERE project_id = $1 ORDER BY created_at, name', [projectId])
   }
 
-  async createTag(projectId: string, actor: string, name: string, commitId: string): Promise<TagRow> {
+  async createTag(projectId: string, actor: string, name: string, commitId: string, onCommit?: OnCommit<TagRow>): Promise<TagRow> {
     const commit = await this.getCommit(projectId, commitId)
     return this.tx(async (db, now) => {
       const id = randomUUID()
@@ -250,6 +255,7 @@ export class SysmlRepository {
       })
       await emit(db, { type: 'sysml.tag-created', projectId, entityId: id, commitNumber: commit.number, actor, at: now })
       const [t] = await this.q<TagRow>('SELECT * FROM sysml.tags WHERE id = $1', [id], db)
+      await onCommit?.(db, t)
       return t
     })
   }
@@ -419,7 +425,7 @@ export class SysmlRepository {
   }
 
   /** Runs typed commands on a branch (ADR-0034): dry run, element-level concurrency, commit with provenance. */
-  async transact(projectId: string, branchId: string, actor: string, req: TransactionRequest): Promise<TransactionOutcome> {
+  async transact(projectId: string, branchId: string, actor: string, req: TransactionRequest, onCommit?: OnCommit<TransactionOutcome>): Promise<TransactionOutcome> {
     const branch = await this.getBranch(projectId, branchId)
     if (!branch.head_commit_id) throw notFound('The branch has no commits.')
     const base = req.baseCommitId ?? branch.head_commit_id
@@ -465,12 +471,14 @@ export class SysmlRepository {
         summary: result.summaryText,
       })
       this.remember(commit.id, result.model)
-      return this.outcome(false, rebased, current.head_commit_id!, result.model, result.changes, { summary: result.summary, summaryText: result.summaryText, createdIds: result.createdIds, diagnostics: result.diagnostics, commit })
+      const out = this.outcome(false, rebased, current.head_commit_id!, result.model, result.changes, { summary: result.summary, summaryText: result.summaryText, createdIds: result.createdIds, diagnostics: result.diagnostics, commit })
+      await onCommit?.(db, out)
+      return out
     })
   }
 
   /** Undo: a compensating commit restoring the versions before `commitId` (refused when later commits changed the same elements). */
-  async revert(projectId: string, commitId: string, branchId: string, actor: string, options: { reason?: string; source?: CommitSource; dryRun?: boolean } = {}): Promise<TransactionOutcome> {
+  async revert(projectId: string, commitId: string, branchId: string, actor: string, options: { reason?: string; source?: CommitSource; dryRun?: boolean } = {}, onCommit?: OnCommit<TransactionOutcome>): Promise<TransactionOutcome> {
     const target = await this.getCommit(projectId, commitId)
     if (!target.parent_ids.length) throw invalid('The first commit of a project cannot be reverted.')
     const run = async (db: Db) => {
@@ -518,12 +526,14 @@ export class SysmlRepository {
       const text = `Undo commit ${target.number}: ${describeSummary(r.summary)}`
       const commit = await this.writeCommit(db, now, { projectId, branchId, parentIds: [r.head], actor, source: options.source ?? { kind: 'revert', revertedCommitId: commitId }, description: options.reason ?? text, commands: [{ op: 'revert', commitId }], model: r.model, changes: r.changes, summary: text })
       this.remember(commit.id, r.model)
-      return this.outcome(false, false, r.head, r.model, r.changes, { summary: r.summary, summaryText: text, createdIds: {}, diagnostics: r.diagnostics, commit })
+      const out = this.outcome(false, false, r.head, r.model, r.changes, { summary: r.summary, summaryText: text, createdIds: {}, diagnostics: r.diagnostics, commit })
+      await onCommit?.(db, out)
+      return out
     })
   }
 
   /** Systems Modeling API commit: raw element versions (validated for well-formedness by the core). */
-  async rawCommit(projectId: string, branchId: string, actor: string, input: { change: { payload: JsonElement | null; identity?: { '@id': string } }[]; description?: string; previousCommitId?: string }): Promise<CommitRow> {
+  async rawCommit(projectId: string, branchId: string, actor: string, input: { change: { payload: JsonElement | null; identity?: { '@id': string } }[]; description?: string; previousCommitId?: string }, onCommit?: OnCommit<CommitRow>): Promise<CommitRow> {
     return this.tx(async (db, now) => {
       await db.query('SELECT id FROM sysml.projects WHERE id = $1 FOR UPDATE', [projectId])
       const branch = await this.getBranch(projectId, branchId, db)
@@ -556,6 +566,7 @@ export class SysmlRepository {
       const summary = describeSummary(summarizeChanges(head, model, changes))
       const commit = await this.writeCommit(db, now, { projectId, branchId, parentIds: [branch.head_commit_id!], actor, source: { kind: 'api' }, description: input.description ?? summary, commands: [], model, changes, summary })
       this.remember(commit.id, model)
+      await onCommit?.(db, commit)
       return commit
     })
   }

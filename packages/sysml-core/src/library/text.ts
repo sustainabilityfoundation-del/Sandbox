@@ -57,11 +57,15 @@ library package Allocations {
     abstract allocation allocations : Allocation[0..*];
 }
 library package Actions {
-    abstract action def Action;
+    abstract action def Action {
+        doc /* Platform subset: every action has a start and a done snapshot-like subaction (used by 'first start;' and 'then done;'). */
+        action start;
+        action done;
+    }
     abstract action actions : Action[0..*];
 }
 library package States {
-    abstract state def StateAction;
+    abstract state def StateAction :> Actions::Action;
     abstract state stateActions : StateAction[0..*];
 }
 library package Constraints {
@@ -200,7 +204,7 @@ library package EWS {
         attribute revision : Integer[0..1];
     }
     metadata def CadRepresentation {
-        doc /* The part is represented by a CAD part or assembly (proposal CR-SYSML-03). */
+        doc /* The part is represented by a CAD Modeler entity (CR-SYSML-03): cadRef = "<documentUuid>/<entityId>", revision = the CAD document revision. The reference is owned by SysML; no CAD data is copied. */
         attribute cadRef : String;
         attribute revision : Integer[0..1];
         attribute role : String[0..1];
