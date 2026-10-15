@@ -10,4 +10,5 @@
 export { createHttpSysmlClient, newIdempotencyKey, type HttpSysmlConfig } from './http'
 export { createLocalSysmlClient, LOCAL_SEED_PROJECT_ID, type LocalOptions, type StorageLike } from './local'
 export { applyOutcome } from './apply'
+export { createSysmlModelService, SYSML_SERVICE_CONTRACT_VERSION, type SysmlElementRef, type SysmlElementSummary, type SysmlModelEvent, type SysmlModelService, type SysmlProjectSummary, type SysmlResolution } from './service'
 export * from './types'
