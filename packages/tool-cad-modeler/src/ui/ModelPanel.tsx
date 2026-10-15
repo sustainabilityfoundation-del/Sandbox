@@ -11,7 +11,7 @@ interface Props {
   update: (u: Partial<CadModelerViewState>) => void
 }
 
-const ICON: Record<Feature['type'], 'edit' | 'arrow-right' | 'sync'> = { sketch: 'edit', extrude: 'arrow-right', revolve: 'sync' }
+const ICON: Record<Feature['type'], 'edit' | 'arrow-right' | 'sync' | 'tune' | 'dimensions' | 'split'> = { sketch: 'edit', extrude: 'arrow-right', revolve: 'sync', fillet: 'tune', chamfer: 'dimensions', 'datum-plane': 'split' }
 
 /** Feature tree, bodies and parameters of each part (brief §8: feature tree, dimension editing). */
 export function ModelPanel({ engine, state, vs, update }: Props) {

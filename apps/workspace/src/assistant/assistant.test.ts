@@ -1,7 +1,8 @@
 import { DemoRepository, PROJECT_ID, outputFreshness, readRequirement, type StorageLike } from '@ews/model-service'
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { useEntitlements } from '../platform/entitlements'
 import { getTools } from '../platform/registry'
+import { workspaceServices } from '../platform/services'
 import { useWorkspaceStore } from '../platform/store'
 import '../platform/tools'
 import { DemoAssistantService } from './DemoAssistantService'
@@ -35,7 +36,16 @@ function latestProposal() {
   return chat().proposals[ids[ids.length - 1]]
 }
 
+// This demo flow exercises the twin-based Requirements path. Requirements operations are headless
+// (integration milestone 1, C9) and use the host's Requirements service whenever there is one, so the
+// flow runs without it; the service path is tested on the real API in services/api/test/assistant.test.ts.
+const hostRequirements = workspaceServices.requirements
+afterAll(() => {
+  workspaceServices.requirements = hostRequirements
+})
+
 beforeAll(async () => {
+  workspaceServices.requirements = undefined
   setPlan('all')
   const repository = new DemoRepository({ storage: memoryStorage(), latencyMs: [0, 0] })
   await ws().initialize({

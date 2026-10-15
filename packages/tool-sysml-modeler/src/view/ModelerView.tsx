@@ -85,8 +85,17 @@ export default function ModelerView() {
   if (state.status === 'empty' || !model)
     return (
       <div className="smod-pad">
-        <EmptyState icon="sysml" title="No SysML project for this platform project" action={<Button variant="filled" icon="add" onPress={() => update({ dialog: { kind: 'project' } })}>New SysML project</Button>}>
-          Create a project to start modeling. Each project is versioned: every change is a commit you can inspect and undo.
+        <EmptyState
+          icon="sysml"
+          title="This project has no SysML model yet"
+          action={
+            <div className="smod-empty-actions" data-help-id="sysml-modeler.start">
+              <Button variant="filled" icon="add" onPress={() => void session.ensureProject().catch(() => update({ dialog: { kind: 'project' } }))}>Start modelling</Button>
+              <Button variant="text" onPress={() => update({ dialog: { kind: 'project' } })}>New SysML project…</Button>
+            </div>
+          }
+        >
+          Nothing is created until you start. Start modelling creates a versioned SysML model with an empty package; every change is a commit you can inspect and undo.
         </EmptyState>
         <ProjectDialog session={session} />
       </div>

@@ -1,10 +1,12 @@
-import { KernelError, type GeometryKernel, type KernelInfo } from '@ews/cad-core'
+import { KernelError, type GeometryKernel, type KernelInfo, type Regenerator } from '@ews/cad-core'
 import type { KernelMethod, KernelRequest, KernelResponse } from './protocol'
 
 export interface WorkerKernel extends GeometryKernel {
   /** Resolves when OCCT has loaded in the worker (with the load time). */
   ready: Promise<{ info: KernelInfo; loadMs: number }>
   terminate: () => void
+  /** A regenerator in the same worker with its own cache (one per open document). */
+  createRegenerator: () => Regenerator
 }
 
 /**
@@ -14,6 +16,7 @@ export interface WorkerKernel extends GeometryKernel {
 export function createWorkerKernel(): WorkerKernel {
   const worker = new Worker(new URL('./kernel.worker.ts', import.meta.url), { type: 'module', name: 'cad-kernel' })
   let next = 1
+  let caches = 0
   const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>()
   let readyResolve!: (v: { info: KernelInfo; loadMs: number }) => void
   let readyReject!: (e: unknown) => void
@@ -55,6 +58,7 @@ export function createWorkerKernel(): WorkerKernel {
     ready,
     makeSolid: call('makeSolid') as GeometryKernel['makeSolid'],
     boolean: call('boolean') as GeometryKernel['boolean'],
+    blendEdges: call('blendEdges') as GeometryKernel['blendEdges'],
     analyze: call('analyze') as GeometryKernel['analyze'],
     mesh: call('mesh') as GeometryKernel['mesh'],
     exportStep: call('exportStep') as GeometryKernel['exportStep'],
@@ -62,5 +66,13 @@ export function createWorkerKernel(): WorkerKernel {
     release: call('release') as GeometryKernel['release'],
     dispose: call('dispose') as GeometryKernel['dispose'],
     terminate: () => worker.terminate(),
+    createRegenerator: () => {
+      const id = `cache-${++caches}`
+      return {
+        location: 'worker',
+        regenerate: (doc, options) => call('regenerate')(id, doc, options) as ReturnType<Regenerator['regenerate']>,
+        clear: () => call('clearRegeneration')(id) as Promise<void>,
+      }
+    },
   }
 }

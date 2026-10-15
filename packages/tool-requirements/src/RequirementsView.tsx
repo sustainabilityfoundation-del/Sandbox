@@ -1,5 +1,5 @@
 import './requirements.css'
-import { Badge, Button, EmptyState, Notice, SegmentedControl, Select, Table, TableBody, TableHeader, Column, Row, Cell, SearchField, TextField, LoadingState } from '@ews/design-system'
+import { Button, EmptyState, Notice, SegmentedControl, Select, Table, TableBody, TableHeader, Column, Row, Cell, SearchField, TextField, LoadingState } from '@ews/design-system'
 import type { RequirementSummary, RequirementsService } from '@ews/platform-sdk'
 import {
   ObjectRef,
@@ -7,7 +7,6 @@ import {
   useModel,
   useSelection,
   useSharedContext,
-  useToolApi,
   useToolCommand,
   useToolViewState,
   useUnsavedChanges,
@@ -16,7 +15,6 @@ import { getModuleClient, type Requirement } from '@ews/requirements-client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { selectedComponent, selectedRequirementIds, type RequirementsPage, type RequirementsViewState } from './domain'
 import { ModuleDataProvider, useModuleData, useResource } from './data'
-import { setAssistantConnection, updateProposal, useProposals, type AssistantProposal } from './proposals'
 import { useVerificationRecords } from './Verification'
 import { CollectionsPanel } from './ui/Collections'
 import { ApiErrorNotice, LifecycleBadge, formatDate } from './ui/common'
@@ -25,84 +23,6 @@ import { ExchangeView } from './ui/Exchange'
 import { BaselinesView, BulkBar, MatrixView, SavedViews } from './ui/Pages'
 import { QualityTab, QualityView } from './ui/Quality'
 import { RequirementTable } from './ui/RequirementTable'
-
-// ---- assistant proposals (API mode) -------------------------------------------------------------
-
-function ProposalCard({ p }: { p: AssistantProposal }) {
-  const { client, invalidate } = useModuleData()
-  const api = useToolApi()
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<unknown>(null)
-  const apply = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      const patch = Object.fromEntries(p.changes.map((c) => [c.field, c.proposed]))
-      const r = await client.update(p.requirementId, patch, { expectedRevision: p.expectedRevision, reason: `Assistant proposal ${p.id}` })
-      updateProposal(p.id, { status: 'applied', appliedRevision: r.revision })
-      api.log(`Applied assistant proposal ${p.id} to ${p.key} (rev ${p.expectedRevision} → ${r.revision})`, { kind: 'change', source: { kind: 'conversation', conversationId: p.id } as never })
-      invalidate()
-    } catch (e) {
-      setError(e)
-      updateProposal(p.id, { status: 'failed', error: e instanceof Error ? e.message : String(e) })
-    } finally {
-      setBusy(false)
-    }
-  }
-  const undo = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      const patch = Object.fromEntries(p.changes.map((c) => [c.field, c.current]))
-      const r = await client.update(p.requirementId, patch, { expectedRevision: p.appliedRevision!, reason: `Undo assistant proposal ${p.id}` })
-      updateProposal(p.id, { status: 'undone' })
-      api.log(`Undid assistant proposal ${p.id} on ${p.key} (new rev ${r.revision})`, { kind: 'change' })
-      invalidate()
-    } catch (e) {
-      setError(e)
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <section className="req-proposal" aria-label={`Assistant proposal for ${p.key}`}>
-      <div className="req-finding-head">
-        <Badge tone="info" icon="assistant">
-          Assistant proposal
-        </Badge>
-        <strong>
-          {p.key}, based on revision {p.expectedRevision}
-        </strong>
-        <Badge tone={p.status === 'applied' ? 'success' : p.status === 'failed' ? 'danger' : 'neutral'}>{p.status}</Badge>
-      </div>
-      {p.changes.map((c) => (
-        <div key={c.field} className="req-proposal-change">
-          <span className="text-fg-3">{c.field}</span>
-          <del>{c.current || '(empty)'}</del>
-          <ins>{c.proposed}</ins>
-        </div>
-      ))}
-      <div className="req-actions-row">
-        {(p.status === 'pending' || p.status === 'failed') && (
-          <>
-            <Button size="sm" variant="filled" isPending={busy} onPress={() => void apply()}>
-              Apply
-            </Button>
-            <Button size="sm" variant="text" onPress={() => updateProposal(p.id, { status: 'rejected' })}>
-              Reject
-            </Button>
-          </>
-        )}
-        {p.status === 'applied' && (
-          <Button size="sm" variant="outlined" icon="undo" isPending={busy} onPress={() => void undo()}>
-            Undo
-          </Button>
-        )}
-      </div>
-      {error ? <ApiErrorNotice error={error} title="The proposal was not applied" /> : null}
-    </section>
-  )
-}
 
 // ---- API mode ------------------------------------------------------------------------------------
 
@@ -115,23 +35,17 @@ const PAGES: { value: RequirementsPage; label: string }[] = [
 ]
 
 function ApiView() {
-  const { client, projectId, permissions, permissionsError, lastEvent, can } = useModuleData()
+  const { client, permissions, permissionsError, lastEvent, can } = useModuleData()
   const model = useModel()
   const { selectedIds, select } = useSelection()
   const [state, setState] = useToolViewState<RequirementsViewState>()
   const verification = useVerificationRecords()
-  const proposals = useProposals().filter((p) => p.status !== 'rejected' && p.status !== 'undone')
   const [bulkSelection, setBulkSelection] = useState<Set<string>>(new Set())
   const [rows, setRows] = useState<Requirement[]>([])
   const definitions = useResource(() => client.attributeDefinitions(), [client])
   const conventions = useResource(() => client.conventions(), [client])
   const baseline = useResource(state.baselineId ? () => client.baselines().then((bs) => bs.find((b) => b.id === state.baselineId)) : null, [client, state.baselineId])
   const requirementTypes = (conventions.data?.settings.requirementTypes as string[] | undefined) ?? ['functional']
-
-  useEffect(() => {
-    setAssistantConnection({ client, projectId })
-    return () => setAssistantConnection(null)
-  }, [client, projectId])
 
   // Selection made in other tools: a component (or its representation) filters by allocation.
   const component = selectedComponent(model, selectedIds)
@@ -184,9 +98,6 @@ function ApiView() {
           Read-only. Shows the revisions, relationships and structure pinned on {formatDate(baseline.data?.createdAt)}; later changes are not shown.
         </Notice>
       )}
-      {proposals.map((p) => (
-        <ProposalCard key={p.id} p={p} />
-      ))}
       {state.page === 'table' && (
         <div className={`req-root${editing ? ' has-detail' : ''}`}>
           <CollectionsPanel

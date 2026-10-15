@@ -170,7 +170,7 @@ describe('engineering-calc: evaluation', () => {
     expect(rel(r.outputs.P_cr.value, ref.Pcr_kN)).toBeLessThan(1e-9)
     expect(r.outputs.P_cr.value).toBeCloseTo(110.395, 2) // hand check: about 110.4 kN
     expect(r.outputs.lambda.value).toBeCloseTo(96, 9)
-    expect(r.checks[0]).toMatchObject({ relationId: 'c1', satisfied: true, status: 'satisfied', unit: 'kN' })
+    expect(r.checks[0]).toMatchObject({ relationId: 'c1', nominalSatisfied: true, status: 'satisfied', statusBasis: 'point', unit: 'kN', marginRange: { kind: 'point' } })
     expect(r.checks[0].margin).toBeCloseTo(ref.Pcr_kN - 24, 9)
     expect(r.validity.satisfied).toBe(true)
     expect(r.basis).toBe('calculated')
@@ -184,7 +184,7 @@ describe('engineering-calc: evaluation', () => {
 
   it('reports violations with a negative margin', () => {
     const r = evaluateModel(BUCKLING, { ...ROD_INPUTS, F: { value: 120, unit: 'kN' } })
-    expect(r.checks[0].satisfied).toBe(false)
+    expect(r.checks[0].nominalSatisfied).toBe(false)
     expect(r.checks[0].status).toBe('violated')
     expect(r.checks[0].margin).toBeLessThan(0)
   })
@@ -195,14 +195,17 @@ describe('engineering-calc: evaluation', () => {
     expect(r.warnings.join()).toMatch(/domain-warning/)
   })
 
-  it('bounds outputs by interval vertices and classifies checks as uncertain when ranges straddle the limit', () => {
-    const r = evaluateModel(BUCKLING, { ...ROD_INPUTS, d: { value: 25, min: 24, max: 26, unit: 'mm' }, K: { value: 1, min: 0.7, max: 1.5, unit: '-' } }, { uncertainty: 'interval-vertices' })
+  it('bounds outputs over ranges and classifies checks as uncertain when ranges straddle the limit', () => {
+    const r = evaluateModel(BUCKLING, { ...ROD_INPUTS, d: { value: 25, min: 24, max: 26, unit: 'mm' }, K: { value: 1, min: 0.7, max: 1.5, unit: '-' } }, { uncertainty: 'interval' })
     const lo = eulerReference(12, 210, 24, 600, 1.5).Pcr_kN
     const hi = eulerReference(12, 210, 26, 600, 0.7).Pcr_kN
-    expect(rel(r.outputs.P_cr.min!, lo)).toBeLessThan(1e-9)
-    expect(rel(r.outputs.P_cr.max!, hi)).toBeLessThan(1e-9)
+    const range = r.outputs.P_cr.range
+    if (range.kind !== 'bounds') throw new Error('bounds expected')
+    expect(range.quality).toBe('exact')
+    expect(rel(range.min, lo)).toBeLessThan(1e-9)
+    expect(rel(range.max, hi)).toBeLessThan(1e-9)
     expect(r.checks[0].status).toBe('satisfied')
-    const tight = evaluateModel(BUCKLING, { ...ROD_INPUTS, F: { value: 50, min: 40, max: 60, unit: 'kN' } }, { uncertainty: 'interval-vertices' })
+    const tight = evaluateModel(BUCKLING, { ...ROD_INPUTS, F: { value: 50, min: 40, max: 60, unit: 'kN' } }, { uncertainty: 'interval' })
     expect(tight.checks[0].status).toBe('uncertain')
   })
 

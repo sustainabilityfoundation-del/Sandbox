@@ -1,8 +1,8 @@
-import { massProperties, type CadEngine, type EngineState, type ReferenceModule, type ReferenceRole } from '@ews/cad-core'
+import { massProperties, type CadEngine, type EngineState, type Feature, type PlaneRef, type ReferenceModule, type ReferenceRole } from '@ews/cad-core'
 import { Button, EmptyState, IconButton, Notice, Select, TextField } from '@ews/design-system'
 import { isComponent } from '@ews/platform-sdk'
 import { useModel, useToolApi } from '@ews/platform-sdk/react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { CadModelerViewState } from '../viewState'
 import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf } from './common'
 
@@ -57,6 +57,35 @@ export function InspectPanel({ engine, state, vs, update }: Props) {
             </section>
           )
         })()}
+      {sel?.kind === 'edge' &&
+        (() => {
+          const body = pr?.bodies.find((b) => b.bodyId === sel.bodyId)
+          const edge = body?.analysis.edges.find((e) => e.name === sel.id)
+          if (!edge) return <Notice tone="warning">The edge {sel.id} no longer exists after regeneration.</Notice>
+          return (
+            <section className="cadm-section" aria-label="Edge">
+              <h3 className="cadm-section-title">Edge</h3>
+              <dl className="cadm-props">
+                <dt>Stable name</dt>
+                <dd className="cadm-mono">{edge.name}</dd>
+                <dt>Curve</dt>
+                <dd>{edge.curveType}</dd>
+                <dt>Length</dt>
+                <dd>{fmtNum(edge.length, 3)} mm</dd>
+                <dt>Between faces</dt>
+                <dd className="cadm-mono">{edge.faces.join(', ')}</dd>
+              </dl>
+              <div className="cadm-actions">
+                <Button size="sm" variant="outlined" icon="tune" onPress={() => update({ editing: { kind: 'fillet' }, tab: 'edit', selection: [sel] })}>
+                  Fillet this edge
+                </Button>
+                <Button size="sm" variant="outlined" icon="dimensions" onPress={() => update({ editing: { kind: 'chamfer' }, tab: 'edit', selection: [sel] })}>
+                  Chamfer this edge
+                </Button>
+              </div>
+            </section>
+          )
+        })()}
       {sel?.kind === 'body' &&
         (() => {
           const mp = pr ? massProperties(doc, state.regen, part.id).find((m) => m.bodyId === sel.id) : undefined
@@ -98,16 +127,12 @@ export function InspectPanel({ engine, state, vs, update }: Props) {
                 <dd className="cadm-mono">{f.id}</dd>
                 <dt>Type</dt>
                 <dd>{f.type}</dd>
-                {f.type !== 'sketch' && (
-                  <>
-                    <dt>Sketch</dt>
-                    <dd className="cadm-mono">{f.sketch}</dd>
-                    <dt>{f.type === 'extrude' ? 'Distance' : 'Angle'}</dt>
-                    <dd>{String(f.type === 'extrude' ? f.extent.distance : f.angle)}</dd>
-                    <dt>Operation</dt>
-                    <dd>{f.operation}</dd>
-                  </>
-                )}
+                {Object.entries(featureFacts(f)).map(([k, v]) => (
+                  <Fragment key={k}>
+                    <dt>{k}</dt>
+                    <dd className={/Sketch|Edges|Plane|Target/.test(k) ? 'cadm-mono' : undefined}>{v}</dd>
+                  </Fragment>
+                ))}
                 <dt>Regenerated</dt>
                 <dd>{r ? `${r.rebuilt ? 'rebuilt' : 'reused from cache'} in ${fmtNum(r.durationMs, 1)} ms` : '—'}</dd>
               </dl>
@@ -147,7 +172,8 @@ function PartProperties({ engine, state }: { engine: CadEngine; state: EngineSta
   const model = useModel()
   const api = useToolApi()
   const components = model.objects.filter(isComponent)
-  const [module, setModule] = useState<ReferenceModule>('twin')
+  // New projects reference Project Management product elements (ADR-0026, CR-PM-CAD-1); projects whose twin has components (PRJ-ACT100) keep twin references.
+  const [module, setModule] = useState<ReferenceModule>(components.length ? 'twin' : 'product')
   const [role, setRole] = useState<ReferenceRole>('represents')
   const [target, setTarget] = useState('')
   const [component, setComponent] = useState<string | null>(null)
@@ -198,11 +224,11 @@ function PartProperties({ engine, state }: { engine: CadEngine; state: EngineSta
         </ul>
         <div className="cadm-form-grid">
           <Select label="Role" value={role} onChange={(v) => setRole(v as ReferenceRole)} options={[{ id: 'represents', label: 'represents (component)' }, { id: 'satisfies', label: 'satisfies (requirement)' }, { id: 'verifies', label: 'verifies (requirement)' }, { id: 'realizes', label: 'realizes (concept)' }, { id: 'traces', label: 'traces (SysML element)' }, { id: 'related', label: 'related' }]} />
-          <Select label="Module" value={module} onChange={(v) => setModule(v as ReferenceModule)} options={[{ id: 'twin', label: 'Product structure (twin)' }, { id: 'requirements', label: 'Requirements' }, { id: 'sysml', label: 'SysML' }, { id: 'conceptualize', label: 'Conceptualize' }, { id: 'external', label: 'External URL' }]} />
+          <Select label="Module" value={module} onChange={(v) => setModule(v as ReferenceModule)} options={[{ id: 'product', label: 'Product element (Project Management)' }, { id: 'twin', label: 'Twin component (PRJ-ACT100 and older projects)' }, { id: 'requirements', label: 'Requirements' }, { id: 'sysml', label: 'SysML' }, { id: 'conceptualize', label: 'Conceptualize' }, { id: 'external', label: 'External URL' }]} />
           {module === 'twin' ? (
             <Select label="Component" value={component} placeholder="Choose a component" onChange={setComponent} options={components.map((c) => ({ id: c.id, label: `${c.id} ${c.name}` }))} />
           ) : (
-            <TextField label={module === 'external' ? 'URL' : 'ID in the owning module'} value={target} onChange={setTarget} description={module === 'requirements' ? 'Requirement UUID or key, as shown in Requirements.' : undefined} />
+            <TextField label={module === 'external' ? 'URL' : 'ID in the owning module'} value={target} onChange={setTarget} description={module === 'requirements' ? 'Requirement UUID or key, as shown in Requirements.' : module === 'product' ? 'Product element ID, as shown in Project Management (not checked here).' : undefined} />
           )}
           <Button
             size="sm"
@@ -212,7 +238,7 @@ function PartProperties({ engine, state }: { engine: CadEngine; state: EngineSta
             onPress={async () => {
               const id = module === 'twin' ? component! : target.trim()
               const object = module === 'twin' ? model.get(id) : undefined
-              const r = await run([{ command: 'add_reference', input: { subject: part.id, role, target: { module, id, ...(object ? { revision: object.revision, kind: object.type, label: object.name } : {}) } } }], 'Add reference')
+              const r = await run([{ command: 'add_reference', input: { subject: part.id, role, target: { module, id, ...(object ? { revision: object.revision, kind: object.type, label: object.name } : module === 'product' ? { kind: 'product-element' } : {}) } } }], 'Add reference')
               if (r?.ok) setTarget('')
             }}
           >
@@ -222,4 +248,23 @@ function PartProperties({ engine, state }: { engine: CadEngine; state: EngineSta
       </section>
     </>
   )
+}
+
+/** Readable definition of a feature for the inspector. */
+function featureFacts(f: Feature): Record<string, string> {
+  const plane = (p: PlaneRef) => `${p.kind === 'standard' ? p.plane : p.kind === 'datum' ? `datum ${p.datum}` : `face ${p.face}`}${p.offset ? `, offset ${p.offset}` : ''}`
+  switch (f.type) {
+    case 'sketch':
+      return { Plane: plane(f.plane), Entities: String(f.entities.length), Constraints: String(f.constraints.length) }
+    case 'extrude':
+      return { Sketch: f.sketch, Distance: String(f.extent.distance), Direction: f.extent.direction, Operation: f.operation, ...(f.target ? { Target: f.target } : {}) }
+    case 'revolve':
+      return { Sketch: f.sketch, Axis: f.axis, Angle: String(f.angle), Operation: f.operation, ...(f.target ? { Target: f.target } : {}) }
+    case 'fillet':
+      return { Radius: String(f.radius), Edges: f.edges.join(', '), ...(f.target ? { Target: f.target } : {}) }
+    case 'chamfer':
+      return { Distance: String(f.distance), Edges: f.edges.join(', '), ...(f.target ? { Target: f.target } : {}) }
+    case 'datum-plane':
+      return { Plane: plane(f.plane) }
+  }
 }

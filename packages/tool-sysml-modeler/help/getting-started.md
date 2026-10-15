@@ -21,4 +21,10 @@ related: [sysml-modeler.example, sysml-modeler.tutorial.first-model, sysml-model
 On a phone the three panes (Browser, View, Properties) are shown one at a time. Switch between
 them with the control under the status bar.
 
-If no project exists for the current platform project, the view offers **New SysML project**.
+## A new project starts empty
+
+A new platform project has **no SysML model**: nothing is seeded and nothing is created until you
+start. Choose **Start modelling** (or **Add** in the toolbar) to create the project's SysML model,
+with one empty package `SystemModel`, and continue modelling. **New SysML project…** lets you choose
+the name and starting text instead. A platform project can hold several SysML projects; the status
+bar lets you switch between them.

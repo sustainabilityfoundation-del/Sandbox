@@ -60,3 +60,40 @@ export interface RequirementsReader {
   readonly mode: 'api' | 'demo' | 'test-fixture'
   get: (id: string, scope: { projectId: string; revision?: number }) => Promise<RequirementSummary | undefined>
 }
+
+/** The part of the Requirements API the new-project scenario uses to create and revise a requirement. */
+export interface RequirementsWriter {
+  readonly mode: 'api' | 'test-fixture'
+  create: (input: { projectId: string; title: string; statement: string; rationale?: string; type?: string }, actor: string) => Promise<{ id: string; key: string; revision: number }>
+  revise: (id: string, patch: { projectId: string; statement?: string; title?: string; reason: string }, expectedRevision: number, actor: string) => Promise<{ id: string; key: string; revision: number }>
+}
+
+/** TEST FIXTURE: an in-memory requirements store (reader and writer) for runs against the contract adapter. */
+export function requirementsFixtureStore(): RequirementsReader & RequirementsWriter {
+  const rows = new Map<string, { id: string; key: string; projectId: string; title: string; statement: string; revisions: { revision: number; title: string; statement: string }[] }>()
+  let n = 0
+  return {
+    mode: 'test-fixture',
+    async get(id, scope) {
+      const r = rows.get(id)
+      if (!r || r.projectId !== scope.projectId) return undefined
+      const rev = scope.revision ? r.revisions.find((x) => x.revision === scope.revision) : r.revisions[r.revisions.length - 1]
+      if (!rev) return undefined
+      return { id: r.id, key: r.key, projectId: r.projectId, revision: rev.revision, title: rev.title, statement: rev.statement, type: 'functional', status: 'draft', archived: false, applicability: [], verificationMethods: [], updatedAt: new Date().toISOString() }
+    },
+    async create(input) {
+      const id = globalThis.crypto.randomUUID()
+      const key = `REQ-${String(++n).padStart(3, '0')}`
+      rows.set(id, { id, key, projectId: input.projectId, title: input.title, statement: input.statement, revisions: [{ revision: 1, title: input.title, statement: input.statement }] })
+      return { id, key, revision: 1 }
+    },
+    async revise(id, patch, expectedRevision) {
+      const r = rows.get(id)
+      if (!r) throw new Error(`Requirement ${id} does not exist.`)
+      const cur = r.revisions[r.revisions.length - 1]
+      if (cur.revision !== expectedRevision) throw new Error(`Requirement ${r.key} is at revision ${cur.revision}.`)
+      r.revisions.push({ revision: cur.revision + 1, title: patch.title ?? cur.title, statement: patch.statement ?? cur.statement })
+      return { id, key: r.key, revision: cur.revision + 1 }
+    },
+  }
+}

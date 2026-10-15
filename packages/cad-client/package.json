@@ -1,0 +1,17 @@
+{
+  "name": "@ews/cad-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Client of the CAD document service: CadClient over HTTP (/api/cad/v1) and an explicit in-browser local adapter, plus a contract test suite. Used until PlatformServices.cad lands in SDK 1.6.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract-tests": "./src/contractTests.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/cad-core": "^0.1.0"
+  }
+}

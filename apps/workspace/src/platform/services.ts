@@ -1,7 +1,7 @@
-import type { ConceptsService, PlatformServices, RequirementsService } from '@ews/platform-sdk'
-import { createDemoConceptsService, createHttpConceptsService, createSysmlModelerReferenceAdapter } from '@ews/conceptualize-client'
-import { registerReferencePort } from '@ews/tool-conceptualize'
+import type { ConceptsService, PlatformServices, RequirementsService, SysmlModelService } from '@ews/platform-sdk'
+import { createDemoConceptsService, createHttpConceptsService } from '@ews/conceptualize-client'
 import { createDemoRequirementsService, createHttpRequirementsService } from '@ews/requirements-client'
+import { createHttpSysmlClient, createSysmlModelService } from '@ews/sysml-client'
 import { create } from 'zustand'
 import { workspaceHelp } from '../help/workspaceHelp'
 
@@ -70,12 +70,16 @@ function createConcepts(settings: ServiceSettings): ConceptsService {
   return createHttpConceptsService({ baseUrl: '/api/concepts/v1', devUser: settings.devUser })
 }
 
-// Conceptualize resolves SysML Modeler references through this labelled adapter until the SDK 1.8 read
-// client (PlatformServices.sysml) exists; product elements and the other real modules go through
-// services.projects (integration milestone 1, C5). Appended by the Conceptualize agent.
-if (serviceSettings.requirementsMode === 'api') registerReferencePort(createSysmlModelerReferenceAdapter({ baseUrl: '/api/sysml/v1', devUser: serviceSettings.devUser }))
+/**
+ * SysML Modeler read service (SDK 1.8). API mode only: in demo mode the SysML Modeler keeps its own in-browser
+ * repository, which other modules cannot read, so the service is absent ("module unavailable").
+ */
+function createSysml(settings: ServiceSettings): SysmlModelService | undefined {
+  if (settings.requirementsMode === 'demo') return undefined
+  return createSysmlModelService(createHttpSysmlClient({ baseUrl: '/api/sysml/v1', devUser: settings.devUser }))
+}
 
-export const workspaceServices: PlatformServices = { requirements: createRequirements(serviceSettings), help: workspaceHelp, concepts: createConcepts(serviceSettings) }
+export const workspaceServices: PlatformServices = { requirements: createRequirements(serviceSettings), help: workspaceHelp, concepts: createConcepts(serviceSettings), sysml: createSysml(serviceSettings) }
 
 /** Saves new settings and reloads; other windows follow through the storage event below. */
 export function saveServiceSettings(next: ServiceSettings): void {

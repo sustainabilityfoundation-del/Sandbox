@@ -1,6 +1,8 @@
+import { evaluateModel, type CheckResult, type QuantityOut } from '@ews/engineering-calc'
 import type { RequirementSummary } from '@ews/platform-sdk'
-import { createConceptualizeTestAdapter } from '../adapters/conceptualizeContractAdapter'
-import type { BatchItem, ConceptualizeKnowledgeApi, RequestContext } from '../contract/conceptualize'
+import { createConceptualizeTestAdapter, toDefinition } from '../adapters/conceptualizeContractAdapter'
+import { resolveInputs } from '../bindings'
+import type { BatchItem, CalculationModelInput, CalculationModelRecord, ConceptualizeKnowledgeApi, RequestContext } from '../contract/conceptualize'
 import { createReasoningEngine, type ToolEnvelope } from '../engine'
 import type { ImpactReport } from '../impact'
 import { applyDraftAsUser, type ProposalDraft } from '../proposals'
@@ -43,6 +45,17 @@ export interface ScenarioStep {
   n: number
   title: string
   lines: string[]
+  /** What the step ran against (integration milestone 1 reporting): real service, contract adapter, engine … */
+  backing: string
+}
+
+export interface ScenarioOptions {
+  now?: () => Date
+  /** Defaults to the in-memory contract adapter; pass the HTTP binding to run against the real Conceptualize API. */
+  knowledge?: ConceptualizeKnowledgeApi
+  /** Defaults to the REQ-001 test fixture. */
+  requirements?: RequirementsReader
+  projectId?: string
 }
 
 export interface ScenarioTranscript {
@@ -59,22 +72,26 @@ export interface ScenarioTranscript {
   contexts: { editor: RequestContext; reviewer: RequestContext; engine: RequestContext }
 }
 
-export async function runActuatorScenario(model: TwinReader, options: { now?: () => Date } = {}): Promise<ScenarioTranscript> {
+export async function runActuatorScenario(model: TwinReader, options: ScenarioOptions = {}): Promise<ScenarioTranscript> {
   const now = options.now ?? (() => new Date())
-  const knowledge = createConceptualizeTestAdapter({ now })
-  const requirements = requirementsFixture()
+  const knowledge = options.knowledge ?? createConceptualizeTestAdapter({ now })
+  const requirements = options.requirements ?? requirementsFixture()
+  const PROJECT = options.projectId ?? PROJECT_ID
+  const cap = knowledge.capabilities
+  const service = knowledge.mode === 'api' ? 'real service (Conceptualize API)' : 'contract adapter (in memory)'
+  const runTag = Math.random().toString(36).slice(2, 8)
   const twin = attestTwinSnapshot(model, ['ACT-100', 'ROD-120', 'CAD-120', 'SYS-003'], 'scenario (stands in for the platform executor)', now())
   const engine = createReasoningEngine({ knowledge, requirements, twin: () => twin, now })
-  const editor: RequestContext = { projectId: PROJECT_ID, actor: 'eli', role: 'editor', sourceKind: 'user' }
-  const reviewer: RequestContext = { projectId: PROJECT_ID, actor: 'rui', role: 'reviewer', sourceKind: 'user' }
-  const engineCtx: RequestContext = { projectId: PROJECT_ID, actor: 'eli', role: 'editor', sourceKind: 'reasoning', conversationId: 'conv-demo' }
+  const editor: RequestContext = { projectId: PROJECT, actor: 'eli', role: 'editor', sourceKind: 'user' }
+  const reviewer: RequestContext = { projectId: PROJECT, actor: 'rui', role: 'reviewer', sourceKind: 'user' }
+  const engineCtx: RequestContext = { projectId: PROJECT, actor: 'eli', role: 'editor', sourceKind: 'reasoning', conversationId: 'conv-demo' }
   const steps: ScenarioStep[] = []
   const ids: Record<string, string> = {}
   const drafts: ProposalDraft[] = []
   let n = 0
-  const step = (title: string, lines: string[]) => steps.push({ n: ++n, title, lines })
+  const step = (title: string, lines: string[], backing = service) => steps.push({ n: ++n, title, lines, backing })
   let batchSeq = 0
-  const write = (items: BatchItem[], ctx = editor) => knowledge.batch({ idempotencyKey: `scenario-${++batchSeq}`, items }, ctx)
+  const write = (items: BatchItem[], ctx = editor) => knowledge.batch({ idempotencyKey: `scenario-${runTag}-${++batchSeq}`, items }, ctx)
   const apply = async (env: ToolEnvelope, user: RequestContext) => {
     drafts.push(env.draft!)
     return applyDraftAsUser(env.draft!, { conceptualize: knowledge }, { projectId: user.projectId, actor: user.actor, role: user.role, conversationId: 'conv-demo' })
@@ -105,7 +122,7 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
   // 2. Assumptions and constraints (person-entered, as in the UI) ----------------------------------------------
   const reqRef: ArtifactRefX = { module: 'requirements', id: REQ_001, revision: 1, kind: 'requirement' }
   const a = await write([
-    { op: 'createAssumption', as: '$E', body: { statement: 'Rod material 42CrMo4: elastic modulus 210 GPa', quantity: { value: 210, unit: 'GPa' }, basis: 'assumption', scope: { applicability: 'ACT-100 rod' } } },
+    { op: 'createAssumption', as: '$E', body: { statement: 'Rod material 42CrMo4: elastic modulus 210 GPa', quantity: { value: 210, unit: 'GPa' }, basis: 'assumption', scope: { subjects: [], applicability: 'ACT-100 rod' } } },
     { op: 'createAssumption', as: '$K', body: { statement: 'Rod ends pinned–pinned (end-fixity factor K = 1)', quantity: { value: 1, unit: '-' }, basis: 'assumption' } },
     { op: 'createAssumption', as: '$n', body: { statement: 'Design factor against buckling n = 2', quantity: { value: 2, unit: '-' }, basis: 'user-assertion' } },
     { op: 'createAssumption', as: '$sy', body: { statement: 'Yield strength of the quenched-and-tempered rod ≥ 600 MPa', quantity: { value: 600, unit: 'MPa' }, basis: 'assumption' } },
@@ -124,6 +141,13 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
   ])
 
   // 3. Candidate concepts through the reasoning engine (scripted candidates stand in for a model) ---------------
+  // The service on main attaches alternative sets to a parent Concept only (CR-C7 pending): create one explicitly.
+  let parentConcept: string | undefined
+  if (!cap.functionAlternativeSets) {
+    const p = await write([{ op: 'createConcept', as: '$p', body: { name: 'Rotary-to-linear conversion for ACT-100', summary: 'Parent of the principle alternatives (needed until alternative sets can belong to a Function)', abstraction: 'abstract', performs: [ids.function] } }])
+    parentConcept = p.ids.$p
+    ids.parentConcept = parentConcept
+  }
   const run = engine.startRun({ question: 'Which principle converts the motor rotation into 12 kN of axial force for ACT-100?', ctx: engineCtx })
   ids.run = run.id
   const proposed = await engine.call(
@@ -133,6 +157,7 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
       function: designRef('function', ids.function),
       setName: 'Rotary-to-linear principle',
       question: 'Which principle converts the motor rotation into 12 kN of axial force for ACT-100?',
+      ...(parentConcept ? { parentConcept: designRef('concept', parentConcept) } : {}),
       candidates: [
         { name: 'Ball screw', principle: 'Recirculating balls between screw and nut convert rotation to translation with rolling contact.', advantages: ['High efficiency'], risks: ['Back-driving under load'] },
         { name: 'Lead screw', principle: 'Sliding thread contact converts rotation to translation.', advantages: ['Self-locking possible'], risks: ['Low efficiency, wear'] },
@@ -150,15 +175,11 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
   step('Candidate concepts generated and applied', [
     `Draft ${proposed.draft!.id.slice(0, 8)}: ${proposed.draft!.title} (all ai-hypothesis)`,
     ...proposed.warnings,
-    `Applied by eli: ${created.results[0].results.filter((r) => r.op === 'createConcept').map((r) => r.key).join(', ')} perform ${await key('function', ids.function)}; set ${await key('alternative-set', ids.set)} requires that`,
+    `Applied by eli: ${created.results[0].results.filter((r) => r.op === 'createConcept').map((r) => r.key).join(', ')} perform ${await key('function', ids.function)}; set ${await key('alternative-set', ids.set)} ${cap.functionAlternativeSets ? 'belongs to the Function and requires that' : `belongs to the parent Concept ${await key('concept', parentConcept!)} (the service does not attach sets to Functions yet: CR-C7)`}`,
   ])
 
   // 4. A deterministic calculation: Euler buckling of the rod ------------------------------------------------------
-  const m = await write([
-    {
-      op: 'createCalculationModel',
-      as: '$m',
-      body: {
+  const modelBody: CalculationModelInput = {
         name: 'Euler buckling of a solid round rod',
         description: 'Critical load of the actuator rod as an Euler column, with slenderness validity.',
         grammar: 'ews-expr/1',
@@ -185,25 +206,43 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
         validationStatus: 'validated',
         assumptions: [designRef('assumption', ids.asmE), designRef('assumption', ids.asmK), designRef('assumption', ids.asmN), designRef('assumption', ids.asmSy)],
         sources: [{ module: 'external', id: 'Euler column formula (standard mechanics of materials)', kind: 'reference' }],
-      },
-    },
-  ])
-  ids.model = m.ids.$m
-  const calc = await engine.call(
-    run.id,
-    'reasoning.evaluate_calculation',
-    { model: designRef('calculation-model', ids.model), recordAsEvidence: { subjects: [designRef('concept', ids.ballScrew), designRef('constraint', ids.cstLoad)], title: 'Rod buckling check, ACT-100 rod (Euler)' } },
-    engineCtx,
-  )
-  const calcOut = calc.result as { outputs: Record<string, { value: number; unit: string }>; checks: { text: string; margin: number; marginRatio?: number; unit: string; satisfied: boolean }[] }
-  const recorded = await apply(calc, editor)
-  ids.evidence = recorded.results[0].ids.$ev
+  }
+  let calcOut: { outputs: Record<string, QuantityOut>; checks: CheckResult[]; manifest: { outputDigest: string } }
+  let calcBasis: string
+  let calcBacking = service
+  if (cap.calculationModels) {
+    const m = await write([{ op: 'createCalculationModel', as: '$m', body: modelBody }])
+    ids.model = m.ids.$m
+    const calc = await engine.call(
+      run.id,
+      'reasoning.evaluate_calculation',
+      { model: designRef('calculation-model', ids.model), recordAsEvidence: { subjects: [designRef('concept', ids.ballScrew), designRef('constraint', ids.cstLoad)], title: 'Rod buckling check, ACT-100 rod (Euler)' } },
+      engineCtx,
+    )
+    calcOut = calc.result as typeof calcOut
+    calcBasis = calc.basis!
+    const recorded = await apply(calc, editor)
+    ids.evidence = recorded.results[0].ids.$ev
+  } else {
+    // CR-C8 not on the service: the model is held locally (not stored), its inputs are read from the real records,
+    // the engine evaluates it, and the evidence is stored with the manifest in the interim manifest field (the
+    // service does not re-verify it yet).
+    const local: CalculationModelRecord = { ...modelBody, id: globalThis.crypto.randomUUID(), key: 'CALC (local, not stored)', projectId: PROJECT, revision: 1, createdAt: now().toISOString(), provenance: { actor: 'eli', sourceKind: 'user', at: now().toISOString() } }
+    ids.model = local.id
+    const resolved = await resolveInputs(local, { knowledge, ctx: editor, twin })
+    const result = evaluateModel(toDefinition(local), resolved.inputs, { now })
+    calcOut = { outputs: result.outputs, checks: result.checks, manifest: result.manifest }
+    calcBasis = result.basis
+    const ev = await write([{ op: 'createEvidence', as: '$ev', body: { kind: 'calculation', title: 'Rod buckling check, ACT-100 rod (Euler)', summary: result.checks.map((c) => `${c.text}: ${c.status} (${c.statusBasis})`).join('; '), subjects: [designRef('concept', ids.ballScrew), designRef('constraint', ids.cstLoad)], basis: result.basis, manifest: result.manifest } }])
+    ids.evidence = ev.ids.$ev
+    calcBacking = 'engine on inputs read from the real service; model not stored and evidence manifest not re-verified by the service (CR-C8 pending)'
+  }
   step('Preliminary relationship evaluated deterministically', [
     `${await key('calculation-model', ids.model)}: P_cr = π²·E·I/(K·L)² with d, L from ROD-120 rev ${twin.objects.find((o) => o.id === 'ROD-120')!.revision} (client-attested), E, K, n, σy from assumptions, F from ${await key('constraint', ids.cstLoad)}`,
-    `P_cr = ${calcOut.outputs.P_cr.value.toFixed(1)} kN, λ = ${calcOut.outputs.lambda.value.toFixed(0)}; ${calcOut.checks[0].text}: ${calcOut.checks[0].satisfied ? 'satisfied' : 'violated'}, margin ${calcOut.checks[0].margin.toFixed(1)} kN (ratio ${calcOut.checks[0].marginRatio!.toFixed(2)})`,
-    `Basis ${calc.basis}; manifest output digest ${(calc.result as { manifest: { outputDigest: string } }).manifest.outputDigest.slice(0, 23)}…`,
-    `Recorded as ${await key('evidence', ids.evidence)} after the adapter re-verified the manifest`,
-  ])
+    `P_cr = ${calcOut.outputs.P_cr.value.toFixed(1)} kN, λ = ${calcOut.outputs.lambda.value.toFixed(0)}; ${calcOut.checks[0].text}: ${calcOut.checks[0].status} at the nominal point (point evaluation), margin ${calcOut.checks[0].margin.toFixed(1)} kN (ratio ${calcOut.checks[0].marginRatio!.toFixed(2)})`,
+    `Basis ${calcBasis}; manifest output digest ${calcOut.manifest.outputDigest.slice(0, 23)}…`,
+    cap.calculatedEvidenceVerification ? `Recorded as ${await key('evidence', ids.evidence)} after the knowledge service re-verified the manifest` : `Recorded as ${await key('evidence', ids.evidence)} with the manifest; the service does not re-verify it yet (CR-C8)`,
+  ], calcBacking)
 
   // 5. Comparison with explicit criteria ---------------------------------------------------------------------
   const ts = await write([
@@ -223,8 +262,8 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
     },
   ])
   ids.study = ts.ids.$ts
-  const study = (await knowledge.get('trade-study', ids.study, editor))!
-  const [cMargin, cEff, cMass, cCost] = study.criteria.map((c) => c.id)
+  const tradeStudy = (await knowledge.get('trade-study', ids.study, editor))!
+  const [cMargin, cEff, cMass, cCost] = tradeStudy.criteria.map((c) => c.id)
   const ratio = calcOut.checks[0].marginRatio!
   const sc = (conceptId: string, criterionId: string, v: Partial<{ value: number; low: number; high: number; qualitative: number }>, basis: 'assumption' | 'estimate' | 'calculated', rationale: string, evidenceId?: string) => ({ conceptId, criterionId, ...v, basis, rationale, evidenceId })
   await write([
@@ -232,7 +271,7 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
       op: 'putScores',
       body: {
         studyId: ids.study,
-        expectedRevision: study.revision,
+        expectedRevision: tradeStudy.revision,
         scores: [
           sc(ids.ballScrew, cMargin, { value: ratio }, 'calculated', 'From the buckling calculation', ids.evidence),
           sc(ids.leadScrew, cMargin, { value: ratio }, 'estimate', 'Same rod; same buckling load'),
@@ -283,7 +322,8 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
       assumptions: [designRef('assumption', ids.asmE), designRef('assumption', ids.asmK), designRef('assumption', ids.asmN)],
       constraints: [designRef('constraint', ids.cstLoad), designRef('constraint', ids.cstEnv)],
       invalidationConditions: [
-        { kind: 'relation-violated', subject: designRef('calculation-model', ids.model), relation: { modelId: ids.model, revision: 1, relationId: 'c1' }, description: 'Rod buckling capacity no longer covers n·F' },
+        // The service's DesignRef has no 'calculation-model' type yet (CR-C8): there the condition watches the evidence.
+        { kind: 'relation-violated', subject: cap.calculationModels ? designRef('calculation-model', ids.model) : designRef('evidence', ids.evidence), relation: { modelId: ids.model, revision: 1, relationId: 'c1' }, description: 'Rod buckling capacity no longer covers n·F' },
         { kind: 'assumption-invalidated', subject: designRef('assumption', ids.asmK), description: 'Rod ends are not pinned–pinned' },
       ],
     },
@@ -345,7 +385,7 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
     engineCtx,
   )
   const applied = impactEnv.result as ImpactReport
-  await apply(impactEnv, editor)
+  if (impactEnv.draft) await apply(impactEnv, editor)
   const rationaleAfter = (await engine.call(run.id, 'reasoning.retrieve_design_rationale', { concept: designRef('concept', ids.ballScrew) }, engineCtx)).result as RationaleAnswer
   engine.completeRun(run.id)
   const describe = async (r: ImpactReport) => {
@@ -356,7 +396,7 @@ export async function runActuatorScenario(model: TwinReader, options: { now?: ()
   step('Hypothetical change (15 kN): nothing written', await describe(hypothetical))
   step('Applied constraint change (120 kN): affected decisions and implementations', [
     ...(await describe(applied)),
-    `Review flag drafted and applied by eli: ${await key('decision', ids.decision)} validity ${rationaleAfter.decisions[0].validity}; rationale and outcomes unchanged`,
+    impactEnv.draft ? `Review flag drafted and applied by eli: ${await key('decision', ids.decision)} validity ${rationaleAfter.decisions[0].validity}; rationale and outcomes unchanged` : `No review flag drafted: no impact on ${await key('decision', ids.decision)} was demonstrated (no stored calculation model to re-evaluate: CR-C8)`,
   ])
 
   return { steps, knowledge, engine, twin, ids, rationaleBefore, rationaleAfter, hypothetical, applied, drafts, contexts: { editor, reviewer, engine: engineCtx } }

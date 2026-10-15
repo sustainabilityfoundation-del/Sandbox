@@ -245,3 +245,22 @@ describe('text editor completion (CodeMirror source)', () => {
     expect(at('part def X { ', true)!.options.length).toBeGreaterThan(50)
   })
 })
+
+describe('a new platform project starts empty; the model is created lazily', () => {
+  it('lists nothing for a new platform project; ensureProject creates one empty model once', async () => {
+    const { ModelerSession } = await import('./session')
+    const client = createLocalSysmlClient({ seed: true })
+    expect(await client.listProjects('PRJ-NEW-1')).toEqual([])
+    const session = new ModelerSession(client)
+    await session.open('PRJ-NEW-1')
+    expect(session.getState().status).toBe('empty')
+    await session.ensureProject()
+    await session.ensureProject()
+    const projects = await client.listProjects('PRJ-NEW-1')
+    expect(projects).toHaveLength(1)
+    expect(session.getState().status).toBe('ready')
+    expect(serialize(session.getState().model!)).toBe('package SystemModel;\n')
+    // The example stays in PRJ-ACT100 only.
+    expect((await client.listProjects('PRJ-ACT100')).length).toBe(1)
+  })
+})

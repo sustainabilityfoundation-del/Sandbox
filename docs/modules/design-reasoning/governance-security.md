@@ -71,6 +71,9 @@ Scoped autonomy beyond this (the ADR-0013 open question) is not introduced. Phas
 - Basis ladder and promotion rules (ADR-0043) are enforced in Conceptualize, not only in the engine; the
   engine's labels are hints, the module's checks are authoritative.
 - `calculated` evidence is re-verified by Conceptualize (mathematics.md §6).
+- Calculation qualifications (C11) are carried unchanged everywhere: a sampled range is never shown as a bound, a
+  status over a range is `satisfied`/`violated` only when proven, and a reproducible manifest is never presented as
+  model validation or requirement satisfaction (contract-change-requests.md, CR-C8/C11 storage contract).
 - An assertion is never upgraded by repetition, confidence scores or embedding similarity.
 - The UI shows basis badges everywhere; AI-originated items need explicit confirmation to become user
   assertions.

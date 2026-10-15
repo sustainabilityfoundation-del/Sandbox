@@ -13,6 +13,6 @@
   },
   "dependencies": {
     "@ews/platform-sdk": "^1.5.0",
-    "@ews/engineering-calc": "^0.2.0"
+    "@ews/engineering-calc": "^0.3.0"
   }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import v1 from './__fixtures__/manifest-v1.json'
-import { CalcError, canonicalJson, canonicalNumber, ERROR_TAXONOMY, evaluateModel, libraryModel, verifyManifest, type CalculationManifest, type CalculationModelDefinition } from './index'
+import v2 from './__fixtures__/manifest-v2.json'
+import { CalcError, canonicalJson, canonicalNumber, ERROR_TAXONOMY, evaluateModel, libraryModel, qualifyManifest, verifyManifest, type CalculationManifest, type CalculationModelDefinition } from './index'
 
 /** The R1 buckling model exactly as stored with the v1 fixture (generated with the R1 engine, commit b217a3e). */
 const R1_MODEL: CalculationModelDefinition = {
@@ -43,16 +44,29 @@ describe('manifest versioning', () => {
     }
   })
 
+  it('verifies stored v2 manifests (interval and point) written by the R3 engine', () => {
+    const model = v2.model as unknown as CalculationModelDefinition
+    for (const m of [v2.interval, v2.point] as unknown as CalculationManifest[]) {
+      expect(m.manifestVersion).toBe(2)
+      const r = verifyManifest(model, m)
+      expect(r.reasons).toEqual([])
+      expect(r.exactDigestMatch).toBeUndefined() // digests are compared only within one manifest version
+    }
+    const tampered = structuredClone(v2.interval) as unknown as { outputs: { symbol: string; bounds?: { max: number } }[] }
+    tampered.outputs.find((o) => o.symbol === 'P_cr')!.bounds!.max *= 1.001
+    expect(verifyManifest(model, tampered as unknown as CalculationManifest).ok).toBe(false)
+  })
+
   it('refuses a tampered v1 manifest', () => {
     const m = structuredClone(v1.point) as unknown as CalculationManifest
     m.outputs = m.outputs.map((o) => (o.symbol === 'P_cr' ? { ...o, value: o.value * 1.01 } : o))
     expect(verifyManifest(R1_MODEL, m).ok).toBe(false)
   })
 
-  it('writes v2 manifests and refuses unknown versions', () => {
+  it('writes v3 manifests and refuses unknown versions', () => {
     const m = evaluateModel(R1_MODEL, Object.fromEntries((v1.point.inputs as CalculationManifest['inputs']).map((i) => [i.symbol, i]))).manifest
-    expect(m).toMatchObject({ manifestVersion: 2, digestSpec: 'ews-digest/1', engine: { version: '0.2.0' } })
-    expect(verifyManifest(R1_MODEL, { ...m, manifestVersion: 3 as unknown as 2 })).toMatchObject({ ok: false, reasons: [expect.stringMatching(/version 3 is not supported/)] })
+    expect(m).toMatchObject({ manifestVersion: 3, digestSpec: 'ews-digest/1', engine: { version: '0.3.0' }, limits: { establishesModelValidity: false, establishesRequirementSatisfaction: false, modelValidationStatus: 'validated' } })
+    expect(verifyManifest(R1_MODEL, { ...m, manifestVersion: 4 as unknown as 3 })).toMatchObject({ ok: false, reasons: [expect.stringMatching(/version 4 is not supported/)] })
   })
 
   it('verifies across platforms with a relative tolerance: last-digit differences pass, real differences fail', () => {
@@ -113,3 +127,39 @@ describe('error taxonomy', () => {
 function inputsFrom() {
   return Object.fromEntries((v1.point.inputs as CalculationManifest['inputs']).map((i) => [i.symbol, { value: i.value, unit: i.unit }]))
 }
+
+describe('C11 qualifications of stored manifests', () => {
+  it('maps v1 vertex results to sampled ranges and downgrades sampled statuses to uncertain', () => {
+    const q = qualifyManifest(v1.vertices as unknown as CalculationManifest)
+    expect(q.manifestVersion).toBe(1)
+    expect(q.outputs.find((o) => o.symbol === 'P_cr')!.range).toMatchObject({ kind: 'sampled-range', method: 'vertices' })
+    expect((v1.vertices as unknown as { checks: { status: string }[] }).checks[0].status).toBe('satisfied') // as stored in v1
+    expect(q.checks[0]).toMatchObject({ status: 'uncertain', statusBasis: 'sampled', nominalSatisfied: true })
+    expect(q.validity.satisfied).toBe(false)
+    expect(q.limits).toMatchObject({ establishesModelValidity: false, establishesRequirementSatisfaction: false, modelValidationStatus: 'not-recorded' })
+    const point = qualifyManifest(v1.point as unknown as CalculationManifest)
+    expect(point.outputs[0].range).toEqual({ kind: 'point' })
+    expect(point.checks[0]).toMatchObject({ status: 'satisfied', statusBasis: 'point' })
+  })
+
+  it('maps v2 bounds to bounds and the v2 inner range to a typed sampled range', () => {
+    const q = qualifyManifest(v2.interval as unknown as CalculationManifest)
+    expect(q.outputs.find((o) => o.symbol === 'P_cr')!.range).toMatchObject({ kind: 'bounds', quality: 'exact' })
+    expect(q.checks[0]).toMatchObject({ status: 'satisfied', statusBasis: 'exact-bounds' })
+  })
+
+  it('passes v3 qualifications through unchanged and records what a manifest does not establish', () => {
+    const m = evaluateModel(libraryModel('lib.column.euler-round'), Object.fromEntries((v1.point.inputs as CalculationManifest['inputs']).filter((i) => i.symbol !== 'sigma_y').map((i) => [i.symbol, { value: i.value, unit: i.unit }]).concat([['Sy', { value: 600, unit: 'MPa' }]])), { uncertainty: 'interval' }).manifest
+    const q = qualifyManifest(m)
+    expect(q.outputs).toEqual(m.outputs.map((o) => ({ symbol: o.symbol, unit: o.unit, value: o.value, range: o.range })))
+    expect(q.limits).toEqual({ establishesModelValidity: false, establishesRequirementSatisfaction: false, modelValidationStatus: 'unvalidated', modelBasis: 'ai-hypothesis' })
+  })
+
+  it('refuses a v3 manifest whose result kind was changed', () => {
+    const model = libraryModel('lib.column.euler-round')
+    const inputs = { F: { value: 12, unit: 'kN' }, E: { value: 210, unit: 'GPa' }, Sy: { value: 600, unit: 'MPa' }, d: { value: 25, min: 24, max: 26, unit: 'mm' }, L: { value: 600, unit: 'mm' }, K: { value: 1, unit: '-' }, n: { value: 2, unit: '-' } }
+    const m = evaluateModel(model, inputs, { uncertainty: 'interval' }).manifest
+    const relabelled = { ...m, outputs: m.outputs.map((o) => (o.range.kind === 'bounds' ? { ...o, range: { ...o.range, quality: 'enclosure' as const } } : o)) }
+    expect(verifyManifest(model, relabelled).reasons.join()).toMatch(/result kind/)
+  })
+})

@@ -95,3 +95,16 @@ Idempotency records older than 24 hours are purged at the same time.
 
 **SDK 1.3 writes**: the HTTP adapter uses `RequirementWriteOptions.projectId` when given and makes no
 project lookup; otherwise it uses the project it has seen the ID in, or `GET /requirements/{id}`.
+
+## 6. In-process integration for Project Management (SDK 1.7)
+
+- **Artifact source** (CR-PM-REG-1): `createRequirementsArtifactSource(pool, events)` from
+  `@ews/requirements-service` implements `ArtifactSource`. It reads the module's own tables (no HTTP)
+  and maps the outbox events above to registry changes through `EventHub.subscribeAll`. Kinds,
+  lifecycle mapping and paging are documented in the progress file. `provision` returns `not-needed`:
+  data is keyed by project ID and a new project starts empty (the development seed writes
+  `PRJ-ACT100` only).
+- **Allocation targets** (CR-PM-REQ-2): `allocated-to` targets are validated by the host's
+  `TwinDirectory` (`ServerOptions.twin`, default: the static sample twin for `PRJ-ACT100`). Allowed
+  target types: `assembly`, `part`, `product-element`. `composeTwinDirectory(...)` combines
+  directories, e.g. the sample twin and Project Management's product registry (CR-PM-API-3).

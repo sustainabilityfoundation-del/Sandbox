@@ -129,6 +129,9 @@ User actions, AI actions and automation must use the same validation and permiss
 
 ## 7. Safety-critical development and assurance
 
+Current boundaries: [ADR-0070](decisions/0070-development-assurance-boundaries.md). Backlog: deferred epic
+[E-ASSURE](roadmap.md#deferred-epic-e-assure-standards-aware-development-assurance-and-safety-engineering).
+
 Support applicable aerospace and automotive development processes through configurable objective sets and evidence workflows. Select standards, editions and project applicability explicitly; do not hard-code one assurance process across all products.
 
 The platform must support:

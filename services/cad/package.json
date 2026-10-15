@@ -1,0 +1,26 @@
+{
+  "name": "@ews/cad-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CAD Modeler document service: PostgreSQL schema 'cad' (native ews-cad documents with immutable revisions), validation by @ews/cad-core, ETag/If-Match, Idempotency-Key, outbox and SSE, OpenAPI 3.1. Hosted by @ews/api at /api/cad/v1.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ews/cad-core": "^0.1.0",
+    "@ews/platform-sdk": "^1.5.0",
+    "ajv": "8.20.0",
+    "fastify": "5.12.5",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@ews/cad-client": "^0.1.0",
+    "@ews/cad-kernel": "^0.1.0",
+    "@ews/requirements-service": "^0.1.0",
+    "@types/pg": "8.23.1"
+  }
+}

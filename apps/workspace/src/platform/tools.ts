@@ -5,7 +5,7 @@
  */
 import { cadTool } from '@ews/tool-cad'
 import { conceptualizeTool } from '@ews/tool-conceptualize'
-import { cadModelerTool } from '@ews/tool-cad-modeler'
+import { createCadModelerTool } from '@ews/tool-cad-modeler'
 import { requirementsTool } from '@ews/tool-requirements'
 import { sysmlTool } from '@ews/tool-sysml'
 import { registerTool } from './registry'
@@ -16,8 +16,10 @@ registerTool(requirementsTool)
 registerTool(sysmlTool)
 registerTool(cadTool)
 registerTool(conceptualizeTool)
-// CAD Modeler (CAD program Phase 1), separate from the mock CAD tool (cad-program-contracts.md §1).
-registerTool(cadModelerTool)
+// CAD Modeler (CAD program), separate from the mock CAD tool (cad-program-contracts.md §1). Until the
+// SDK offers PlatformServices.cad (SDK 1.6), the tool builds its client: API mode follows the
+// Requirements service mode (API → /api/cad/v1 as the development user; demo → files only).
+registerTool(createCadModelerTool(serviceSettings.requirementsMode === 'demo' ? { mode: 'files' } : { mode: 'api', baseUrl: '/api/cad/v1', devUser: serviceSettings.devUser }))
 
 // SysML Modeler (docs/specifications/sysml-program-contracts.md §1, §7). Until the SDK offers a
 // SysML service (CR-SYSML-01) the tool builds its client: API mode follows the Requirements service
