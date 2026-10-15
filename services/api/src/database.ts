@@ -73,11 +73,12 @@ function removeStaleLock(dataDir: string, log: (m: string) => void) {
 /**
  * On Windows, children of a killed postmaster can outlive it and keep the cluster's shared memory,
  * so a new server refuses to start. End only processes that run the embedded PostgreSQL binary AND
- * whose parent is the dead postmaster named in the stale lock.
+ * whose parent is the dead postmaster named in the stale lock. (An orphan can report an empty
+ * ExecutablePath; its command line still names the binary.)
  */
 function endOrphanedChildren(deadPostmaster: number, log: (m: string) => void) {
   if (process.platform !== 'win32') return
-  const query = `Get-CimInstance Win32_Process -Filter "ParentProcessId=${deadPostmaster} AND Name='postgres.exe'" | ForEach-Object { "$($_.ProcessId)|$($_.ExecutablePath)" }`
+  const query = `Get-CimInstance Win32_Process -Filter "ParentProcessId=${deadPostmaster} AND Name='postgres.exe'" | ForEach-Object { "$($_.ProcessId)|$(if ($_.ExecutablePath) { $_.ExecutablePath } else { $_.CommandLine })" }`
   const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', query], { encoding: 'utf8', timeout: 15_000 })
   for (const line of (result.stdout ?? '').split(/\r?\n/)) {
     const [pidText, path] = line.trim().split('|')
