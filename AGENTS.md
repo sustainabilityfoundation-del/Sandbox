@@ -96,6 +96,7 @@ component APIs or semantic icon names is a **shared contract change**:
 | `npm test` | All tests (Vitest) |
 | `npm run check` | Type check and tests: required for code/configuration changes; see workflow for docs-only checks |
 | `npm run build` | Production build (`dist/`, workspace in `dist/workspace/`) |
+| `npm run e2e` | Committed browser flows against a running `npm run dev` ([tests/e2e](tests/e2e/README.md)) |
 
 On Windows PowerShell use `npm.cmd` if script execution is disabled.
 

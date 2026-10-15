@@ -311,7 +311,7 @@ interface Content {
  * - an AI hypothesis becomes a user assertion only through an explicit confirmation (who and when are recorded);
  * - quantities must have a valid unit and consistent range.
  */
-async function validateStatements(ctx: Ctx, conceptId: string | null, input: StatementInputDto[], previous: StatementDto[]): Promise<StatementDto[]> {
+export async function validateStatements(ctx: Ctx, conceptId: string | null, input: StatementInputDto[], previous: StatementDto[]): Promise<StatementDto[]> {
   const assistant = ctx.provenance.sourceKind === 'assistant'
   const prev = new Map(previous.map((s) => [s.id, s]))
   const errors: Record<string, string> = {}
@@ -351,6 +351,17 @@ async function validateStatements(ctx: Ctx, conceptId: string | null, input: Sta
         else if (conceptId && rows[0].concept_id !== conceptId) errors[`statements.${i}.evidenceId`] = 'the evidence belongs to another Concept'
       }
     }
+    if (basis === 'calculated') {
+      // ADR-0043: calculated means a registered model executed with a reproducible manifest; it is backed by
+      // an evidence record of basis calculated (or verified). The assistant cannot assert it until the
+      // service re-verifies manifests (CR-C8).
+      if (assistant) errors[`statements.${i}.basis`] = 'the assistant cannot record calculated results until manifests are re-verified by the service (CR-C8)'
+      else if (!evidenceId) errors[`statements.${i}.evidenceId`] = 'basis calculated needs the calculated evidence record'
+      else {
+        const { rows } = await ctx.db.query<{ basis: string }>('SELECT basis FROM conceptualize.evidence WHERE id = $1 AND project_id = $2', [evidenceId, ctx.projectId])
+        if (!rows[0] || !['calculated', 'evidence'].includes(rows[0].basis)) errors[`statements.${i}.evidenceId`] = 'not a calculated or verified evidence record of this project'
+      }
+    }
     if (basis === 'decision') {
       if (!decisionId) errors[`statements.${i}.decisionId`] = 'basis decision needs a recorded decision'
       else {
@@ -381,7 +392,7 @@ async function validateStatements(ctx: Ctx, conceptId: string | null, input: Sta
   return out
 }
 
-function validateAttributes(ctx: Ctx, attributes: Record<string, AttributeDto>): Record<string, AttributeDto> {
+export function validateAttributes(ctx: Ctx, attributes: Record<string, AttributeDto>): Record<string, AttributeDto> {
   const errors: Record<string, string> = {}
   const out: Record<string, AttributeDto> = {}
   for (const [k, a] of Object.entries(attributes)) {
@@ -605,7 +616,7 @@ export function compareConcepts(a: ConceptDto, b: ConceptDto) {
   return CONTENT_FIELDS.filter((f) => !same(a[f], b[f])).map((f) => ({ field: f, from: a[f], to: b[f] }))
 }
 
-export async function listHistory(db: Queryable, projectId: string, filter: { conceptId?: string; proposalId?: string }, limit = 300) {
+export async function listHistory(db: Queryable, projectId: string, filter: { conceptId?: string; proposalId?: string; entityId?: string }, limit = 300) {
   const params: unknown[] = [projectId]
   let where = 'project_id = $1'
   if (filter.conceptId) {
@@ -615,6 +626,10 @@ export async function listHistory(db: Queryable, projectId: string, filter: { co
   if (filter.proposalId) {
     params.push(filter.proposalId)
     where += ` AND proposal_id = $${params.length}`
+  }
+  if (filter.entityId) {
+    params.push(filter.entityId)
+    where += ` AND (entity_id = $${params.length} OR details->>'functionId' = $${params.length})`
   }
   params.push(limit)
   const { rows } = await db.query<{ id: string; entity_type: string; entity_id: string; concept_ids: string[]; action: string; revision: number | null; actor: string; occurred_at: Date; reason: string; source_kind: Row['source_kind']; conversation_id: string | null; proposal_id: string | null; message_id: string | null; details: Record<string, unknown> }>(

@@ -61,8 +61,8 @@ describe('performance', () => {
     const t0 = performance.now()
     const r = evaluateModel(worst, Object.fromEntries(names.map((s) => [s, { value: 0.5, min: 0, max: 1, unit: '-' }])), { uncertainty: 'interval' })
     const ms = performance.now() - t0
-    console.log(`worst case: ${ms.toFixed(1)} ms, ${r.manifest.operations} operations, bounds ${r.outputs.y.bounds!.quality}`)
-    expect(r.outputs.y.bounds!.quality).toBe('enclosure')
+    console.log(`worst case: ${ms.toFixed(1)} ms, ${r.manifest.operations} operations, range ${JSON.stringify((r.outputs.y.range as { quality?: string }).quality)}`)
+    expect(r.outputs.y.range).toMatchObject({ kind: 'bounds', quality: 'enclosure' })
     expect(ms).toBeLessThan(2000)
   })
 })

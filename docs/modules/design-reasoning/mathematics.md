@@ -100,16 +100,16 @@ Example (prototype, actuator rod buckling):
 
 ## 5. Uncertainty and tolerance
 
-Implemented in R3 (`@ews/engineering-calc` 0.2.0). Ranges come from quantities (`min`/`max`),
+Implemented in R3 (`@ews/engineering-calc` 0.2.0); result kinds made machine-readable for C11 in 0.3.0 (§5a). Ranges come from quantities (`min`/`max`),
 tolerances (± on a parameter) and assumption ranges. Interval inputs preserve conceptual design intent and
 become bounds for later optimization (Wang 2004, research note).
 
 | Mode | Method | Result quality | Phase |
 | --- | --- | --- | --- |
 | `point` | nominal values | point | 1 |
-| `interval` | For each output, constraint margin and validity condition: inline the assignments so the expression depends on inputs only, differentiate it symbolically for each ranged input, and enclose each derivative over the input box with interval arithmetic. If every derivative has a proven sign, the expression is monotonic in each input and its range is attained at two corners | **exact** (`bounds.quality = 'exact'`) | R3 |
-| `interval`, not proven monotonic | Natural interval extension of the expression (sound enclosure), plus the values actually attained at the 2ⁿ vertices (n ≤ 10) and the nominal point as an inner bound | **enclosure**: the true range lies between `bounds.inner` and `[min, max]`; the output carries a note naming the inputs without proven monotonicity | R3 |
-| `interval-vertices` | v1 method (R1): vertex enumeration of the whole model | not proven; kept only to verify v1 manifests | R1 |
+| `interval` | For each output, constraint margin and validity condition: inline the assignments so the expression depends on inputs only, differentiate it symbolically for each ranged input, and enclose each derivative over the input box with interval arithmetic. If every derivative has a proven sign, the expression is monotonic in each input and its range is attained at two corners | `range: { kind: 'bounds', quality: 'exact' }` | R3 |
+| `interval`, not proven monotonic | Natural interval extension of the expression (sound enclosure), plus the values actually attained at the 2ⁿ vertices (n ≤ 10) and the nominal point as an inner bound | `range: { kind: 'bounds', quality: 'enclosure', sampled: { kind: 'sampled-range', … } }`: the true range lies inside `[min, max]`; the sampled values are typed separately and are not a bound; a note names the inputs without proven monotonicity | R3 |
+| `interval-vertices` | v1 method (R1): vertex enumeration of the whole model | `sampled-range`, statuses `sampled`; **no longer offered** (refused as an option), used internally only to verify v1 manifests | R1 |
 | Sensitivity | symbolic derivatives at the nominal point (the derivative code exists; not yet exposed) | local sensitivity | 2 |
 | Sampling | Monte Carlo with a recorded seed | sampled (n, seed) | 3 |
 
@@ -123,28 +123,53 @@ Honesty rules:
   marked valid.
 - Piecewise functions (`abs`, `min`, `max`, `atan2`) are not differentiated: relations using them get enclosures.
 - Floating-point rounding is not directed: bounds are exact up to floating-point accuracy, not rigorous to the
-  last bit. Division by a range containing zero gives an unbounded enclosure; `sqrt`/`log` of ranges that cross
-  their domain boundary are refused as `domain-error`.
+  last bit.
+- A singularity in the range (for example 1/(x − 0.5) over [0, 1]: a divisor range containing zero) gives no
+  finite bound and is refused as `domain-error` with `details.reason = 'singularity'`; `sqrt`/`log` of ranges
+  that cross their domain boundary are refused as `domain-error` with `reason = 'domain'`.
+
+### 5a. Result kinds (C11, integration milestone 1)
+
+Every output and every constraint margin carries `range: ResultRange`:
+
+| `kind` | Meaning | Can prove a status over a range? |
+| --- | --- | --- |
+| `point` | Value at the nominal inputs only | Only the nominal point (`statusBasis: 'point'`) |
+| `bounds`, `quality: 'exact'` | The range is attained (monotonicity proven) | Yes (`statusBasis: 'exact-bounds'`) |
+| `bounds`, `quality: 'enclosure'` | The true range lies inside; it may be narrower | Yes when the enclosure decides it (`statusBasis: 'enclosure'`); otherwise `uncertain` |
+| `sampled-range` | Values at sample points (vertices and nominal); **not a bound** | No: statuses resting on samples are `uncertain` |
+
+`CheckResult` has `nominalSatisfied` (the point result), `status` (over what was evaluated) and `statusBasis`; there
+is no unqualified `satisfied` flag any more. `validity` has `over: 'point' | 'range'` and `uncertain` conditions.
+Model-level tests (`interval.test.ts`, "C11: result kinds"): y = x(1 − x) over [0, 1] with nominal 0.2, where the
+samples (max 0.16) miss the interior maximum 0.25 but the bound covers it, and `y ≤ 0.2` comes out `uncertain`
+(never `satisfied`, although it holds at the nominal point and at every sample); the singularity 1/(x − 0.5); invalid
+domains (sqrt of a range reaching negative values, log at zero).
+
+`qualifyManifest(manifest)` derives these qualifications from a manifest of any version (v1 vertex results become
+`sampled-range` with `uncertain` statuses; the v2 `inner` range becomes a typed sampled range). It is what Conceptualize
+stores (contract-change-requests.md, "CR-C8 and C11: storage contract").
 
 ## 6. Execution results and the reproducibility manifest
 
-Manifest version 2 (R3); version 1 (R1) is still verified.
+Manifest version 3 (C11, engine 0.3.0); versions 2 (R3) and 1 (R1) are still verified (stored fixtures of both).
 
 ```ts
 interface CalculationManifest {
-  manifestVersion?: 2                 // absent in v1
+  manifestVersion?: 2 | 3             // 3 now; 2 in R3 manifests; absent in v1
   digestSpec?: 'ews-digest/1'
   engine: { name: '@ews/engineering-calc'; version: string; mathjs: string; grammar: 'ews-expr/1' }
   model: { id: string; revision: number; digest: string }          // digest of canonical ASTs and parameters
   inputs: { symbol: string; value: number | null; min?: number; max?: number; unit: string
             source: { kind: 'literal' | 'binding'; ref?: DesignRef | ArtifactRef; property?: string; revision?: number; via?: string; basis: Basis } }[]
-  outputs: { symbol: string; value: number; unit: string; min?: number; max?: number
-             bounds?: { min: number; max: number; quality: 'exact' | 'enclosure' | 'vertices'; inner?: { min: number; max: number }; note?: string } }[]
+  outputs: { symbol: string; value: number; unit: string; range: ResultRange }[]                 // §5a
   checks: { relationId: string; text: string; op: string; lhs: number; rhs: number; unit: string; margin: number; marginRatio?: number
-            satisfied: boolean; status: 'satisfied' | 'violated' | 'uncertain'; marginBounds?: Bounds }[]
-  validity: { satisfied: boolean; violated: string[]; uncertain?: string[] }
-  uncertainty: 'point' | 'interval' | 'interval-vertices'
+            nominalSatisfied: boolean; status: 'satisfied' | 'violated' | 'uncertain'; statusBasis: StatusBasis; marginRange: ResultRange }[]
+  validity: { satisfied: boolean; violated: string[]; uncertain: string[]; over: 'point' | 'range' }
+  uncertainty: 'point' | 'interval' | 'interval-vertices'           // the last only in v1 manifests
   basis: 'calculated' | 'estimate'
+  limits: { establishesModelValidity: false; establishesRequirementSatisfaction: false
+            modelValidationStatus: 'unvalidated' | 'validated' | 'deprecated' | 'not-recorded'; modelBasis: Basis | 'not-recorded' }
   inputDigest: string; outputDigest: string; evaluatedAt: string; durationMs: number; operations?: number
 }
 ```
@@ -163,8 +188,11 @@ interface CalculationManifest {
   reports `exactDigestMatch` for information. A fabricated output (tested at 1e-6 relative) fails.
 - **Versioning**: `manifestVersion` and `digestSpec` name the format; `SUPPORTED_MANIFEST_VERSIONS` lists what
   the engine verifies. A stored v1 manifest produced by the R1 engine is kept as a test fixture
-  (`src/__fixtures__/manifest-v1.json`) and must keep verifying (ADR-0009 spirit). Changing the digest inputs
+  (`src/__fixtures__/manifest-v1.json`), and a v2 manifest produced by the R3 engine likewise (`manifest-v2.json`); both must keep verifying (ADR-0009 spirit). Changing the digest inputs
   needs a new manifest version, never a silent change.
+- **What a manifest does not establish** (C11): a verified manifest shows that the outputs follow from this model
+  revision and these inputs. It does not establish that the model is valid for the design, nor that any requirement
+  is satisfied; `limits` says so in the data, and every consumer (evidence, decisions, rationale, previews) shows it.
 - **Calculated evidence is verified, not trusted** (CR-C8): Conceptualize re-runs `verifyManifest` before it
   accepts evidence with basis `calculated`. This prevents a model or a client from fabricating "calculated" numbers.
 - The basis of the stored evidence is `calculated` only for a person-authored or validated model whose inputs

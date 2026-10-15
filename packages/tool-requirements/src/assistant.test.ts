@@ -1,42 +1,69 @@
+import type { AssistantActionContext, ServiceProposal } from '@ews/platform-sdk'
 import { sampleModel } from '@ews/platform-sdk/testing'
-import type { RequirementsModuleClient } from '@ews/requirements-client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { createDemoRequirementsService } from '@ews/requirements-client'
+import { describe, expect, it } from 'vitest'
 import { requirementsAssistant } from './assistant'
-import { resetProposals, setAssistantConnection } from './proposals'
 
-const REQ = { id: '5b1c7e2a-0003-4e6a-9c1d-6f0a3d2b1003', key: 'REQ-003', revision: 2, statement: 'The housing shall provide ingress protection to IP65.', rationale: 'Wash-down.', title: 'Ingress protection', status: 'in-review', legacyIds: ['REQ-003'] }
-const fakeClient = {
-  resolve: async (key: string) => (key === 'REQ-003' ? REQ : Promise.reject(new Error('not found'))),
-  getRequirement: async () => REQ,
-  list: async (q: { allocatedTo?: string }) => ({ items: q.allocatedTo?.includes('HSG-110') ? [REQ] : [], total: 1 }),
-  quality: async () => ({ revision: 2, findings: [{ class: 'heuristic', message: 'x', explanation: 'y', suggestion: 'z', dismissal: undefined }], disclaimer: 'judgement' }),
-} as unknown as RequirementsModuleClient
-
+/**
+ * Headless operations (integration milestone 1, C9): no Requirements view is mounted in these tests.
+ * The service comes from the action context only. API mode with the module client is tested against
+ * the real API in services/api/test/assistant.test.ts.
+ */
 const action = (name: string) => requirementsAssistant.actions.find((a) => a.name === name)!
-const ctx = { model: sampleModel(), artifacts: [], captured: { projectId: 'PRJ-ACT100', configurationId: 'CFG-BASE', scenarioId: 'SCN-NOM', modelRevision: 1, selectionIds: [] } }
-afterEach(() => resetProposals())
+const captured = { projectId: 'PRJ-ACT100', configurationId: 'CFG-BASE', scenarioId: 'SCN-NOM', modelRevision: 1, selectionIds: [] }
+const twinOnly: AssistantActionContext = { model: sampleModel(), artifacts: [], captured }
+const withDemo = (): AssistantActionContext & { services: { requirements: ReturnType<typeof createDemoRequirementsService> } } => ({ ...twinOnly, services: { requirements: createDemoRequirementsService() } })
+const provenance = { conversationId: 'c1', proposalId: 'p1', messageId: 'm1' }
 
-describe('assistant actions in API mode', () => {
-  it('without a connected service, keeps the twin behaviour', async () => {
-    const r = await action('requirements.update').run({ requirementId: 'REQ-003', statement: 'New' }, ctx)
+describe('assistant actions without a service', () => {
+  it('keep the twin behaviour', async () => {
+    const r = await action('requirements.update').run({ requirementId: 'REQ-003', statement: 'New' }, twinOnly)
     expect(r.kind).toBe('proposal')
+    expect((await action('requirements.read_for_component').run({ objectId: 'HSG-110' }, twinOnly)).kind).toBe('data')
   })
-  it('records a proposal with the expected revision instead of a twin change; nothing is applied', async () => {
-    setAssistantConnection({ client: fakeClient, projectId: 'PRJ-ACT100' })
-    const r = await action('requirements.update').run({ requirementId: 'REQ-003', statement: 'The housing shall provide IP66.' }, ctx)
-    expect(r).toMatchObject({ kind: 'data', data: { key: 'REQ-003', basedOnRevision: 2 } })
-    const p = (r as { data: { proposalId: string } }).data.proposalId
-    expect(p).toMatch(/^RQP-/)
+  it('explain that service operations need the service', async () => {
+    await expect(action('requirements.search').run({ text: 'load' }, twinOnly)).rejects.toThrow(/not available/)
   })
-  it('refuses status changes: they are reviews and transitions, not edits', async () => {
-    setAssistantConnection({ client: fakeClient, projectId: 'PRJ-ACT100' })
-    await expect(action('requirements.update').run({ requirementId: 'REQ-003', status: 'approved' }, ctx)).rejects.toThrow(/review decisions/)
+})
+
+describe('assistant actions headless with the demo service (no view mounted)', () => {
+  it('search reads the service for the captured project', async () => {
+    const r = await action('requirements.search').run({ text: 'motor' }, withDemo())
+    expect(r).toMatchObject({ kind: 'data' })
+    expect((r as { data: { requirements: { key: string }[] } }).data.requirements.map((x) => x.key)).toContain('REQ-005')
   })
-  it('reads allocated requirements and quality explanations from the service', async () => {
-    setAssistantConnection({ client: fakeClient, projectId: 'PRJ-ACT100' })
-    const read = await action('requirements.read_for_component').run({ objectId: 'CAD-110' }, ctx)
-    expect((read as { data: { requirements: { key: string }[] } }).data.requirements.map((x) => x.key)).toEqual(['REQ-003'])
-    const q = await action('requirements.explain_quality').run({ requirementId: 'REQ-003' }, ctx)
-    expect(q).toMatchObject({ kind: 'data', data: { key: 'REQ-003', disclaimer: 'judgement' } })
+
+  it('update prepares a service proposal; nothing changes until Apply; Apply writes revision 2; Undo writes revision 3', async () => {
+    const ctx = withDemo()
+    const p = (await action('requirements.update').run({ requirementId: 'REQ-005', statement: 'The motor shall deliver at least 400 W.' }, ctx)) as ServiceProposal
+    expect(p).toMatchObject({ kind: 'service-proposal', module: 'requirements', preview: [{ label: 'REQ-005 Statement', proposed: 'The motor shall deliver at least 400 W.', basis: 'user-statement' }] })
+    const before = await ctx.services.requirements.resolve('REQ-005', { projectId: 'PRJ-ACT100' })
+    expect(before?.revision).toBe(1)
+    expect(await p.apply(provenance)).toMatchObject({ summary: expect.stringMatching(/revision 2/) })
+    expect((await ctx.services.requirements.resolve('REQ-005', { projectId: 'PRJ-ACT100' }))?.statement).toBe('The motor shall deliver at least 400 W.')
+    await p.undo!({})
+    const after = await ctx.services.requirements.resolve('REQ-005', { projectId: 'PRJ-ACT100' })
+    expect(after).toMatchObject({ revision: 3, statement: before!.statement })
+  })
+
+  it('a stale proposal is refused at Apply with the conflict, not applied with a changed intention', async () => {
+    const ctx = withDemo()
+    const p = (await action('requirements.update').run({ requirementId: 'REQ-005', statement: 'From the assistant.' }, ctx)) as ServiceProposal
+    const r = (await ctx.services.requirements.resolve('REQ-005', { projectId: 'PRJ-ACT100' }))!
+    await ctx.services.requirements.update(r.id, { statement: 'Changed meanwhile by a person.' }, { expectedRevision: 1, projectId: 'PRJ-ACT100' })
+    await expect(p.apply(provenance)).rejects.toMatchObject({ code: 'conflict' })
+    expect((await ctx.services.requirements.resolve('REQ-005', { projectId: 'PRJ-ACT100' }))?.statement).toBe('Changed meanwhile by a person.')
+  })
+
+  it('refuses status changes, unchanged text and unknown requirements', async () => {
+    await expect(action('requirements.update').run({ requirementId: 'REQ-003', status: 'approved' }, withDemo())).rejects.toThrow(/review decisions/)
+    const r = (await withDemo().services.requirements.resolve('REQ-005', { projectId: 'PRJ-ACT100' }))!
+    await expect(action('requirements.update').run({ requirementId: 'REQ-005', statement: r.statement }, withDemo())).rejects.toMatchObject({ code: 'no-op' })
+    await expect(action('requirements.update').run({ requirementId: 'REQ-999', statement: 'x' }, withDemo())).rejects.toMatchObject({ code: 'not-found' })
+  })
+
+  it('read_for_component uses the twin and quality explains that it needs the API', async () => {
+    expect((await action('requirements.read_for_component').run({ objectId: 'CAD-110' }, withDemo())).kind).toBe('data')
+    await expect(action('requirements.explain_quality').run({ requirementId: 'REQ-005' }, withDemo())).rejects.toMatchObject({ code: 'not-available' })
   })
 })

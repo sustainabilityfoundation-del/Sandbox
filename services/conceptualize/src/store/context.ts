@@ -108,7 +108,7 @@ export const iso = (d: Date | string | null | undefined): string | null => (d ==
 export const isoRequired = (d: Date | string): string => new Date(d).toISOString()
 
 export interface AuditInput {
-  entityType: 'concept' | 'relationship' | 'decomposition' | 'alternative-set' | 'decision' | 'trade-study' | 'evidence' | 'implementation' | 'link' | 'exploration' | 'realization-request'
+  entityType: 'concept' | 'relationship' | 'decomposition' | 'alternative-set' | 'decision' | 'trade-study' | 'evidence' | 'implementation' | 'link' | 'exploration' | 'realization-request' | 'function' | 'constraint' | 'assumption' | 'design-link' | 'link-type' | 'batch'
   entityId: string
   conceptIds?: string[]
   action: string
@@ -128,7 +128,10 @@ export async function audit(ctx: Ctx, input: AuditInput): Promise<void> {
 }
 
 /** Writes a committed-change notification to the outbox in the current transaction. */
-export async function emit(ctx: Ctx, type: ConceptsEventType, entityId: string, committedRevision: number): Promise<string> {
+/** Event types: the SDK ConceptsEventType plus the design-knowledge events of CR-C12 (SDK addition requested, CR-S3). */
+export type ConceptsOutboxType = ConceptsEventType | 'function.created' | 'function.revised' | 'function.retired' | 'constraint.created' | 'constraint.revised' | 'constraint.status-changed' | 'assumption.created' | 'assumption.revised' | 'assumption.validation-changed' | 'evidence.recorded' | 'evidence.reviewed' | 'decision.review-flagged' | 'decision.invalidated' | 'link.created' | 'link.removed'
+
+export async function emit(ctx: Ctx, type: ConceptsOutboxType, entityId: string, committedRevision: number): Promise<string> {
   const eventId = randomUUID()
   await ctx.db.query(
     `INSERT INTO conceptualize.outbox (event_id, project_id, type, entity_id, committed_revision, occurred_at, actor) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -143,7 +146,7 @@ export const prov = (ctx: Ctx): [string, string | null, string | null] => [ctx.p
 export const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
 
 /** Assistant-sourced writes may only use these bases (brief §11: AI output is never promoted silently). */
-export const ASSISTANT_BASES: Basis[] = ['ai-hypothesis', 'assumption', 'estimate']
+export const ASSISTANT_BASES: Basis[] = ['ai-hypothesis', 'assumption', 'assessment', 'estimate']
 
 export async function nextKey(ctx: Ctx, prefix: string, table: string): Promise<string> {
   for (;;) {

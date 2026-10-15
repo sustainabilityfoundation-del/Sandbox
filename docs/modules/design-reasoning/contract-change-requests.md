@@ -254,3 +254,116 @@ interface ConceptsService {                         // additions, SDK 1.7 when C
 | R1-8 | Graph API returns **derived edges** (not stored, `derived: true`): `realizes`, `realized-as`, `selected-through`, `decides`, `member`, `decision-assumes`, `decision-constrained-by`, `binds`, `produced-by`, `subject`, `affects`, `watches`. Their impact propagation is in `linkTypes.ts` (`DERIVED_EDGE_TYPES`) | C9 |
 | R1-9 | Trade-study results use Conceptualize's existing computation unchanged (qualitative 1–5 is "very poor … very good" regardless of direction); Pareto dominance is computed by the reasoning core, not required from Conceptualize | C7 |
 | R1-10 | `asOf` on traversal stays in the contract; the test adapter answers `not-implemented` for it | C9 |
+
+## CR-C8 and C11: storage contract for calculation qualifications (exact, 15 October 2026)
+
+Binding context: integration milestone 1, contract **C11** (uncertainty semantics end to end). The
+Conceptualize agent implements this section. The reference implementation is the test adapter
+(`packages/design-reasoning-core/src/adapters/conceptualizeContractAdapter.ts`, operations `createEvidence`,
+`putScores`, `tradeStudyResult`) and its tests (`src/c11.test.ts`). Conceptualize depends on
+`@ews/engineering-calc` ^0.3.0 (boundary rule of CR-C8) and uses `verifyManifest`, `qualifyManifest` and
+`describeRange` from it; it never re-implements their semantics.
+
+### 1. Types (from `@ews/engineering-calc` 0.3.0; stored as JSON exactly as typed)
+
+```ts
+interface SampledRange { kind: 'sampled-range'; min: number; max: number; method: 'vertices' | 'vertices-and-nominal'; samples: number; note: string }
+interface BoundsRange  { kind: 'bounds'; quality: 'exact' | 'enclosure'; min: number; max: number; sampled?: SampledRange; note?: string }
+interface PointResult  { kind: 'point' }
+type ResultRange = PointResult | SampledRange | BoundsRange
+type StatusBasis = 'point' | 'exact-bounds' | 'enclosure' | 'sampled'
+interface ValidityResult { satisfied: boolean; violated: string[]; uncertain: string[]; over: 'point' | 'range' }
+interface ManifestLimits {
+  establishesModelValidity: false
+  establishesRequirementSatisfaction: false
+  modelValidationStatus: 'unvalidated' | 'validated' | 'deprecated' | 'not-recorded'
+  modelBasis: Basis | 'not-recorded'
+}
+interface CalculationQualifications {
+  manifestVersion: 1 | 2 | 3
+  uncertainty: 'point' | 'interval' | 'interval-vertices'
+  outputs: { symbol: string; unit: string; value: number; range: ResultRange }[]
+  checks: { relationId: string; text: string; unit: string; margin: number; nominalSatisfied: boolean
+            status: 'satisfied' | 'violated' | 'uncertain'; statusBasis: StatusBasis; marginRange: ResultRange }[]
+  validity: ValidityResult
+  limits: ManifestLimits
+}
+interface CalculationVerification { verifiedAt: string; engineVersion: string; manifestVersion: 1 | 2 | 3; ok: true; exactDigestMatch?: boolean }
+interface ScoreQualification { source: 'calculation'; evidenceId: string; symbol: string; kind: ResultRange['kind']; quality?: 'exact' | 'enclosure' }
+```
+
+Record additions (to CR-C6 and CR-C7):
+
+```ts
+EvidenceRecord.calculation = { modelId, modelRevision, manifest: CalculationManifest, verification?: CalculationVerification }
+EvidenceRecord.qualifications?: CalculationQualifications
+TradeScore.evidenceOutput?: string
+TradeScore.qualification?: ScoreQualification
+TradeStudyResult.qualifications = { points: number; exactBounds: number; enclosures: number; sampledRanges: number; statedRanges: number; robustnessNote?: string }
+```
+
+### 2. Storage (additive, ADR-0009)
+
+```sql
+ALTER TABLE conceptualize.evidence
+  ADD COLUMN calculation jsonb,        -- { modelId, modelRevision, manifest (verbatim), verification }
+  ADD COLUMN qualifications jsonb;     -- CalculationQualifications, derived at insert
+ALTER TABLE conceptualize.trade_scores
+  ADD COLUMN evidence_output text,
+  ADD COLUMN qualification jsonb;      -- ScoreQualification, derived at insert
+```
+
+Both tables are immutable: triggers refuse UPDATE. Rows that exist before this migration are therefore **not
+backfilled**. For evidence that has a calculation but no stored `qualifications`, the API computes them on read
+with `qualifyManifest` and marks the response `qualificationsSource: 'computed-on-read'`; stored ones are marked
+`'stored'`. Evidence without a calculation has no qualifications. Existing trade scores have no qualification and
+are shown as stated values or stated ranges.
+
+### 3. Rules
+
+Each rule is a test in the adapter suite; Conceptualize reproduces them on PostgreSQL.
+
+| # | Rule | Adapter test |
+| --- | --- | --- |
+| Q1 | Evidence with `calculation` (or basis `calculated`) is accepted only if `verifyManifest(model at modelRevision, manifest).ok`. The basis may not exceed `manifest.basis`. `verification` records the outcome | R1 scenario; `c11.test.ts` |
+| Q2 | `qualifications` = `qualifyManifest(manifest)`, computed by Conceptualize at insert. A `qualifications` field supplied by a client is **ignored and replaced** | "ignores qualifications supplied by a client" |
+| Q3 | Stored and returned unchanged: no rounding, no relabelling, no merging of kinds. A `sampled-range` is never shown or exported as bounds; `bounds.sampled` stays a separate, labelled field | "evidence drafts … stored evidence keeps them unchanged" |
+| Q4 | A status over a range is `satisfied` or `violated` only with `statusBasis` `exact-bounds` or `enclosure`. Sampled statuses (manifest v1) are stored as `uncertain`; `qualifyManifest` does this | engineering-calc `manifest.test.ts` |
+| Q5 | A trade score with `evidenceId` and `evidenceOutput` must equal the evidence output: `value` to a relative 1e-9, and `low`/`high` equal to the range bounds when given. A range cannot be taken from a point output. `qualification` is copied from the evidence; a client-supplied one is replaced. A mismatch gives 422 `invalid` with a message naming the evidence and output | "trade-study scores taken from calculated evidence …" |
+| Q6 | `TradeStudyResult.ranking` may be `robust` only if no score range is a `sampled-range`; otherwise it is at most `uncertain`, with `robustnessNote`. Enclosures may support robustness, because they are sound bounds | "a sampled range is not a bound" |
+| Q7 | Evidence never changes a requirement's status, a verification status or a Concept's verification status. `limits` is stored with the manifest and displayed wherever the evidence supports a decision | rationale test |
+| Q8 | Decisions that cite calculated evidence display, for each check, the status and its basis, and the manifest limits | rationale test |
+
+### 4. Display vocabulary (Conceptualize UI, help text, exports)
+
+| Data | Label |
+| --- | --- |
+| `range.kind = 'point'` | "point value" |
+| `bounds`, `quality = 'exact'` | "exact bounds min–max" |
+| `bounds`, `quality = 'enclosure'` | "enclosure min–max (true range may be narrower)" |
+| `bounds.sampled` or `sampled-range` | "sampled values min–max (n samples; not a bound)" |
+| `status` with `statusBasis = 'point'` | "satisfied/violated at the nominal point" |
+| `statusBasis = 'exact-bounds'` | "satisfied/violated over the input ranges (proven, exact bounds)" |
+| `statusBasis = 'enclosure'` | "satisfied/violated over the input ranges (proven from an enclosure)", or "uncertain: not proven over the input ranges" |
+| `limits` | "Reproducible calculation. It does not establish that the model is valid for this design (validation status: …) or that any requirement is satisfied." |
+
+`describeRange(range)` returns the short form of the first four rows.
+
+### 5. API
+
+- `POST …/evidence` and batch `createEvidence`: body as in CR-C6, plus `calculation`. Any `qualifications` or
+  `verification` in the body is ignored. A manifest that does not reproduce gives 422 `invalid` with
+  `details.reasons` from `verifyManifest`.
+- `GET …/evidence/{id}` and lists: return `calculation` (with `verification`), `qualifications` and
+  `qualificationsSource`.
+- `PUT …/trade-studies/{id}/scores` and batch `putScores`: accept `evidenceOutput` and ignore `qualification`;
+  return the stored scores with `qualification`.
+- `GET …/trade-studies/{id}/result`: includes `qualifications`.
+
+### 6. What a reproducible manifest does not establish
+
+A manifest that verifies shows only that its outputs follow from that model revision and those inputs with this
+engine. It does **not** establish that the model is valid for the design: a person records model validation, and
+`limits.modelValidationStatus` only repeats what the definition said at evaluation time. It does **not** establish
+that any requirement is satisfied: requirement verification is a separate record in Requirements. Conceptualize
+must never derive either from a verified manifest.

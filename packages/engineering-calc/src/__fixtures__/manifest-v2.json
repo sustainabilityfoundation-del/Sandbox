@@ -1,0 +1,408 @@
+{
+ "model": {
+  "id": "calc-r3",
+  "key": "lib.column.euler-round",
+  "revision": 1,
+  "name": "Euler buckling of a solid round column",
+  "description": "Critical load P_cr = π² E I / (K L)² with I = π d⁴/64; required P_cr ≥ n F. Valid above the Euler–Johnson transition slenderness.",
+  "grammar": "ews-expr/1",
+  "parameters": [
+   {
+    "symbol": "F",
+    "name": "Axial compressive load",
+    "role": "input",
+    "unit": "kN"
+   },
+   {
+    "symbol": "E",
+    "name": "Elastic modulus",
+    "role": "input",
+    "unit": "GPa"
+   },
+   {
+    "symbol": "Sy",
+    "name": "Yield strength",
+    "role": "input",
+    "unit": "MPa"
+   },
+   {
+    "symbol": "d",
+    "name": "Diameter",
+    "role": "input",
+    "unit": "mm"
+   },
+   {
+    "symbol": "L",
+    "name": "Column length",
+    "role": "input",
+    "unit": "mm"
+   },
+   {
+    "symbol": "K",
+    "name": "Effective-length factor",
+    "role": "input",
+    "unit": "-"
+   },
+   {
+    "symbol": "n",
+    "name": "Design factor",
+    "role": "input",
+    "unit": "-"
+   },
+   {
+    "symbol": "I",
+    "name": "Second moment of area",
+    "role": "output",
+    "unit": "mm^4"
+   },
+   {
+    "symbol": "P_cr",
+    "name": "Critical load",
+    "role": "output",
+    "unit": "kN"
+   },
+   {
+    "symbol": "lambda",
+    "name": "Slenderness K L / k (k = d/4)",
+    "role": "output",
+    "unit": "-"
+   },
+   {
+    "symbol": "lambda_1",
+    "name": "Transition slenderness",
+    "role": "output",
+    "unit": "-"
+   }
+  ],
+  "relations": [
+   {
+    "id": "r1",
+    "kind": "assignment",
+    "expression": "I = pi * d^4 / 64"
+   },
+   {
+    "id": "r2",
+    "kind": "assignment",
+    "expression": "P_cr = pi^2 * E * I / (K * L)^2"
+   },
+   {
+    "id": "r3",
+    "kind": "assignment",
+    "expression": "lambda = 4 * K * L / d"
+   },
+   {
+    "id": "r4",
+    "kind": "assignment",
+    "expression": "lambda_1 = pi * sqrt(2 * E / Sy)"
+   },
+   {
+    "id": "c1",
+    "kind": "constraint",
+    "expression": "P_cr >= n * F",
+    "description": "Buckling capacity with the design factor"
+   }
+  ],
+  "validity": {
+   "text": "Euler formula above the transition slenderness (Johnson parabola below, not included)",
+   "conditions": [
+    "lambda >= lambda_1"
+   ]
+  },
+  "basis": "user-assertion",
+  "validationStatus": "validated"
+ },
+ "interval": {
+  "manifestVersion": 2,
+  "digestSpec": "ews-digest/1",
+  "engine": {
+   "name": "@ews/engineering-calc",
+   "version": "0.2.0",
+   "mathjs": "15.2.0",
+   "grammar": "ews-expr/1"
+  },
+  "model": {
+   "id": "calc-r3",
+   "revision": 1,
+   "digest": "sha256:8e1893c1dc91bbcf68da9c0358d5d16279491cdd38c8286cde5704618b046d39"
+  },
+  "inputs": [
+   {
+    "symbol": "F",
+    "value": 12,
+    "unit": "kN",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "E",
+    "value": 210,
+    "unit": "GPa",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "Sy",
+    "value": 600,
+    "unit": "MPa",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "d",
+    "value": 25,
+    "min": 24,
+    "max": 26,
+    "unit": "mm",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "L",
+    "value": 600,
+    "unit": "mm",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "K",
+    "value": 1,
+    "min": 0.7,
+    "max": 1.5,
+    "unit": "-",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "n",
+    "value": 2,
+    "unit": "-",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   }
+  ],
+  "outputs": [
+   {
+    "symbol": "I",
+    "value": 19174.759848570513,
+    "unit": "mm^4",
+    "min": 16286.016316209485,
+    "max": 22431.756944794524,
+    "bounds": {
+     "min": 16286.016316209485,
+     "max": 22431.756944794524,
+     "quality": "exact"
+    }
+   },
+   {
+    "symbol": "P_cr",
+    "value": 110.39425494491515,
+    "unit": "kN",
+    "min": 41.67243585832296,
+    "max": 263.56257984108436,
+    "bounds": {
+     "min": 41.67243585832296,
+     "max": 263.56257984108436,
+     "quality": "exact"
+    }
+   },
+   {
+    "symbol": "lambda",
+    "value": 95.99999999999999,
+    "unit": "-",
+    "min": 64.61538461538461,
+    "max": 149.99999999999997,
+    "bounds": {
+     "min": 64.61538461538461,
+     "max": 149.99999999999997,
+     "quality": "exact"
+    }
+   },
+   {
+    "symbol": "lambda_1",
+    "value": 83.1187288206608,
+    "unit": "-",
+    "min": 83.1187288206608,
+    "max": 83.1187288206608,
+    "bounds": {
+     "min": 83.1187288206608,
+     "max": 83.1187288206608,
+     "quality": "exact"
+    }
+   }
+  ],
+  "checks": [
+   {
+    "relationId": "c1",
+    "text": "P_cr >= n * F",
+    "op": ">=",
+    "lhs": 110.39425494491515,
+    "rhs": 24,
+    "unit": "kN",
+    "margin": 86.39425494491515,
+    "marginRatio": 4.599760622704798,
+    "satisfied": true,
+    "status": "satisfied",
+    "marginBounds": {
+     "min": 17.672435858322963,
+     "max": 239.56257984108436,
+     "quality": "exact"
+    }
+   }
+  ],
+  "validity": {
+   "satisfied": false,
+   "violated": [],
+   "uncertain": [
+    "lambda >= lambda_1"
+   ]
+  },
+  "uncertainty": "interval",
+  "basis": "calculated",
+  "inputDigest": "sha256:193b53ab6e16a45fe2aa638c95227613bed306a4bf40ab8487cdbea2b4c1bccf",
+  "outputDigest": "sha256:6187b3e92dc48a0d295097f44f3ce0080f4247d6f80e5a3cc79a140d0cb9e4e1",
+  "evaluatedAt": "2026-10-15T00:00:00.000Z",
+  "durationMs": 113,
+  "operations": 201
+ },
+ "point": {
+  "manifestVersion": 2,
+  "digestSpec": "ews-digest/1",
+  "engine": {
+   "name": "@ews/engineering-calc",
+   "version": "0.2.0",
+   "mathjs": "15.2.0",
+   "grammar": "ews-expr/1"
+  },
+  "model": {
+   "id": "calc-r3",
+   "revision": 1,
+   "digest": "sha256:8e1893c1dc91bbcf68da9c0358d5d16279491cdd38c8286cde5704618b046d39"
+  },
+  "inputs": [
+   {
+    "symbol": "F",
+    "value": 12,
+    "unit": "kN",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "E",
+    "value": 210,
+    "unit": "GPa",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "Sy",
+    "value": 600,
+    "unit": "MPa",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "d",
+    "value": 25,
+    "unit": "mm",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "L",
+    "value": 600,
+    "unit": "mm",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "K",
+    "value": 1,
+    "unit": "-",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   },
+   {
+    "symbol": "n",
+    "value": 2,
+    "unit": "-",
+    "source": {
+     "kind": "literal",
+     "basis": "user-assertion"
+    }
+   }
+  ],
+  "outputs": [
+   {
+    "symbol": "I",
+    "value": 19174.759848570513,
+    "unit": "mm^4"
+   },
+   {
+    "symbol": "P_cr",
+    "value": 110.39425494491515,
+    "unit": "kN"
+   },
+   {
+    "symbol": "lambda",
+    "value": 95.99999999999999,
+    "unit": "-"
+   },
+   {
+    "symbol": "lambda_1",
+    "value": 83.1187288206608,
+    "unit": "-"
+   }
+  ],
+  "checks": [
+   {
+    "relationId": "c1",
+    "text": "P_cr >= n * F",
+    "op": ">=",
+    "lhs": 110.39425494491515,
+    "rhs": 24,
+    "unit": "kN",
+    "margin": 86.39425494491515,
+    "marginRatio": 4.599760622704798,
+    "satisfied": true,
+    "status": "satisfied"
+   }
+  ],
+  "validity": {
+   "satisfied": true,
+   "violated": []
+  },
+  "uncertainty": "point",
+  "basis": "calculated",
+  "inputDigest": "sha256:026cfe593e395f392a5e842331bec423081333656b3c92b3f0ae70a5af6c7816",
+  "outputDigest": "sha256:cc8fd419a5fe17a8ba513a0bc2347f8834eb10877085d274589df0c4f68d535f",
+  "evaluatedAt": "2026-10-15T00:00:00.000Z",
+  "durationMs": 9,
+  "operations": 41
+ }
+}

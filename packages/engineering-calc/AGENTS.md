@@ -16,13 +16,15 @@ Owner: Design Reasoning agent (ownership as set for R1 and R3, 15 October 2026).
   derivatives work on the engine's whitelisted canonical AST. Adding a function or node type is a grammar
   change: bump `GRAMMAR` (`ews-expr/2`), keep `ews-expr/1` readable, add dimension, interval and derivative
   rules and tests.
-- **Honest bounds.** `bounds.quality = 'exact'` only with proven monotonicity; otherwise `enclosure` with an
-  inner bound. A check is `satisfied` only when proven over the whole range. Never weaken this to make a result
-  look better.
+- **Honest result kinds (C11, integration milestone 1).** Every value carries `range.kind`: `point`,
+  `sampled-range` (never a bound) or `bounds` with `quality` `exact` (proven monotonicity) or `enclosure`. Sampled
+  values inside bounds stay in the separate `sampled` field. A status over a range is `satisfied`/`violated` only
+  when proven by bounds (`statusBasis`), otherwise `uncertain`. Manifests state in `limits` that they establish
+  neither model validity nor requirement satisfaction. Never weaken this to make a result look better.
 - **Deterministic and versioned.** No randomness, clock or locale in results. `evaluatedAt`, `durationMs`,
   `operations` stay outside every digest. Changing what goes into the model, input or output digests needs a
-  new `manifestVersion` (and keeping the old version verifiable); `src/__fixtures__/manifest-v1.json` must keep
-  verifying.
+  new `manifestVersion` (and keeping the old version verifiable); `src/__fixtures__/manifest-v1.json` and
+  `manifest-v2.json` must keep verifying.
 - Every error is a `CalcError` with a code from `ERROR_TAXONOMY`; add a code there (with retryability and tool
   code) before using it.
 - Results never claim more than their inputs: keep `calculationBasis` (ADR-0043) in step with the docs.

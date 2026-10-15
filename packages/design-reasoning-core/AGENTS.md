@@ -20,6 +20,11 @@ Framework-free core of the Design Reasoning Engine. Architecture: [docs/modules/
   Requirements come through the SDK `RequirementsService` subset; fixtures say `mode: 'test-fixture'`.
 - Numbers are calculated only by `@ews/engineering-calc`; never compute engineering results ad hoc here.
   Keep the basis ladder (ADR-0043) on every result and draft item.
+- **C11 qualifications pass through unchanged** (integration milestone 1): result kinds, bound quality, proven
+  statuses with their basis, and the manifest limits go from the engine into drafts, stored evidence, trade-study
+  scores and results, Pareto, rationale and impact without rounding or relabelling. A sampled range never supports
+  a robust ranking or dominance; impact is `demonstrated` only by a proven violation. Never present a verified
+  manifest as model validation or requirement satisfaction.
 - Tool definitions (`tools.ts`) are provider-neutral data with closed input schemas; no provider-specific
   fields, no prompts.
 - `applyDraftAsUser` emulates the platform executor (CR-A1) for tests and the demo only.

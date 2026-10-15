@@ -16,3 +16,18 @@ related: [conceptualize.overview]
   `conceptsForArtifact`, `implementations`, `subscribe`. They never read Conceptualize tables.
 - **Explorations**: `POST /projects/{projectId}/explorations` creates a parent, alternatives,
   decompositions, preliminary evidence and a trade study atomically; `…/undo` archives them.
+- **Design knowledge and batch** (Design Reasoning R1): `POST /projects/{projectId}/batch` takes
+  `items: [{ op, as?, body }]`, all or nothing, with placeholders (`$fn`) replaced in later bodies. Item
+  ops use the R1 names. Where a v1 operationId differs, OpenAPI marks the operation with
+  `x-r1-operation`:
+
+  | R1 name | v1 operationId |
+  | --- | --- |
+  | proposeDecision | createDecision |
+  | putScores | putTradeScores |
+  | createLink (design link) | createDesignLink |
+  | traverse | traverseGraph |
+  | linkTypes, links | listLinkTypes, listDesignLinks |
+
+  The v1 `createLink` (Concept → artifact link) is `createConceptLink` in a batch. Graph reads:
+  `/graph/traverse`, `/graph/neighbourhood`, `/graph/paths`, `/search`.

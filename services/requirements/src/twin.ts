@@ -20,8 +20,31 @@ export interface TwinDirectory {
   readonly description: string
 }
 
-/** Twin object types an allocation may point at (RELATIONSHIP_RULES in model-service: assembly or part). */
-export const ALLOCATABLE_TYPES = ['assembly', 'part']
+/**
+ * Object types an allocation may point at: twin components (RELATIONSHIP_RULES in model-service:
+ * assembly or part) and product elements from the Project Management product registry
+ * (CR-PM-REQ-2; the host supplies them through its TwinDirectory, CR-PM-API-3).
+ */
+export const ALLOCATABLE_TYPES = ['assembly', 'part', 'product-element']
+
+/**
+ * Combines directories (for example the static sample twin and the product registry): an ID is
+ * answered by the first directory that knows it.
+ */
+export function composeTwinDirectory(...directories: TwinDirectory[]): TwinDirectory {
+  return {
+    description: directories.map((d) => d.description).join(' + '),
+    async lookup(projectId, ids) {
+      const found = new Map<string, TwinObjectInfo>()
+      for (const directory of directories) {
+        const missing = ids.filter((id) => !found.has(id))
+        if (!missing.length) break
+        for (const [id, info] of await directory.lookup(projectId, missing)) if (!found.has(id)) found.set(id, info)
+      }
+      return found
+    },
+  }
+}
 
 export function staticTwinDirectory(objects: Record<string, TwinObjectInfo[]>, description: string): TwinDirectory {
   return {

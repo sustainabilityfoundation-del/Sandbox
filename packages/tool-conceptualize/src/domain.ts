@@ -16,12 +16,25 @@ export interface ConceptualizeViewState {
   setId: string | null
   /** Dialogs opened from the toolbar. */
   dialog: null | 'new' | 'child' | 'branch'
-  tab: 'intent' | 'structure' | 'decisions' | 'implementations' | 'evidence' | 'history'
+  tab: 'intent' | 'structure' | 'knowledge' | 'decisions' | 'implementations' | 'evidence' | 'history'
+  /** Explorer record type (design knowledge, CR-C1…C3). Optional: older saved view states have none. */
+  records?: RecordsFilter
+  /** The open Function, Constraint or Assumption (instead of a Concept). */
+  record?: { type: DesignRecordType; id: string } | null
   /** Set from the caller's permissions (UX only; the server enforces): disables authoring in the toolbar. */
   readOnly?: boolean
 }
 
-export const INITIAL_VIEW_STATE: ConceptualizeViewState = { page: 'explorer', conceptId: null, explorerMode: 'tree', search: '', maturity: 'all', setId: null, dialog: null, tab: 'intent' }
+export type DesignRecordType = 'function' | 'constraint' | 'assumption'
+export type RecordsFilter = 'concepts' | 'functions' | 'constraints' | 'assumptions'
+export const RECORDS: { value: RecordsFilter; label: string; type?: DesignRecordType }[] = [
+  { value: 'concepts', label: 'Concepts' },
+  { value: 'functions', label: 'Functions', type: 'function' },
+  { value: 'constraints', label: 'Constraints', type: 'constraint' },
+  { value: 'assumptions', label: 'Assumptions', type: 'assumption' },
+]
+
+export const INITIAL_VIEW_STATE: ConceptualizeViewState = { page: 'explorer', conceptId: null, explorerMode: 'tree', search: '', maturity: 'all', setId: null, dialog: null, tab: 'intent', records: 'concepts', record: null }
 
 export const MATURITY: Record<ConceptMaturity, { label: string; tone: Tone; icon: IconName }> = {
   idea: { label: 'Idea', tone: 'neutral', icon: 'draft' },
@@ -42,7 +55,9 @@ export const BASIS: Record<Basis, { label: string; tone: Tone; icon: IconName; t
   'user-assertion': { label: 'User statement', tone: 'neutral', icon: 'edit', title: 'Stated by a person; not verified' },
   'ai-hypothesis': { label: 'AI hypothesis', tone: 'warning', icon: 'assistant', title: 'Proposed by the assistant; unverified until a person confirms it or evidence supports it' },
   assumption: { label: 'Assumption', tone: 'warning', icon: 'info', title: 'Engineering assumption, to be confirmed' },
+  assessment: { label: 'Assessment', tone: 'info', icon: 'review', title: 'Qualitative engineering judgement by a person; not a calculation' },
   estimate: { label: 'Estimate', tone: 'info', icon: 'analysis', title: 'Preliminary estimate with stated assumptions; not validated' },
+  calculated: { label: 'Calculated', tone: 'info', icon: 'analysis', title: 'Result of a reproducible calculation (manifest recorded); not independently verified' },
   evidence: { label: 'Verified evidence', tone: 'success', icon: 'verification', title: 'Supported by a verified evidence record' },
   decision: { label: 'Decision', tone: 'success', icon: 'approved', title: 'Established by a recorded design decision' },
 }

@@ -138,10 +138,10 @@ export async function createRelationship(ctx: Ctx, twin: TwinDirectory, input: R
       if (rows.length) throw invalid(`This “${input.type}” link would create a cycle (${to.key} already leads back to ${from.key}).`, { toRequirementId: 'cycle' })
     }
   } else {
-    if (!input.toTwinId || input.toRequirementId) throw invalid('An allocation goes from a requirement to a twin component (assembly or part).', { toTwinId: 'required', toRequirementId: 'not allowed' })
+    if (!input.toTwinId || input.toRequirementId) throw invalid('An allocation goes from a requirement to a component (assembly or part) or a product element.', { toTwinId: 'required', toRequirementId: 'not allowed' })
     const found = (await twin.lookup(ctx.projectId, [input.toTwinId])).get(input.toTwinId)
-    if (!found) throw invalid(`${input.toTwinId} is not a known component in the shared twin (${twin.description}).`, { toTwinId: 'unknown twin object' })
-    if (!ALLOCATABLE_TYPES.includes(found.type)) throw invalid(`${input.toTwinId} is a ${found.type}; requirements are allocated to components (assembly or part).`, { toTwinId: `type ${found.type}` })
+    if (!found) throw invalid(`${input.toTwinId} is not a known component or product element in this project (${twin.description}).`, { toTwinId: 'unknown twin object' })
+    if (!ALLOCATABLE_TYPES.includes(found.type)) throw invalid(`${input.toTwinId} is a ${found.type}; requirements are allocated to components (assembly or part) or product elements.`, { toTwinId: `type ${found.type}` })
   }
   const existing = await ctx.db.query<{ id: string }>(
     `SELECT id FROM requirements.relationships WHERE type = $1 AND from_requirement_id = $2 AND coalesce(to_requirement_id::text, to_twin_id) = $3 AND NOT deleted`,

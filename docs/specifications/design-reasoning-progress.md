@@ -363,11 +363,47 @@ Limitations:
 Next: point the actuator scenario at the real Conceptualize API when its P1 checkpoint lands; then R4 (reasoning
 service), which uses the isolated evaluator.
 
+## C11: uncertainty semantics end to end (checkpoint)
+
+R3 was accepted and merged (f005102). Binding: [integration milestone 1](integration-milestone-1.md), contract C11
+(finding R8). Status vocabulary from that document: the engine and the reasoning core are **implemented** and
+**tested**, but only against the **contract/test adapter**, not the real Conceptualize service. They are not
+**integrated** until Conceptualize implements the storage contract and the scenario runs on its API.
+
+| Item | Result |
+| --- | --- |
+| Result kinds | engineering-calc 0.3.0: every output and margin carries `range` with `kind: 'point' \| 'sampled-range' \| 'bounds'`, and `quality: 'exact' \| 'enclosure'` for bounds. Sampled values are a separate `sampled` field typed `sampled-range`, never bounds. Checks have `nominalSatisfied`, `status` and `statusBasis` (`point`, `exact-bounds`, `enclosure`, `sampled`); range statuses are `satisfied`/`violated` only when proven, otherwise `uncertain`. Validity has `over` and `uncertain`. The vertex-sampling mode is no longer offered |
+| Manifest | Version 3 with `limits: { establishesModelValidity: false, establishesRequirementSatisfaction: false, modelValidationStatus, modelBasis }`. v1 and v2 manifests still verify (stored fixtures from the R1 and R3 engines). The result kind and bound quality are part of v3 verification |
+| `qualifyManifest` | Derives the C11 qualifications from a manifest of any version. v1 vertex results become `sampled-range` with `uncertain` statuses; the v2 `inner` range becomes a typed sampled range |
+| Model-level tests (`interval.test.ts`, "C11: result kinds") | y = x(1 − x) over [0, 1] with nominal 0.2: the samples reach only 0.16, the bound covers the interior maximum 0.25, and `y ≤ 0.2` is `uncertain`, never `satisfied`. 1/(x − 0.5) over [0, 1]: `domain-error`, reason `singularity`; a range clear of it gives exact bounds. Invalid domains: sqrt of a range reaching negative values, log at zero, sqrt of a negative point. Also: a constraint proven with exact bounds is `satisfied`, one failing everywhere is `violated`, and a true but unprovable one stays `uncertain` |
+| Propagation (design-reasoning-core, `c11.test.ts`) | Evidence drafts carry `qualifications`, typed ranges (`kind`, `quality`), a "Does not establish" preview item and `limits`. Stored evidence keeps the qualifications unchanged, derived by the adapter from the verified manifest; client-supplied qualifications are ignored. A `verification` record is stored. Trade scores taken from evidence carry the evidence's qualification, and mismatching numbers are refused. Trade-study results count kinds; a sampled range never makes a ranking or a Pareto dominance robust. Rationale shows each check's status with its basis, the qualifications and the limits. Impact is `demonstrated` only by a proven violation; a check that can no longer be proven is `possible` with "can no longer be shown to hold" |
+| Storage contract | contract-change-requests.md, "CR-C8 and C11: storage contract": exact types, additive SQL, immutable-row handling (computed on read for old rows), rules Q1–Q8 mapped to adapter tests, display vocabulary, API and the statement of what a manifest does not establish. Conceptualize implements from it |
+
+Checks run on 15 October 2026 after `git merge main` (d628556):
+- `npm run check`: all workspaces type-check; 52 test files (51 passed, 1 skipped); 946 tests passed, 1 skipped. The
+  run was repeated after the last code change, with the same result.
+- `npx vitest run packages/engineering-calc`: 180 tests.
+- `npx vitest run packages/design-reasoning-core`: 34 tests.
+- The R1 demo script still runs.
+- `npm run build` was not run: no application or build configuration changed.
+
+What each step ran against: the engine is real code; Conceptualize is the **contract/test adapter**; the twin is the
+real sample twin, client-attested; Requirements is a **test fixture**. No live AI provider was used.
+
+Limitations:
+- Conceptualize storage and display are not implemented yet; this is their side of C11.
+- `qualificationsSource` exists only in the API contract: the adapter has no pre-migration rows.
+- v1 margin ranges were never recorded, so they are qualified as point margins with `uncertain` statuses.
+
+Next: when Conceptualize's checkpoint is on main, point the actuator scenario, and a new-project scenario without
+actuator IDs, at the real API.
+
 ## Review status
 
 Phase A: approved by the coordinator (15 October 2026; merged into main as 4f7884b, ADRs renumbered 0039–0046, still Proposed until R1 is reviewed).
 Phase B (R1): accepted by the coordinator and merged into main (ec16cf2, 15 October 2026).
-R3 (calculation engine production): **ready for coordinator review** (15 October 2026). Owner acceptance pending.
+R3 (calculation engine production): accepted by the coordinator and merged into main (f005102).
+C11 (uncertainty semantics, engine and reasoning core): **ready for coordinator review** (15 October 2026). Conceptualize side open.
 
 ## Handoff log
 
@@ -375,3 +411,4 @@ R3 (calculation engine production): **ready for coordinator review** (15 October
 - 015c133: progress file with the §16 report, change-request summary, proposed coordinator text and open questions.
 - a673c84, b217a3e, a5b4d92: R1 boundary rules, engineering-calc, design-reasoning-core; (this commit) R1 documentation and checkpoint.
 - R3: engineering-calc 0.2.0 (isolation, taxonomy, interval bounds, manifest v2, library, performance) and documentation; see the R3 commits on the branch after ec16cf2.
+- C11: engineering-calc 0.3.0 result kinds, manifest v3, qualifyManifest; propagation through design-reasoning-core; storage contract; see the C11 commits on the branch after d628556.

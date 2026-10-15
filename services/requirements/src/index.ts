@@ -16,7 +16,7 @@ export type { HostServices, Principal, RouteSpec } from './http/route'
 export { errorBody } from './http/route'
 export { createEventHub, type EventHub } from './events/hub'
 export { localObjectStorage, memoryObjectStorage, type ObjectStorage } from './storage'
-export { staticTwinDirectory, ALLOCATABLE_TYPES, type TwinDirectory, type TwinObjectInfo } from './twin'
+export { staticTwinDirectory, composeTwinDirectory, ALLOCATABLE_TYPES, type TwinDirectory, type TwinObjectInfo } from './twin'
 export { seedRequirements, LEGACY_UUIDS, SEED_IDS, SEED_PROJECT } from './seed'
 export { ServiceError } from './errors'
 export { PERMISSIONS, ROLES, RELATIONSHIP_RULES, TRANSITIONS, roleAllows, type Role, type Permission } from './domain/rules'
@@ -28,3 +28,4 @@ export const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'db'
 export function migrateRequirements(pool: Pool): Promise<MigrationResult> {
   return migrate(pool, { schema: 'requirements', directory: MIGRATIONS_DIR })
 }
+export { createRequirementsArtifactSource, toArtifactChange, requirementLifecycle, REQUIREMENT_ARTIFACT_KINDS, ARTIFACT_MODULE } from './artifacts'

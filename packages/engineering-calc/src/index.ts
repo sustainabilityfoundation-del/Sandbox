@@ -21,9 +21,17 @@ export {
   MAX_INTERVAL_INPUTS,
   SUPPORTED_MANIFEST_VERSIONS,
   VERIFY_RELATIVE_TOLERANCE,
+  describeRange,
   evaluateModel,
   verifyManifest,
-  type Bounds,
+  type BoundsRange,
+  type ManifestLimits,
+  type ManifestUncertaintyMode,
+  type PointResult,
+  type ResultRange,
+  type SampledRange,
+  type StatusBasis,
+  type ValidityResult,
   type CalculationManifest,
   type CalculationResult,
   type CheckResult,
@@ -34,5 +42,6 @@ export {
   type UncertaintyMode,
   type VerificationResult,
 } from './evaluate'
+export { qualifyManifest, type CalculationQualifications } from './qualify'
 export { ENGINEERING_LIBRARY, libraryModel, type LibraryEntry, type LibrarySource, type ReferenceCase } from './library'
 export { describeDims, siUnitOf } from './units'

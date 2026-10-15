@@ -10,7 +10,8 @@
   "workspaces": [
     "packages/*",
     "services/*",
-    "apps/*"
+    "apps/*",
+    "tests/*"
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
@@ -47,7 +48,8 @@
     "cad:test:db": "vitest run --config services/cad/vitest.db.config.ts",
     "ai:test": "vitest run services/assistant services/settings packages/platform-sdk/src/contract/settings.test.ts apps/workspace/src/settings apps/workspace/src/assistant",
     "ai:test:db": "vitest run --config services/api/vitest.db.config.ts services/assistant services/settings",
-    "ai:dev:fake": "node services/assistant/scripts/dev-fake.mjs"
+    "ai:dev:fake": "node services/assistant/scripts/dev-fake.mjs",
+    "e2e": "node tests/e2e/run.mjs"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
