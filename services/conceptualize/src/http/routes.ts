@@ -509,11 +509,10 @@ export function registerConceptRoutes(app: FastifyInstance, services: HostServic
     operationId: 'createDecision',
     tag: 'Decisions',
     summary: 'Propose (or record) a design decision with accepted, rejected or deferred outcomes and rationale',
-    description: 'Editors propose; recording accepted or rejected outcomes (record: true or recordDecision) is the approval gate for reviewers and administrators. supersedesId revisits an earlier decision; the old record is kept.',
+    description: 'Editors propose (R1 proposeDecision); recording accepted or rejected outcomes (recordDecision) is the approval gate for reviewers and administrators. Reviewers do not author decisions (403: propose as an editor, then record). record: true creates and records in one step and is allowed for administrators only (two-person gate). Earlier text: recording accepted or rejected outcomes (record: true or recordDecision) is the approval gate for reviewers and administrators. supersedesId revisits an earlier decision; the old record is kept.',
     params: P,
     body: D.DecisionCreateV,
     permission: 'author',
-    anyOf: ['author', 'decide'],
     idempotency: 'required',
     responses: { 201: { description: 'Created', schema: D.DecisionV }, ...WRITE_ERRORS },
     handler: async (rc) => {

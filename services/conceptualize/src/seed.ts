@@ -190,7 +190,9 @@ export async function seedConcepts(pool: Pool): Promise<{ seeded: boolean; messa
     )
   })
 
-  await as('rui', 'reviewer', async (ctx) => {
+  // Two-person gate: eli proposes, rui records.
+  let seededDecision: { id: string; recordVersion: number } | undefined
+  await as('eli', 'editor', async (ctx) => {
     const { rows } = await ctx.db.query<{ id: string }>('SELECT id FROM conceptualize.alternative_sets WHERE parent_id = $1', [SEED_IDS.transmission])
     const { rows: studies } = await ctx.db.query<{ id: string }>('SELECT id FROM conceptualize.trade_studies WHERE set_id = $1', [rows[0].id])
     const d = await createDecision(ctx, {
@@ -206,7 +208,10 @@ export async function seedConcepts(pool: Pool): Promise<{ seeded: boolean; messa
         { conceptId: SEED_IDS.directDrive, outcome: 'rejected', rationale: 'Motor too large for the torque at screw speed' },
       ],
     })
-    await recordDecision(ctx, d.id, d.recordVersion, 'Seeded example decision')
+    seededDecision = d
+  })
+  await as('rui', 'reviewer', async (ctx) => {
+    await recordDecision(ctx, seededDecision!.id, seededDecision!.recordVersion, 'Seeded example decision')
   })
 
   await as('ada', 'administrator', async (ctx) => {

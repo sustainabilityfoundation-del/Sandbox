@@ -216,11 +216,16 @@ export async function listDecisions(db: Queryable, projectId: string, filter: { 
 const needsDecide = (outcomes: DecisionDto['outcomes']) => outcomes.some((o) => o.outcome === 'accepted' || o.outcome === 'rejected')
 
 /**
- * Creates a design decision. Proposed decisions may be created by editors (and by the assistant);
- * recording accepted or rejected outcomes is the approval gate (reviewer or administrator, never the
- * assistant). Deferred-only decisions may be recorded by editors.
+ * Creates a design decision. Editors (and the assistant) propose; recording accepted or rejected
+ * outcomes is the approval gate (recordDecision: reviewer or administrator, never the assistant).
+ * Deferred-only decisions may be recorded by editors through recordDecision; record: true is
+ * administrator-only.
  */
 export async function createDecision(ctx: Ctx, input: DecisionCreateDto): Promise<DecisionDto> {
+  // R1-3 (agreed 15 Oct 2026): reviewers do not author; creating and recording in one step would bypass
+  // the two-person gate, so record: true is for administrators only.
+  if (!roleAllows(ctx.role, 'author')) throw forbidden('Reviewers do not author decisions: propose as an editor, then record.')
+  if (input.record && ctx.role !== 'administrator') throw forbidden('Creating and recording a decision in one step needs an administrator: propose as an editor, then record (two-person gate).')
   if (!input.subjectId && !input.setId) throw invalid('A decision is about a Concept (subjectId) or an alternative set (setId).', { subjectId: 'or setId required' })
   const ids = [...new Set(input.outcomes.map((o) => o.conceptId))]
   if (ids.length !== input.outcomes.length) throw invalid('Each Concept may appear once in the outcomes.', { outcomes: 'duplicate Concept' })

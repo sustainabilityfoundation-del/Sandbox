@@ -215,7 +215,7 @@ describe('decision and evidence extensions (CR-C5, CR-C6)', () => {
         constraintIds: [ref('constraint', cst.id)],
         invalidationConditions: [{ kind: 'assumption-invalidated', subject: ref('assumption', asm.id), description: 'If the duty cycle rises' }],
       },
-      'rui',
+      'ada',
     )
     expect(dec.status, JSON.stringify(dec.body)).toBe(201)
     await expectConforms(env, 'createDecision', 201, dec.body)
@@ -369,7 +369,7 @@ describe('R1 refinements', () => {
     const a = await concept('Pinned option')
     const asm = (await post('/assumptions', { statement: 'Pinned assumption', basis: 'assumption' })).body
     const ev = (await post('/evidence', { subjects: [ref('assumption', asm.id)], kind: 'test', title: 'Check', basis: 'estimate' })).body
-    await post('/decisions', { title: 'Rest on it', rationale: 'r', subjectId: a.id, record: true, outcomes: [{ conceptId: a.id, outcome: 'accepted' }], assumptionIds: [{ id: asm.id }] }, 'rui')
+    await post('/decisions', { title: 'Rest on it', rationale: 'r', subjectId: a.id, record: true, outcomes: [{ conceptId: a.id, outcome: 'accepted' }], assumptionIds: [{ id: asm.id }] }, 'ada')
     const byEditor = await post(`/assumptions/${asm.id}/validation`, { status: 'validated', evidence: ref('evidence', ev.id), reason: 'Checked' })
     expect(byEditor.status).toBe(403)
     expect((await post(`/assumptions/${asm.id}/validation`, { status: 'validated', reason: 'No evidence' }, 'rui')).status).toBe(422)
@@ -454,6 +454,11 @@ describe('events and OpenAPI for design knowledge', () => {
     const ids = new Set(ops.map((o) => o.operationId))
     for (const id of ['createFunction', 'convertToFunction', 'createConstraint', 'promoteStatement', 'createAssumption', 'setAssumptionValidation', 'registerLinkType', 'createDesignLink', 'flagDecisionForReview', 'reviseConstraint', 'decisionRationale', 'reviewEvidence', 'batch', 'traverseGraph', 'graphPaths', 'searchDesign']) expect(ids.has(id), id).toBe(true)
     for (const op of ops) expect(op['x-permissions'], op.operationId).toBeTruthy()
+    const byId = Object.fromEntries(ops.map((o) => [o.operationId, o as Record<string, unknown>]))
+    expect(byId.createDecision['x-r1-operation']).toBe('proposeDecision')
+    expect(byId.putTradeScores['x-r1-operation']).toBe('putScores')
+    expect(byId.createDesignLink['x-r1-operation']).toBe('createLink')
+    expect(byId.createLink['x-r1-note']).toMatch(/createConceptLink/)
     expect(doc.components.schemas.Decision.properties.validity).toBeTruthy()
     expect(doc.components.schemas.Evidence.properties.subjects).toBeTruthy()
   })

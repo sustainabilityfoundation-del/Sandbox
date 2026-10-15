@@ -90,6 +90,24 @@ Assistant (service proposals): `create_function` (one batch), `convert_to_functi
    call (create and record in one step). The batch follows R1 (proposeDecision needs author,
    recordDecision needs decide); the single endpoint keeps v1 behaviour until you decide.
 
+### Coordinator decisions (15 October 2026, after cf33f80)
+
+Deviations 1–5 accepted.
+
+- **(a) Agreed reading of R1-6** (for the notes of `docs/modules/design-reasoning/contract-change-requests.md`;
+  the coordinator reconciles the document): a person (editor or above) may record evidence with basis
+  `evidence` directly when it carries an artifact reference, because verification depends on it. The
+  assistant may never write `evidence`, `user-assertion` or `decision`. Evidence may also become
+  `evidence` when an accepted review exists. Implemented as before (v1).
+- **(b) R1-3 on the single endpoint**: `createDecision` needs the author permission; reviewers get 403
+  ("Reviewers do not author decisions: propose as an editor, then record."); `record: true` is for
+  administrators only. The seed now proposes as eli and records as rui; tests and the browser flow use
+  ada for one-step recording; the dialog shows *Record decision* to administrators only. OpenAPI
+  description and help (`conceptualize.decision`) updated.
+- **(c) Keep v1 operationIds**; OpenAPI operations carry `x-r1-operation` with the R1 name (table
+  `R1_OPERATION` in `http/openapi.ts`), the v1 Concept-link `createLink` carries `x-r1-note`. Mapping in the
+  API help page.
+
 ### Settings Conceptualize would contribute to a future SDK `SettingsContribution`
 
 | Setting | Scope | Today |
