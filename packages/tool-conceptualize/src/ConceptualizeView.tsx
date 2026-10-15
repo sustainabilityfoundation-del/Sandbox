@@ -12,6 +12,7 @@ import { MaturityBadge } from './ui/common'
 import { BranchDialog, NewConceptDialog } from './ui/Dialogs'
 import { ExplorerPanel } from './ui/Explorer'
 import { IntegrationPage } from './ui/Integration'
+import { DesignRecordPanel } from './ui/Knowledge'
 import { ConceptWorkspace } from './ui/Workspace'
 
 const PAGES: { value: ConceptPage; label: string }[] = [
@@ -49,9 +50,10 @@ function ApiView() {
       {permissionsError && <Notice tone="danger" title="The Conceptualize service is not reachable">{permissionsError}</Notice>}
       {graph.error && <Notice tone="danger" title="Concepts could not be loaded">{graph.error}</Notice>}
       {state.page === 'explorer' && (
-        <div className={`con-root${state.conceptId ? ' has-detail' : ''}`}>
+        <div className={`con-root${state.conceptId || state.record ? ' has-detail' : ''}`}>
           <ExplorerPanel graph={graph.data} loading={graph.loading} />
           {state.conceptId && <ConceptWorkspace graph={graph.data} />}
+          {!state.conceptId && state.record && <DesignRecordPanel />}
         </div>
       )}
       {state.page === 'alternatives' && <AlternativesPage />}

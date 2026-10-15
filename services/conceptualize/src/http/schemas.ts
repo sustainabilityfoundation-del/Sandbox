@@ -13,9 +13,9 @@ export const Uuid = Type.String({ format: 'uuid', description: 'Canonical identi
 export const Timestamp = Type.String({ format: 'date-time', description: 'RFC 3339 UTC timestamp with milliseconds, set by the server', examples: ['2026-10-14T09:30:00.000Z'] })
 export const Maturity = L('idea', 'exploring', 'defined', 'evaluated', 'selected', 'engineering-development', 'implemented', 'verified', 'superseded', 'archived')
 export const Abstraction = L('function', 'component', 'assembly', 'subsystem', 'system', 'abstract')
-export const Basis = Type.Union([L('user-assertion', 'ai-hypothesis', 'assumption', 'estimate', 'evidence', 'decision')], {
+export const Basis = Type.Union([L('user-assertion', 'ai-hypothesis', 'assumption', 'assessment', 'estimate', 'calculated', 'evidence', 'decision')], {
   $id: 'Basis',
-  description: 'How it is known: user-assertion (stated by a person), ai-hypothesis (assistant, unverified), assumption, estimate (preliminary calculation), evidence (verified evidence record), decision (recorded decision)',
+  description: 'How it is known (ADR-0043 ladder): user-assertion (stated by a person), ai-hypothesis (assistant, unverified), assumption, assessment (qualitative judgement), estimate (preliminary calculation), calculated (registered model with manifest), evidence (verified), decision (recorded decision)',
 })
 export const StatementKind = L('function', 'behavior', 'principle', 'effect', 'input', 'output', 'constraint', 'interface', 'mechanism', 'problem', 'capability', 'performance', 'assumption', 'uncertainty', 'question', 'rationale', 'note')
 export const VerificationStatus = L('not-verified', 'partially-verified', 'verified', 'failed')
@@ -203,6 +203,7 @@ export const ConceptCreate = Type.Object(
     maturity: Type.Optional(L('idea', 'exploring', 'defined')),
     parentId: Type.Optional(Uuid),
     decompositionId: Type.Optional(Uuid),
+    performs: Type.Optional(Type.Array(Uuid, { maxItems: 20, description: 'Functions this Concept performs (creates performs links; R1 ConceptInput)' })),
     reason: Type.Optional(Text(2000)),
   },
   { $id: 'ConceptCreate', additionalProperties: false, examples: [{ name: 'Thermal management', summary: 'Keep the motor below 80 °C.', abstraction: 'function', parentId: '0c0a0001-0000-4000-8000-000000000001' }] },
@@ -535,7 +536,7 @@ export const Evidence = Type.Object(
     kind: L('calculation', 'analysis', 'simulation', 'test', 'review', 'reference', 'estimate'),
     title: Type.String(),
     summary: Type.String(),
-    basis: L('ai-hypothesis', 'assumption', 'estimate', 'evidence'),
+    basis: L('ai-hypothesis', 'assumption', 'assessment', 'estimate', 'calculated', 'evidence'),
     method: Type.String(),
     inputs: Type.Array(NamedQuantity),
     outputs: Type.Array(NamedQuantity),
@@ -554,7 +555,7 @@ export const EvidenceCreate = Type.Object(
     kind: L('calculation', 'analysis', 'simulation', 'test', 'review', 'reference', 'estimate'),
     title: Text(300, 1),
     summary: Type.Optional(Text(20000)),
-    basis: L('ai-hypothesis', 'assumption', 'estimate', 'evidence'),
+    basis: L('ai-hypothesis', 'assumption', 'assessment', 'estimate', 'calculated', 'evidence'),
     method: Type.Optional(Text(4000)),
     inputs: Type.Optional(Type.Array(NamedQuantity, { maxItems: 100 })),
     outputs: Type.Optional(Type.Array(NamedQuantity, { maxItems: 100 })),
@@ -719,7 +720,7 @@ const EvidenceSeed = Type.Object(
     kind: L('calculation', 'analysis', 'simulation', 'test', 'review', 'reference', 'estimate'),
     title: Text(300, 1),
     summary: Type.Optional(Text(20000)),
-    basis: L('ai-hypothesis', 'assumption', 'estimate'),
+    basis: L('ai-hypothesis', 'assumption', 'assessment', 'estimate'),
     method: Type.Optional(Text(4000)),
     inputs: Type.Optional(Type.Array(NamedQuantity, { maxItems: 100 })),
     outputs: Type.Optional(Type.Array(NamedQuantity, { maxItems: 100 })),
@@ -810,7 +811,31 @@ export const UnitCheck = Type.Object({ unit: Type.String(), valid: Type.Boolean(
 export const ConceptsEvent = Type.Object(
   {
     eventId: Uuid,
-    type: L('concept.created', 'concept.revised', 'concept.relationships-changed', 'concept.implementation-linked', 'concept.implementation-unlinked', 'concept.selected', 'concept.superseded', 'concept.decision-recorded'),
+    type: L(
+      'concept.created',
+      'concept.revised',
+      'concept.relationships-changed',
+      'concept.implementation-linked',
+      'concept.implementation-unlinked',
+      'concept.selected',
+      'concept.superseded',
+      'concept.decision-recorded',
+      'function.created',
+      'function.revised',
+      'function.retired',
+      'constraint.created',
+      'constraint.revised',
+      'constraint.status-changed',
+      'assumption.created',
+      'assumption.revised',
+      'assumption.validation-changed',
+      'evidence.recorded',
+      'evidence.reviewed',
+      'decision.review-flagged',
+      'decision.invalidated',
+      'link.created',
+      'link.removed',
+    ),
     projectId: Type.String(),
     entityId: Type.String(),
     committedRevision: Type.Integer(),

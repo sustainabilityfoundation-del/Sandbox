@@ -200,7 +200,7 @@ function TradeStudyTable({ study, concepts }: { study: TradeStudy; concepts: Map
 }
 
 function DecisionDialog({ set, study, concepts, onClose }: { set: AlternativeSet; study?: TradeStudy; concepts: Map<string, Concept>; onClose: () => void }) {
-  const { client, invalidate, can } = useModuleData()
+  const { client, invalidate, permissions } = useModuleData()
   const [title, setTitle] = useState('')
   const [rationale, setRationale] = useState('')
   const [outcomes, setOutcomes] = useState<Record<string, DecisionOutcomeKind>>(() => Object.fromEntries(set.members.filter((m) => m.status !== 'withdrawn').map((m) => [m.conceptId, 'deferred'])))
@@ -230,7 +230,7 @@ function DecisionDialog({ set, study, concepts, onClose }: { set: AlternativeSet
           <Button variant="outlined" isDisabled={!rationale.trim()} onPress={() => void submit(false)}>
             Propose decision
           </Button>
-          {can('decide') && (
+          {permissions?.role === 'administrator' && (
             <Button variant="filled" isDisabled={!rationale.trim()} onPress={() => void submit(true)}>
               Record decision
             </Button>

@@ -7,10 +7,12 @@ import { useModuleData, useResource } from '../data'
 import { BASIS, KIND_LABEL, KIND_ORDER, MATURITIES, MATURITY, RELATION_LABEL, formatDate, formatQuantity, type ConceptualizeViewState } from '../domain'
 import { ApiErrorNotice, BasisBadge, ConceptLinkButton, MaturityBadge, ProvenanceBadge, Section } from './common'
 import { EvidenceList, ImplementationsPanel, RequirementLinks } from './Integration'
+import { ConceptKnowledge, DecisionRationale, DecisionValidityBadge, RefButton, dref, useStatementRecords } from './Knowledge'
 
 const ABSTRACTIONS: ConceptAbstraction[] = ['function', 'component', 'assembly', 'subsystem', 'system', 'abstract']
 
 function IntentView({ concept }: { concept: Concept }) {
+  const records = useStatementRecords(concept.id)
   const groups = KIND_ORDER.map((k) => ({ kind: k, items: concept.statements.filter((s) => s.kind === k) })).filter((g) => g.items.length)
   return (
     <div className="con-stack">
@@ -44,6 +46,7 @@ function IntentView({ concept }: { concept: Concept }) {
                 <span className="con-row">
                   <BasisBadge basis={s.basis} />
                   {s.state && <Badge tone={s.state === 'open' ? 'warning' : 'success'}>{s.state}</Badge>}
+                  {records.get(s.id) && <RefButton target={dref(records.get(s.id)!.type, records.get(s.id)!.id)} label={`${records.get(s.id)!.key} (${records.get(s.id)!.status})`} />}
                   {s.confirmedBy && <span className="con-muted">confirmed by {s.confirmedBy}</span>}
                   {s.source && <span className="con-muted" title={s.source}>{s.source.length > 40 ? `${s.source.slice(0, 39)}…` : s.source}</span>}
                 </span>
@@ -317,6 +320,18 @@ function DecisionsView({ concept }: { concept: Concept }) {
   )
 }
 
+function RationaleToggle({ d }: { d: import('@ews/conceptualize-client').Decision }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button size="sm" variant="text" icon={open ? 'chevron-down' : 'chevron-right'} onPress={() => setOpen(!open)} data-help-id="conceptualize.decision.rationale">
+        {open ? 'Hide rationale' : 'Rationale and validity'}
+      </Button>
+      {open && <DecisionRationale d={d} />}
+    </>
+  )
+}
+
 export function DecisionList({ decisions }: { decisions: import('@ews/conceptualize-client').Decision[] }) {
   if (!decisions.length) return <p className="con-muted">No decisions yet.</p>
   return (
@@ -329,6 +344,7 @@ export function DecisionList({ decisions }: { decisions: import('@ews/conceptual
             </strong>
             <Badge tone={d.status === 'recorded' ? (d.supersededById ? 'neutral' : 'success') : d.status === 'proposed' ? 'warning' : 'neutral'}>{d.supersededById ? 'superseded' : d.status}</Badge>
             <ProvenanceBadge provenance={d.provenance} />
+            <DecisionValidityBadge d={d} />
           </div>
           <p>{d.rationale}</p>
           <ul className="con-outcomes">
@@ -342,6 +358,7 @@ export function DecisionList({ decisions }: { decisions: import('@ews/conceptual
             Proposed by {d.proposedBy} {formatDate(d.proposedAt)}
             {d.recordedBy ? `; recorded by ${d.recordedBy} ${formatDate(d.recordedAt)}` : ''}
           </span>
+          <RationaleToggle d={d} />
         </li>
       ))}
     </ul>
@@ -423,6 +440,7 @@ export function ConceptWorkspace({ graph }: { graph: Graph | undefined }) {
         <TabList aria-label="Concept sections">
           <Tab id="intent">Intent</Tab>
           <Tab id="structure">Structure</Tab>
+          <Tab id="knowledge">Design knowledge</Tab>
           <Tab id="decisions">Alternatives and decisions</Tab>
           <Tab id="implementations">Implementations</Tab>
           <Tab id="evidence">Evidence</Tab>
@@ -447,6 +465,9 @@ export function ConceptWorkspace({ graph }: { graph: Graph | undefined }) {
         </TabPanel>
         <TabPanel id="structure">
           <StructureView concept={c} graph={graph} />
+        </TabPanel>
+        <TabPanel id="knowledge">
+          <ConceptKnowledge concept={c} graph={graph} />
         </TabPanel>
         <TabPanel id="decisions">
           <DecisionsView concept={c} />

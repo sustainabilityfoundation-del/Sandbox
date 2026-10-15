@@ -1,5 +1,7 @@
-import { ActionError, argOptionalString, argString, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
-import { draftConcept, getConceptsModuleClient, type Concept, type ConceptsModuleClient, type Provenance } from '@ews/conceptualize-client'
+import { ActionError, argOptionalString, argString, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposalItem } from '@ews/platform-sdk'
+import { draftConcept } from '@ews/conceptualize-client'
+import { designActions, designDemo } from './assistantDesign'
+import { assistantProvenance, connection, proposal, resolve, string } from './assistantShared'
 import { GENERATOR, generateExploration } from './ai/generator'
 import { formatQuantity, KIND_LABEL } from './domain'
 
@@ -12,39 +14,7 @@ import { formatQuantity, KIND_LABEL } from './domain'
  * change (archive, withdraw, unlink), never a deletion.
  */
 
-const MODULE = 'conceptualize'
-const KEY = /^CON-\d{3,}$/i
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function connection(ctx: AssistantActionContext): { client: ConceptsModuleClient; projectId: string } {
-  const projectId = ctx.captured.projectId
-  const client = getConceptsModuleClient(ctx.services?.concepts, projectId)
-  if (!client) throw new ActionError('not-available', ctx.services?.concepts ? 'Conceptualize runs on demo data here; changes and the assistant need API mode (service settings).' : 'The Conceptualize service is not available here.')
-  return { client, projectId }
-}
-
-async function resolve(client: ConceptsModuleClient, idOrKey: string): Promise<Concept> {
-  try {
-    if (UUID.test(idOrKey)) return await client.concept(idOrKey)
-    if (KEY.test(idOrKey)) {
-      const page = await client.list({ text: idOrKey.toUpperCase(), includeArchived: true, limit: 20 })
-      const hit = page.items.find((c) => c.key.toUpperCase() === idOrKey.toUpperCase())
-      if (hit) return await client.concept(hit.id)
-    }
-  } catch {
-    /* reported below */
-  }
-  throw new ActionError('not-found', `${idOrKey} is not a Concept in this project (use its key, e.g. CON-001, or its UUID).`)
-}
-
-const assistantProvenance = (p: { conversationId: string; proposalId: string; messageId: string }): Provenance => ({ sourceKind: 'assistant', conversationId: p.conversationId, proposalId: p.proposalId, messageId: p.messageId })
-const string = { type: 'string' }
-
-function proposal(p: Omit<ServiceProposal, 'kind' | 'module'>): ServiceProposal {
-  return { kind: 'service-proposal', module: MODULE, ...p }
-}
-
-const actions: AssistantActionDefinition[] = [
+const conceptActions: AssistantActionDefinition[] = [
   {
     name: 'conceptualize.search',
     label: 'Search Concepts',
@@ -388,7 +358,9 @@ const CON = /\b(CON-\d{3,})\b/i
  * DEMO ONLY: maps example prompts to `concepts.*` calls for the scripted demo assistant (no model provider).
  * The reply says it is a scripted demo and that results are AI hypotheses.
  */
-export const conceptsDemo: DemoPlanner = (text) => {
+export const conceptsDemo: DemoPlanner = (text, ctx) => {
+  const design = designDemo(text, ctx)
+  if (design) return design
   const t = text.trim()
   const note = '\n\nScripted demo assistant: no language model is connected; the interpretation and estimates are deterministic and labelled as AI hypotheses.'
   let m: RegExpExecArray | null
@@ -428,5 +400,7 @@ export const conceptsDemo: DemoPlanner = (text) => {
   }
   return null
 }
+
+const actions: AssistantActionDefinition[] = [...conceptActions, ...designActions]
 
 export const conceptsAssistant: AssistantContribution = { actions, demo: conceptsDemo }

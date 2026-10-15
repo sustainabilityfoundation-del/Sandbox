@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { conflict, forbidden, invalid, notFound } from '../errors'
 import { GATED_MATURITIES, KEY_PREFIX, roleAllows } from '../domain/rules'
-import type { AlternativeSetDto, DecisionCreateDto, DecisionDto } from '../http/schemas'
+import type { AlternativeSetDto } from '../http/schemas'
+import type { DecisionCreateVDto as DecisionCreateDto, DecisionVDto as DecisionDto, DesignRefDto } from '../http/designSchemas'
 import { getConcepts, setMaturity } from './concepts'
 import { audit, emit, isUuid, iso, isoRequired, nextKey, prov, type Ctx, type Queryable } from './context'
 
@@ -131,7 +132,36 @@ interface DecisionRow {
   source_kind: DecisionDto['provenance']['sourceKind']
   conversation_id: string | null
   proposal_id: string | null
+  support: DecisionDto['support']
+  assumption_refs: DecisionDto['assumptionIds']
+  constraint_refs: DecisionDto['constraintIds']
+  affected: DecisionDto['affected']
+  invalidation_conditions: DecisionDto['invalidationConditions']
+  validity: DecisionDto['validity']
+  review_flags: DecisionDto['reviewFlags']
 }
+type FlagRecord = DecisionDto['reviewFlags'][number]
+/** Flags written before R1 used flaggedBy/flaggedAt, impactReportRef and cleared.reason. */
+function normalizeFlag(raw: unknown): FlagRecord {
+  const f = raw as Record<string, unknown> & { cleared?: Record<string, string> }
+  const cleared = f.cleared ? { at: String(f.cleared.at), by: String(f.cleared.by), note: String(f.cleared.note ?? f.cleared.reason ?? ''), ...(f.cleared.outcome ? { outcome: String(f.cleared.outcome) } : {}) } : undefined
+  return {
+    at: String(f.at ?? f.flaggedAt),
+    by: String(f.by ?? f.flaggedBy),
+    reason: String(f.reason ?? ''),
+    ...(f.impactReportId ? { impactReportId: String(f.impactReportId) } : {}),
+    ...(f.conditionId ? { conditionId: String(f.conditionId) } : {}),
+    ...(f.sourceKind ? { sourceKind: String(f.sourceKind) } : {}),
+    ...(cleared ? { cleared } : {}),
+  }
+}
+/** R1-7: validity is derived from the stored invalidation, supersession by a recorded decision and uncleared flags. */
+function deriveValidity(r: DecisionRow): DecisionDto['validity'] {
+  if (r.validity === 'invalidated' || (r.status === 'recorded' && r.superseded_by_id)) return 'invalidated'
+  if ((r.review_flags ?? []).some((f) => !(f as { cleared?: unknown }).cleared)) return 'under-review'
+  return 'valid'
+}
+
 const toDecision = (r: DecisionRow): DecisionDto => ({
   id: r.id,
   key: r.key,
@@ -151,6 +181,13 @@ const toDecision = (r: DecisionRow): DecisionDto => ({
   recordedAt: iso(r.recorded_at),
   recordVersion: r.record_version,
   provenance: { sourceKind: r.source_kind, conversationId: r.conversation_id, proposalId: r.proposal_id },
+  support: r.support,
+  assumptionIds: r.assumption_refs,
+  constraintIds: r.constraint_refs,
+  affected: r.affected,
+  invalidationConditions: r.invalidation_conditions,
+  validity: deriveValidity(r),
+  reviewFlags: (r.review_flags ?? []).map(normalizeFlag),
 })
 
 export async function getDecision(db: Queryable, projectId: string, id: string): Promise<DecisionDto | undefined> {
@@ -179,11 +216,16 @@ export async function listDecisions(db: Queryable, projectId: string, filter: { 
 const needsDecide = (outcomes: DecisionDto['outcomes']) => outcomes.some((o) => o.outcome === 'accepted' || o.outcome === 'rejected')
 
 /**
- * Creates a design decision. Proposed decisions may be created by editors (and by the assistant);
- * recording accepted or rejected outcomes is the approval gate (reviewer or administrator, never the
- * assistant). Deferred-only decisions may be recorded by editors.
+ * Creates a design decision. Editors (and the assistant) propose; recording accepted or rejected
+ * outcomes is the approval gate (recordDecision: reviewer or administrator, never the assistant).
+ * Deferred-only decisions may be recorded by editors through recordDecision; record: true is
+ * administrator-only.
  */
 export async function createDecision(ctx: Ctx, input: DecisionCreateDto): Promise<DecisionDto> {
+  // R1-3 (agreed 15 Oct 2026): reviewers do not author; creating and recording in one step would bypass
+  // the two-person gate, so record: true is for administrators only.
+  if (!roleAllows(ctx.role, 'author')) throw forbidden('Reviewers do not author decisions: propose as an editor, then record.')
+  if (input.record && ctx.role !== 'administrator') throw forbidden('Creating and recording a decision in one step needs an administrator: propose as an editor, then record (two-person gate).')
   if (!input.subjectId && !input.setId) throw invalid('A decision is about a Concept (subjectId) or an alternative set (setId).', { subjectId: 'or setId required' })
   const ids = [...new Set(input.outcomes.map((o) => o.conceptId))]
   if (ids.length !== input.outcomes.length) throw invalid('Each Concept may appear once in the outcomes.', { outcomes: 'duplicate Concept' })
@@ -207,13 +249,14 @@ export async function createDecision(ctx: Ctx, input: DecisionCreateDto): Promis
     if (old.status !== 'recorded') throw invalid('Only a recorded decision can be superseded.', { supersedesId: old.status })
     if (old.supersededById) throw conflict(`${old.key} is already superseded.`)
   }
+  const ext = await validateExtensions(ctx, input)
   const id = randomUUID()
   const key = await nextKey(ctx, KEY_PREFIX.decision, 'decisions')
   const [sourceKind, conversationId, proposalId] = prov(ctx)
   await ctx.db.query(
-    `INSERT INTO conceptualize.decisions (id, project_id, key, title, question, rationale, subject_id, set_id, trade_study_id, outcomes, status, supersedes_id, proposed_by, proposed_at, source_kind, conversation_id, proposal_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'proposed',$11,$12,$13,$14,$15,$16)`,
-    [id, ctx.projectId, key, input.title.trim(), (input.question ?? '').trim(), input.rationale.trim(), input.subjectId ?? null, input.setId ?? null, input.tradeStudyId ?? null, JSON.stringify(input.outcomes.map((o) => ({ conceptId: o.conceptId, outcome: o.outcome, rationale: (o.rationale ?? '').trim() }))), input.supersedesId ?? null, ctx.actor, ctx.now, sourceKind, conversationId, proposalId],
+    `INSERT INTO conceptualize.decisions (id, project_id, key, title, question, rationale, subject_id, set_id, trade_study_id, outcomes, status, supersedes_id, proposed_by, proposed_at, source_kind, conversation_id, proposal_id, support, assumption_refs, constraint_refs, affected, invalidation_conditions)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'proposed',$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+    [id, ctx.projectId, key, input.title.trim(), (input.question ?? '').trim(), input.rationale.trim(), input.subjectId ?? null, input.setId ?? null, input.tradeStudyId ?? null, JSON.stringify(input.outcomes.map((o) => ({ conceptId: o.conceptId, outcome: o.outcome, rationale: (o.rationale ?? '').trim() }))), input.supersedesId ?? null, ctx.actor, ctx.now, sourceKind, conversationId, proposalId, JSON.stringify(ext.support), JSON.stringify(ext.assumptionIds), JSON.stringify(ext.constraintIds), JSON.stringify(ext.affected), JSON.stringify(ext.invalidationConditions)],
   )
   await audit(ctx, { entityType: 'decision', entityId: id, conceptIds: [...ids, ...(input.subjectId ? [input.subjectId] : [])], action: 'proposed', details: { key, outcomes: input.outcomes } })
   if (input.record) return recordDecision(ctx, id, 1)
@@ -243,8 +286,10 @@ export async function recordDecision(ctx: Ctx, id: string, expected: number, rea
   if (d.supersedesId) {
     const old = await getDecision(ctx.db, ctx.projectId, d.supersedesId)
     if (old?.supersededById) throw conflict(`${old.key} is already superseded.`)
-    await ctx.db.query('UPDATE conceptualize.decisions SET superseded_by_id = $2, record_version = record_version + 1 WHERE id = $1', [d.supersedesId, id])
+    // R1-7: superseding by a recorded decision invalidates the old one (its record is otherwise unchanged).
+    await ctx.db.query("UPDATE conceptualize.decisions SET superseded_by_id = $2, validity = CASE WHEN status = 'recorded' THEN 'invalidated' ELSE validity END, record_version = record_version + 1 WHERE id = $1", [d.supersedesId, id])
     await audit(ctx, { entityType: 'decision', entityId: d.supersedesId, action: 'superseded', details: { by: id } })
+    if (old?.status === 'recorded') await emit(ctx, 'decision.invalidated', d.supersedesId, (old.recordVersion ?? 0) + 1)
   }
   await ctx.db.query(`UPDATE conceptualize.decisions SET status = 'recorded', recorded_by = $2, recorded_at = $3, record_version = record_version + 1 WHERE id = $1`, [id, ctx.actor, ctx.now])
   const concepts = await getConcepts(ctx.db, ctx.projectId, d.outcomes.map((o) => o.conceptId))
@@ -273,4 +318,137 @@ export async function withdrawDecision(ctx: Ctx, id: string, expected: number, r
   await audit(ctx, { entityType: 'decision', entityId: id, conceptIds: d.outcomes.map((o) => o.conceptId), action: 'withdrawn', reason })
   await emit(ctx, 'concept.decision-recorded', id, d.recordVersion + 1)
   return (await getDecision(ctx.db, ctx.projectId, id))!
+}
+
+// ---- decision extensions (CR-C5) --------------------------------------------------------------------------------
+
+/** Validates support, assumptions, constraints (pinned to their current revision when not given), affected refs and invalidation conditions. */
+async function validateExtensions(ctx: Ctx, input: DecisionCreateDto) {
+  const { requireRefs, describeRefs } = await import('./refs')
+  const { artifactProblem } = await import('./implementations')
+  const support = input.support ?? []
+  if (support.length) {
+    if (support.some((x) => x.ref.type !== 'evidence')) throw invalid('Support references evidence records.', { support: 'evidence refs only' })
+    await requireRefs(ctx.db, ctx.projectId, support.map((x) => x.ref), 'support')
+  }
+  const pin = async (raw: { id: string; type?: string; revision?: number }[], type: 'assumption' | 'constraint', field: string) => {
+    if (raw.some((x) => x.type !== undefined && x.type !== type)) throw invalid(`${field} references ${type} records.`, { [field]: `${type} refs only` })
+    const found = await requireRefs(ctx.db, ctx.projectId, raw.map((x) => ({ type, id: x.id })), field)
+    return raw.map((x, i) => {
+      const current = found.find((f) => f.ref.id === x.id)!.revision ?? 1
+      if (x.revision !== undefined && x.revision > current) throw invalid(`${field}: revision ${x.revision} of ${type} ${x.id} does not exist (current ${current}).`, { [`${field}.${i}.revision`]: 'not a revision' })
+      return { module: 'conceptualize' as const, type, id: x.id, revision: x.revision ?? current }
+    })
+  }
+  const assumptionIds = await pin(input.assumptionIds ?? [], 'assumption', 'assumptionIds')
+  const constraintIds = await pin(input.constraintIds ?? [], 'constraint', 'constraintIds')
+  const affected = input.affected ?? []
+  for (const [i, a] of affected.entries()) {
+    if ((a as { module: string }).module === 'conceptualize') await requireRefs(ctx.db, ctx.projectId, [a as DesignRefDto], `affected.${i}`)
+    else {
+      const p = artifactProblem(a as never)
+      if (p) throw invalid('An affected artifact reference is not valid.', { [`affected.${i}`]: p })
+    }
+  }
+  const invalidationConditions = (input.invalidationConditions ?? []).map((c, i) => ({ ...c, id: c.id ?? `IC-${i + 1}` }))
+  for (const [i, c] of invalidationConditions.entries()) {
+    if ((c.subject as { module: string }).module === 'conceptualize') await requireRefs(ctx.db, ctx.projectId, [c.subject as DesignRefDto], `invalidationConditions.${i}.subject`)
+    if (c.kind === 'relation-violated' && !c.relation) throw invalid('A relation-violated condition names the model relation.', { [`invalidationConditions.${i}.relation`]: 'required' })
+  }
+  void describeRefs
+  return { support, assumptionIds, constraintIds, affected, invalidationConditions }
+}
+
+/**
+ * Flags a recorded decision for review (validity under-review) with a reason and an optional impact report;
+ * the decision record itself is not edited. Authors (or the assistant through an applied proposal) may flag.
+ */
+export async function flagDecision(ctx: Ctx, id: string, input: { reason: string; impactReportId?: string; impactReportRef?: unknown; conditionId?: string }): Promise<DecisionDto> {
+  if (!roleAllows(ctx.role, 'author') && !roleAllows(ctx.role, 'decide')) throw forbidden('Flagging a decision needs an editor, reviewer or administrator.')
+  if (!input.reason?.trim()) throw invalid('A review flag needs a reason.', { reason: 'required' })
+  if (!isUuid(id)) throw notFound(`Decision ${id} not found.`)
+  const { rows } = await ctx.db.query<DecisionRow>('SELECT * FROM conceptualize.decisions WHERE id = $1 AND project_id = $2 FOR UPDATE', [id, ctx.projectId])
+  if (!rows[0]) throw notFound(`Decision ${id} not found.`)
+  const d = toDecision(rows[0])
+  if (d.status !== 'recorded') throw conflict(`${d.key} is ${d.status}; only recorded decisions are flagged for review.`)
+  if (d.validity === 'invalidated') throw conflict(`${d.key} is already invalidated.`)
+  if (input.conditionId && !d.invalidationConditions.some((c) => c.id === input.conditionId)) throw invalid('Unknown invalidation condition.', { conditionId: 'not a condition of this decision' })
+  const flag = { at: ctx.now.toISOString(), by: ctx.actor, reason: input.reason.trim(), ...(input.impactReportId ? { impactReportId: input.impactReportId } : {}), ...(input.impactReportRef ? { impactReportRef: input.impactReportRef } : {}), ...(input.conditionId ? { conditionId: input.conditionId } : {}), sourceKind: ctx.provenance.sourceKind }
+  await ctx.db.query(`UPDATE conceptualize.decisions SET validity = 'under-review', review_flags = review_flags || $2::jsonb, record_version = record_version + 1 WHERE id = $1`, [id, JSON.stringify([flag])])
+  await audit(ctx, { entityType: 'decision', entityId: id, conceptIds: d.outcomes.map((o) => o.conceptId), action: 'review-flagged', reason: input.reason, details: flag })
+  await emit(ctx, 'decision.review-flagged', id, d.recordVersion + 1)
+  return (await getDecision(ctx.db, ctx.projectId, id))!
+}
+
+/** Reviewer clears a review flag (valid) or records the decision as invalidated (a person's action, ADR-0046). */
+export async function changeValidity(ctx: Ctx, id: string, validity: 'valid' | 'invalidated', expected: number, reason: string, invalidatedBy?: unknown): Promise<DecisionDto> {
+  if (!roleAllows(ctx.role, 'decide')) throw forbidden('Clearing a review flag or recording invalidation needs a reviewer or administrator.')
+  if (ctx.provenance.sourceKind === 'assistant') throw forbidden('The assistant cannot change the validity of a decision.')
+  const d = await lockDecision(ctx, id, expected)
+  if (d.status !== 'recorded') throw conflict(`${d.key} is ${d.status}.`)
+  if (d.validity === validity) throw invalid(`${d.key} is already ${validity}.`)
+  if (d.validity === 'invalidated') throw conflict(`${d.key} is invalidated; record a superseding decision instead.`)
+  const cleared = { by: ctx.actor, at: ctx.now.toISOString(), outcome: validity, note: reason }
+  const flags = d.reviewFlags.map((f) => ((f as { cleared?: unknown }).cleared ? f : { ...f, cleared }))
+  await ctx.db.query('UPDATE conceptualize.decisions SET validity = $2, review_flags = $3, record_version = record_version + 1 WHERE id = $1', [id, validity, JSON.stringify(flags)])
+  await audit(ctx, { entityType: 'decision', entityId: id, conceptIds: d.outcomes.map((o) => o.conceptId), action: validity === 'invalidated' ? 'invalidated' : 'review-cleared', reason, details: { invalidatedBy: invalidatedBy ?? null } })
+  if (validity === 'invalidated') await emit(ctx, 'decision.invalidated', id, d.recordVersion + 1)
+  else await emit(ctx, 'concept.decision-recorded', id, d.recordVersion + 1)
+  return (await getDecision(ctx.db, ctx.projectId, id))!
+}
+
+/** Deterministic rationale: the decision with alternatives, support, assumptions, constraints, study and validity. */
+export async function decisionRationale(db: Queryable, projectId: string, id: string) {
+  const d = await getDecision(db, projectId, id)
+  if (!d) throw notFound(`Decision ${id} not found.`)
+  const { describeRefs } = await import('./refs')
+  const set = d.setId ? await getSet(db, projectId, d.setId) : undefined
+  const altIds = [...new Set([...(set?.members.map((m) => m.conceptId) ?? []), ...d.outcomes.map((o) => o.conceptId)])]
+  const concepts = await getConcepts(db, projectId, altIds)
+  const alternatives = altIds.map((cid) => {
+    const c = concepts.find((x) => x.id === cid)
+    const o = d.outcomes.find((x) => x.conceptId === cid)
+    return { ref: { module: 'conceptualize' as const, type: 'concept' as const, id: cid }, key: c?.key ?? '', name: c?.name ?? '', outcome: o?.outcome ?? null, outcomeRationale: o?.rationale ?? '', memberStatus: set?.members.find((m) => m.conceptId === cid)?.status ?? null }
+  })
+  const ev = d.support.length ? (await db.query<{ id: string; key: string; title: string; basis: string; outcome: string | null }>(`SELECT e.id::text, e.key, e.title, e.basis, (SELECT r.outcome FROM conceptualize.evidence_reviews r WHERE r.evidence_id = e.id ORDER BY r.reviewed_at DESC LIMIT 1) AS outcome FROM conceptualize.evidence e WHERE e.id = ANY($1::uuid[])`, [d.support.map((x) => x.ref.id)])).rows : []
+  const support = d.support.map((x) => {
+    const e = ev.find((r) => r.id === x.ref.id)
+    return { ref: x.ref, key: e?.key ?? '', title: e?.title ?? '', role: x.role, basis: e?.basis ?? '', validationStatus: e?.outcome ?? 'unreviewed' }
+  })
+  const infos = await describeRefs(db, projectId, [...d.assumptionIds, ...d.constraintIds])
+  const { rows: texts } = await db.query<{ id: string; text: string }>(
+    `SELECT a.id::text, v.statement AS text FROM conceptualize.assumptions a JOIN conceptualize.assumption_revisions v ON v.assumption_id = a.id AND v.revision = a.current_revision WHERE a.id = ANY($1::uuid[])
+     UNION ALL SELECT c.id::text, v.statement FROM conceptualize.design_constraints c JOIN conceptualize.constraint_revisions v ON v.constraint_id = c.id AND v.revision = c.current_revision WHERE c.id = ANY($1::uuid[])`,
+    [[...d.assumptionIds, ...d.constraintIds].map((x) => x.id)],
+  )
+  const stale: string[] = []
+  const pinned = (x: DesignRefDto) => {
+    const info = infos.find((i) => i.ref.id === x.id)
+    if (info && x.revision && info.revision !== x.revision) stale.push(`${info.key} pinned at revision ${x.revision}, now ${info.revision}`)
+    return { ref: x, key: info?.key ?? '', statement: texts.find((t) => t.id === x.id)?.text ?? '', pinnedRevision: x.revision ?? null, currentRevision: info?.revision ?? 0, status: info?.status ?? '' }
+  }
+  const assumptions = d.assumptionIds.map((x) => { const p = pinned(x); return { ref: p.ref, key: p.key, statement: p.statement, pinnedRevision: p.pinnedRevision, currentRevision: p.currentRevision, validationStatus: p.status } })
+  const constraints = d.constraintIds.map(pinned)
+  let tradeStudy = null
+  if (d.tradeStudyId) {
+    const { getStudy } = await import('./tradeStudies')
+    const t = await getStudy(db, projectId, d.tradeStudyId)
+    if (t) tradeStudy = { ref: { module: 'conceptualize' as const, type: 'trade-study' as const, id: t.id }, key: t.key, title: t.title, ranking: t.result.ranking, preliminary: t.result.preliminary }
+  }
+  const keyOf = async (did: string | null) => (did ? ((await getDecision(db, projectId, did))?.key ?? did) : null)
+  return {
+    decision: d,
+    question: d.question,
+    alternatives,
+    support,
+    assumptions,
+    constraints,
+    tradeStudy,
+    invalidationConditions: d.invalidationConditions,
+    validity: d.validity,
+    reviewFlags: d.reviewFlags,
+    supersedes: await keyOf(d.supersedesId),
+    supersededBy: await keyOf(d.supersededById),
+    stale,
+  }
 }
