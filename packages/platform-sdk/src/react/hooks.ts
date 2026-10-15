@@ -11,7 +11,8 @@ import {
   type RepresentationKind,
   type Resolution,
 } from '@ews/model-service'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import type { SettingValue } from '../contract/settings'
 import type { ArtifactFilter, SharedContext, ToolApi, ToolCommand, ViewStateUpdate } from '../contract/tool'
 import { shallowEqual, useHostValue, usePlatformHost, useToolScope } from './host'
 
@@ -204,4 +205,13 @@ export function useUnsavedChanges(dirty: boolean): void {
 
 export function hasUnsavedChanges(): boolean {
   return dirtySources.size > 0
+}
+
+/**
+ * The effective value of a setting (SDK 1.6): the person's value clamped to the project ceiling, else the
+ * definition's default; undefined for an unknown ID. Re-renders when the value changes in any window.
+ */
+export function useSetting<T extends SettingValue = SettingValue>(id: string): T | undefined {
+  const api = useToolApi()
+  return useSyncExternalStore(api.settings.subscribe, () => api.settings.get(id) as T | undefined)
 }

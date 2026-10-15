@@ -1,0 +1,18 @@
+/**
+ * @ews/assistant-service: provider-neutral model backend for the workspace assistant (docs/specifications/
+ * ai-connection.md). Provider registry and adapters (OpenAI first), account connections with encrypted
+ * credentials, the server-enforced AI access policy, audit; a Fastify plugin hosted by @ews/api at
+ * /api/assistant/v1. Server-side callers (for example the design reasoning model gateway) use
+ * `AssistantBackend.complete`.
+ */
+export { assistantPlugin, assistantOpenApi, registerOAuthCallback, ASSISTANT_BASE_PATH, ASSISTANT_API_VERSION, type AssistantPluginOptions } from './plugin'
+export { AssistantBackend, AssistantError, safeReturnTo, type Principal, type SettingsAccess, type AssistantBackendOptions } from './service'
+export { CredentialVault } from './crypto'
+export { ProviderRegistry } from './providers/registry'
+export { createOpenAIProvider, OPENAI_DEFAULT_MODEL, toFunctionName, type OpenAIProviderOptions } from './providers/openai'
+export { createFakeProvider, FAKE_PROVIDER_ID } from './providers/fake'
+export { ProviderError, type AssistantProvider, type AuthMethod, type ProviderCredential, type ProviderMessage, type ProviderModel, type ProviderTool, type RespondInput, type RespondOutput } from './providers/types'
+export { AI_MODULES, AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS, OPERATION_CATALOGUE, OPERATION_CLASSES, classify, decide, policyFromSettings, type AiPolicy, type AccessLevel, type OperationClass } from './policy'
+export { migrateAssistant, ASSISTANT_MIGRATIONS } from './db/migrate'
+export type { WireRequest, WireResponse } from './wire'
+export { loadAssistantKey } from './keyfile'

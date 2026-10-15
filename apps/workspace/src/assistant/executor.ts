@@ -6,6 +6,7 @@ import { registerServiceHandlers } from './serviceProposals'
 import type { ToolAccess } from '../platform/entitlements'
 import { affectedOutputs, buildPreview, buildUndo, describeChange } from './proposals'
 import { findToolAction, isPlatformOperation, operationLabel } from './toolSpecs'
+import { clientDecision } from './aiPolicy'
 import type { CapturedMessageContext, ChangeProposal, PreviewChange, ToolCallRequest, ToolCallResult } from './types'
 
 /** What the assistant may touch in the application. Implemented over existing workspace services. */
@@ -381,6 +382,9 @@ function proposeService(ctx: ExecutionContext, entitlement: EntitlementId, resul
 export async function executeToolCall(call: ToolCallRequest, ctx: ExecutionContext): Promise<ToolOutcome> {
   const label = operationLabel(call.name)
   try {
+    // The AI access settings, checked again at execution (the server already refused disallowed calls).
+    const allowed = clientDecision(call.name)
+    if (!allowed.ok) throw new ToolError('not-allowed', `${allowed.reason} Nothing was run.`)
     const outcome = isPlatformOperation(call.name) ? await handlers[call.name](call.arguments ?? {}, ctx) : await runToolAction(call, ctx)
     return { callId: call.id, name: call.name, ok: true, ...outcome }
   } catch (error) {

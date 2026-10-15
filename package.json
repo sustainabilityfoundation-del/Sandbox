@@ -43,7 +43,10 @@
     "sysml:dev": "npm run dev -w @ews/tool-sysml-modeler",
     "sysml:test": "vitest run packages/sysml-core packages/sysml-client packages/tool-sysml-modeler",
     "sysml:library": "tsx packages/sysml-core/scripts/fetch-official.ts",
-    "sysml:conformance": "vitest run --config packages/sysml-core/vitest.official.config.ts"
+    "sysml:conformance": "vitest run --config packages/sysml-core/vitest.official.config.ts",
+    "ai:test": "vitest run services/assistant services/settings packages/platform-sdk/src/contract/settings.test.ts apps/workspace/src/settings apps/workspace/src/assistant",
+    "ai:test:db": "vitest run --config services/api/vitest.db.config.ts services/assistant services/settings",
+    "ai:dev:fake": "node services/assistant/scripts/dev-fake.mjs"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

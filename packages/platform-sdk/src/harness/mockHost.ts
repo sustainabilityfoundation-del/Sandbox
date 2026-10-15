@@ -1,3 +1,4 @@
+import { createMemorySettingsService, type SettingValue } from '../contract/settings'
 import type { PlatformServices } from '../contract/requirements'
 import {
   DemoRepository,
@@ -49,10 +50,13 @@ export interface MockHostOptions {
   latencyMs?: [number, number]
   /** Platform services the harness provides (SDK 1.2), e.g. a Requirements service adapter. */
   services?: PlatformServices
+  /** Setting values for the harness (SDK 1.6); defaults come from the tool's settings definitions. */
+  settings?: Record<string, SettingValue>
 }
 
 export function createMockHost(tool: AnyToolDefinition, options: MockHostOptions = {}): MockHost {
   const services: PlatformServices = options.services ?? {}
+  const settings = createMemorySettingsService(tool.settings?.definitions ?? [], options.settings)
   const repository = new DemoRepository({
     storage: browserStorage(),
     storageKey: options.storageKey ?? `ews.harness.${tool.id}.v1`,
@@ -119,6 +123,7 @@ export function createMockHost(tool: AnyToolDefinition, options: MockHostOptions
       toolId,
       viewId,
       services,
+      settings,
       getContext: () => getContext(viewId),
       getModel: model,
       select: (ids) => host.select(ids, viewId),
