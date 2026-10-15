@@ -20,8 +20,8 @@ import type { CadEvent, CadEventHub } from './events'
  */
 
 export const CAD_ARTIFACT_KINDS: ArtifactKindInfo[] = [
-  { kind: 'cad-document', label: 'CAD document', category: 'geometry', navigable: false },
-  { kind: 'cad-modeler-entity', label: 'CAD part', category: 'geometry', navigable: false },
+  { kind: 'cad-document', label: 'CAD document', category: 'geometry', navigable: true },
+  { kind: 'cad-modeler-entity', label: 'CAD part', category: 'geometry', navigable: true },
 ]
 
 type DocRow = { id: string; project_id: string; title: string; current_revision: number; archived: boolean; created_at: Date; created_by: string; updated_at: Date; updated_by: string; content: CadDocument }
@@ -29,6 +29,8 @@ type DocRow = { id: string; project_id: string; title: string; current_revision:
 const docRef = (id: string): NativeRef => ({ module: 'cad', kind: 'cad-document', id })
 const partRef = (doc: string, part: string): NativeRef => ({ module: 'cad', kind: 'cad-modeler-entity', id: `${doc}/${part}` })
 const short = (uuid: string) => uuid.slice(0, 8)
+/** Workspace deep link (?tool=cad-modeler&document=<uuid>): opens the current revision; parts open their document. */
+const openLink = (documentId: string) => ({ toolId: 'cad-modeler', params: { document: documentId } })
 
 function relationsOf(doc: CadDocument, subject: string): ArtifactDescriptor['relations'] {
   const out = (doc.references ?? [])
@@ -45,11 +47,11 @@ function descriptorsOf(d: DocRow): ArtifactDescriptor[] {
   const doc = d.content
   const docRel = relationsOf(doc, doc.documentId)
   return [
-    { ref: docRef(d.id), key: `CAD ${short(d.id)}`, title: d.title, ...common, ...(docRel ? { relations: docRel } : {}) },
+    { ref: docRef(d.id), key: `CAD ${short(d.id)}`, title: d.title, ...common, open: openLink(d.id), ...(docRel ? { relations: docRel } : {}) },
     ...doc.parts.map((p): ArtifactDescriptor => {
       const rel = relationsOf(doc, p.id)
       // Part times are the document's: the service versions whole documents, not single parts.
-      return { ref: partRef(d.id, p.id), key: `CAD ${short(d.id)}/${p.id}`, title: p.name, ...common, container: docRef(d.id), ...(rel ? { relations: rel } : {}) }
+      return { ref: partRef(d.id, p.id), key: `CAD ${short(d.id)}/${p.id}`, title: p.name, ...common, container: docRef(d.id), open: openLink(d.id), ...(rel ? { relations: rel } : {}) }
     }),
   ]
 }

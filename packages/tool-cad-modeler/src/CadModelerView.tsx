@@ -6,6 +6,7 @@ import { OpenDialog } from './ui/OpenDialog'
 import { useCallback, useEffect, type KeyboardEvent } from 'react'
 import { plateCommands } from './assistant'
 import { cadSession, useCadSession, useEngineState } from './session'
+import { takeCadDeepLink } from './deepLink'
 import { DiagnosticsPanel } from './ui/DiagnosticsPanel'
 import { EditPanel } from './ui/EditPanel'
 import { InspectPanel } from './ui/InspectPanel'
@@ -26,6 +27,16 @@ export default function CadModelerView() {
   useEffect(() => {
     if (session.store) cadSession.watchProject(projectId)
   }, [projectId, session.store])
+  // Deep link ?tool=cad-modeler&document=<uuid>[&revision=<n>]: open the stored document once.
+  useEffect(() => {
+    if (!session.store) return
+    const link = takeCadDeepLink()
+    if (!link) return
+    cadSession.openFromStore(projectId, link.documentId, link.revision).then(
+      (d) => setVs({ documentId: d.id }),
+      (e) => useToasts.getState().push({ tone: 'danger', title: 'Cannot open the linked CAD document', body: e instanceof Error ? e.message : String(e) }),
+    )
+  }, [projectId, session.store, setVs])
   const own = cadSession.document(vs.documentId)
   const open = (own && cadSession.inCurrentProject(own) ? own : undefined) ?? cadSession.active
   const state = useEngineState(open?.engine)

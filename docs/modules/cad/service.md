@@ -117,7 +117,7 @@ into the Project Management plugin. That wiring is the coordinator's and is not 
 
 | Aspect | Behaviour |
 | --- | --- |
-| Kinds | `cad-document` (id = document UUID) and `cad-modeler-entity` (id = `<documentUuid>/<partId>`, CR-CAD-1, container = the document). Both are category `geometry`. `navigable: false`, because the workspace has no deep link into the CAD Modeler yet. Assemblies and configurations do not exist in ews-cad 1.1; they will use `cad-modeler-entity` when added |
+| Kinds | `cad-document` (id = document UUID) and `cad-modeler-entity` (id = `<documentUuid>/<partId>`, CR-CAD-1, container = the document). Both are category `geometry`. `navigable: true`; `open` is the workspace link `?tool=cad-modeler&document=<uuid>` (parts open their document). Assemblies and configurations do not exist in ews-cad 1.1; they will use `cad-modeler-entity` when added |
 | `list` | Current revisions, ordered by document UUID, then the document and its parts in file order. At most 500 per page, with an opaque cursor; an invalid cursor is an error. Optional `kinds` filter. An unknown or new project gives an empty page. Archived documents and their parts are listed with lifecycle `retired` and moduleState `archived`; others are `working` / `active` |
 | Descriptor | key `CAD <first 8 of UUID>[/<partId>]`; title (document title or part name); version `{ value: revision, label: 'Revision n', at }`; created and modified at and by. Part times are the document's, because the service versions whole documents. `relations` come from the document's outbound references whose subject is that part or document (for example `represents` → `product` / `product-element`) |
 | `describe` | The requested refs that exist in that project; others are absent |

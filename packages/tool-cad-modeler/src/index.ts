@@ -7,6 +7,9 @@ import { cadModelerHelp } from './help'
 import { createHttpCadClient, createLocalCadClient, type CadClient } from '@ews/cad-client'
 import { createWorkerKernel } from '@ews/cad-kernel/worker-client'
 import { chooseFile } from './files'
+// Imported here (not only by the lazy view) so the deep link is captured before the workspace removes ?tool=.
+import './deepLink'
+export { cadDeepLinkParams, parseCadDeepLink, type CadDeepLink } from './deepLink'
 import { cadSession, setDefaultKernelFactory } from './session'
 import { INITIAL_VIEW_STATE, type CadModelerViewState } from './viewState'
 

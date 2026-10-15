@@ -34,3 +34,9 @@ documents can be open; each view shows one. The standalone harness uses a clearl
 that is lost when the page reloads.
 
 The document title is edited in **Model → Document title**. It is a command, so it can be undone.
+
+**Links to a stored document.** The workspace link
+`?tool=cad-modeler&document=<document UUID>&revision=<n>` opens the CAD Modeler with that document
+from the current project's CAD service. Without `revision` it opens the current revision. Project
+Management uses the same link for CAD documents and parts. A document of another project does not
+open: you see "Cannot open the linked CAD document".

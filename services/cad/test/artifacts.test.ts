@@ -66,6 +66,7 @@ describe('CAD artifact source (CR-PM-REG-4)', () => {
     expect(name).toBe('CAD Modeler')
     expect(kinds.map((k) => k.kind)).toEqual(['cad-document', 'cad-modeler-entity'])
     for (const k of kinds) expect(ARTIFACT_CATEGORIES).toContain(k.category)
+    expect(kinds.every((k) => k.navigable)).toBe(true)
   })
 
   it('a new project starts empty; provisioning a blank template creates nothing', async () => {
@@ -95,6 +96,7 @@ describe('CAD artifact source (CR-PM-REG-4)', () => {
     expect(betaItems[1]).toMatchObject({
       container: { module: 'cad', kind: 'cad-document', id: beta.documentId },
       lifecycle: 'working',
+      open: { toolId: 'cad-modeler', params: { document: beta.documentId } },
       version: { value: 1, label: 'Revision 1' },
       createdBy: 'eli',
       modifiedBy: 'eli',
