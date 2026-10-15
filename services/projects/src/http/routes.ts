@@ -489,6 +489,30 @@ export function registerProjectRoutes(app: FastifyInstance, services: HostServic
       }),
   })
   route({
+    method: 'POST',
+    path: '/projects/{projectId}/artifacts/resolve',
+    operationId: 'resolveArtifacts',
+    tag: 'Registry',
+    summary: 'Registry records for native references (unknown refs are absent from the result)',
+    description: 'Reads the registry. Synchronous registration of refs the registry has not seen yet uses the owning module’s ArtifactSource.describe once the module ships its adapter (ADR-0062); until then unseen refs are simply absent.',
+    params: P,
+    body: Type.Object({ refs: Type.Array(Type.Object({ module: Type.String({ maxLength: 40 }), kind: Type.String({ maxLength: 60 }), id: Type.String({ maxLength: 300 }) }, { additionalProperties: false }), { minItems: 1, maxItems: 500 }) }, { additionalProperties: false }),
+    permission: 'read',
+    responses: { 200: { description: 'Records found', schema: Type.Array(ref('Artifact')) as never } },
+    handler: async (rc) => {
+      const refs = (rc.body as { refs: { module: string; kind: string; id: string }[] }).refs
+      return {
+        body: await rc.read(async (ctx) => {
+          const { rows } = await ctx.db.query(
+            `SELECT a.* FROM projects.artifacts a JOIN unnest($2::text[], $3::text[], $4::text[]) AS r(module, kind, id) ON a.module = r.module AND a.kind = r.kind AND a.native_id = r.id WHERE a.project_id = $1`,
+            [rc.projectId, refs.map((r) => r.module), refs.map((r) => r.kind), refs.map((r) => r.id)],
+          )
+          return rows.map(artifactJson as never)
+        }),
+      }
+    },
+  })
+  route({
     method: 'GET',
     path: '/projects/{projectId}/artifacts/{artifactId}/history',
     operationId: 'artifactHistory',
