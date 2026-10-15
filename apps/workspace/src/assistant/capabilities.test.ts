@@ -4,6 +4,7 @@ import type { ToolApi } from '@ews/platform-sdk'
 import { sampleModel } from '@ews/platform-sdk/testing'
 import { describe, expect, it } from 'vitest'
 import { getTools } from '../platform/registry'
+import { assistantContributions } from './contributions'
 import '../platform/tools'
 import { CAPABILITIES, PLATFORM_OPERATION_ENTRIES, summarize } from './capabilities'
 import { PLATFORM_TOOLS } from './toolSpecs'
@@ -48,7 +49,7 @@ describe('AI capability inventory', () => {
   })
 
   it('accounts for every assistant operation, and maps only to operations that exist', () => {
-    const existing = new Set([...PLATFORM_TOOLS.map((t) => t.name), ...getTools().flatMap((t) => t.assistant?.actions.map((a) => a.name) ?? [])])
+    const existing = new Set([...PLATFORM_TOOLS.map((t) => t.name), ...assistantContributions().flatMap((t) => t.assistant.actions.map((a) => a.name))])
     expect([...existing].filter((name) => !aiOperations.has(name))).toEqual([])
     expect([...aiOperations].filter((name) => !existing.has(name))).toEqual([])
     expect([...PLATFORM_OPERATION_ENTRIES].sort()).toEqual(PLATFORM_TOOLS.map((t) => t.name).sort())

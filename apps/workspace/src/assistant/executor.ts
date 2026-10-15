@@ -318,7 +318,7 @@ async function runToolAction(call: ToolCallRequest, ctx: ExecutionContext): Prom
   if (!found) throw new ToolError('not-allowed', `Operation “${call.name}” is not allowed.`)
   const { tool, action } = found
   // Checked at execution time, against the subscription now; never redirected to another tool.
-  if (!ctx.env.isEntitled(tool.entitlement)) {
+  if (tool.entitlement && !ctx.env.isEntitled(tool.entitlement)) {
     throw new ToolError('not-entitled', `${action.label} needs ${tool.name}, which is not included in your subscription. Nothing was changed.`)
   }
   const args = call.arguments ?? {}
@@ -354,7 +354,7 @@ async function runToolAction(call: ToolCallRequest, ctx: ExecutionContext): Prom
  * A change to a service-backed module (SDK 1.5). Nothing is written now: the platform shows the
  * preview and calls the module's API only when the user applies it.
  */
-function proposeService(ctx: ExecutionContext, entitlement: EntitlementId, result: ServiceProposal): Outcome {
+function proposeService(ctx: ExecutionContext, entitlement: EntitlementId | undefined, result: ServiceProposal): Outcome {
   if (!result.preview.length) throw new ToolError('invalid-arguments', 'A service proposal needs at least one previewed item.')
   const proposal = ctx.env.createProposal({
     title: result.title,
@@ -362,7 +362,7 @@ function proposeService(ctx: ExecutionContext, entitlement: EntitlementId, resul
     configurationId: ctx.captured.configurationId,
     changes: [],
     affectedOutputIds: [],
-    requiredEntitlements: [entitlement],
+    requiredEntitlements: entitlement ? [entitlement] : [],
     service: { module: result.module, items: result.preview, assumptions: result.assumptions ?? [] },
   })
   registerServiceHandlers(proposal.id, result)

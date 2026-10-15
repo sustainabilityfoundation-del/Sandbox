@@ -1,5 +1,5 @@
 import type { AssistantRequest, AssistantResponse, AssistantService, HistoryItem, ToolCallRequest, ToolCallResult } from './types'
-import { getTools } from '../platform/registry'
+import { assistantContributions } from './contributions'
 import { drillBitHolderDemo } from './demos/drillBitHolder'
 
 /**
@@ -324,8 +324,8 @@ function undoIntent(turn: Turn, history: HistoryItem[]): AssistantResponse {
  * executor, so validation, subscription checks and previews are unchanged.
  */
 function toolDemoIntent(turn: Turn): AssistantResponse | null {
-  for (const tool of getTools()) {
-    const plan = tool.assistant?.demo?.(turn.text, { selectionIds: turn.context.selection.map((s) => s.id) })
+  for (const tool of assistantContributions()) {
+    const plan = tool.assistant.demo?.(turn.text, { selectionIds: turn.context.selection.map((s) => s.id) })
     if (!plan || !plan.calls.length) continue
     if (!plan.calls.every((c) => turn.offered(c.name))) return notInSubscription(tool.name)
     const done = turn.results.filter((r) => plan.calls.some((c) => c.name === r.name))

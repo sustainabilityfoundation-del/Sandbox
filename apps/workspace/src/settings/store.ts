@@ -1,6 +1,7 @@
 import { clampToCeiling, type SettingDefinition, type SettingValue, type SettingsService } from '@ews/platform-sdk'
 import { create } from 'zustand'
 import { getTools } from '../platform/registry'
+import { getPlatformModules } from '../platform/platformModules'
 import { ApiError, SETTINGS_API, api, backendInUse } from './api'
 
 /**
@@ -77,9 +78,10 @@ interface ValuesResponse {
 /** Server pages (definitions registered on the API host), by page ID. */
 export const useServerPages = create<{ pages: { id: string; title: string }[]; pageOf: Record<string, string> }>()(() => ({ pages: [], pageOf: {} }))
 
-/** Registers the settings contributions of the registered tools (SDK 1.6 `ToolDefinition.settings`). */
+/** Registers the settings contributions of tools (SDK 1.6) and headless platform modules (SDK 1.8). */
 export function registerToolContributions(): void {
   for (const tool of getTools()) if (tool.settings) registerDefinitions(tool.settings.definitions)
+  for (const m of getPlatformModules()) if (m.settings) registerDefinitions(m.settings.definitions)
 }
 
 /** Loads definitions and values from the settings service. Demo mode leaves server pages unavailable. */
