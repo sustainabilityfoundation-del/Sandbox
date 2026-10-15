@@ -1,0 +1,37 @@
+# AGENTS.md: @ews/tool-cad-modeler
+
+The CAD Modeler tool (`cad-modeler`, entitlement `tool:cad`, contracts §1). Owner: CAD agent.
+Separate from the mock CAD tool (`packages/tool-cad`), which must not be edited.
+
+## Responsibilities
+
+- View (`CadModelerView.tsx`): panels Model / Edit / Inspect / Diagnostics, 3D viewport
+  (`ui/Viewport.tsx`, three.js, meshes from the kernel worker), sketcher (`ui/Sketcher.tsx`, SVG).
+- Toolbar (`index.ts`): New, Open, Save, Sketch, Extrude, Revolve, Undo, Redo, Fit, Export STEP.
+- Session (`session.ts`): open documents (`CadEngine`), active document, kernel (Web Worker by
+  default), downloads. Shared by the view and the assistant.
+- Assistant (`assistant.ts`): `cad-modeler.*` actions; reads as data, mutations as service
+  proposals with dry-run previews; labelled demo planner.
+- Help (`help/*.md`, `src/help.ts`): every toolbar item and operation mapped.
+
+## Permitted dependencies
+
+`@ews/platform-sdk` (+ `/react`, `/harness`, `/testing` in tests), `@ews/design-system`,
+`@ews/cad-core`, `@ews/cad-kernel`, three (MIT), React. Never another tool, `apps/workspace`,
+`@ews/model-service`, localStorage, React Aria or icon packages directly; never replicad (kernel only).
+
+## Rules
+
+- Every model change goes through `CadEngine.execute` with commands (`ui/common.tsx` `makeRun`).
+- Design system components and tokens only; CSS in `src/modeler.css` inside `@layer components`,
+  container queries against `tool`; no essential action depends on dragging or hover (forms and
+  keyboard alternatives exist for drawing, picking and view control).
+- Update help pages, the capability inventory entries and the requirements status with every feature.
+
+## Commands
+
+```bash
+npm run cad:dev                      # harness on :5198
+npx vitest run packages/tool-cad-modeler
+npm run typecheck -w @ews/tool-cad-modeler
+```

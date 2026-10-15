@@ -46,7 +46,7 @@ export function detectFormat(input: Uint8Array | string, fileName = ''): Detecte
     }
   }
   if (/^.{72}S\s*0*1\s*$/m.test(head) || (head.length >= 80 && head[72] === 'S' && /^[ \d]{7}$/.test(head.slice(73, 80))))
-    return { format: 'iges', label: 'IGES', confidence: 'medium', support: { open: 'planned', import: 'planned', export: 'planned' }, carries: ['surface geometry', 'trimmed surfaces', 'limited solids', 'layers, colours'], message: 'IGES import is planned (Phase 5, OCCT IGES reader is in the kernel build); it is mainly surface data without feature history.' }
+    return { format: 'iges', label: 'IGES', confidence: 'medium', support: { open: 'planned', import: 'planned', export: 'planned' }, carries: ['surface geometry', 'trimmed surfaces', 'limited solids', 'layers, colours'], message: 'IGES import is planned (Phase 5; it needs the LGPL OCCT IGES reader added to our kernel build). IGES is mainly surface data without feature history.' }
   if (bytes[0] === 0x67 && bytes[1] === 0x6c && bytes[2] === 0x54 && bytes[3] === 0x46)
     return { format: 'glb', label: 'glTF binary (GLB)', confidence: 'high', support: { open: 'unsupported', import: 'planned', export: 'planned' }, carries: ['tessellated geometry', 'materials', 'scene hierarchy'], message: 'glTF is a visualization format (meshes only). Export is planned for review and sharing; it cannot carry exact geometry.' }
   if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
