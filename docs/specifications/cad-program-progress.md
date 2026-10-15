@@ -28,6 +28,29 @@ Branch: `feature/cad`. Worktree: `C:\Users\kimge.000\Documents\Sandbox-cad`. Mai
 | 3D viewport, geometry off the UI thread | three.js viewport; OCCT in a Web Worker | `get_entities` (stable face names) | browser pixel check; Diagnostics shows worker |
 | Export STEP | Export STEP (AP242 + structural report) | `export {format: step}` | kernel.test (inspection + re-import); browser |
 
+## Sprint 3 (after the I1 merge, main 34b868f)
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| ADR-0027 answers | Recorded; still Proposed. CAD-side reference only, no twin delegation, phase 2 targets product elements after PM I1 | `docs/decisions/0027-…` |
+| 1. Validate `product` references | **Implemented against the SDK contract.** When `PlatformServices.projects` is present, `ProjectsService.resolve` checks the ID. Unknown, unavailable or wrong-category elements are refused; a valid one is stored with its label and revision. Without the service, the ID is stored unverified and the person is told. **Not verified against a real Project Management service** (none on main yet, and the workspace does not supply `projects`) | `productRefs.test.ts` (fake service) |
+| 2. C13 in the view | **Done.** Session documents belong to a project; the list and the active document follow the current project; switching back restores that project's document; a document cannot be saved into another project | `session.project.test.ts` |
+| 3. Deep link | **Done.** `?tool=cad-modeler&document=<uuid>&revision=<n>` opens the stored document from the current project, and the parameters are then removed. Artifact kinds are `navigable: true` with `open: { toolId: 'cad-modeler', params: { document } }` | `deepLink.test.ts`, `artifacts.test.ts`, e2e flow |
+| 4. Committed browser flow | **Done.** `tests/e2e/flows/cad-modeler-persistence.mjs`, 25 checks, folded from the scratch flow. It found a C9 regression in `run_commands` target resolution, now fixed and tested | `npm run e2e -- cad-modeler cad-modeler-persistence` |
+| 5. Settings | **Done**, display-only and per user. COORDINATOR REVIEW 5685337 registers the definitions on the API host (the service validates writes) | `settings.test.ts` (tool, DB) |
+
+Settings implemented (`@ews/cad-client` `CAD_SETTINGS`, help `cad-modeler.settings`):
+
+| ID | Type, default | Effect |
+| --- | --- | --- |
+| `cad-modeler.units.measurements` | enum mm, cm, m, in; default mm | Measured volume, area, bounding box and mass in the Model and Inspect panels and in previews. Dimension entry and storage stay in mm |
+| `cad-modeler.display.mesh-tolerance` | 0.01–1 mm, default 0.05 | Viewport tessellation; visible bodies are re-tessellated |
+| `cad-modeler.view.orientation` | iso, front, top, right; default iso | Direction of the first fit |
+| `cad-modeler.view.show-edges` | boolean, default true | New views; the view toggle overrides it |
+
+Not exposed, by design: the solver and naming tolerances. A per-user value would make regeneration of
+a stored revision depend on the viewer (C4).
+
 ## Integration milestone 1 (binding, docs/specifications/integration-milestone-1.md)
 
 Priority per the milestone: persistence, shared references and regeneration integrity before more
@@ -176,8 +199,8 @@ Browser evidence (Playwright and Chrome, scratchpad `pw/cad/sprint2-flow.mjs`, w
 - assistant fillet and save with provenance (`sourceKind: assistant`, `proposalId`);
 - reopening revision 1 regenerates 30869 mm³.
 
-**CAD settings to contribute to SDK 1.6 `SettingsContribution`** (proposal; not implemented, the
-values are fixed in code today):
+**CAD settings to contribute to SDK 1.6 `SettingsContribution`** (sprint 2 proposal, superseded: what was
+built is in *Sprint 3*. Model tolerances were left out on purpose):
 
 | Setting | Values | Default | Where it applies |
 | --- | --- | --- | --- |
@@ -339,3 +362,4 @@ The top items are below; the full list is in [backlog.md](../modules/cad/backlog
 | 2026-10-15 | Sprint 2. Merged main (eceba15), then services/cad and cad-client; fillet and chamfer; datum planes and face sketches (format 1.1); worker regeneration (af43158 and earlier). The browser flow found unnamed cap faces on the example plate, because a centred hole removed the probe point; cap probes now rank fallback points (regression test). |
 | 2026-10-15 | Project Management readiness (ae98423): part UUIDs, descriptive events (migration 0002), refusal for readers. Docs and ADR-0027 (cf55b88). Merged main at SDK 1.7.0 (69355eb), then CR-PM-REG-4 (artifact source) and CR-PM-CAD-1. |
 | 2026-10-15 | Integration milestone 1. Merged main (ccb5e61; conflicts in the services/api registration, root scripts and boundaries, both sides kept). C4/C13 tests (f454872), C5 read client (a271119), C9 headless operations (c8dca69). The sprint2 browser flow passed 20/20 on the merged code after an API restart; one run timed out on Vite's cold compile, and the rerun passed. |
+| 2026-10-15 | Sprint 3. ADR-0027 answers (8ef547d). C13 view (cc2d107), deep link (d35b8bc), both merged by the coordinator in 34b868f. Merged main (129db68). Settings (64f03b1 + COORDINATOR REVIEW 5685337), product-reference validation (49e292f), C9 target fix (7d94782), e2e flow (d46aa4b). |
