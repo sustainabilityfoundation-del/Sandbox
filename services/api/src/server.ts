@@ -17,8 +17,8 @@ import {
 import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsEventHub, migrateConcepts, seedConcepts, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
 import { registerApiDocs } from './apiDocs'
-import { SYSML_BASE_PATH, SysmlRepository, createSysmlArtifactSource, createSysmlEventHub, sysmlPlugin, type SysmlEventHub } from '@ews/sysml-service'
-import { CAD_BASE_PATH, cadPlugin, createCadArtifactSource, createCadEventHub, type CadEventHub } from '@ews/cad-service'
+import { SYSML_BASE_PATH, createSysmlArtifactSource, sysmlPlugin, type SysmlEventHub, type SysmlRepository } from '@ews/sysml-service'
+import { CAD_BASE_PATH, cadPlugin, createCadArtifactSource, type CadEventHub } from '@ews/cad-service'
 import type { ArtifactSource } from '@ews/platform-sdk'
 import {
   PROJECTS_BASE_PATH,
@@ -185,10 +185,13 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   await app.register(conceptsPlugin, { prefix: CONCEPTS_BASE_PATH, pool: options.pool, events: conceptEvents, authenticate: auth.authenticate, roleOf: auth.roleOf })
   // SysML Modeler (docs/specifications/sysml-program-contracts.md §7): migrates schema `sysml`; seeds the example outside production.
   registerApiDocs(app, { path: `${SYSML_BASE_PATH}/docs`, openapiUrl: `${SYSML_BASE_PATH}/openapi.json`, title: 'SysML Modeler API' })
-  await app.register(sysmlPlugin, { prefix: SYSML_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, seed: !production, eventPollMs: options.eventPollMs })
+  // The SysML and CAD plugins hand their repository and event hub to the host (onReady) for the artifact sources below.
+  let sysml: { repo: SysmlRepository; events: SysmlEventHub } | undefined
+  let cadEvents: CadEventHub | undefined
+  await app.register(sysmlPlugin, { prefix: SYSML_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, seed: !production, eventPollMs: options.eventPollMs, onReady: (s) => (sysml = s) })
   // CAD Modeler documents (CR-CAD-2): migrates schema `cad`; entitlement tool:cad enforced by the plugin.
   registerApiDocs(app, { path: `${CAD_BASE_PATH}/docs`, openapiUrl: `${CAD_BASE_PATH}/openapi.json`, title: 'CAD Modeler API' })
-  await app.register(cadPlugin, { prefix: CAD_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, eventPollMs: options.eventPollMs })
+  await app.register(cadPlugin, { prefix: CAD_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, eventPollMs: options.eventPollMs, onReady: (s) => (cadEvents = s.events) })
   // Project Management (CR-PM-API-5). It reads raw membership roles and applies the record state itself.
   registerApiDocs(app, { path: `${PROJECTS_BASE_PATH}/docs`, openapiUrl: `${PROJECTS_BASE_PATH}/openapi.json`, title: 'Project Management API' })
   const projectBlobs = options.blobs ?? memoryBlobStore()
@@ -206,13 +209,12 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     },
   }
   // Module artifact sources (ADR-0062, CR-PM-REG-1/3/4): read-only adapters over each module's own tables and outbox.
-  // The SysML and CAD plugins keep their hubs private, so the host opens read-side hubs of their outboxes here.
+  // SysML and CAD share the hubs their plugins opened (no extra database connections).
   // Conceptualize has no ArtifactSource yet (CR-PM-REG-2): its artifacts are not indexed.
-  const sysmlEvents: SysmlEventHub = await createSysmlEventHub(options.pool, { pollMs: options.eventPollMs, onError: (e) => app.log.error(e) })
-  const cadEvents: CadEventHub = await createCadEventHub(options.pool, { pollMs: options.eventPollMs, onError: (e) => app.log.error(e) })
+  if (!sysml || !cadEvents) throw new Error('The SysML and CAD plugins did not report their services (onReady).')
   const artifactSources: ArtifactSource[] = [
     createRequirementsArtifactSource(options.pool, events),
-    createSysmlArtifactSource(new SysmlRepository(options.pool), sysmlEvents),
+    createSysmlArtifactSource(sysml.repo, sysml.events),
     createCadArtifactSource(options.pool, cadEvents),
   ]
   // Provisioning uses each module's own provision() where it has an ArtifactSource.
@@ -280,8 +282,6 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
       await events.close()
       await conceptEvents.close()
       await projectEvents.close()
-      await sysmlEvents.close()
-      await cadEvents.close()
     },
   }
 }
