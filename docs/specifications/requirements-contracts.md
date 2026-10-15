@@ -1,5 +1,7 @@
 # Requirements Management: agreed contracts and ownership
 
+> **Amended (15 October 2026)** by the coordinator's [integration milestone 1](integration-milestone-1.md): shared contracts C1–C13, the acceptance workflow and the status vocabulary there take precedence where they are more specific.
+
 Status: agreed by the coordinator, 13 October 2026, before delegation.
 Brief: [requirements-management.md](requirements-management.md). Progress:
 [requirements-management-progress.md](requirements-management-progress.md).

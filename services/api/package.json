@@ -11,9 +11,11 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@ews/assistant-service": "^0.1.0",
     "@ews/conceptualize-service": "^0.1.0",
     "@ews/platform-sdk": "^1.2.0",
     "@ews/requirements-service": "^0.1.0",
+    "@ews/settings-service": "^0.1.0",
     "@ews/sysml-service": "^0.1.0",
     "@ews/cad-service": "^0.1.0",
     "@scalar/api-reference": "1.72.3",

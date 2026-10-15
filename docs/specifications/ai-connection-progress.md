@@ -1,16 +1,181 @@
 # AI connection: progress
 
 Brief and contracts: [ai-connection.md](ai-connection.md). Maintained by the AI connection agent.
+Decisions: [ADR-0047](../decisions/0047-ai-provider-backend-and-account-connection.md) (provider backend,
+account connection, access policy), [ADR-0048](../decisions/0048-ai-settings-framework.md) (settings
+framework). Status: **ready for owner review** (owner acceptance pending; the real ChatGPT sign-in and a
+real-model run need the owner's own account and were not performed by the agent).
 
-- [ ] Research: official account-connection options for third-party apps (OpenAI), decision recorded
-- [ ] Provider-neutral backend (`services/assistant`), OpenAI adapter, fake provider
-- [ ] Settings framework: SDK 1.6 `SettingsContribution`, settings service, Settings centre beside Help, Platform page
-- [ ] AI and reasoning page: connection, model, access policy (server-enforced), data sharing, limits, audit
-- [ ] Remote assistant wired to the backend; assistant panel links to the AI settings page
-- [ ] Drill bit holder example: tutorial (real model) and labelled demo plan
-- [ ] Tests, help pages, capability inventory, browser flow
-- [ ] Checkpoint report
+- [x] Research: official account-connection options for third-party apps (OpenAI), decision recorded (§1)
+- [x] Provider-neutral backend (`services/assistant`), OpenAI adapter, fake provider
+- [x] Settings framework: SDK 1.6 `SettingsContribution`, settings service, Settings centre beside Help, Platform page
+- [x] AI and reasoning page: connection, model, access policy (server-enforced), data sharing, limits, audit
+- [x] Remote assistant wired to the backend; assistant panel links to the AI settings page
+- [x] Drill bit holder example: tutorial (real model) and labelled demo plan
+- [x] Tests, help pages, capability inventory, browser flow
+- [x] Checkpoint report (§7)
 
-## Change requests to the coordinator
+## 1. Account connection: what OpenAI offers third parties (checked 15 October 2026)
 
-(none yet)
+Sources (official): [Sign in with ChatGPT](https://developers.openai.com/siwc),
+[Request a client ID](https://developers.openai.com/siwc/request-client-id) ("currently offered to a select
+group of commercial partners", waitlist), [ChatGPT plan usage overview](https://developers.openai.com/siwc/token-sharing-open-source),
+[Registration and sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in),
+[Accounts and sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions),
+[Models and inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference),
+[Errors and recovery](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery),
+[Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations),
+[UI/UX guidelines](https://developers.openai.com/siwc/ui-ux-guidelines),
+[OpenAI cookbook: Sign in with ChatGPT in your open-source app](https://developers.openai.com/cookbook/articles/sign-in-with-chatgpt)
+(availability: "open-source projects, personal projects that run locally, and selected private apps"; paid or
+remotely hosted apps join the waitlist first), [OIDC discovery](https://auth.openai.com/.well-known/openid-configuration),
+[Models](https://developers.openai.com/api/docs/models) (default `gpt-6.1-sol`, "a balance of intelligence and
+cost"), [Function calling](https://developers.openai.com/api/docs/guides/function-calling).
+
+Decision (ADR-0047): implement **both** compliant options.
+
+1. **Sign in with ChatGPT, ChatGPT plan usage** (OAuth code + PKCE, dynamic registration with
+   `dynamic_agent_client` → issued `oaiapp_…` client, loopback redirect `http://127.0.0.1:<API port>/auth/callback`,
+   no client secret, no partner key). Offered only when the API host runs locally (127.0.0.1) and not in
+   production, which is the use OpenAI documents for it. It uses the owner's Plus/Pro plan.
+2. **OpenAI API key** (project key from platform.openai.com), for hosted deployments or as an alternative;
+   billed to the API account, separate from ChatGPT Plus/Pro (said in the UI and help).
+
+No other product's client ID is used; chatgpt.com is never automated; the owner signs in personally.
+
+**Owner decision needed (not blocking local use):** plan usage is a *preview* for local / personal /
+open-source apps. If the platform is to be **hosted remotely or sold**, OpenAI's interest form
+(https://openai.com/form/sign-in-with-chatgpt-interest/) must be completed first, and until approval only
+the API key method should be offered there (the code already hides Sign in with ChatGPT outside a loopback,
+non-production host). Approved OpenAI logo assets for the button are not included (the UI/UX page does not
+state their licence); the button uses the required label "Continue with ChatGPT".
+
+## 2. What was built
+
+| Area | Paths | Notes |
+| --- | --- | --- |
+| SDK 1.6 settings contract | `packages/platform-sdk/src/contract/settings.ts`, `ToolDefinition.settings`, `ToolApi.settings`, `useSetting`, harness | COORDINATOR REVIEW commit with the 1.6.0 CHANGELOG paragraph |
+| Settings service | `services/settings` | schema `settings`, `/api/settings/v1`, OpenAPI 3.1, Scalar reference `/api/settings/v1/docs` |
+| Assistant service | `services/assistant` | schema `assistant`, `/api/assistant/v1`, `/auth/callback`, OpenAPI 3.1, reference `/api/assistant/v1/docs` |
+| API host | `services/api/src/server.ts`, `main.ts` | COORDINATOR REVIEW; key from `EWS_ASSISTANT_KEY` (dev: `.data/assistant.key`), `EWS_ASSISTANT_FAKE_PROVIDER=1` |
+| Workspace | `apps/workspace/src/settings/**`, `src/assistant/**`, `src/shell/assistant/**` | Settings centre, AI page, connected assistant, policy mirror, drill demo plan |
+| Workspace (coordinator files) | `Header.tsx`, `main.tsx`, `BottomDock.tsx`, `help/manifests.ts`, `help/platform/settings.md`, `platform/capabilities.ts` | COORDINATOR REVIEW commits |
+| Help | `apps/workspace/help/ai/{connect,models,policy,privacy,drill-bit-holder}.md`, overview, troubleshooting | |
+
+Provider interface (`services/assistant/src/providers/types.ts`): `listModels`, `validateCredential`,
+`respond({ credential, method, model, instructions, messages, tools, maxOutputTokens, signal }) →
+{ type: 'final', text } | { type: 'tool_calls', calls }` with usage. Server-side callers (design reasoning
+model gateway, CR-A3) use `AssistantBackend.complete()`; `ApiServer.assistant()` exposes the backend.
+
+## 3. Settings contract summary (SDK 1.6, additive)
+
+- `SettingDefinition`: `id` (`<module>.<area>.<item>`, lowercase), `label`, `description`, `helpId?`, `scope`
+  (`user` | `project`), `requiresPermission?` (`editor` | `reviewer` | `administrator`; project values default
+  to administrator), `ceiling?` (ID of a project setting of the same type that bounds a user setting),
+  `group?`, and a type: `boolean`, `enum` (`options` ordered narrow → wide), `number` (`unit`, `min`, `max`,
+  `step?`, `integer?`), `string` (`maxLength`, `pattern?`), `secret-reference` (`owner`; value is
+  `owner:<id>`, never a secret; written only by the owner service).
+- `SettingsContribution { page: { id, title, description? }, definitions }` as `ToolDefinition.settings`.
+- Reading: `ToolApi.settings.get(id)` / `subscribe`, `useSetting(id)`: effective value = stored value clamped
+  to its ceiling, else default.
+- Shared validation: `checkSettingValue`, `withinCeiling`, `clampToCeiling`, `validateSettingDefinitions`,
+  `SETTING_ID_PATTERN`, `RESERVED_SETTING_NAMESPACES` (`ai.reasoning.*`), `createMemorySettingsService`.
+- HTTP: `GET /definitions`; `GET /values?projectId=` (user, project, effective, ETags, `canEditProject`);
+  `PUT /users/me/values?projectId=` and `PUT /projects/{projectId}/values` with `If-Match` (412 stale, 428
+  missing), body `{ values: { id: value | null } }`, atomic, 422 with `details.fields`.
+- AI page settings: `ai.connection.active` (secret-reference), `ai.access.<module>` (off / read / propose;
+  modules workspace, requirements, conceptualize, sysml-modeler, cad-modeler, illustrative, help),
+  `ai.operations.<class>` (read, search, calculate, propose, export, external-generation),
+  `ai.sharing.{selection,open-tools,requirement-text,element-details,history-length}`,
+  `ai.limits.{tool-calls,output-tokens,timeout}`, `ai.audit.store-prompts`, each with a project ceiling
+  (`ai.ceiling.*`, `ai.operation-ceiling.*`, `ai.sharing-ceiling.*`, `ai.limits-ceiling.*`, `ai.audit-ceiling.*`).
+  Note: a "Shared model and navigation" (`workspace`) module was added to the brief's list because the
+  platform operations (read_object, propose_changes, …) belong to no tool.
+
+## 4. Change requests to the coordinator
+
+| ID | To | Request |
+| --- | --- | --- |
+| CR-AI-1 | Conceptualize | `conceptualize.develop_alternatives` should accept model-supplied alternatives (name, principle, statements) and trade-study criteria, weights and scores, so a real model can record named alternatives in an alternative set. Today its scripted principle library also misclassifies requests: "belt-clip" matches the *power transmission* library (gear train, belt drive, chain drive). The drill example therefore records alternatives as child Concepts and shows the trade study in the answer |
+| CR-AI-2 | Conceptualize | `conceptualize.propose_requirement` should accept model-supplied requirement wording (it generates "shall meet size 6.35 mm"); and quantity labels from `draftConcept` ("Size", "Time") could carry the phrase |
+| CR-AI-3 | Coordinator (platform) | Register module settings definitions on the API host: tool packages are React packages, so the host cannot import `ToolDefinition.settings`. Proposal: each module exports framework-free definitions (e.g. `@ews/tool-x/settings` or from its service) that `services/api` registers with `SettingsRegistry` |
+| CR-AI-4 | Coordinator | `packages/platform-sdk/package.json` is still version 1.5.0 while `SDK_VERSION` is 1.6.0; my packages depend on `^1.5.0` until it is bumped |
+| CR-AI-5 | Coordinator (root docs) | Update the root rule "do not claim real ChatGPT access" at integration: the product now offers "connect your own OpenAI account" (help and UI say exactly that) |
+| CR-AI-6 | Coordinator / Requirements | In API mode requirements are projected from the Requirements service, so `propose_changes` on a requirement's status cannot apply (existing coverage finding 1); a model will try it. The real-model path is `requirements.update` |
+| CR-AI-7 | Coordinator | `docs/roadmap.md` and `docs/architecture.md` §6: AI development-plan sprint 4 (backend provider integration) is delivered by this sprint |
+
+## 5. Settings seen in module code (suggestions for module agents; not implemented)
+
+| Module | Candidate settings (scope) |
+| --- | --- |
+| Requirements | default filter mode (selection / all), default sort (key…), default visible columns, include archived by default, default status/type filters (user); default requirement type for new requirements, quality-check rules on/off (project) |
+| Conceptualize | default explorer mode (tree / graph), default maturity filter (user); default number of alternatives, trade-study default weights and scales, units for estimates (project) |
+| SysML Modeler | default view (general …), default zoom, metaclass filter (user); validation policy for commits (reject new errors / warn) (project) |
+| CAD Modeler | show edges, default units (mm), STEP export defaults, regeneration timeout (user / project) |
+| Illustrative SysML / CAD | text pane shown by default; dimension ranges are product rules, not settings |
+| Platform (already) | theme, density, service mode, development user, demo subscription, layout, windows (browser-local) |
+
+## 6. Verification
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| `npm run check` | passed: 702 tests, 1 skipped (pre-existing) | typecheck + unit tests (SDK settings, assistant policy/wire/OpenAI adapter/OAuth/crypto, workspace settings and connection) |
+| `npm run build`, `npm run build:harnesses` | passed (workspace, GLB viewer; 6 harnesses) | |
+| `npm run req:test:db` | passed: 188 tests, 1 skipped (the opt-in live test) | settings API (defaults, If-Match 412/428, invalid values atomic, ceilings, admin only, history append-only) and assistant API with the fake provider (invalid key, encrypted storage, never returned or logged, models, test, policy off / read-only / subscription refusals, signed calls and forged results, data sharing and preview, provider errors 429/502/504, audit and prompt storage, OAuth start/callback, disconnect, host mounting) |
+| Live OpenAI smoke test | not run | opt-in: `OPENAI_LIVE_TEST_KEY=… npx vitest run --config services/api/vitest.db.config.ts services/assistant/test/live.test.ts` (no key available to the agent) |
+| Browser flow (fake provider), Chrome headless, ports 5202 / 8801 / 54343 | passed (35 checks), repeated | Settings beside Help; Platform theme via the page = header state; search; deep links; Continue with ChatGPT offered locally; invalid key refused; connect shows only "key ending 1234"; key never in the page and sent only to `/connection/api-key`; test connection; preview of what is sent; panel shows the connected provider and the dock drops "Demo"; ask → `propose_changes` preview → nothing changes → Apply → one new model revision; browser never calls a provider; module "AI off" → operation not offered; audit lists calls; Disconnect → demo; drill demo: create → apply → decompose → apply → three alternatives + trade study → draft requirements applied ("Created 3 draft requirement(s) and linked them to CON-…"); phone (390 px) deep link without overflow; dark theme screenshot |
+| Real Sign in with ChatGPT round trip | not possible for the agent | the authorize URL is built as documented; OpenAI's bot protection blocks headless browsers and the sign-in needs the owner's account |
+
+## 7. Checkpoint and owner walkthrough
+
+- Tested candidate: `e12d165` on `feature/ai-connection` (the documentation commit after it changes docs only).
+  Not pushed, not merged.
+- Startup (main checkout ports): `npm install`, then `npm run dev`; open http://localhost:5173/workspace/.
+  The first start generates `.data/assistant.key` (credential encryption key, git-ignored). For a hosted
+  or production server set `EWS_ASSISTANT_KEY` (32 bytes, base64) instead. To try the flow without any
+  account: `npm run ai:dev:fake` (registers the scripted fake provider; any key starting with `fake-`).
+
+### Connect your account (owner, personally)
+
+1. Header → **Settings** (gear, beside ?) → **AI and reasoning**.
+2. Either **Continue with ChatGPT** (your Plus/Pro plan; a new tab opens at auth.openai.com: sign in, review
+   and allow "Engineering Workspace", including ChatGPT plan usage; the tab returns to
+   `http://127.0.0.1:8787/auth/callback` and says *Account connected*), or paste an **OpenAI API key** from
+   platform.openai.com → API keys and choose **Connect** (billed to the API account).
+3. The page shows *Connected* with your e-mail or "key ending …". Pick a **Model** (default gpt-6.1-sol if
+   your account offers it) and choose **Test connection**.
+4. Optional: adjust **What the AI may access**, **Data sharing** (use *Preview what is sent*), **Limits**.
+
+### Run the drill bit holder example
+
+Development user **eli** or **ada** (Settings → Platform), Service mode API. Open the ChatGPT panel; the
+banner shows your provider and model. Follow Help → AI Interface → *Tutorial: drill bit holder concept*
+(prompts for need statement → decomposition → three alternatives with a trade study → draft requirements),
+choosing **Apply** on each preview. Without an account, the demo assistant runs the labelled scripted plan:
+*Start the drill bit holder example*, *Decompose the drill bit holder*, *Propose alternatives for the drill
+bit holder*, *Draft requirements for the drill bit holder*.
+
+### Known limitations and risks
+
+- Sign in with ChatGPT round trip and real-model behaviour are unverified by the agent (owner's account;
+  OpenAI bot protection). The parameters follow OpenAI's documentation; namespaced tool replay over the
+  plan-usage route is the least certain detail (documentation does not show namespaced call items).
+- Plan usage is an OpenAI preview for local / personal / open-source use; hosting needs OpenAI approval.
+- `max_output_tokens` is not sent with ChatGPT plan usage (not accepted there); the plan's limits apply.
+- Calls the model requests that the policy refuses are reported in the answer metadata but the model is not
+  told on its next turn (stateless replay).
+- Platform preferences remain per browser. Module settings pages need CR-AI-3. Requirement edits through
+  `propose_changes` fail in API mode (CR-AI-6). Conceptualize alternatives and requirement wording are
+  constrained by its scripted operations (CR-AI-1, CR-AI-2).
+- Credential key rotation is not implemented (re-connect after changing the key); the development key file
+  is protected only by the user profile's file permissions on Windows.
+- Data migrations: new schemas `settings` and `assistant` only (append-only migrations); no existing data changed.
+
+### Sprint record (template fields)
+
+- Goal: connect the owner's own OpenAI account, provider-neutral backend, Settings centre with AI access
+  policy, drill bit holder example. Baseline: `eceba15` (merged with main `6651e39`).
+- Acceptance: all brief §9 items covered by tests and the browser flow except the live provider and real
+  sign-in (owner). Owner acceptance: pending.
+- Next increment: owner connects and runs the tutorial; then CR-AI-1/2 (Conceptualize operations for named
+  alternatives and requirement wording), CR-AI-3 (module settings registration), streaming answers.

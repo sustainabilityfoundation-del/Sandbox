@@ -21,6 +21,8 @@ export interface CapturedMessageContext {
   selection: { id: string; name: string; type: ObjectType }[]
   attachedSelection: boolean
   capturedAt: string
+  /** Open tools and the active one (sent to a model only when data sharing allows it). */
+  workspace?: { activeToolId: string | null; openToolIds: string[] }
 }
 
 /**
@@ -109,6 +111,10 @@ export interface AssistantService {
     name: string
     kind: 'demo' | 'remote'
     description: string
+    /** Connected model (remote only). */
+    model?: string
+    /** Connection method, e.g. 'api-key' or 'chatgpt' (remote only). */
+    method?: string
   }
   respond(request: AssistantRequest, signal: AbortSignal): Promise<AssistantResponse>
 }

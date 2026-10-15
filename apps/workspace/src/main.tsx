@@ -1,8 +1,9 @@
 import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
-import { DemoAssistantService } from './assistant/DemoAssistantService'
 import { RemoteAssistantService } from './assistant/RemoteAssistantService'
+import { startAssistantConnection } from './assistant/connection'
+import { loadSettings } from './settings/store'
 import { useConversation } from './assistant/conversation'
 import { DemoRepository, browserStorage } from '@ews/model-service'
 import { startWindowSync } from './session/sync'
@@ -21,11 +22,14 @@ initPreferences()
 // Swap this for a cloud-backed EngineeringRepository; tools are unaffected.
 const repository = new DemoRepository({ storage: browserStorage() })
 
-// The demo assistant by default; a backend endpoint switches to the real integration.
+// Settings (SDK 1.6): values from the settings service, defaults until they load.
+void loadSettings()
+
+// The labelled demo assistant until the person connects an AI account (Settings → AI and reasoning); then
+// the backend's provider-neutral assistant service. VITE_ASSISTANT_ENDPOINT forces a fixed endpoint.
 const assistantEndpoint = import.meta.env.VITE_ASSISTANT_ENDPOINT as string | undefined
-useConversation
-  .getState()
-  .configure(assistantEndpoint ? new RemoteAssistantService(assistantEndpoint) : new DemoAssistantService())
+if (assistantEndpoint) useConversation.getState().configure(new RemoteAssistantService(assistantEndpoint))
+else startAssistantConnection()
 
 // Connect this window to the other workspace windows (main and detached).
 startWindowSync()

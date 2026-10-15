@@ -126,6 +126,7 @@ export function captureContext(attachSelection: boolean): CapturedMessageContext
       : [],
     attachedSelection: attachSelection,
     capturedAt: now(),
+    workspace: { activeToolId: ws.activeToolId, openToolIds: [...ws.openToolIds] },
   }
 }
 

@@ -18,6 +18,8 @@ import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from 
 import { registerApiDocs } from './apiDocs'
 import { SYSML_BASE_PATH, sysmlPlugin } from '@ews/sysml-service'
 import { CAD_BASE_PATH, cadPlugin } from '@ews/cad-service'
+import { SETTINGS_BASE_PATH, SettingsRegistry, settingsPlugin, type SettingsStore } from '@ews/settings-service'
+import { AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS, ASSISTANT_BASE_PATH, CredentialVault, ProviderRegistry, assistantPlugin, createFakeProvider, createOpenAIProvider, registerOAuthCallback, type AssistantBackend } from '@ews/assistant-service'
 
 /**
  * Development twin directory: the component IDs of the sample actuator twin
@@ -56,6 +58,18 @@ export interface ServerOptions {
   reqifSchemaDir?: string
   /** Retention of delivered events (hours, default 168). */
   outboxRetentionHours?: number
+  /** AI connection (docs/specifications/ai-connection.md): credential key, loopback origin, providers. */
+  assistant?: {
+    /** 32-byte key for credentials at rest (EWS_ASSISTANT_KEY). Without it outside production a random per-process key is used; in production the assistant is not started. */
+    key?: Buffer
+    /** Origin at which the person's browser reaches this API directly, e.g. http://127.0.0.1:8801 (OAuth loopback redirect). */
+    publicOrigin?: string
+    /** Register the scripted fake provider (tests and development browser flows; never in production). */
+    fakeProvider?: boolean
+    /** Replace the provider registry (tests). */
+    providers?: ProviderRegistry
+    fetch?: typeof fetch
+  }
 }
 
 export interface ApiServer {
@@ -63,6 +77,8 @@ export interface ApiServer {
   events: EventHub
   /** Conceptualize outbox (its own schema and publisher). */
   conceptEvents: ConceptsEventHub
+  /** The assistant backend (server-side callers such as the design reasoning model gateway use it). */
+  assistant: () => AssistantBackend | undefined
   close: () => Promise<void>
 }
 
@@ -120,10 +136,43 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   // CAD Modeler documents (CR-CAD-2): migrates schema `cad`; entitlement tool:cad enforced by the plugin.
   registerApiDocs(app, { path: `${CAD_BASE_PATH}/docs`, openapiUrl: `${CAD_BASE_PATH}/openapi.json`, title: 'CAD Modeler API' })
   await app.register(cadPlugin, { prefix: CAD_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, eventPollMs: options.eventPollMs })
+  // Settings (SDK 1.6) and the AI connection (docs/specifications/ai-connection.md §5, §5a).
+  const settingsRegistry = new SettingsRegistry()
+  settingsRegistry.register(AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS)
+  let settingsStore: SettingsStore | undefined
+  registerApiDocs(app, { path: `${SETTINGS_BASE_PATH}/docs`, openapiUrl: `${SETTINGS_BASE_PATH}/openapi.json`, title: 'Settings API' })
+  await app.register(settingsPlugin, { prefix: SETTINGS_BASE_PATH, pool: options.pool, registry: settingsRegistry, authenticate: auth.authenticate, roleOf: auth.roleOf, onReady: (s) => (settingsStore = s) })
+  let assistantBackend: AssistantBackend | undefined
+  const assistantKey = options.assistant?.key ?? (production ? undefined : CredentialVault.randomKey())
+  if (assistantKey) {
+    const publicOrigin = options.assistant?.publicOrigin
+    const providers = options.assistant?.providers ?? new ProviderRegistry().register(createOpenAIProvider({ chatgptSignIn: !production && !!publicOrigin?.startsWith('http://127.0.0.1:'), fetch: options.assistant?.fetch }))
+    if (options.assistant?.fakeProvider && !production && !providers.get('fake')) providers.register(createFakeProvider())
+    registerApiDocs(app, { path: `${ASSISTANT_BASE_PATH}/docs`, openapiUrl: `${ASSISTANT_BASE_PATH}/openapi.json`, title: 'Assistant API' })
+    await app.register(assistantPlugin, {
+      prefix: ASSISTANT_BASE_PATH,
+      pool: options.pool,
+      vault: new CredentialVault(assistantKey),
+      providers,
+      publicOrigin,
+      fetch: options.assistant?.fetch,
+      authenticate: auth.authenticate,
+      roleOf: async (userId, projectId) => (await auth.roleOf(userId, projectId)) ?? null,
+      settings: {
+        effective: (userId, projectId) => settingsStore!.effective(userId, projectId),
+        setConnectionReference: async (userId, projectId, reference) => {
+          await settingsStore!.write('user', userId, { 'ai.connection.active': reference }, { ifMatch: undefined, actor: { userId, role: null }, projectId, owner: 'assistant' })
+        },
+      },
+      onReady: (b) => (assistantBackend = b),
+    })
+    registerOAuthCallback(app, () => assistantBackend)
+  } else app.log.warn('EWS_ASSISTANT_KEY is not set: the assistant API (/api/assistant/v1) is not started.')
   return {
     app,
     events,
     conceptEvents,
+    assistant: () => assistantBackend,
     close: async () => {
       await events.close()
       await conceptEvents.close()
