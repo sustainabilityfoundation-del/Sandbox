@@ -23,10 +23,10 @@ the graph view is plain SVG.
 | M2 | HTTP API | CRUD, revisions/compare/history, maturity and verification status, branch, assessment, graph, relationships, decompositions, alternatives, decisions (approval gate), trade studies with computed results, evidence, implementations, links, artifact→concepts, explorations (atomic AI/UI bulk create + compensating undo), permissions, SSE, OpenAPI + docs; registered in services/api | done (f5fd9eb) |
 | M3 | Client | HTTP adapter (SDK), module client, demo adapter (SDK read contract), contract tests on both | done (c40a038) |
 | M4 | Tool UI | Concept Explorer (search, filters, tree and graph), Concept Workspace (intent, structure, history, decisions), Alternative Explorer (side-by-side trade study, branching, decisions), AI collaboration (hypotheses to confirm, assumptions, questions, next steps, provenance), Engineering integration (implementations, requirement traceability, stale/broken links, change notifications, realization requests); harness; workspace registration | done (1a419b5, c193f8f) |
-| M5 | AI | `concepts.*` actions returning service proposals (apply via API with idempotency key and provenance, undo), scripted `demo` planner for the actuator prompt and similar, preliminary calculations computed (not invented) and labelled estimates | done (1a419b5) |
-| M6 | Integration | Draft requirements proposed through `services.requirements`; SysML/CAD links through twin IDs and the model index; CAD generation as recorded realization request; analysis via labelled test adapter | |
-| M7 | Documentation and tests | Help manifest and pages, capability inventory entries, docs/modules/conceptualize.md, real-PostgreSQL tests, browser flows | |
-| M8 | Remaining functionality | See backlog | |
+| M5 | AI | `conceptualize.*` actions (contracts say `concepts.*`, see change request 1) returning service proposals (apply via API with idempotency key and provenance, undo), scripted `demo` planner for the actuator prompt and similar, preliminary calculations computed (not invented) and labelled estimates | done (1a419b5) |
+| M6 | Integration | Draft requirements proposed through `services.requirements`; SysML/CAD links through twin IDs and the model index; CAD generation as recorded realization request; analysis via labelled test adapter | done (2bb1937): draft requirements via services.requirements, SysML/CAD links by twin ID, CAD realization requests, analysis test adapter, live requirement change detection |
+| M7 | Documentation and tests | Help manifest and pages, capability inventory entries, docs/modules/conceptualize.md, real-PostgreSQL tests, browser flows | done (f0e61dc, 2bb1937) |
+| M8 | Remaining functionality | See backlog | in progress: evidence, verification, decompositions, supersede, criteria, realization status, exploration undo done (2bb1937); rest in backlog |
 
 Vertical slice = M1–M5 plus the help/test parts of M7, working end to end in the workspace on the
 real API and PostgreSQL.
@@ -157,7 +157,86 @@ Entitlement `tool:conceptualize` on every route.
 
 ## Limitations and risks
 
+- **No model provider**: the assistant is the scripted demo; alternative generation uses a small
+  principle library (linear actuation, power transmission) and honest placeholders otherwise.
+  Estimates are textbook formulas with stated assumptions, not validated analyses.
+- **Provenance is client-asserted** (`X-Source-Kind`): the server enforces the assistant rules for
+  declared assistant writes but cannot detect an assistant call that claims to be a user (ADR-0013
+  gateway needed).
+- **Stale and broken links are checked in the browser** (contracts §9); a Concept not open in a view is
+  not checked, and there is no server-side impact analysis or notification inbox yet.
+- **Analysis** references are labelled test-adapter IDs (no Analysis module); **CAD generation** is a
+  pending realization request (no CAD API, no kernel).
+- **Demo-data mode is read-only** (SDK subset), like the Requirements demo adapter.
+- **Natural-language extraction** is deterministic and covers common phrasing only; the draft is
+  always shown for review.
+- **Two coordinator-owned files were changed** in separate commits for review (test expectations
+  `f94d946`, service-proposal card fix `cf98d7e`), plus the allowed registration files.
+- Trade-study evaluation is a weighted sum with interval propagation; no sensitivity analysis or
+  Pareto view yet.
+- Graph view is a simple layered SVG of the open Concept's neighbourhood; large projects need a
+  proper layout or paging.
+- Seed data is development data (`SEED_ON_START`); production has no example Concepts.
+
 ## Feature backlog (prioritized)
+
+1. Server-side link resolver and change-impact notifications (persisted inbox, events from
+   Requirements/twin) instead of client-only checks (needs a contract change).
+2. Workspace inspector and product tree: Concepts for the selected object (coordinator integration,
+   `conceptsForArtifact` is ready).
+3. Real model provider through ADR-0013's gateway; replace the scripted generator; server-side
+   verification of the assistant source.
+4. Trade studies: sensitivity to weights, Pareto view, criteria templates, scores from evidence outputs.
+5. Concept comparison of revisions in the UI (API `compare` exists), revision restore as a new revision.
+6. Requirement conflict detection (concept constraints vs requirement statements with units).
+7. SysML formalization helper: propose SysML parts/ports from a decomposition through the SysML tool's
+   operations (needs a SysML API or service proposal path).
+8. Design-reasoning extensions (Function entity, DesignExploration, invalidation conditions) when the
+   coordinator routes the contract changes.
+9. Import/export of Concepts (JSON), and bulk operations.
+10. Performance: pagination of the graph endpoint, indexes for history queries at scale.
+
+## Migrations
+
+- `services/conceptualize/src/db/migrations/0001_initial.sql`: schema `conceptualize` (24 tables,
+  immutability triggers, outbox with notify trigger).
+- `services/api/src/platform/migrations/0002_conceptualize_entitlement.sql`: additive grant of
+  `tool:conceptualize` to ada, rui, eli, rho where they exist.
+
+## Test commands and results (last run)
+
+| Command | Result |
+| --- | --- |
+| `npm run check` | 407 passed, 1 skipped |
+| `npm run build` | OK |
+| `npm run build:harnesses` | OK |
+| `npm run req:test:db` | 121 passed (includes the 29 Conceptualize tests) |
+| `npm run concept:test:db` | 29 passed |
+| Browser: workspace vertical slice (`pw/concept/workspace-flow.mjs`) | 19/19, no console errors |
+| Browser: extended features (`pw/concept/extras-flow.mjs`) | 8/8 |
+| Browser: assistant operations (`pw/concept/assistant-flow.mjs`) | 5/5 |
+| Browser: harness API and demo (`pw/concept/harness-flow.mjs`) | 3/3 |
+
+## Demonstration
+
+Start: `API_PORT=8798 EMBEDDED_PG_PORT=54340 EMBEDDED_PG_DIR=.data/pg-concept npm run dev:api`, then
+in `apps/workspace` `API_PORT=8798 npx vite --port 5196` and open http://localhost:5196/workspace/
+(service settings: API mode, user eli). Conceptualize opens as a tab.
+
+1. Explorer: CON-001 (ACT-100 with functional decomposition and implementation IMP-001 → ACT-100,
+   SYS-001, CAD-120, CAD-110), CON-005 with alternatives ALT-001 and recorded DEC-001 (brief §3),
+   CON-010 with two decompositions sharing functions (brief §4), the seeded 500 N actuator example.
+2. New concept → describe → review the draft → Create. Add child.
+3. ChatGPT panel: “Develop three alternative concepts for a compact mechanical actuator capable of
+   delivering 500 N of linear force within a 100 mm envelope.” → review the preview (AI hypotheses,
+   estimates) → Apply.
+4. Alternatives: compare side by side, trade study with ranges; Decide → Propose; as rui: Record.
+5. Implementations: add, Link artifact CAD-120, Replace with CAD-130 (Concept unchanged).
+6. Requirement traceability: link a requirement; change it in Requirements → “Changed since linked”
+   → Accept revision.
+7. AI collaboration: confirm or remove AI hypotheses, next steps, explorations with Undo, assistant
+   provenance. Further prompts: “Decompose CON-0xx into …”, “Link CON-0xx to SYS-003”, “Propose
+   requirements for CON-0xx”, “Request CAD generation for CON-0xx”, “Pursue CON-0xx”.
 
 ## Handoff log
 
@@ -167,3 +246,7 @@ Entitlement `tool:conceptualize` on every route.
 - f94d946 (COORDINATOR REVIEW): tool-enumerating test expectations. cf98d7e (COORDINATOR REVIEW): service-proposal card fix.
 - 1a419b5, c193f8f: tool, assistant, help, workspace registration; vertical slice green (check, build, harnesses, req:test:db, browser flows in workspace and harness).
 - Earlier plan note (done): vertical slice in the real workspace: tool-conceptualize (Explorer tree/graph, Workspace, Alternative Explorer, implementation linking), assistant actions with service proposals and demo planner, workspace registration (tools.ts, services.ts, capabilities.ts), help, seed the 500 N example, browser check; then message the coordinator ("main") and continue with M6–M8.
+- f0e61dc: docs/modules/conceptualize.md, package AGENTS.md files, dependency note.
+- 2bb1937: evidence recording, verification status, decompositions, supersede with replacement, criteria editing, realization status, exploration undo, live requirement notifications; help updated.
+- Coordinator notified of the slice checkpoint (c0031f8) with SendMessage.
+- Resume here: backlog above; all validation green at the last commit. Servers used: API 8798, embedded PostgreSQL 54340 (.data/pg-concept, git-ignored data dir inside the worktree), workspace 5196, harness 5197.
