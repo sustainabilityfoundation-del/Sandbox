@@ -44,6 +44,7 @@ export const sysmlModelerHelp: HelpManifest = {
     { control: 'sysml-modeler.views.interconnection', helpId: 'sysml-modeler.views' },
     { control: 'sysml-modeler.text', helpId: 'sysml-modeler.text' },
     { control: 'sysml-modeler.text.preview', helpId: 'sysml-modeler.text' },
+    { control: 'sysml-modeler.text.editor', helpId: 'sysml-modeler.text' },
     { control: 'sysml-modeler.text.apply', helpId: 'sysml-modeler.text' },
     { control: 'sysml-modeler.properties', helpId: 'sysml-modeler.properties' },
     { control: 'sysml-modeler.properties.rename', helpId: 'sysml-modeler.properties' },
@@ -85,6 +86,8 @@ export const sysmlModelerHelp: HelpManifest = {
     { keys: 'Up / Down', action: 'Move in the model browser', helpId: 'sysml-modeler.shortcuts' },
     { keys: 'Right / Left', action: 'Expand / collapse in the model browser', helpId: 'sysml-modeler.shortcuts' },
     { keys: 'Enter', action: 'Select the focused element (browser, diagram, problems)', helpId: 'sysml-modeler.shortcuts' },
+    { keys: 'Ctrl+Space', action: 'Show completions in the text editor', helpId: 'sysml-modeler.text' },
+    { keys: 'Ctrl+Z / Ctrl+Shift+Z', action: 'Undo / redo typing in the text editor (before Apply)', helpId: 'sysml-modeler.text' },
     { keys: 'F1', action: 'Help for the focused control', helpId: 'sysml-modeler.shortcuts' },
   ],
   apiReferences: [

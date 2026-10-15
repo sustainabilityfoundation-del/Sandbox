@@ -42,13 +42,17 @@ function wrap(text: string, width: number): string[] {
 
 export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph: Graph; mode: DiagramMode; revision: number; title: string; onOpen?: (elementId: string) => void; onUp?: () => void }) {
   const [vs, update] = useViewState()
-  const [layout, setLayout] = useState<Layout | null>(null)
+  // The layout is kept with the graph it was computed for: while a new one is computed the previous
+  // one stays visible, but fitting waits for the layout of the current graph.
+  const [laid, setLaid] = useState<{ graph: Graph; layout: Layout } | null>(null)
+  const layout = laid?.layout ?? null
+  const current = laid?.graph === graph
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
     setError(null)
     layoutGraph(graph, mode).then(
-      (l) => alive && setLayout(l),
+      (l) => alive && setLaid({ graph, layout: l }),
       (e) => alive && setError(e instanceof Error ? e.message : String(e)),
     )
     return () => {
@@ -65,12 +69,12 @@ export function Diagram({ graph, mode, revision, title, onOpen, onUp }: { graph:
   // Fit wide diagrams to the available width when a different diagram is shown.
   useEffect(() => {
     const key = `${mode}:${title}`
-    if (layout && fittedFor.current !== key) {
+    if (layout && current && fittedFor.current !== key) {
       fittedFor.current = key
       update({ zoom: fit(layout) })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout, mode, title])
+  }, [layout, current, mode, title])
   const select = (id: string) => update({ selectedId: id })
   const key = (id: string) => (e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {

@@ -93,14 +93,18 @@ function portSide(direction?: string): 'WEST' | 'EAST' {
 
 function toElk(n: GraphNode, nested: boolean): ElkNode {
   const size = nested && n.children.length ? undefined : nodeSize(n)
+  // Room inside a context for the labels of its border ports (drawn inside the frame).
+  const sideOf = (p: GraphNode['ports'][number], k: number) => (n.isContext && !p.direction ? (k % 2 ? 'EAST' : 'WEST') : portSide(p.direction))
+  const labelRoom = (side: string) => Math.max(40, ...n.ports.filter((p, k) => sideOf(p, k) === side).map((p) => Math.min(p.name.length, 40) * CHAR_W + 28))
   return {
     id: n.id,
     ...(size ?? {}),
     layoutOptions: {
       'elk.portConstraints': 'FIXED_SIDE',
-      ...(n.children.length ? { 'elk.padding': `[top=${HEADER_H + 16},left=40,bottom=32,right=40]`, 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT', 'elk.layered.spacing.nodeNodeBetweenLayers': '90', 'elk.spacing.nodeNode': '50', 'elk.edgeRouting': 'ORTHOGONAL' } : {}),
+      ...(n.isContext ? { 'elk.portAlignment.default': 'CENTER' } : {}),
+      ...(n.children.length ? { 'elk.padding': `[top=${HEADER_H + 16},left=${n.isContext ? labelRoom('WEST') : 40},bottom=32,right=${n.isContext ? labelRoom('EAST') : 40}]`, 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT', 'elk.layered.spacing.nodeNodeBetweenLayers': '90', 'elk.spacing.nodeNode': '50', 'elk.edgeRouting': 'ORTHOGONAL' } : {}),
     },
-    ports: n.ports.map((p, k) => ({ id: p.id, width: PORT, height: PORT, layoutOptions: { 'elk.port.side': n.isContext ? (k % 2 ? 'EAST' : 'WEST') : portSide(p.direction), 'elk.port.index': String(k) } })),
+    ports: n.ports.map((p, k) => ({ id: p.id, width: PORT, height: PORT, layoutOptions: { 'elk.port.side': sideOf(p, k), 'elk.port.index': String(k) } })),
     children: n.children.map((c) => toElk(c, true)),
   }
 }

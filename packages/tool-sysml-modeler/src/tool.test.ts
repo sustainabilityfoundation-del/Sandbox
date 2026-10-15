@@ -223,3 +223,25 @@ describe('managed requirement link (Requirements stays authoritative)', () => {
     await expect(action.run({ element: 'ActuatorSystem::Product::act100', requirement: 'REQ-001' }, ctx)).rejects.toThrow(/not a requirement/)
   })
 })
+
+describe('text editor completion (CodeMirror source)', () => {
+  it('completes keywords, model names and qualified members after ::', async () => {
+    const { CompletionContext } = await import('@codemirror/autocomplete')
+    const { EditorState } = await import('@codemirror/state')
+    const { sysmlCompletions } = await import('./view/CodeEditor')
+    const m = model()
+    const at = (doc: string, explicit = false) => {
+      const state = EditorState.create({ doc })
+      return sysmlCompletions(m)(new CompletionContext(state, doc.length, explicit))
+    }
+    const kw = at('part def X { attri')!
+    expect(kw.options.map((o) => o.label)).toContain('attribute')
+    expect(kw.from).toBe('part def X { '.length)
+    expect(at('part m : Brushl')!.options.find((o) => o.label === 'BrushlessMotor')?.type).toBe('class')
+    const q = at('attribute m : ISQ::Mas')!
+    expect(q.from).toBe('attribute m : ISQ::'.length)
+    expect(q.options.map((o) => o.label)).toContain('MassValue')
+    expect(at('part def X { ')).toBeNull()
+    expect(at('part def X { ', true)!.options.length).toBeGreaterThan(50)
+  })
+})
