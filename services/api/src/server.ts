@@ -12,12 +12,14 @@ import {
   type EventHub,
   type ObjectStorage,
   type TwinDirectory,
+  createRequirementsArtifactSource,
 } from '@ews/requirements-service'
 import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsEventHub, migrateConcepts, seedConcepts, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
 import { registerApiDocs } from './apiDocs'
-import { SYSML_BASE_PATH, sysmlPlugin } from '@ews/sysml-service'
-import { CAD_BASE_PATH, cadPlugin } from '@ews/cad-service'
+import { SYSML_BASE_PATH, SysmlRepository, createSysmlArtifactSource, createSysmlEventHub, sysmlPlugin, type SysmlEventHub } from '@ews/sysml-service'
+import { CAD_BASE_PATH, cadPlugin, createCadArtifactSource, createCadEventHub, type CadEventHub } from '@ews/cad-service'
+import type { ArtifactSource } from '@ews/platform-sdk'
 import {
   PROJECTS_BASE_PATH,
   PROJECT_SETTINGS_PAGE,
@@ -77,6 +79,7 @@ export const INSTALLED_MODULES: ProvisioningModule[] = [
   { module: 'requirements', name: 'Requirements', lazyReason: 'Requirements stores data by project ID; its project space appears with the first requirement.' },
   { module: 'conceptualize', name: 'Conceptualize', lazyReason: 'Conceptualize stores data by project ID; its project space appears with the first concept.' },
   { module: 'sysml', name: 'SysML Modeler', lazyReason: 'A SysML model is created in the SysML Modeler when you start modelling; none exists in a new project.' },
+  { module: 'cad', name: 'CAD Modeler', lazyReason: 'CAD Modeler documents are created when you model; none exists in a new project.' },
 ]
 
 export interface ServerOptions {
@@ -115,6 +118,8 @@ export interface ApiServer {
   projectEvents: ProjectsEventHub
   /** Project Management blob store (documents, attachments). */
   projectBlobs: BlobStore
+  /** Artifact registry consumer (tests wait for it with idle()). */
+  projectsRegistry: () => { idle: () => Promise<void>; reconcile: (projectId: string) => Promise<unknown> } | undefined
   /** The assistant backend (server-side callers such as the design reasoning model gateway use it). */
   assistant: () => AssistantBackend | undefined
   close: () => Promise<void>
@@ -200,7 +205,25 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
       return (await settingsStore.read('project', projectId)).values
     },
   }
+  // Module artifact sources (ADR-0062, CR-PM-REG-1/3/4): read-only adapters over each module's own tables and outbox.
+  // The SysML and CAD plugins keep their hubs private, so the host opens read-side hubs of their outboxes here.
+  // Conceptualize has no ArtifactSource yet (CR-PM-REG-2): its artifacts are not indexed.
+  const sysmlEvents: SysmlEventHub = await createSysmlEventHub(options.pool, { pollMs: options.eventPollMs, onError: (e) => app.log.error(e) })
+  const cadEvents: CadEventHub = await createCadEventHub(options.pool, { pollMs: options.eventPollMs, onError: (e) => app.log.error(e) })
+  const artifactSources: ArtifactSource[] = [
+    createRequirementsArtifactSource(options.pool, events),
+    createSysmlArtifactSource(new SysmlRepository(options.pool), sysmlEvents),
+    createCadArtifactSource(options.pool, cadEvents),
+  ]
+  // Provisioning uses each module's own provision() where it has an ArtifactSource.
+  const installedModules: ProvisioningModule[] = INSTALLED_MODULES.map((m) => {
+    const source = artifactSources.find((s) => s.module === m.module)
+    return source?.provision ? { ...m, provision: (req) => source.provision!(req) } : m
+  })
+  let projectsRegistry: { idle: () => Promise<void>; reconcile: (projectId: string) => Promise<unknown> } | undefined
   await app.register(projectsPlugin, {
+    artifactSources,
+    onRegistry: (handle) => (projectsRegistry = handle),
     prefix: PROJECTS_BASE_PATH,
     pool: options.pool,
     events: projectEvents,
@@ -208,7 +231,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     authenticate: auth.authenticate,
     roleOf: auth.membershipRole,
     memberships: platformMemberships(),
-    modules: INSTALLED_MODULES,
+    modules: installedModules,
     settings: projectSettings,
   })
   // Settings (SDK 1.6) and the AI connection (docs/specifications/ai-connection.md §5, §5a).
@@ -251,11 +274,14 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     projectEvents,
     projectBlobs,
     assistant: () => assistantBackend,
+    projectsRegistry: () => projectsRegistry,
     close: async () => {
+      await app.close()
       await events.close()
       await conceptEvents.close()
       await projectEvents.close()
-      await app.close()
+      await sysmlEvents.close()
+      await cadEvents.close()
     },
   }
 }

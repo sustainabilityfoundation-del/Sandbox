@@ -17,7 +17,7 @@ import type { ArtifactInput, RequirementsService, ToolCommand, ViewStateUpdate }
 import { onRequirementsReset } from '@ews/requirements-client'
 import { loadRequirementsProjection, requirementObject } from './requirementsProjection'
 import { workspaceServices } from './services'
-import { loadProductProjection } from '../projects/productProjection'
+import { loadLegacyProductAliases, loadProductProjection } from '../projects/productProjection'
 import { isLegacyProject } from '../projects/currentProject'
 import { canOpenTool, toolAccess, type ToolAccess } from './entitlements'
 import { toolIdOfView, type ViewMeta, type ViewPin } from './views'
@@ -377,7 +377,11 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
         const projects = workspaceServices.projects
         const [requirementsProjection, productProjection] = await Promise.all([
           loadRequirementsProjection(service, context.projectId, context.configurationId, legacyIds),
-          projects && !isLegacyProject(context.projectId) ? loadProductProjection(projects, context.projectId) : Promise.resolve(null),
+          !projects
+            ? Promise.resolve(null)
+            : isLegacyProject(context.projectId)
+              ? loadLegacyProductAliases(projects, context.projectId).catch(() => null)
+              : loadProductProjection(projects, context.projectId),
         ])
         const projection = mergeProjections(requirementsProjection, productProjection)!
         repository?.registerExternalObjects?.(projection.objects.map((o) => ({ id: o.id, type: o.type, revision: o.revision })))
