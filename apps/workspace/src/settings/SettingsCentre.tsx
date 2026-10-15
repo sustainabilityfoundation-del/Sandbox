@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { Badge, Button, Dialog, EmptyState, Notice, SearchField, Select } from '@ews/design-system'
 import type { SettingDefinition, SettingValue } from '@ews/platform-sdk'
 import { getTools } from '../platform/registry'
+import { getPlatformModules } from '../platform/platformModules'
 import { DEFAULT_LAYOUTS, useWorkspaceStore } from '../platform/store'
 import { useHelpCentre } from '../help/workspaceHelp'
 import { ApiError } from './api'
@@ -39,9 +40,9 @@ function usePages(): PageEntry[] {
       { id: PLATFORM_PAGE.id, title: PLATFORM_PAGE.title, group: 'Platform', definitions: PLATFORM_SETTINGS.map((s) => s.definition) },
       { id: 'ai', title: ai?.title ?? 'AI and reasoning', group: 'AI', definitions: Object.values(definitions).filter((d) => serverPages.pageOf[d.id] === 'ai') },
     ]
-    for (const tool of getTools()) {
-      if (!tool.settings?.definitions.length) continue
-      pages.push({ id: tool.settings.page.id, title: tool.settings.page.title, group: 'Modules', definitions: tool.settings.definitions })
+    for (const c of [...getTools(), ...getPlatformModules()]) {
+      if (!c.settings?.definitions.length) continue
+      pages.push({ id: c.settings.page.id, title: c.settings.page.title, group: 'Modules', definitions: c.settings.definitions })
     }
     return pages
   }, [definitions, serverPages])

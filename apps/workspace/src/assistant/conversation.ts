@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { serviceHandlers } from './serviceProposals'
 import type { ActivitySource } from '@ews/model-service'
-import { RepositoryError } from '@ews/model-service'
+import { PROJECT_ID, RepositoryError } from '@ews/model-service'
+import { ApiError, applyStored, fromServer, openProposals, recordOutcome, storeProposal, type StoreInput } from './proposalStore'
 import { useWorkspaceStore } from '../platform/store'
 import { broadcast, instanceId, windowTag } from '../session/windowSession'
 import { createWorkspaceEnvironment } from './environment'
@@ -56,7 +57,7 @@ export type ChatMessage =
       updatedAt?: string
       text: string
       tone: 'info' | 'success' | 'warning' | 'danger'
-      event?: 'applied' | 'rejected' | 'conflict' | 'failed'
+      event?: 'applied' | 'rejected' | 'conflict' | 'failed' | 'refused'
       proposalId?: string
       /** Proposal card shown with this event (e.g. an Undo created from a button). */
       cardProposalId?: string
@@ -64,11 +65,19 @@ export type ChatMessage =
 
 type AssistantMessage = Extract<ChatMessage, { role: 'assistant' }>
 
-const MAX_STEPS = 8
-const HISTORY_LIMIT = 20
+/** Safety stop for one answer; the server enforces the person's operations-per-answer limit. */
+const MAX_STEPS = 64
+/** Items kept for the request; the server keeps only the person's "Conversation history" setting. */
+const HISTORY_LIMIT = 40
 
 interface ConversationState {
   service: AssistantService | null
+  /** Project this conversation belongs to (C13): conversations, proposals and Apply are scoped to it. */
+  projectId: string
+  /** Proposals reopened from the assistant service (earlier sessions) that no message of this conversation shows. */
+  reopenedIds: string[]
+  /** Loads open proposals of the project from the assistant service (after a reload, restart or new session). */
+  reopen: () => Promise<void>
   conversationId: string
   startedAt: string
   messages: ChatMessage[]
@@ -154,7 +163,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
     const id = proposal.id
     const handlers = serviceHandlers(id)
     if (!handlers) {
-      patchProposal(id, { status: 'failed', message: 'This change was prepared in another window and can only be applied there. Ask again here to prepare it in this window.' })
+      patchProposal(id, { status: 'failed', message: 'Prepared by a module that does not yet describe its changes as data (labelled fallback): it can only be applied in the window and session that prepared it. Ask again here to prepare it in this window.' })
       return
     }
     patchProposal(id, { status: 'applying', message: undefined })
@@ -164,10 +173,40 @@ export const useConversation = create<ConversationState>()((set, get) => {
       patchProposal(id, { status: 'applied', createdIds: result.createdIds?.length ? result.createdIds : undefined, service: { ...proposal.service!, appliedSummary: result.summary } })
       useWorkspaceStore.getState().log('assistant', `${proposal.title}: ${result.summary} [${id}]`, 'change', result.createdIds ?? [], sourceFor({ messageId: proposal.messageId, label: `ChatGPT panel, ${id}` }))
       addEvent({ text: `Applied ${id}: ${result.summary}`, tone: 'success', event: 'applied', proposalId: id })
+      void recordOutcome(proposal.server?.id, 'applied', result.summary)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       patchProposal(id, { status: 'failed', message: `Not applied: ${message} Nothing was changed by this proposal; the preview is kept.` })
       addEvent({ text: `${id} failed: ${message}`, tone: 'danger', event: 'failed', proposalId: id })
+      void recordOutcome(proposal.server?.id, 'failed', message)
+    }
+  }
+
+  /**
+   * Applies a declarative proposal (SDK 1.8): the assistant service revalidates identity, permissions, project,
+   * expected revisions and idempotency, then executes the module API operations. A stale proposal is explained and
+   * never applied with a changed intention.
+   */
+  const applyDeclarative = async (proposal: ChangeProposal) => {
+    const id = proposal.id
+    if (!proposal.server) {
+      patchProposal(id, { status: 'failed', message: 'This proposal is not saved in the assistant service yet (or could not be saved), so it cannot be applied. Try again in a moment, or ask again.' })
+      return
+    }
+    patchProposal(id, { status: 'applying', message: undefined })
+    try {
+      const r = await applyStored(proposal.server.id, useWorkspaceStore.getState().context.projectId || get().projectId)
+      const created = r.proposal.createdIds
+      const summary = r.alreadyApplied ? 'already applied earlier (nothing repeated)' : `applied through the ${proposal.service?.module} API`
+      patchProposal(id, { status: 'applied', createdIds: created.length ? created : undefined, service: { ...proposal.service!, appliedSummary: summary } })
+      useWorkspaceStore.getState().log('assistant', `${proposal.title}: ${summary} [${id}]`, 'change', created, sourceFor({ messageId: proposal.messageId, label: `ChatGPT panel, ${id}` }))
+      addEvent({ text: `Applied ${id}: ${summary}${created.length ? `, created ${created.join(', ')}` : ''}.`, tone: 'success', event: 'applied', proposalId: id })
+    } catch (error) {
+      const code = error instanceof ApiError ? error.code : ''
+      const message = error instanceof Error ? error.message : String(error)
+      const stale = code === 'stale'
+      patchProposal(id, { status: stale ? 'conflict' : 'failed', message })
+      addEvent({ text: `${id} not applied: ${message}`, tone: stale || code === 'project-mismatch' ? 'warning' : 'danger', event: stale ? 'conflict' : 'failed', proposalId: id })
     }
   }
 
@@ -200,10 +239,14 @@ export const useConversation = create<ConversationState>()((set, get) => {
       requiredEntitlements: EntitlementId[]
       undoOf?: string
       service?: ChangeProposal['service']
+      projectId?: string
+      store?: StoreInput
     },
   ): ChangeProposal => {
+    const { store, ...rest } = draft
     const proposal: ChangeProposal = {
-      ...draft,
+      ...rest,
+      projectId: draft.projectId ?? get().projectId,
       id: nextProposalId(),
       previewModelRevision: useWorkspaceStore.getState().model?.revision ?? 0,
       status: 'pending',
@@ -213,6 +256,12 @@ export const useConversation = create<ConversationState>()((set, get) => {
       updatedAt: now(),
     }
     set((s) => ({ proposals: { ...s.proposals, [proposal.id]: proposal } }))
+    if (store) {
+      // Persisted as versioned data in the assistant service (C9). Declarative proposals must be stored to be applied.
+      storeProposal(proposal, store)
+        .then((saved) => saved && patchProposal(proposal.id, { server: { id: saved.id, kind: saved.kind, version: saved.version } }))
+        .catch((e) => patchProposal(proposal.id, { status: 'failed', message: `This proposal could not be saved, so it cannot be applied: ${e instanceof Error ? e.message : String(e)}` }))
+    }
     return proposal
   }
 
@@ -224,6 +273,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
       if (m.id === beforeId) break
       if (m.role === 'user') items.push({ role: 'user', text: m.text, context: m.context })
       else if (m.role === 'assistant' && m.text) items.push({ role: 'assistant', text: m.text })
+      else if (m.role === 'event' && m.event === 'refused') items.push({ role: 'event', event: 'refused', proposalId: '', summary: m.text })
       else if (m.role === 'event' && m.event && m.proposalId) {
         const p = proposals[m.proposalId]
         items.push({
@@ -249,6 +299,24 @@ export const useConversation = create<ConversationState>()((set, get) => {
 
   return {
     service: null,
+    projectId: PROJECT_ID,
+    reopenedIds: [],
+    reopen: async () => {
+      const projectId = get().projectId
+      const list = await openProposals(projectId)
+      if (get().projectId !== projectId) return
+      const s = get()
+      const known = new Set(Object.values(s.proposals).map((p) => p.server?.id).filter(Boolean))
+      const configurationId = useWorkspaceStore.getState().context.configurationId
+      const added: Record<string, ChangeProposal> = {}
+      for (const sp of list) {
+        if (known.has(sp.id)) continue
+        const localId = sp.conversationId === s.conversationId ? sp.key : `${sp.key}·${sp.conversationId.slice(-4)}`
+        if (s.proposals[localId]) continue
+        added[localId] = fromServer(sp, configurationId, localId)
+      }
+      if (Object.keys(added).length) set((st) => ({ proposals: { ...st.proposals, ...added }, reopenedIds: [...new Set([...st.reopenedIds, ...Object.keys(added)])] }))
+    },
     conversationId: newConversationId(),
     // Empty until the user starts a conversation, so a stored conversation always wins on load.
     startedAt: '',
@@ -312,6 +380,11 @@ export const useConversation = create<ConversationState>()((set, get) => {
             { history, turn: { text, context, toolResults: [...toolResults] }, tools: availableOperations() },
             controller.signal,
           )
+          // Operations the platform refused are shown to the person and told to the model on its next turn.
+          if (response.meta?.refused?.length) {
+            const text = `The platform refused ${response.meta.refused.map((r) => `${r.name} (${r.reason})`).join('; ')}. Nothing was run.`
+            addEvent({ text, tone: 'warning', event: 'refused' })
+          }
           if (response.type === 'final') {
             patchMessage(reply.id, {
               status: 'done',
@@ -372,6 +445,14 @@ export const useConversation = create<ConversationState>()((set, get) => {
     applyProposal: async (id) => {
       const proposal = get().proposals[id]
       if (!proposal || !['pending', 'conflict', 'failed'].includes(proposal.status)) return
+      // Project scope (C13): a proposal is never applied in another project.
+      const currentProject = useWorkspaceStore.getState().context.projectId || get().projectId
+      if (proposal.projectId && proposal.projectId !== currentProject) {
+        const message = `${id} belongs to project ${proposal.projectId}, but the current project is ${currentProject}. Nothing was applied; open ${proposal.projectId} to apply it.`
+        patchProposal(id, { message })
+        addEvent({ text: message, tone: 'warning', event: 'failed', proposalId: id })
+        return
+      }
       const workspace = useWorkspaceStore.getState()
       const model = workspace.model
       if (!model) return
@@ -387,6 +468,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
           message: `${reason} The preview now shows the current values; nothing was overwritten. Review it and apply again if it is still what you want.`,
         })
         addEvent({ text: `${id} not applied: the model changed since the preview.`, tone: 'warning', event: 'conflict', proposalId: id })
+        void recordOutcome(proposal.server?.id, 'conflict', reason)
       }
 
       // The subscription may have changed since the preview was created (in any window).
@@ -400,6 +482,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
         return
       }
 
+      if (proposal.service?.declarative) return applyDeclarative(proposal)
       if (proposal.service) return applyService(proposal)
 
       // Check the expected revisions before committing.
@@ -416,6 +499,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
           source: sourceFor({ messageId: proposal.messageId, label: `ChatGPT panel, ${id}` }),
         })
         patchProposal(id, { status: 'applied', committedRevision: modelRevision, createdIds: createdIds.length ? createdIds : undefined })
+        void recordOutcome(proposal.server?.id, 'applied', `model rev ${modelRevision}`)
         if (proposal.undoOf) patchProposal(proposal.undoOf, { undoneBy: id })
         addEvent({
           text: `Applied ${id} as model rev ${modelRevision}${createdIds.length ? `, created ${createdIds.join(', ')}` : ''}${proposal.undoOf ? ` (undoes ${proposal.undoOf})` : ''}.`,
@@ -430,6 +514,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
           const message = error instanceof Error ? error.message : String(error)
           patchProposal(id, { status: 'failed', message: `Not applied: ${message}` })
           addEvent({ text: `${id} failed: ${message}`, tone: 'danger', event: 'failed', proposalId: id })
+          void recordOutcome(proposal.server?.id, 'failed', message)
         }
       }
     },
@@ -439,6 +524,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
       if (!proposal || (proposal.status !== 'pending' && proposal.status !== 'conflict' && proposal.status !== 'failed')) return
       patchProposal(id, { status: 'rejected' })
       addEvent({ text: `Rejected ${id}. Nothing was changed.`, tone: 'info', event: 'rejected', proposalId: id })
+      void recordOutcome(proposal.server?.id, 'rejected')
     },
 
     undoProposal: async (id) => {
@@ -483,13 +569,14 @@ interface StoredConversation {
   proposals: Record<string, ChangeProposal>
 }
 
-const CONVERSATION_KEY = 'ews.conversation.v1'
+/** One stored conversation per project (C13); the sample project keeps the original key. */
+const conversationKey = (projectId: string) => (projectId === PROJECT_ID ? 'ews.conversation.v1' : `ews.conversation.v1.${projectId}`)
 let applyingStored = false
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 
 function readStored(): StoredConversation | null {
   try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(CONVERSATION_KEY) : null
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(conversationKey(useConversation.getState().projectId)) : null
     return raw ? (JSON.parse(raw) as StoredConversation) : null
   } catch {
     return null
@@ -546,7 +633,7 @@ function persist() {
   const stored = readStored()
   const merged = stored ? mergeConversations(snapshot(), stored) : snapshot()
   try {
-    localStorage.setItem(CONVERSATION_KEY, JSON.stringify(merged))
+    localStorage.setItem(conversationKey(useConversation.getState().projectId), JSON.stringify(merged))
   } catch {
     return // storage unavailable: the conversation stays in this window only
   }
@@ -562,4 +649,19 @@ if (typeof localStorage !== 'undefined') {
     saveTimer = setTimeout(persist, 150)
   })
   if (typeof window !== 'undefined') window.addEventListener('pagehide', persist)
+  // Switching project switches the conversation (C13): save this one, load the other project's.
+  useWorkspaceStore.subscribe((ws, prev) => {
+    const next = ws.context.projectId
+    if (!next || next === prev.context.projectId || next === useConversation.getState().projectId) return
+    persist()
+    useConversation.getState().running?.controller.abort()
+    applyingStored = true
+    try {
+      useConversation.setState({ projectId: next, messages: [], proposals: {}, reopenedIds: [], running: null, conversationId: newConversationId(), startedAt: '' })
+    } finally {
+      applyingStored = false
+    }
+    reloadConversation()
+    void useConversation.getState().reopen()
+  })
 }

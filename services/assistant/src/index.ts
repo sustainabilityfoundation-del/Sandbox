@@ -16,3 +16,4 @@ export { AI_MODULES, AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS, OPERATION_CATALOG
 export { migrateAssistant, ASSISTANT_MIGRATIONS } from './db/migrate'
 export type { WireRequest, WireResponse } from './wire'
 export { loadAssistantKey } from './keyfile'
+export { ProposalService, PROPOSAL_SCHEMA_VERSION, publicProposal, type ModuleApi, type ModuleCaller, type ProposalInput, type ProposalKind, type ProposalStatus, type OperationResult } from './proposals'

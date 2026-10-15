@@ -70,6 +70,8 @@ export const useAiConnection = create<AiConnectionState>()((set) => ({
       ])
       const previous = useAiConnection.getState().connection?.id ?? null
       set({ status: 'ready', error: undefined, providers: providers.body.providers, connection: connection.body.connection, policy: policy.body })
+      // Open proposals saved by earlier sessions reopen (C9).
+      void useConversation.getState().reopen()
       // Connecting or disconnecting updates the connection reference setting on the server (new ETag).
       if ((connection.body.connection?.id ?? null) !== previous) void loadSettings()
       usePolicyView.setState({ view: policy.body })

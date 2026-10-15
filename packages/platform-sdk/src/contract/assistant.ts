@@ -61,6 +61,7 @@ export type AssistantActionResult =
   | { kind: 'data'; data: unknown; summary: string; inspected?: InspectedItem[] }
   | { kind: 'proposal'; title: string; explanation: string; changes: ChangeInput[]; inspected?: InspectedItem[] }
   | ServiceProposal
+  | DeclarativeProposal
 
 /**
  * A change to a service-backed module (Requirements, Conceptualize …) proposed by the assistant (SDK 1.5).
@@ -90,6 +91,69 @@ export interface ServiceProposal {
   confirmation?: { phrase: string; prompt: string }
 }
 
+/**
+ * One call of a module's HTTP API, described as data (SDK 1.8, ADR-0042). `path` is relative to the module's
+ * base path (for example `/projects/PRJ-1/concepts`) and must match the module's OpenAPI operation
+ * `operationId` with the same `method`; the platform refuses anything else, so a proposal cannot target an
+ * arbitrary URL. Values of the form `"$result[<n>].<field>"` in `path` or `body` are replaced, at Apply,
+ * by a field of the result of operation n of the same proposal (for example the ID it created).
+ */
+export interface ModuleOperation {
+  /** Owning module, e.g. 'conceptualize', 'requirements'. */
+  module: string
+  operationId: string
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  path: string
+  query?: Record<string, string>
+  body?: unknown
+  /** Revision (ETag) the change is based on; sent as If-Match. */
+  ifMatch?: string
+  /** Defaults to `<proposalId>:<index>`, so a repeated Apply never repeats the change. */
+  idempotencyKey?: string
+}
+
+/**
+ * A revision the preview was based on (SDK 1.8). At Apply the platform reads `read` again and compares
+ * `field` with `revision`; on a difference nothing is applied and the person sees what changed.
+ */
+export interface ExpectedRevision {
+  module: string
+  /** Artifact kind (C3), e.g. 'requirement', 'concept'. */
+  kind: string
+  id: string
+  /** Display label, e.g. "REQ-12 Operating load". */
+  label: string
+  revision: number | string
+  /** Read operation returning the artifact, and the (dot-separated) field holding its revision. */
+  read: { operationId: string; path: string; field: string }
+}
+
+/**
+ * A change proposed as DATA (SDK 1.8, ADR-0042): the platform stores it (it survives reloads and restarts),
+ * shows `preview`, and on Apply revalidates identity, permissions, project, expected revisions and
+ * idempotency before executing `operations` through the owning module's API, in order. The preview policy
+ * is unchanged: nothing is written until the person applies it. Prefer this over `ServiceProposal`, whose
+ * `apply` closure exists only in the window that prepared it.
+ */
+export interface DeclarativeProposal {
+  kind: 'declarative-proposal'
+  /** Owning module (its entitlement is checked again before Apply). */
+  module: string
+  title: string
+  explanation: string
+  preview: ServiceProposalItem[]
+  assumptions?: string[]
+  inspected?: InspectedItem[]
+  operations: ModuleOperation[]
+  expected?: ExpectedRevision[]
+  /** Project every operation belongs to; defaults to the project captured with the message. */
+  projectId?: string
+  confirmation?: { phrase: string; prompt: string }
+}
+
+/** What an action does (SDK 1.8); used for coverage (engineering operation or view control) and access policy. */
+export type ActionEffect = 'read' | 'search' | 'calculate' | 'propose' | 'export' | 'external-generation' | 'view'
+
 export interface ServiceProposalItem {
   /** Canonical ID of the record (absent for records to be created). */
   targetId?: string
@@ -108,6 +172,8 @@ export interface AssistantActionDefinition {
   label: string
   description: string
   parameters: ActionParameters
+  /** What the action does (SDK 1.8). The server's operation catalogue stays authoritative for the access policy. */
+  effect?: ActionEffect
   /** Reads the model or prepares a proposal. Must not write: the platform applies proposals. */
   run: (args: Record<string, unknown>, ctx: AssistantActionContext) => AssistantActionResult | Promise<AssistantActionResult>
 }
@@ -178,4 +244,19 @@ export function argString(args: Record<string, unknown>, key: string): string {
 
 export function argOptionalString(args: Record<string, unknown>, key: string): string | undefined {
   return args[key] === undefined || args[key] === null ? undefined : argString(args, key)
+}
+
+/**
+ * A platform module without a tool view (SDK 1.8): Project Management, design reasoning … It contributes
+ * assistant operations, help and settings exactly like a tool does, read through the same registry.
+ */
+export interface PlatformModuleContribution {
+  /** Stable module ID; its operations are named `<id>.<action>`. */
+  id: string
+  name: string
+  /** Subscription entitlement needed for its operations and help, if any. */
+  entitlement?: `tool:${string}`
+  assistant?: AssistantContribution
+  help?: import('./help').HelpManifest
+  settings?: import('./settings').SettingsContribution
 }

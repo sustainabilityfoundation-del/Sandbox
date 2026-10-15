@@ -1,6 +1,6 @@
 import type { AssistantRequest, AssistantResponse, AssistantService, HistoryItem, ToolCallRequest, ToolCallResult } from './types'
-import { getTools } from '../platform/registry'
-import { drillBitHolderDemo } from './demos/drillBitHolder'
+import { assistantContributions } from './contributions'
+import { runScriptedPlan, scriptedPlans } from './scriptedPlans'
 
 /**
  * DEMO ASSISTANT: deterministic, rule-based responses for a handful of example
@@ -21,7 +21,8 @@ export const EXAMPLE_PROMPTS = [
   'Open SysML and show the rod.',
   'Which artifacts are stale?',
   'Undo the last model change.',
-  'Start the drill bit holder example',
+  // Example prompts of scripted plans shipped as fixtures (none is required).
+  ...scriptedPlans().flatMap((p) => (p.examplePrompt ? [p.examplePrompt] : [])),
 ]
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
@@ -324,8 +325,8 @@ function undoIntent(turn: Turn, history: HistoryItem[]): AssistantResponse {
  * executor, so validation, subscription checks and previews are unchanged.
  */
 function toolDemoIntent(turn: Turn): AssistantResponse | null {
-  for (const tool of getTools()) {
-    const plan = tool.assistant?.demo?.(turn.text, { selectionIds: turn.context.selection.map((s) => s.id) })
+  for (const tool of assistantContributions()) {
+    const plan = tool.assistant.demo?.(turn.text, { selectionIds: turn.context.selection.map((s) => s.id) })
     if (!plan || !plan.calls.length) continue
     if (!plan.calls.every((c) => turn.offered(c.name))) return notInSubscription(tool.name)
     const done = turn.results.filter((r) => plan.calls.some((c) => c.name === r.name))
@@ -371,9 +372,9 @@ export class DemoAssistantService implements AssistantService {
     const text = turn.text
     const history = request.history
 
-    // Optional demonstration (drill bit holder), separate from the product's general intents.
-    const example = drillBitHolderDemo(request)
-    if (example) return example
+    // Scripted demonstration plans from fixtures (data, not product logic), before the general intents.
+    const scripted = runScriptedPlan(request)
+    if (scripted) return scripted
     if (/\b(undo|revert|roll ?back)\b/i.test(text)) return undoIntent(turn, history)
     if (/\b(stale|out of date|outdated)\b/i.test(text)) return staleIntent(turn, history)
     if (/\bsysml\b/i.test(text) && /\b(reference|ref)\b/i.test(text)) return sysmlReferenceIntent(turn)

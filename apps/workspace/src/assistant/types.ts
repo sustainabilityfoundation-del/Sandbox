@@ -70,7 +70,8 @@ export type HistoryItem =
   | { role: 'assistant'; text: string }
   | {
       role: 'event'
-      event: 'applied' | 'rejected' | 'conflict' | 'failed'
+      /** 'refused': the platform refused an operation the model requested (proposalId is then empty). */
+      event: 'applied' | 'rejected' | 'conflict' | 'failed' | 'refused'
       proposalId: string
       summary: string
       revision?: number
@@ -91,7 +92,7 @@ export interface AssistantRequest {
 }
 
 export type AssistantResponse =
-  | { type: 'tool_calls'; calls: ToolCallRequest[] }
+  | { type: 'tool_calls'; calls: ToolCallRequest[]; meta?: AssistantResponseMeta }
   | {
       type: 'final'
       /** May reference objects and outputs as [[ID]]; the UI renders them as links. */
@@ -100,6 +101,8 @@ export type AssistantResponse =
       suggestions?: string[]
       /** True when the assistant needs more information before acting. */
       clarification?: boolean
+      /** Set by the assistant service: provider, model, and operations the access policy refused. */
+      meta?: AssistantResponseMeta
     }
 
 /**
@@ -189,10 +192,33 @@ export interface ChangeProposal {
    * Set for changes to a service-backed module (SDK 1.5 service proposal). `changes` is then empty;
    * the preview is `items` and Apply calls the module's API.
    */
-  service?: { module: string; items: ServiceProposalItem[]; assumptions: string[]; appliedSummary?: string; undone?: boolean }
+  service?: {
+    module: string
+    items: ServiceProposalItem[]
+    assumptions: string[]
+    appliedSummary?: string
+    undone?: boolean
+    /** Declarative (SDK 1.8): applied by the assistant service through the module API, after revalidation. */
+    declarative?: boolean
+  }
+  /** Project the proposal belongs to (C13); applying is refused in another project. */
+  projectId?: string
+  /** Persisted copy in the assistant service (survives reloads and restarts). */
+  server?: { id: string; kind: 'declarative' | 'twin' | 'closure'; version: number }
+  /** Reopened from the assistant service in a later session. */
+  reopened?: boolean
   conversationId: string
   messageId: string
   createdAt: string
   /** Last change, used to merge the conversation between windows. */
   updatedAt?: string
+}
+
+/** Metadata the assistant service adds to a response. */
+export interface AssistantResponseMeta {
+  provider?: string
+  model?: string
+  method?: string
+  refused?: { name: string; reason: string }[]
+  usage?: { inputTokens?: number; outputTokens?: number }
 }

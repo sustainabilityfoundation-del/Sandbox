@@ -19,7 +19,12 @@ npm run e2e -- platform help    # selected flows
 
 Flows (`flows/*.mjs`, one process each, exit code 0 = pass): `platform` (subscriptions, shared context, upgrade
 of version 0.1 data, CAD dimension mapping, detached windows, failure isolation, icons), `help`, `coverage`,
-`integration`, `vision`, `conceptualize`, `sysml-modeler`, `cad-modeler`, `cad-modeler-persistence` (CAD service revisions, concurrency, edge features, deep link, units setting), `cad-d1` (regular polygon, pocket and linear pattern in the UI, volumes checked analytically). Several flows change the
+`integration`, `vision`, `conceptualize`, `sysml-modeler`, `cad-modeler`, `cad-modeler-persistence` (CAD service revisions,
+concurrency, edge features, deep link, units setting), `cad-d1` (regular polygon, pocket and linear pattern in the
+UI, volumes checked analytically), `ai-headless` (every engineering operation with all tool tabs closed; modules
+still tied to a view are listed as known-failing), `ai-fake-provider` (needs the API started with the fake provider:
+`npm run ai:dev:fake`; connect, ask, proposal reopened in a fresh session, access policy and refusals, audit,
+disconnect, drill bit holder demo), `projects` (Project Home, new project, switcher, reopen). Several flows change the
 development database (the seeded `PRJ-ACT100` project); run them against a development database, not one
 holding real work.
 

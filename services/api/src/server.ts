@@ -248,6 +248,23 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
         },
       },
       onReady: (b) => (assistantBackend = b),
+      // Declarative proposals (integration milestone 1 C9): the module APIs they may call, executed in-process
+      // as the person (their identity headers are forwarded; each module enforces its own permissions).
+      modules: [
+        { id: 'requirements', label: 'Requirements', basePath: BASE_PATH, entitlement: 'tool:requirements', projectParam: 'projectId' },
+        { id: 'conceptualize', label: 'Conceptualize', basePath: CONCEPTS_BASE_PATH, entitlement: 'tool:conceptualize', projectParam: 'projectId' },
+        { id: 'sysml-modeler', label: 'SysML Modeler', basePath: SYSML_BASE_PATH, entitlement: 'tool:sysml' },
+      ],
+      callModule: async ({ method, url, headers, body }) => {
+        const res = await app.inject({ method: method as 'GET', url, headers: { ...headers, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, payload: body === undefined ? undefined : JSON.stringify(body) })
+        let parsed: unknown
+        try {
+          parsed = res.body ? JSON.parse(res.body) : undefined
+        } catch {
+          parsed = undefined
+        }
+        return { status: res.statusCode, body: parsed }
+      },
     })
     registerOAuthCallback(app, () => assistantBackend)
   } else app.log.warn('EWS_ASSISTANT_KEY is not set: the assistant API (/api/assistant/v1) is not started.')

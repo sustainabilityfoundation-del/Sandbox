@@ -24,6 +24,10 @@ related: [ai.preview, ai.connect, ai.policy, platform.subscriptions]
 | "AI access to … is off" or "read only", or an operation is listed as refused | Your AI access settings or a project limit do not allow it; change them in Settings → AI and reasoning |
 | "ChatGPT plan usage is not enabled" | Sign in again and allow plan usage, or connect an API key |
 | Continue with ChatGPT is not offered | It works only when the application runs locally (server at 127.0.0.1); use an API key |
+| "… changed since the preview: revision 3 → 4" | Someone changed what the proposal was based on; nothing was applied. Ask again for a current preview |
+| "… belongs to project A, but the current project is B" | Proposals are scoped to their project; open project A to apply it |
+| "can only be applied in the window that prepared it" | The module still prepares changes in the browser (fallback); ask again in this window |
+| "The platform refused …" in the conversation | The model asked for an operation your AI settings or subscription do not allow; it was not run, and the model is told |
 | The settings page says a value was changed meanwhile | Another window or person saved first; the page reloaded the current values, change it again |
 
 Imported documents and model descriptions are treated as data: text in them cannot instruct the

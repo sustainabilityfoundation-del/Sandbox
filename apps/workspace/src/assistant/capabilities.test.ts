@@ -4,8 +4,9 @@ import type { ToolApi } from '@ews/platform-sdk'
 import { sampleModel } from '@ews/platform-sdk/testing'
 import { describe, expect, it } from 'vitest'
 import { getTools } from '../platform/registry'
+import { assistantContributions } from './contributions'
 import '../platform/tools'
-import { CAPABILITIES, PLATFORM_OPERATION_ENTRIES, summarize } from './capabilities'
+import { CAPABILITIES, PLATFORM_OPERATION_ENTRIES, kindOf, summarize } from './capabilities'
 import { PLATFORM_TOOLS } from './toolSpecs'
 
 /** A tool API stand-in: toolbars only read from it while building their items. */
@@ -48,7 +49,7 @@ describe('AI capability inventory', () => {
   })
 
   it('accounts for every assistant operation, and maps only to operations that exist', () => {
-    const existing = new Set([...PLATFORM_TOOLS.map((t) => t.name), ...getTools().flatMap((t) => t.assistant?.actions.map((a) => a.name) ?? [])])
+    const existing = new Set([...PLATFORM_TOOLS.map((t) => t.name), ...assistantContributions().flatMap((t) => t.assistant.actions.map((a) => a.name))])
     expect([...existing].filter((name) => !aiOperations.has(name))).toEqual([])
     expect([...aiOperations].filter((name) => !existing.has(name))).toEqual([])
     expect([...PLATFORM_OPERATION_ENTRIES].sort()).toEqual(PLATFORM_TOOLS.map((t) => t.name).sort())
@@ -79,5 +80,15 @@ describe('AI capability inventory', () => {
     expect(Object.values(s.byCoverage).reduce((a, b) => a + b, 0)).toBe(s.total)
     expect(s.coveredShare).toBeGreaterThan(0)
     expect(s.coveredShare).toBeLessThan(1)
+  })
+
+  it('measures engineering-operation coverage and view-control coverage separately', () => {
+    const s = summarize(CAPABILITIES)
+    expect(s.engineering.total + s.view.total).toBe(s.total)
+    expect(s.engineering.total).toBeGreaterThan(0)
+    expect(s.view.total).toBeGreaterThan(0)
+    expect(CAPABILITIES.filter((c) => kindOf(c) === 'view').every((c) => c.effect === 'view')).toBe(true)
+    // Engineering coverage is reported on its own; view controls cannot raise it.
+    expect(s.engineering.coveredShare).toBe(summarize(CAPABILITIES.filter((c) => kindOf(c) === 'engineering')).coveredShare)
   })
 })
