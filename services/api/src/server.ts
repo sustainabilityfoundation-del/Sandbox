@@ -13,6 +13,7 @@ import {
   type ObjectStorage,
   type TwinDirectory,
 } from '@ews/requirements-service'
+import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsEventHub, migrateConcepts, seedConcepts, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
 import { registerApiDocs } from './apiDocs'
 
@@ -58,24 +59,33 @@ export interface ServerOptions {
 export interface ApiServer {
   app: FastifyInstance
   events: EventHub
+  /** Conceptualize outbox (its own schema and publisher). */
+  conceptEvents: ConceptsEventHub
   close: () => Promise<void>
 }
 
 export async function prepareDatabase(pool: Pool, opts: { seed: boolean; twin?: TwinDirectory }) {
   const platform = await migratePlatform(pool)
   const requirements = await migrateRequirements(pool)
+  const concepts = await migrateConcepts(pool)
   let seed: { seeded: boolean; message: string } | undefined
   if (opts.seed) {
     await seedPlatform(pool)
+    // Development users seeded after the platform migrations get tool:conceptualize here
+    // (contracts §6; integration need: add it to DEV_USERS instead).
+    await pool.query(`INSERT INTO platform.entitlements (user_id, entitlement) SELECT id, 'tool:conceptualize' FROM platform.users WHERE id IN ('ada', 'rui', 'eli', 'rho') ON CONFLICT DO NOTHING`)
     seed = await seedRequirements(pool, opts.twin ?? SAMPLE_TWIN)
+    const conceptSeed = await seedConcepts(pool)
+    seed = { seeded: seed.seeded || conceptSeed.seeded, message: `${seed.message} ${conceptSeed.message}` }
   }
-  return { platform, requirements, seed }
+  return { platform, requirements, concepts, seed }
 }
 
 export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   const production = options.production ?? process.env.NODE_ENV === 'production'
   const app = Fastify({ logger: options.logger ?? false, bodyLimit: 2 * 1024 * 1024, forceCloseConnections: true })
   const events = await createEventHub(options.pool, { pollMs: options.eventPollMs, retentionHours: options.outboxRetentionHours, onError: (e) => app.log.error(e) })
+  const conceptEvents = await createConceptsEventHub(options.pool, { pollMs: options.eventPollMs, retentionHours: options.outboxRetentionHours, onError: (e) => app.log.error(e) })
   const auth = identity(options.pool, { production })
   app.setErrorHandler((error, request, reply) => {
     const errorId = randomUUID()
@@ -90,6 +100,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   })
   registerPlatformRoutes(app, options.pool, auth, { production })
   registerApiDocs(app, { path: `${BASE_PATH}/docs`, openapiUrl: `${BASE_PATH}/openapi.json`, title: 'Requirements Management API' })
+  registerApiDocs(app, { path: `${CONCEPTS_BASE_PATH}/docs`, openapiUrl: `${CONCEPTS_BASE_PATH}/openapi.json`, title: 'Conceptualize API' })
   await app.register(requirementsPlugin, {
     prefix: BASE_PATH,
     pool: options.pool,
@@ -100,11 +111,14 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     roleOf: auth.roleOf,
     reqifSchemaDir: options.reqifSchemaDir,
   })
+  await app.register(conceptsPlugin, { prefix: CONCEPTS_BASE_PATH, pool: options.pool, events: conceptEvents, authenticate: auth.authenticate, roleOf: auth.roleOf })
   return {
     app,
     events,
+    conceptEvents,
     close: async () => {
       await events.close()
+      await conceptEvents.close()
       await app.close()
     },
   }

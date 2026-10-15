@@ -33,7 +33,9 @@
     "db:status": "tsx services/api/scripts/db.ts status",
     "req:test:db": "vitest run --config services/api/vitest.db.config.ts",
     "req:reqif:schemas": "tsx packages/reqif/scripts/fetch-schemas.ts",
-    "req:reqif:samples": "tsx packages/reqif/scripts/fetch-samples.ts"
+    "req:reqif:samples": "tsx packages/reqif/scripts/fetch-samples.ts",
+    "concept:test:db": "vitest run --config services/conceptualize/vitest.db.config.ts",
+    "concept:dev": "npm run dev -w @ews/tool-conceptualize"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
