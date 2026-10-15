@@ -242,12 +242,97 @@ entries when the coordinator applies the roadmap rows (AGENTS.md: keep them in s
 7. **Requirements quantities**: should Requirements gain a structured quantity field so that formalizing
    constraints can be checked against it (P3 nice-to-have)?
 
+Answered on 15 October 2026; see Phase B below.
+
+## Phase B: validation prototype R1 (approved 15 October 2026)
+
+### Owner and coordinator decisions applied
+
+| Question | Decision |
+| --- | --- |
+| 1 Function migration | Explicit conversion to Function; no automatic migration |
+| 2 Prototype persistence | In memory, against a labelled Conceptualize contract test adapter |
+| 3 Entitlement | `tool:conceptualize` |
+| 4 Calculation models | Stay in Conceptualize; no Mathematics module yet |
+| 5 Autonomy | **Owner-approved** (governance "Owner decisions", main c5a531e): operational autonomy only (read, calculate, draft); every durable change is previewed and applied by a person. Open to later revision |
+| 6 Retention | **Owner-approved** (same record): run records kept 2 years, configurable |
+| 7 Requirements quantity field | Deferred (P3) |
+
+Change requests: S2 done by the coordinator (SDK 1.6 `quantities`, used by engineering-calc); P4 approved (two
+packages, mathjs 15.2.0, boundary rules); P1 approved for the prototype (client-attested twin snapshot); S1, S3, S4
+approved in principle, with exact types in design-reasoning-core and in contract-change-requests.md; A1 approved in
+principle (drafts are declarative data; executor support comes later); A2 later; A3 is being built by the AI
+connection agent (`services/assistant`, settings namespace `ai.reasoning.*`) and is treated as the future model
+gateway; the C1–C10 P1 set was routed to Conceptualize.
+
+### R1 checkpoint (ready for coordinator review)
+
+Commits on `feature/design-reasoning` after merging main (6651e39): a673c84 (COORDINATOR REVIEW: boundary rules),
+b217a3e (engineering-calc and the mathjs dependency row), a5b4d92 (design-reasoning-core), then the documentation
+commit that records this checkpoint.
+
+| Package | Content |
+| --- | --- |
+| `packages/engineering-calc` | `ews-expr/1` (mathjs used to parse only; own interpreter over a whitelisted AST), dimensional analysis on the SDK unit algebra (no mathjs units), deterministic evaluation, constraint checks with margins, validity conditions, interval bounds by vertex enumeration, reproducibility manifest with SHA-256 digests, `verifyManifest` |
+| `packages/design-reasoning-core` | The proposed Conceptualize contract as TypeScript; a **TEST ADAPTER** implementing it in memory with its invariants; client-attested twin snapshot; Requirements reader (SDK subset; a fixture in the scenario); binding resolution; tool definitions with closed JSON schemas and a validator; assistant-driven runs with invocations, context manifests and budgets; change impact (possible, demonstrated, checked-unaffected); Pareto dominance; rationale assembly; declarative drafts and the platform-apply emulation; the actuator scenario and a demo script |
+
+Acceptance (roadmap R1, brief §14), automated in `packages/design-reasoning-core/src/prototype/actuatorScenario.test.ts`:
+
+| # | Demonstration | Evidence |
+| --- | --- | --- |
+| 1 | Functional objective without a solution | FN-001 with flows and objective; an implementation that references a Function is refused |
+| 2 | Several candidate concepts | 4 Concepts drafted by `reasoning.propose_solution_concepts` (scripted candidates stand in for a model; the duplicate "Ball-screw" is left out), all `ai-hypothesis`, with the run ID in provenance |
+| 3 | Functions and concepts are separate | Distinct types, keys and reads |
+| 4 | Alternatives linked to one objective | All four `performs` FN-001; the set's `functionId` refuses non-performers |
+| 5 | Assumptions and constraints | ASM-001…004; CST-001 formalizes REQ-001 at revision 1 (pinned); CST-002 stated |
+| 6 | Deterministic calculation | Euler buckling of ROD-120 (d and L client-attested, revision 2): P_cr 110.4 kN, matching an independent formula within 1e-9; manifest re-verified; a forged manifest is refused |
+| 7 | Comparison with explicit criteria | Weighted sum (preliminary, uncertain ranking) and Pareto (hydraulic robustly dominated) |
+| 8 | Decision with evidence | DEC-001 proposed from a draft by eli (editor); recording by eli refused; recorded by rui (reviewer); support EVD-001 [calculated], 3 assumptions and 2 constraints pinned, 2 invalidation conditions |
+| 9 | Link to existing CAD/SysML | IMP-001 realizes the ball screw: twin:ROD-120@2, cad:CAD-120@5, sysml:SYS-003@5 (the sample twin's real IDs and revisions) |
+| 10 | Constraint change → affected decisions and implementations | Hypothetical 15 kN: DEC-001 checked-unaffected. Applied revision to 120 kN: EVD-001 and DEC-001 demonstrated (path binds → produced-by), IMP-001 and its artifacts possible, REQ-001 possible, the other alternatives possible (reconsideration); review flag drafted and applied by a person; rationale unchanged |
+
+Checks run on 15 October 2026:
+- `npm run check`: all workspaces type-check; 36 test files, 724 tests passed, 1 skipped.
+- `npx vitest run packages/engineering-calc packages/design-reasoning-core`: 57 passed.
+- `packages/platform-sdk/src/boundaries.test.ts`: 63 passed.
+- `npx tsx packages/design-reasoning-core/scripts/demo.ts`: prints the ten-step walkthrough, ending with "Run …:
+  completed; 8 tool calls, 5 context manifests, 4 drafts (4 applied by a person)".
+- `npm run build` was not run: no application or build configuration changed, and neither package is used by the
+  workspace yet.
+
+Walkthrough for review: `npm ci`, then `npx tsx packages/design-reasoning-core/scripts/demo.ts` from the repository root.
+
+Contract refinements found while building, recorded in contract-change-requests.md ("Exact TypeScript and
+refinements", R1-1…R1-10):
+- all writes are batch items named by operationId;
+- reviewers do not author, so decisions are proposed by an editor and recorded by a reviewer;
+- derived graph edges;
+- the binding shape;
+- evidence validation status;
+- review flags.
+
+Limitations:
+- No persistence: the adapter is not Conceptualize.
+- No UI.
+- The candidate concepts are scripted; no model is involved.
+- Twin values are attested by a test helper that stands in for the executor.
+- The calculation engine has no worker isolation or timeouts yet. The engine is pure and bounded; the service adds
+  isolation in R3/R4.
+- Interval bounds are exact only for monotonic relations.
+
+Needs your confirmation: the boundary rule for design-reasoning-core also allows `@ews/platform-sdk/testing`,
+because the scenario tests and the demo use the sample twin.
+
+Next recommended increment: switch the scenario from the test adapter to the Conceptualize API when the P1 change
+requests land, so the contract tests become the acceptance; then harden the calculation engine (R3).
+
 ## Review status
 
-Phase A: **submitted for coordinator review** (ready for review, 14 October 2026). Phase B not started;
-waits for an explicit approval message with file ownership.
+Phase A: approved by the coordinator (15 October 2026; merged into main as 4f7884b, ADRs renumbered 0039–0046, still Proposed until R1 is reviewed).
+Phase B (R1): **ready for coordinator review** (15 October 2026). Owner acceptance pending.
 
 ## Handoff log
 
 - 5723e69: architecture set (14 documents), proposed ADRs 0039–0046, research note.
-- (this commit): progress file with the §16 report, change-request summary, proposed coordinator text and open questions.
+- 015c133: progress file with the §16 report, change-request summary, proposed coordinator text and open questions.
+- a673c84, b217a3e, a5b4d92: R1 boundary rules, engineering-calc, design-reasoning-core; (this commit) R1 documentation and checkpoint.

@@ -22,6 +22,9 @@ its own plan, checkpoint and owner walkthrough.
 
 ### R1 Validation prototype (brief §14; mechanical actuator)
 
+Status (15 October 2026): **technically complete, ready for coordinator review.** Evidence and checkpoint:
+[progress file, Phase B](../../specifications/design-reasoning-progress.md#phase-b-validation-prototype-r1-approved-15-october-2026).
+
 All ten demonstrations run as **automated scenario tests** through the proposed APIs (no UI-only
 behaviour), using real code where it exists and **clearly named contract-test adapters** otherwise:
 
