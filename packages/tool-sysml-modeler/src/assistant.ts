@@ -39,6 +39,8 @@ async function target(ctx: AssistantActionContext, projectId?: string): Promise<
     }
     if (!pid) throw new ActionError('not-found', `There is no SysML project for ${ctx.captured.projectId}. Create one in the SysML Modeler first.`)
     const project = await client.getProject(pid)
+    // C13: the assistant acts only in the platform project of the conversation.
+    if (project.platformProjectId !== ctx.captured.projectId) throw new ActionError('not-allowed', `SysML project ${pid} belongs to platform project ${project.platformProjectId}, not ${ctx.captured.projectId}. Switch projects to work on it.`)
     const st = session?.getState()
     const branchId = st?.project?.id === pid && st.branch ? st.branch.id : project.defaultBranchId
     const branch = await client.getBranch(pid, branchId)

@@ -3,6 +3,7 @@ import { createLocalSysmlClient, SysmlClientError } from '@ews/sysml-client'
 import { describe, expect, it } from 'vitest'
 import { createSysmlModelerTool } from '.'
 import { sysmlModelerDemo } from './assistant'
+import { serialize } from '@ews/sysml-core'
 import { ModelerSession, sessionCount } from './session'
 
 /**
@@ -94,5 +95,22 @@ describe('assistant operations without a mounted view (headless, C9)', () => {
     const out = await ui.run([command as never])
     expect(out.diagnostics.introduced.map((d) => d.ruleId)).toContain('SYSML-UNIT-DIMENSION')
     ui.dispose()
+  })
+})
+
+describe('project scoping in the client and assistant (C13)', () => {
+  it('sessions are per platform project, and the assistant refuses SysML projects of another platform project', async () => {
+    const { client, run } = headless()
+    const other = await client.createProject({ name: 'Other', platformProjectId: 'PRJ-OTHER', initialText: 'package Other { part def Secret; }' })
+    const a = new ModelerSession(client)
+    const b = new ModelerSession(client)
+    await a.open('PRJ-ACT100')
+    await b.open('PRJ-OTHER')
+    expect(a.getState().project!.id).not.toBe(b.getState().project!.id)
+    expect(serialize(a.getState().model!)).not.toContain('Secret')
+    await expect(Promise.resolve().then(() => run('read_element', { element: 'Other::Secret', projectId: other.id }))).rejects.toThrow(/belongs to platform project PRJ-OTHER/)
+    await expect(Promise.resolve().then(() => run('propose_commands', { projectId: other.id, title: 't', explanation: 'e', commands: [{ op: 'createElement', ownerId: 'Other', kind: 'PartDefinition', name: 'X' }] }))).rejects.toThrow(/belongs to platform project PRJ-OTHER/)
+    a.dispose()
+    b.dispose()
   })
 })
