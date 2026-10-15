@@ -120,7 +120,7 @@ function Relationships({ r, readOnly, baselineId }: { r: Requirement; readOnly: 
   const { sysml } = usePlatformServices()
   const { projectId } = useSharedContext()
   const sysmlCandidates = useResource(
-    () => (type === 'allocated-to' && targetKind === 'sysml-model-element' && sysml ? sysml.find(projectId, { text: search || undefined, limit: 20 }) : Promise.resolve(null)),
+    () => (type === 'allocated-to' && targetKind === 'sysml-model-element' && sysml ? sysml.find(projectId, { text: search || undefined, limit: 50 }) : Promise.resolve(null)),
     [sysml, projectId, search, type, targetKind],
   )
   const [rationale, setRationale] = useState('')
@@ -269,7 +269,7 @@ function Relationships({ r, readOnly, baselineId }: { r: Requirement; readOnly: 
                 placeholder="Search name or qualified name"
                 inputValue={search}
                 onInputChange={setSearch}
-                options={(sysmlCandidates.data ?? []).map((e) => ({ id: e.ref.id, label: `${e.qualifiedName ?? e.name ?? e.elementId} (${e.metaclass})` }))}
+                options={(sysmlCandidates.data ?? []).filter((e) => /(Definition|Usage)$/.test(e.metaclass)).map((e) => ({ id: e.ref.id, label: `${e.qualifiedName ?? e.name ?? e.elementId} (${e.metaclass})` }))}
                 onSelect={(o) => setTarget({ id: o.id, label: o.label })}
               />
             ) : (
