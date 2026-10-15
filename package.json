@@ -43,7 +43,8 @@
     "sysml:dev": "npm run dev -w @ews/tool-sysml-modeler",
     "sysml:test": "vitest run packages/sysml-core packages/sysml-client packages/tool-sysml-modeler",
     "sysml:library": "tsx packages/sysml-core/scripts/fetch-official.ts",
-    "sysml:conformance": "vitest run --config packages/sysml-core/vitest.official.config.ts"
+    "sysml:conformance": "vitest run --config packages/sysml-core/vitest.official.config.ts",
+    "cad:test:db": "vitest run --config services/cad/vitest.db.config.ts"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
