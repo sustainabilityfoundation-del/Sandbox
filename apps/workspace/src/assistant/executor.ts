@@ -1,6 +1,7 @@
 import { formatValue, isQuantity, outputFreshness, propertyLabel, type ActivitySource, type EngineeringObject, type ModelIndex, type ObjectType, type OutputRecord, type PropertyValue } from '@ews/model-service'
 import { workspaceHelp } from '../help/workspaceHelp'
-import { ActionError, type ActionParameters, type ChangeInput, type EntitlementId, type ServiceProposal } from '@ews/platform-sdk'
+import { ActionError, type ActionParameters, type ChangeInput, type DeclarativeProposal, type EntitlementId, type ServiceProposal } from '@ews/platform-sdk'
+import type { StoreInput } from './proposalStore'
 import { workspaceServices } from '../platform/services'
 import { registerServiceHandlers } from './serviceProposals'
 import type { ToolAccess } from '../platform/entitlements'
@@ -28,6 +29,10 @@ export interface AssistantEnvironment {
     requiredEntitlements: EntitlementId[]
     undoOf?: string
     service?: ChangeProposal['service']
+    /** Project of the proposal (C13); defaults to the captured project. */
+    projectId?: string
+    /** How the proposal is persisted in the assistant service (C9). */
+    store?: StoreInput
   }) => ChangeProposal
   getProposal: (id: string) => ChangeProposal | undefined
 }
@@ -155,6 +160,8 @@ function propose(
     affectedOutputIds: affected,
     requiredEntitlements: preview.requiredEntitlements,
     undoOf,
+    projectId: captured.projectId,
+    store: { kind: 'twin', module: 'workspace', preview: { changes: preview.changes, requiredEntitlements: preview.requiredEntitlements, configurationId: captured.configurationId } },
   })
   return {
     data: { proposalId: proposal.id, status: 'awaiting user review', changes: proposal.changes.map(describeChange), affectedArtifacts: affected },
@@ -345,7 +352,7 @@ async function runToolAction(call: ToolCallRequest, ctx: ExecutionContext): Prom
   }
   if (result.kind === 'data') return { data: result.data, summary: result.summary, inspected: result.inspected ?? [] }
   if (result.kind === 'service-proposal') return proposeService(ctx, tool.entitlement, result)
-  if (result.kind === 'declarative-proposal') throw new ToolError('not-available', 'Declarative proposals (SDK 1.8) are not supported by this workspace build yet.')
+  if (result.kind === 'declarative-proposal') return proposeDeclarative(ctx, tool.entitlement, result)
   // Proposals go through the same validation as any other change.
   return propose(ctx, result.title, result.explanation, result.changes, undefined, result.inspected)
 }
@@ -364,6 +371,9 @@ function proposeService(ctx: ExecutionContext, entitlement: EntitlementId | unde
     affectedOutputIds: [],
     requiredEntitlements: entitlement ? [entitlement] : [],
     service: { module: result.module, items: result.preview, assumptions: result.assumptions ?? [] },
+    projectId: ctx.captured.projectId,
+    // Labelled fallback: the apply closure exists only in this window; the record keeps the preview.
+    store: { kind: 'closure', module: result.module, preview: result.preview },
   })
   registerServiceHandlers(proposal.id, result)
   return {
@@ -374,6 +384,34 @@ function proposeService(ctx: ExecutionContext, entitlement: EntitlementId | unde
       changes: result.preview.map((p) => `${p.label}: ${p.proposed}`),
       affectedArtifacts: [],
     },
+    summary: `Prepared ${proposal.id}: ${result.title}`,
+    inspected: result.inspected ?? [],
+  }
+}
+
+/**
+ * A change described as data (SDK 1.8, ADR-0042). Stored in the assistant service, which applies it through the
+ * module API after revalidating identity, permissions, project, expected revisions and idempotency.
+ */
+function proposeDeclarative(ctx: ExecutionContext, entitlement: EntitlementId | undefined, result: DeclarativeProposal): Outcome {
+  if (!result.preview.length) throw new ToolError('invalid-arguments', 'A proposal needs at least one previewed item.')
+  if (!result.operations.length) throw new ToolError('invalid-arguments', 'A declarative proposal needs at least one module operation.')
+  const projectId = result.projectId ?? ctx.captured.projectId
+  if (projectId !== ctx.captured.projectId) throw new ToolError('not-allowed', `The proposal targets project ${projectId}, but the conversation is in ${ctx.captured.projectId}. Nothing was prepared.`)
+  const proposal = ctx.env.createProposal({
+    title: result.title,
+    explanation: result.explanation,
+    configurationId: ctx.captured.configurationId,
+    changes: [],
+    affectedOutputIds: [],
+    requiredEntitlements: entitlement ? [entitlement] : [],
+    service: { module: result.module, items: result.preview, assumptions: result.assumptions ?? [], declarative: true },
+    projectId,
+    store: { kind: 'declarative', module: result.module, preview: result.preview, operations: result.operations, expected: result.expected, confirmation: result.confirmation },
+  })
+  return {
+    proposalId: proposal.id,
+    data: { proposalId: proposal.id, status: 'awaiting user review', changes: result.preview.map((p) => `${p.label}: ${p.proposed}`), affectedArtifacts: [] },
     summary: `Prepared ${proposal.id}: ${result.title}`,
     inspected: result.inspected ?? [],
   }

@@ -191,6 +191,7 @@ export function prepareRequest(request: WireRequest, policy: AiPolicy, entitleme
   for (const h of history) {
     if (h.role === 'user') messages.push({ type: 'message', role: 'user', text: h.text })
     else if (h.role === 'assistant') messages.push({ type: 'message', role: 'assistant', text: h.text })
+    else if (h.event === 'refused') messages.push({ type: 'message', role: 'user', text: `[Platform notice] On your previous turn ${h.summary.replace(/^The platform refused/, 'the platform refused')} Do not request these operations again; explain the limitation or use an allowed operation.` })
     else messages.push({ type: 'message', role: 'user', text: `[Workspace event, data] ${h.proposalId} ${h.event}: ${h.summary}${h.revision ? ` (model rev ${h.revision})` : ''}${h.undoOf ? `, undoes ${h.undoOf}` : ''}${h.undoneBy ? `, undone by ${h.undoneBy}` : ''}` })
   }
   messages.push({ type: 'message', role: 'user', text: `${request.turn.text}\n\nContext (data): ${JSON.stringify(contextData(request.turn.context, policy.sharing))}` })

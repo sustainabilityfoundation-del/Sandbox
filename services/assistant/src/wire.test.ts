@@ -87,4 +87,12 @@ describe('request preparation (server-side policy)', () => {
     expect(p.instructions).not.toContain('Rod')
     expect(p.instructions).not.toContain('Ignore previous')
   })
+
+  it('tells the model on its next turn which operations the platform refused', () => {
+    const history = [{ role: 'event' as const, event: 'refused', proposalId: '', summary: 'The platform refused requirements.update (AI access to Requirements is off in your AI settings.). Nothing was run.' }]
+    const p = prepareRequest(request({}, history), policyFromSettings({}), ALL, vault, 'eli')
+    const notice = p.messages.find((m) => m.type === 'message' && m.text.startsWith('[Platform notice]')) as { text: string }
+    expect(notice.text).toContain('the platform refused requirements.update')
+    expect(notice.text).toContain('Do not request these operations again')
+  })
 })

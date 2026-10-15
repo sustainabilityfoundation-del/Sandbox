@@ -225,6 +225,24 @@ function ConnectionLine() {
   )
 }
 
+/** Open proposals saved in the assistant service by earlier sessions, which no message here shows (C9). */
+function ReopenedProposals() {
+  const reopened = useConversation((s) => s.reopenedIds)
+  const messages = useConversation((s) => s.messages)
+  const proposals = useConversation((s) => s.proposals)
+  const shown = new Set(messages.flatMap((m) => (m.role === 'assistant' ? m.proposalIds : m.role === 'event' && m.cardProposalId ? [m.cardProposalId] : [])))
+  const open = reopened.filter((id) => !shown.has(id) && proposals[id])
+  if (!open.length) return null
+  return (
+    <section className="as-reopened" aria-label="Proposals from earlier sessions" data-testid="reopened-proposals">
+      <div className="as-note">Proposals from earlier sessions in this project, saved by the assistant service. Nothing has been applied.</div>
+      {open.map((id) => (
+        <ChangeCard key={id} proposalId={id} />
+      ))}
+    </section>
+  )
+}
+
 /** The ChatGPT panel: conversation with the (replaceable) assistant service. */
 export function AssistantPanel() {
   const messages = useConversation((s) => s.messages)
@@ -287,6 +305,7 @@ export function AssistantPanel() {
           {messages.map((m) => (
             <Message key={m.id} message={m} focused={m.id === focusId} />
           ))}
+          <ReopenedProposals />
         </div>
       </div>
       <div className="as-composer">
