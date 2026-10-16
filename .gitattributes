@@ -1,0 +1,3 @@
+# Generated files are compared byte for byte by checks; keep LF on every platform.
+docs/dependencies/register.json text eol=lf
+apps/workspace/public/THIRD_PARTY_NOTICES.txt text eol=lf
