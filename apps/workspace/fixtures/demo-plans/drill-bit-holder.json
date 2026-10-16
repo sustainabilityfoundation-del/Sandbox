@@ -15,7 +15,14 @@
           "arguments": {
             "text": "Drill bit holder for a Milwaukee-compatible cordless drill/driver (M12 or M18). It must hold six hex-shank driver bits with a 1/4 in hex shank of 6.35 mm, keep every bit retained after a drop from 1 m, and let the user take a bit out with one hand within 3 s. Assume the holder attaches at the belt-clip mount of the drill. Assume the drill body dimensions are not measured yet; any drill dimension used later is an assumption until it is measured.",
             "name": "Drill bit holder for a Milwaukee-compatible cordless drill/driver",
-            "summary": "Holds six 1/4 in hex-shank bits on the drill; the drill dimensions are assumptions until measured."
+            "summary": "Holds six 1/4 in hex-shank bits on the drill; the drill dimensions are assumptions until measured.",
+            "statements": [
+              { "kind": "function", "text": "Hold six hex-shank driver bits on the drill" },
+              { "kind": "constraint", "text": "Hex shank size of the bits", "quantity": { "value": 6.35, "unit": "mm" } },
+              { "kind": "constraint", "text": "Bits stay retained after a drop from", "quantity": { "value": 1, "unit": "m" } },
+              { "kind": "performance", "text": "Time to take a bit out with one hand", "quantity": { "max": 3, "unit": "s" } },
+              { "kind": "constraint", "text": "The holder attaches at the belt-clip mount of the drill", "basis": "assumption" }
+            ]
           }
         }
       ],

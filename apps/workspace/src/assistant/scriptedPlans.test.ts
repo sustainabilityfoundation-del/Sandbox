@@ -27,7 +27,15 @@ describe('scripted demonstration plans (fixtures, demo assistant only)', () => {
     expect(done.type === 'final' && done.text).toContain(plan.label)
   })
 
-  it('finds the applied Concept, then decomposes, adds three alternatives with a trade study, and drafts requirements', () => {
+  it('records quantified constraint statements on the Concept, the precondition of conceptualize.propose_requirement', () => {
+    // conceptualize.create records only what the caller writes (CR-AI-1); propose_requirement needs constraint or performance statements with a quantity.
+    const first = run(req('Start the drill bit holder example'))!
+    const args = first.type === 'tool_calls' ? (first.calls[0].arguments as { statements?: { kind: string; quantity?: { unit: string } }[] }) : {}
+    const quantified = (args.statements ?? []).filter((s) => (s.kind === 'constraint' || s.kind === 'performance') && s.quantity)
+    expect(quantified.map((s) => s.quantity?.unit).sort()).toEqual(['m', 'mm', 's'])
+  })
+
+  it('finds the applied Concept,then decomposes, adds three alternatives with a trade study, and drafts requirements', () => {
     const found = ok('conceptualize.search', { concepts: [{ key: 'CON-007', name: 'Drill bit holder for a Milwaukee-compatible cordless drill/driver' }] })
     expect(run(req('Decompose the drill bit holder'))).toMatchObject({ calls: [{ name: 'conceptualize.search' }] })
     expect(run(req('Decompose the drill bit holder', [found]))).toMatchObject({ calls: [{ name: 'conceptualize.decompose', arguments: { conceptId: 'CON-007' } }] })
