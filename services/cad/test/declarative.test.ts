@@ -88,9 +88,11 @@ describe('CAD Modeler declarative proposals through the platform gateway', () =>
     await open.engine.execute({ commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'w', expression: '45' } }] })
     const p = (await action('cad-modeler.save_document').run({ documentId: d.id, message: 'narrower' }, ctx())) as DeclarativeProposal
     expect(p).toMatchObject({ kind: 'declarative-proposal', operations: [{ operationId: 'saveRevision', ifMatch: `"${open.stored!.revision}"` }] })
+    // The session follows the service's save event, so read the base revision before applying.
+    const base = open.stored!.revision
     expect((await storeAndApply(p)).status).toBe(200)
     const latest = (await env.call('eli', 'GET', `/api/cad/v1/projects/${P}/documents/${d.id}`)).body
-    expect(latest.summary.revision).toBe(open.stored!.revision + 1)
+    expect(latest.summary.revision).toBe(base + 1)
     expect(latest.revision.message).toBe('narrower')
   })
 })
