@@ -47,6 +47,19 @@ const WRITE_ERRORS = { ...READ_ERRORS, 409: E[409], 422: E[422] }
 const SDK_CREATE_FIELDS = new Set(['title', 'statement', 'type', 'rationale', 'collectionId', 'reason'])
 const SDK_PATCH_FIELDS = new Set(['title', 'statement', 'rationale', 'type', 'expectedRevision', 'reason'])
 
+/** Runs a write and always rolls it back: validation with exactly the rules of the write. */
+class DryRunDone extends Error {}
+async function dryRun(rc: RequestContext, fn: (ctx: Parameters<Parameters<RequestContext['write']>[0]>[0]) => Promise<unknown>): Promise<void> {
+  try {
+    await rc.write(async (ctx) => {
+      await fn(ctx)
+      throw new DryRunDone()
+    })
+  } catch (e) {
+    if (!(e instanceof DryRunDone)) throw e
+  }
+}
+
 function restrictToSdk(rc: RequestContext, allowed: Set<string>) {
   if (rc.principal.entitlements.includes('tool:requirements')) return
   const extra = Object.keys((rc.body as object) ?? {}).filter((k) => !allowed.has(k))
@@ -127,6 +140,24 @@ export function registerRequirementRoutes(app: FastifyInstance, services: HostSe
         const r = await createRequirement(ctx, rc.body as S.RequirementCreateDto)
         return { status: 201, body: r, etag: r.revision, headers: { Location: `/api/requirements/v1/projects/${rc.projectId}/requirements/${r.id}` } }
       })
+    },
+  })
+  route({
+    method: 'POST',
+    path: '/projects/{projectId}/requirements/validate',
+    operationId: 'validateRequirementCreate',
+    tag: 'Requirements',
+    summary: 'Check a new requirement without creating it',
+    description: 'Runs exactly the validation of createRequirement (fields, project conventions, origin and derivesFrom, permissions) in a transaction that is rolled back. 200 { valid: true } or the same error createRequirement would return. Used to check assistant proposals before they are shown.',
+    params: P,
+    body: S.RequirementCreate,
+    permission: 'author',
+    crossModule: true,
+    responses: { 200: { description: 'Valid', schema: Type.Object({ valid: Type.Literal(true) }) }, ...WRITE_ERRORS },
+    handler: async (rc) => {
+      restrictToSdk(rc, SDK_CREATE_FIELDS)
+      await dryRun(rc, (ctx) => createRequirement(ctx, rc.body as S.RequirementCreateDto, { silent: true }))
+      return { body: { valid: true } }
     },
   })
   route({
@@ -460,6 +491,22 @@ export function registerRequirementRoutes(app: FastifyInstance, services: HostSe
       const rel = await createRelationship(ctx, services.twin, rc.body as Static<typeof S.RelationshipCreate>, { sysml: services.sysml })
       return { status: 201, body: rel, etag: rel.revision }
     }),
+  })
+  route({
+    method: 'POST',
+    path: '/projects/{projectId}/relationships/validate',
+    operationId: 'validateRelationship',
+    tag: 'Traceability',
+    summary: 'Check a relationship without creating it',
+    description: 'Runs exactly the validation of createRelationship (endpoints, allocation targets through the host directories, duplicates, cycles, expectedFromRevision, permissions) in a transaction that is rolled back. 200 { valid: true } or the same error createRelationship would return.',
+    params: P,
+    body: S.RelationshipCreate,
+    permission: 'author',
+    responses: { 200: { description: 'Valid', schema: Type.Object({ valid: Type.Literal(true) }) }, ...WRITE_ERRORS },
+    handler: async (rc) => {
+      await dryRun(rc, (ctx) => createRelationship(ctx, services.twin, rc.body as Static<typeof S.RelationshipCreate>, { sysml: services.sysml, silent: true }))
+      return { body: { valid: true } }
+    },
   })
   route({
     method: 'DELETE',
