@@ -11,8 +11,9 @@
  * Depends only on '@ews/platform-sdk'; never holds database credentials.
  */
 export { createHttpConceptsService, getConceptsModuleClient, onConceptsReset, toSummary, toImplementationSummary, ConceptsApiError, newIdempotencyKey, type HttpServiceConfig } from './adapters'
-export { createDemoConceptsService, type DemoOptions } from './demo'
+export { createDemoConceptsService, DEMO_CONSTRAINT_IDS, type DemoOptions } from './demo'
 export { ConceptsModuleClient, type WriteOpts } from './module'
 export { HttpTransport, openEventStream, type HttpConfig, type Provenance, type RequestOptions, type StreamHandle } from './transport'
 export { draftConcept, extractFunctions, extractName, extractQuantities, extractRequestedCount, UNIT_DIMENSIONS, type ConceptDraft, type ExtractedQuantity } from './nl'
 export type * from './types'
+export { createCadServicePort, createRegistryReferencePort, createSysmlModelerReferenceAdapter, createSysmlServicePort, referencePortsFor, isLegacyTwinReference, isRealModuleReference, referenceKind, scopedId, REAL_MODULE_KINDS, type ReferencePort, type ReferenceResolution, type ReferenceTarget } from './references'

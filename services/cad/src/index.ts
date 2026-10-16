@@ -11,3 +11,5 @@ export { createCadArtifactSource, CAD_ARTIFACT_KINDS, toChanges } from './artifa
 export { validateContent, type DocumentSummary, type RevisionInfo } from './store'
 export { CadServiceError, errorBody } from './errors'
 export type { Principal, Role, CadHost } from './http/route'
+/** CAD Modeler settings definitions, for registration with the settings service by the API host. */
+export { CAD_SETTINGS } from '@ews/cad-client'

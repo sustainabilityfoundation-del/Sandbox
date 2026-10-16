@@ -190,10 +190,12 @@ describe('contract probes: real service versus adapter', () => {
     expect(res.adapter).not.toBe('not-implemented')
   })
 
-  it('differs: forged calculated evidence (D6): the real service stores an unverified manifest', async () => {
+  it('agrees: forged calculated evidence (D6) never becomes calculated evidence', async () => {
     const forged = { schema: 'ews-calc-manifest/3', model: { id: 'x', revision: 1 }, inputs: [], outputs: { F: { value: 1e9, unit: 'N' } }, checks: [] }
     const res: Record<string, string> = {}
     for (const s of sides) res[s.name] = await outcome(() => s.k.batch({ idempotencyKey: key(), items: [{ op: 'createConcept', as: '$c', body: { name: 'Forged subject', abstraction: 'abstract' } }, { op: 'createEvidence', body: { kind: 'calculation', title: 'forged', subjects: [designRef('concept', '$c')], basis: 'calculated', manifest: forged as never } }] }, s.ctx))
+    // The service refuses basis `calculated` until CR-C8 (services/conceptualize/test/design.api.test.ts); the HTTP
+    // adapter therefore stores engine results as `estimate` with a stated reason, so the forged claim is not kept.
     expect(res.real).toBe('ok')
     expect(res.adapter).not.toBe('ok')
   })

@@ -30,6 +30,7 @@ export const cadModelerHelp: HelpManifest = {
     { toolbarItem: 'fillet', helpId: 'cad-modeler.edges' },
     { toolbarItem: 'chamfer', helpId: 'cad-modeler.edges' },
     { toolbarItem: 'datum', helpId: 'cad-modeler.planes' },
+    { toolbarItem: 'pattern', helpId: 'cad-modeler.patterns' },
     { toolbarItem: 'undo', helpId: 'cad-modeler.history' },
     { toolbarItem: 'redo', helpId: 'cad-modeler.history' },
     { toolbarItem: 'fit', helpId: 'cad-modeler.viewport' },
@@ -65,6 +66,8 @@ export const cadModelerHelp: HelpManifest = {
     { operation: 'cad-modeler.list_documents', helpId: 'cad-modeler.document' },
     { operation: 'cad-modeler.save_document', helpId: 'cad-modeler.document' },
     { operation: 'cad-modeler.export', helpId: 'cad-modeler.export-step' },
+    { operation: 'cad-modeler.check', helpId: 'cad-modeler.checks' },
+    { operation: 'cad-modeler.check_bindings', helpId: 'cad-modeler.checks' },
     // Objects that can be linked from CAD parts.
     { objectType: 'part', helpId: 'cad-modeler.references' },
   ],

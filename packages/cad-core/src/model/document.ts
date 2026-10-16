@@ -133,6 +133,15 @@ function validatePart(part: Part): string[] {
       if (!Array.isArray(f.edges) || !f.edges.length) problems.push(`Feature ${f.id}: a ${f.type} needs at least one edge name.`)
       if (f.target && !bodiesSoFar.has(f.target)) problems.push(`Feature ${f.id}: target body ${f.target} does not exist earlier in ${part.id}.`)
     }
+    if (f.type === 'pattern-linear') {
+      if (!Array.isArray(f.features) || !f.features.length) problems.push(`Feature ${f.id}: a linear pattern needs at least one feature.`)
+      for (const id of f.features ?? []) {
+        const t = featuresSoFar.get(id)?.type
+        if (t !== 'extrude' && t !== 'revolve') problems.push(`Feature ${f.id}: ${id} is not an extrude or revolve earlier in ${part.id}.`)
+      }
+      const d = f.direction
+      if (!Array.isArray(d) || d.length !== 3 || !d.every((x) => typeof x === 'number' && Number.isFinite(x)) || Math.hypot(...d) < 1e-9) problems.push(`Feature ${f.id}: direction must be a non-zero [x, y, z] vector.`)
+    }
     if (f.type === 'sketch') {
       const entities = new Map(f.entities.map((e) => [e.id, e]))
       for (const e of f.entities) {
@@ -159,7 +168,7 @@ function validatePart(part: Part): string[] {
   return problems
 }
 
-const FEATURE_TYPES: Feature['type'][] = ['sketch', 'extrude', 'revolve', 'fillet', 'chamfer', 'datum-plane']
+const FEATURE_TYPES: Feature['type'][] = ['sketch', 'extrude', 'revolve', 'fillet', 'chamfer', 'datum-plane', 'pattern-linear']
 
 function planeProblems(id: string, plane: PlaneRef, earlier: Map<string, Feature>): string[] {
   if (!plane || typeof plane !== 'object') return [`Feature ${id}: plane is missing.`]
@@ -176,6 +185,7 @@ export function featureNames(f: Feature): string[] {
   if (f.type === 'fillet') return namesIn(f.radius)
   if (f.type === 'chamfer') return namesIn(f.distance)
   if (f.type === 'datum-plane') return namesIn(f.plane?.offset)
+  if (f.type === 'pattern-linear') return [...namesIn(f.count), ...namesIn(f.spacing)]
   return [...namesIn(f.plane?.offset), ...f.constraints.flatMap((c) => namesIn(c.value))]
 }
 

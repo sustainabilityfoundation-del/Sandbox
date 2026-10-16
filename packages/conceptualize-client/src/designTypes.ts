@@ -275,6 +275,41 @@ export interface Rationale {
   supersededBy: string | null
   stale: string[]
 }
+/** C11 qualification of a result value (kept unchanged from the producing tool). */
+export interface ResultQualification {
+  kind: 'point' | 'sampled-range' | 'bounds'
+  quality?: 'exact' | 'enclosure'
+  note?: string
+}
+export interface ToolInfo {
+  name: string
+  version: string
+}
+export interface EvidenceResultInput {
+  name: string
+  value?: number | null
+  min?: number | null
+  max?: number | null
+  unit: string
+  qualification: ResultQualification
+  /** The constraint checked against; the service computes the status from its bound. */
+  constraint?: DesignRef | { id: string; revision?: number }
+  status?: 'satisfied' | 'violated' | 'uncertain'
+  note?: string
+}
+export interface EvidenceResult {
+  name: string
+  value: number | null
+  min: number | null
+  max: number | null
+  unit: string
+  qualification: ResultQualification
+  constraint: DesignRef | null
+  status: 'satisfied' | 'violated' | 'uncertain' | null
+  margin: number | null
+  marginUnit: string | null
+  note: string
+}
 export interface EvidenceReview {
   id: string
   outcome: 'accepted' | 'rejected'

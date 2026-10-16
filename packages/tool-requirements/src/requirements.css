@@ -58,7 +58,7 @@
   .req-form { display: flex; flex-direction: column; gap: var(--ws-space-4); }
   .req-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ws-space-3); }
   .req-form-actions { position: sticky; bottom: 0; display: flex; align-items: center; gap: var(--ws-space-2); padding: var(--ws-space-2) 0; border-top: 1px solid var(--ws-border); background: var(--ws-surface); }
-  .req-fieldset { display: flex; flex-direction: column; gap: var(--ws-space-3); margin: 0; padding: var(--ws-space-3); border: 1px solid var(--ws-border); border-radius: var(--ws-radius); }
+  .req-fieldset { display: flex; flex-direction: column; min-width: 0; gap: var(--ws-space-3); margin: 0; padding: var(--ws-space-3); border: 1px solid var(--ws-border); border-radius: var(--ws-radius); }
   .req-fieldset legend { padding: 0 var(--ws-space-1); color: var(--ws-text-2); font-size: var(--ws-font-size-xs); font-weight: var(--ws-weight-medium); }
   .req-inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--ws-space-2); }
   .req-field-errors { margin: var(--ws-space-1) 0 0; padding-left: 1.2em; }

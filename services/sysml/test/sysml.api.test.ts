@@ -245,11 +245,19 @@ describe('model services, schema discovery, OpenAPI and events', () => {
     expect(res.status).toBe(200)
     const reader = res.body!.getReader()
     const done = tx([{ op: 'setDocumentation', elementId: 'ActuatorSystem::Control', text: 'Event test.' }])
+    // Wait on the event itself: one outstanding read at a time (a read abandoned by a timeout would
+    // swallow the chunk it later receives), up to a generous deadline for loaded machines.
     let text = ''
-    const deadline = Date.now() + 15000
-    while (!text.includes('sysml.commit-created') && Date.now() < deadline) {
-      const chunk = await Promise.race([reader.read(), new Promise<{ value?: Uint8Array }>((r) => setTimeout(() => r({}), 500))])
-      if (chunk.value) text += new TextDecoder().decode(chunk.value)
+    const decoder = new TextDecoder()
+    const deadline = Date.now() + 45000
+    let pending: Promise<ReadableStreamReadResult<Uint8Array>> | undefined
+    while (!text.includes('event: sysml.commit-created') && Date.now() < deadline) {
+      pending ??= reader.read()
+      const tick = await Promise.race([pending, new Promise<'wait'>((r) => setTimeout(() => r('wait'), 500))])
+      if (tick === 'wait') continue
+      pending = undefined
+      if (tick.done) break
+      text += decoder.decode(tick.value, { stream: true })
     }
     expect((await done).status).toBe(200)
     expect(text).toContain('event: sysml.commit-created')

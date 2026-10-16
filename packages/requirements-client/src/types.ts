@@ -9,6 +9,13 @@ export type AttributeValue = string | number | boolean | string[] | null
 export type Priority = 'high' | 'medium' | 'low'
 export type RelationshipType = 'derives-from' | 'decomposes' | 'depends-on' | 'allocated-to'
 export type Role = 'reader' | 'editor' | 'reviewer' | 'administrator'
+/** Where a requirement came from (D1): a stakeholder (user constraint), an AI-proposed choice a person accepted, or derived from another requirement. */
+export type RequirementOrigin = 'stakeholder' | 'ai-proposed' | 'derived'
+export const REQUIREMENT_ORIGINS: { id: RequirementOrigin; label: string }[] = [
+  { id: 'stakeholder', label: 'User constraint' },
+  { id: 'ai-proposed', label: 'AI-proposed choice' },
+  { id: 'derived', label: 'Derived' },
+]
 
 export interface Requirement {
   id: string
@@ -28,6 +35,8 @@ export interface Requirement {
   applicability: string[]
   verificationMethods: string[]
   acceptanceCriteria: string
+  /** Null: not recorded (requirements created before D1, imports). */
+  origin: RequirementOrigin | null
   attributes: Record<string, Exclude<AttributeValue, null>>
   legacyIds: string[]
   changeReason: string
@@ -52,13 +61,16 @@ export interface RequirementCreate {
   applicability?: string[]
   verificationMethods?: string[]
   acceptanceCriteria?: string
+  origin?: RequirementOrigin | null
+  /** With origin 'derived': the parent requirement; the derives-from link is created in the same transaction. */
+  derivesFrom?: string
   attributes?: Record<string, AttributeValue>
   collectionId?: string
   parentNodeId?: string
   reason?: string
 }
 
-export type RequirementPatch = Partial<Omit<RequirementCreate, 'collectionId' | 'parentNodeId' | 'reason'>> & { key?: string }
+export type RequirementPatch = Partial<Omit<RequirementCreate, 'collectionId' | 'parentNodeId' | 'reason' | 'derivesFrom'>> & { key?: string }
 
 export interface ListQuery {
   text?: string
@@ -128,7 +140,12 @@ export interface Relationship {
   type: RelationshipType
   fromId: string
   toRequirementId: string | null
+  /** Allocation target ID (see targetKind). */
   toTwinId: string | null
+  /** 'twin': component or product element; 'sysml-model-element': `<sysmlProjectId>/<elementId>`. */
+  targetKind: 'twin' | 'sysml-model-element'
+  /** SysML commit number the allocation was made against, if known. */
+  toTargetRevision: number | null
   revision: number
   deleted: boolean
   rationale: string

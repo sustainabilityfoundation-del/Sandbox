@@ -46,6 +46,24 @@ export function composeTwinDirectory(...directories: TwinDirectory[]): TwinDirec
   }
 }
 
+/** A SysML Modeler element the host found: `id` is `<sysmlProjectId>/<elementId>`. */
+export interface SysmlElementInfo {
+  id: string
+  name: string
+  metaclass?: string
+  /** Commit number of the element at the default-branch head. */
+  revision: number
+}
+
+/**
+ * Validates allocation targets in the SysML Modeler (D1, requirements.allocate). Supplied by the host,
+ * which may read the SysML service in process; without it, SysML allocations are refused.
+ */
+export interface SysmlElementDirectory {
+  lookup(projectId: string, ids: string[]): Promise<Map<string, SysmlElementInfo>>
+  readonly description: string
+}
+
 export function staticTwinDirectory(objects: Record<string, TwinObjectInfo[]>, description: string): TwinDirectory {
   return {
     description,

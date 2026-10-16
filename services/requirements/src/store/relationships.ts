@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { RelationshipDto } from '../http/schemas'
 import { conflict, invalid, notFound } from '../errors'
 import { RELATIONSHIP_RULES, RELATIONSHIP_TYPES, type RelationshipType } from '../domain/rules'
-import { ALLOCATABLE_TYPES, type TwinDirectory } from '../twin'
+import { ALLOCATABLE_TYPES, type SysmlElementDirectory, type TwinDirectory } from '../twin'
 import { audit, emit, isUuid, isoRequired, type Ctx, type Queryable } from './context'
 
 interface Row {
@@ -12,6 +12,8 @@ interface Row {
   from_requirement_id: string
   to_requirement_id: string | null
   to_twin_id: string | null
+  target_kind: 'twin' | 'sysml-model-element'
+  to_target_revision: number | null
   current_revision: number
   deleted: boolean
   created_at: Date
@@ -24,8 +26,8 @@ interface Row {
   revision: number
 }
 
-const SELECT = `SELECT r.id, r.project_id, r.type, r.from_requirement_id, r.to_requirement_id, r.to_twin_id, r.current_revision, rr.deleted, r.created_at, r.created_by,
-    r.updated_at, r.updated_by, rr.rationale, rr.from_requirement_revision, rr.to_requirement_revision, rr.revision
+const SELECT = `SELECT r.id, r.project_id, r.type, r.from_requirement_id, r.to_requirement_id, r.to_twin_id, r.target_kind, r.current_revision, rr.deleted, r.created_at, r.created_by,
+    r.updated_at, r.updated_by, rr.rationale, rr.from_requirement_revision, rr.to_requirement_revision, rr.to_target_revision, rr.revision
   FROM requirements.relationships r JOIN requirements.relationship_revisions rr ON rr.relationship_id = r.id`
 
 const toDto = (r: Row): RelationshipDto => ({
@@ -35,6 +37,8 @@ const toDto = (r: Row): RelationshipDto => ({
   fromId: r.from_requirement_id,
   toRequirementId: r.to_requirement_id,
   toTwinId: r.to_twin_id,
+  targetKind: r.target_kind,
+  toTargetRevision: r.to_target_revision,
   revision: r.revision,
   deleted: r.deleted,
   rationale: r.rationale,
@@ -106,12 +110,16 @@ export interface RelationshipInput {
   fromId: string
   toRequirementId?: string
   toTwinId?: string
+  /** Allocation to a SysML Modeler element, `<sysmlProjectId>/<elementId>`. */
+  toSysmlElement?: string
+  /** Refuse with a conflict unless the from requirement is still at this revision. */
+  expectedFromRevision?: number
   rationale?: string
   reason?: string
 }
 
 /** Validates type, endpoints, duplicates and cycles, then creates the relationship (revision 1). */
-export async function createRelationship(ctx: Ctx, twin: TwinDirectory, input: RelationshipInput, opts: { silent?: boolean; id?: string } = {}): Promise<RelationshipDto> {
+export async function createRelationship(ctx: Ctx, twin: TwinDirectory, input: RelationshipInput, opts: { silent?: boolean; id?: string; sysml?: SysmlElementDirectory } = {}): Promise<RelationshipDto> {
   if (!RELATIONSHIP_TYPES.includes(input.type)) throw invalid(`Unknown relationship type “${input.type}”.`, { type: RELATIONSHIP_TYPES.join(', ') })
   const rule = RELATIONSHIP_RULES[input.type]
   if (!isUuid(input.fromId)) throw invalid('fromId must be a requirement ID.', { fromId: 'uuid' })
@@ -119,7 +127,13 @@ export async function createRelationship(ctx: Ctx, twin: TwinDirectory, input: R
   const from = await currentRevision(ctx, input.fromId)
   if (!from) throw invalid('The from requirement does not exist in this project.', { fromId: 'unknown' })
   if (from.archived) throw invalid(`${from.key} is archived; restore it before adding relationships.`)
+  if (input.expectedFromRevision !== undefined && input.expectedFromRevision !== from.revision) {
+    throw conflict(`${from.key} changed since revision ${input.expectedFromRevision} (now ${from.revision}). Reload to see the newer change; nothing was changed.`, from.revision)
+  }
   let toRevision: number | null = null
+  let targetKind: 'twin' | 'sysml-model-element' = 'twin'
+  let toTargetRevision: number | null = null
+  const targetId = input.toTwinId ?? input.toSysmlElement
   if (rule.to === 'requirement') {
     if (!input.toRequirementId || input.toTwinId) throw invalid(`A “${input.type}” relationship goes from a requirement to a requirement.`, { toRequirementId: 'required', toTwinId: 'not allowed' })
     if (input.toRequirementId === input.fromId) throw invalid('A requirement cannot be related to itself.', { toRequirementId: 'same as fromId' })
@@ -138,26 +152,36 @@ export async function createRelationship(ctx: Ctx, twin: TwinDirectory, input: R
       if (rows.length) throw invalid(`This “${input.type}” link would create a cycle (${to.key} already leads back to ${from.key}).`, { toRequirementId: 'cycle' })
     }
   } else {
-    if (!input.toTwinId || input.toRequirementId) throw invalid('An allocation goes from a requirement to a component (assembly or part) or a product element.', { toTwinId: 'required', toRequirementId: 'not allowed' })
+    if (!targetId || input.toRequirementId || (input.toTwinId && input.toSysmlElement)) {
+      throw invalid('An allocation goes from a requirement to one component (assembly or part), product element or SysML element.', { toTwinId: 'one of toTwinId, toSysmlElement', toRequirementId: 'not allowed' })
+    }
+  }
+  if (rule.to !== 'requirement' && input.toSysmlElement) {
+    targetKind = 'sysml-model-element'
+    if (!opts.sysml) throw invalid('Allocation to SysML elements is not available in this installation (no SysML directory).', { toSysmlElement: 'not available' })
+    const found = (await opts.sysml.lookup(ctx.projectId, [input.toSysmlElement])).get(input.toSysmlElement)
+    if (!found) throw invalid(`${input.toSysmlElement} is not a named SysML element in this project (${opts.sysml.description}).`, { toSysmlElement: 'unknown SysML element' })
+    toTargetRevision = found.revision
+  } else if (rule.to !== 'requirement' && input.toTwinId) {
     const found = (await twin.lookup(ctx.projectId, [input.toTwinId])).get(input.toTwinId)
     if (!found) throw invalid(`${input.toTwinId} is not a known component or product element in this project (${twin.description}).`, { toTwinId: 'unknown twin object' })
     if (!ALLOCATABLE_TYPES.includes(found.type)) throw invalid(`${input.toTwinId} is a ${found.type}; requirements are allocated to components (assembly or part) or product elements.`, { toTwinId: `type ${found.type}` })
   }
   const existing = await ctx.db.query<{ id: string }>(
     `SELECT id FROM requirements.relationships WHERE type = $1 AND from_requirement_id = $2 AND coalesce(to_requirement_id::text, to_twin_id) = $3 AND NOT deleted`,
-    [input.type, input.fromId, input.toRequirementId ?? input.toTwinId],
+    [input.type, input.fromId, input.toRequirementId ?? targetId],
   )
   if (existing.rowCount) throw conflict('This relationship already exists.', undefined, { existingId: existing.rows[0].id })
   const id = opts.id ?? randomUUID()
   await ctx.db.query(
-    `INSERT INTO requirements.relationships (id, project_id, type, from_requirement_id, to_requirement_id, to_twin_id, created_at, created_by, updated_at, updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$7,$8)`,
-    [id, ctx.projectId, input.type, input.fromId, input.toRequirementId ?? null, input.toTwinId ?? null, ctx.now, ctx.actor],
+    `INSERT INTO requirements.relationships (id, project_id, type, from_requirement_id, to_requirement_id, to_twin_id, target_kind, created_at, created_by, updated_at, updated_by) VALUES ($1,$2,$3,$4,$5,$6,$9,$7,$8,$7,$8)`,
+    [id, ctx.projectId, input.type, input.fromId, input.toRequirementId ?? null, rule.to === 'requirement' ? null : (targetId ?? null), ctx.now, ctx.actor, targetKind],
   )
   await ctx.db.query(
-    `INSERT INTO requirements.relationship_revisions (relationship_id, revision, deleted, rationale, from_requirement_revision, to_requirement_revision, change_reason, created_at, created_by) VALUES ($1,1,false,$2,$3,$4,$5,$6,$7)`,
-    [id, input.rationale ?? '', from.revision, toRevision, input.reason ?? '', ctx.now, ctx.actor],
+    `INSERT INTO requirements.relationship_revisions (relationship_id, revision, deleted, rationale, from_requirement_revision, to_requirement_revision, change_reason, created_at, created_by, to_target_revision) VALUES ($1,1,false,$2,$3,$4,$5,$6,$7,$8)`,
+    [id, input.rationale ?? '', from.revision, toRevision, input.reason ?? '', ctx.now, ctx.actor, toTargetRevision],
   )
-  await audit(ctx, { entityType: 'relationship', entityId: id, action: 'created', revision: 1, reason: input.reason, details: { type: input.type, fromId: input.fromId, toRequirementId: input.toRequirementId, toTwinId: input.toTwinId } })
+  await audit(ctx, { entityType: 'relationship', entityId: id, action: 'created', revision: 1, reason: input.reason, details: { type: input.type, fromId: input.fromId, toRequirementId: input.toRequirementId, toTwinId: input.toTwinId, ...(input.toSysmlElement ? { toSysmlElement: input.toSysmlElement, toTargetRevision } : {}) } })
   if (!opts.silent) await emitRelationshipEvents(ctx, input.fromId, input.toRequirementId ?? null)
   return (await getRelationship(ctx.db, ctx.projectId, id))!
 }

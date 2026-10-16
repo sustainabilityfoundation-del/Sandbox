@@ -4,10 +4,16 @@ import { conflict, forbidden, invalid, notFound } from '../errors'
 import { KEY_PREFIX, PRIORITIES, STATUSES, VERIFICATION_METHODS, formatKey, roleAllows, type LifecycleStatus, type Role } from '../domain/rules'
 import { getConventions, listAttributeDefinitions, validateAttributeValues } from './attributes'
 import { addNode } from './collections'
+import { createRelationship, emitRelationshipEvents } from './relationships'
+import type { TwinDirectory } from '../twin'
+
+export const ORIGINS = ['stakeholder', 'ai-proposed', 'derived'] as const
+/** Requirement-to-requirement links need no twin directory. */
+const NO_TWIN: TwinDirectory = { description: 'none', lookup: async () => new Map() }
 import { audit, emit, isUuid, isoRequired, type Ctx, type Queryable } from './context'
 
 /** Fields of a revision; changing any of them creates a new immutable revision. */
-export const CONTENT_FIELDS = ['title', 'statement', 'statementXhtml', 'rationale', 'type', 'source', 'owner', 'priority', 'applicability', 'verificationMethods', 'acceptanceCriteria', 'attributes'] as const
+export const CONTENT_FIELDS = ['title', 'statement', 'statementXhtml', 'rationale', 'type', 'source', 'owner', 'priority', 'applicability', 'verificationMethods', 'acceptanceCriteria', 'origin', 'attributes'] as const
 export type ContentField = (typeof CONTENT_FIELDS)[number]
 
 interface Row {
@@ -33,6 +39,7 @@ interface Row {
   applicability: string[]
   verification_methods: string[]
   acceptance_criteria: string
+  origin: RequirementDto['origin']
   attributes: Record<string, string | number | boolean | string[]>
   status_at_creation: LifecycleStatus
   change_reason: string
@@ -50,7 +57,7 @@ interface Row {
 const SELECT = `
   SELECT r.id, r.project_id, r.key, r.current_revision, r.status, r.archived, r.created_at, r.created_by, r.updated_at, r.updated_by,
          v.revision, v.title, v.statement, v.statement_xhtml, v.rationale, v.type, v.source, v.owner, v.priority, v.applicability,
-         v.verification_methods, v.acceptance_criteria, v.attributes, v.status_at_creation, v.change_reason,
+         v.verification_methods, v.acceptance_criteria, v.origin, v.attributes, v.status_at_creation, v.change_reason,
          v.created_at AS rev_created_at, v.created_by AS rev_created_by,
          (SELECT array_agg(a.alias ORDER BY a.alias) FROM requirements.requirement_aliases a WHERE a.requirement_id = r.id) AS legacy_ids,
          (SELECT rv.id FROM requirements.reviews rv WHERE rv.requirement_id = r.id AND rv.state = 'open') AS open_review_id`
@@ -76,6 +83,7 @@ function toDto(row: Row, baselineId?: string): RequirementDto {
     applicability: row.applicability,
     verificationMethods: row.verification_methods,
     acceptanceCriteria: row.acceptance_criteria,
+    origin: row.origin ?? null,
     attributes: row.attributes,
     legacyIds: row.legacy_ids ?? [],
     changeReason: row.change_reason,
@@ -263,6 +271,7 @@ interface Content {
   applicability: string[]
   verificationMethods: string[]
   acceptanceCriteria: string
+  origin: RequirementDto['origin']
   attributes: Record<string, string | number | boolean | string[] | null>
 }
 
@@ -277,6 +286,7 @@ async function validateContent(ctx: Ctx, c: Content): Promise<Content> {
   if (methods.some((m) => !(VERIFICATION_METHODS as readonly string[]).includes(m))) errors.verificationMethods = `allowed: ${VERIFICATION_METHODS.join(', ')}`
   const applicability = [...new Set(c.applicability.map((a) => a.trim()).filter(Boolean))]
   if (applicability.some((a) => !/^[A-Za-z0-9_.:-]{1,100}$/.test(a))) errors.applicability = 'configuration IDs only'
+  if (c.origin !== null && !(ORIGINS as readonly string[]).includes(c.origin)) errors.origin = ORIGINS.join(', ')
   if (Object.keys(errors).length) throw invalid('The requirement is not valid.', errors)
   const defs = await listAttributeDefinitions(ctx.db, ctx.projectId)
   const attributes = validateAttributeValues(defs, c.attributes)
@@ -286,9 +296,9 @@ async function validateContent(ctx: Ctx, c: Content): Promise<Content> {
 async function insertRevision(ctx: Ctx, id: string, revision: number, c: Content, status: LifecycleStatus, reason: string) {
   await ctx.db.query(
     `INSERT INTO requirements.requirement_revisions (requirement_id, revision, title, statement, statement_xhtml, rationale, type, source, owner, priority, applicability,
-       verification_methods, acceptance_criteria, attributes, status_at_creation, change_reason, created_at, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
-    [id, revision, c.title, c.statement, c.statementXhtml, c.rationale, c.type, c.source, c.owner, c.priority, c.applicability, c.verificationMethods, c.acceptanceCriteria, JSON.stringify(c.attributes), status, reason, ctx.now, ctx.actor],
+       verification_methods, acceptance_criteria, attributes, status_at_creation, change_reason, created_at, created_by, origin)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+    [id, revision, c.title, c.statement, c.statementXhtml, c.rationale, c.type, c.source, c.owner, c.priority, c.applicability, c.verificationMethods, c.acceptanceCriteria, JSON.stringify(c.attributes), status, reason, ctx.now, ctx.actor, c.origin],
   )
 }
 
@@ -331,8 +341,13 @@ export async function createRequirement(ctx: Ctx, input: RequirementCreateDto, o
     applicability: input.applicability ?? [],
     verificationMethods: input.verificationMethods ?? [],
     acceptanceCriteria: input.acceptanceCriteria ?? '',
+    origin: input.origin ?? null,
     attributes: input.attributes ?? {},
   })
+  // A derived requirement names its parent; the link is created in the same transaction.
+  if ((content.origin === 'derived') !== !!input.derivesFrom) {
+    throw invalid(content.origin === 'derived' ? 'A derived requirement needs the requirement it derives from (derivesFrom).' : 'derivesFrom is only used with origin "derived".', { derivesFrom: content.origin === 'derived' ? 'required' : 'needs origin derived' })
+  }
   const id = options.id ?? randomUUID()
   const key = options.key ?? (await nextKey(ctx))
   const status = options.status ?? 'draft'
@@ -349,8 +364,12 @@ export async function createRequirement(ctx: Ctx, input: RequirementCreateDto, o
   if (input.collectionId) {
     await addNode(ctx, input.collectionId, { kind: 'requirement', requirementId: id, parentId: input.parentNodeId ?? null }, null)
   }
-  await audit(ctx, { entityType: 'requirement', entityId: id, action: 'created', revision: 1, reason, details: { key, title: content.title } })
+  if (input.derivesFrom) {
+    await createRelationship(ctx, NO_TWIN, { type: 'derives-from', fromId: id, toRequirementId: input.derivesFrom, reason }, { silent: true })
+  }
+  await audit(ctx, { entityType: 'requirement', entityId: id, action: 'created', revision: 1, reason, details: { key, title: content.title, ...(content.origin ? { origin: content.origin } : {}), ...(input.derivesFrom ? { derivesFrom: input.derivesFrom } : {}) } })
   if (!options.silent) await emit(ctx, 'requirement.created', id, 1)
+  if (input.derivesFrom && !options.silent) await emitRelationshipEvents(ctx, id, input.derivesFrom)
   return (await getRequirement(ctx.db, ctx.projectId, id))!
 }
 
@@ -406,6 +425,7 @@ export async function updateRequirement(ctx: Ctx, id: string, patch: Requirement
     applicability: patch.applicability ?? current.applicability,
     verificationMethods: patch.verificationMethods ?? current.verificationMethods,
     acceptanceCriteria: patch.acceptanceCriteria ?? current.acceptanceCriteria,
+    origin: patch.origin !== undefined ? patch.origin : current.origin,
     attributes: { ...current.attributes },
   }
   if (patch.attributes) {

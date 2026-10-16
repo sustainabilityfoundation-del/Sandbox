@@ -19,6 +19,25 @@ export interface ExternalProjection {
   ownedRelationshipTypes: Relationship['type'][]
 }
 
+/**
+ * Several external projections as one (requirements from the Requirements service, product elements from the
+ * product registry, CR-PM-MS-2). Pure. Objects, aliases, relationships and owned relationship types are combined;
+ * a later projection's object with the same ID replaces an earlier one.
+ */
+export function mergeProjections(...projections: (ExternalProjection | null | undefined)[]): ExternalProjection | null {
+  const present = projections.filter((p): p is ExternalProjection => !!p)
+  if (!present.length) return null
+  if (present.length === 1) return present[0]
+  const objects = new Map<string, EngineeringObject>()
+  for (const p of present) for (const o of p.objects) objects.set(o.id, o)
+  return {
+    objects: [...objects.values()],
+    aliases: new Map(present.flatMap((p) => [...p.aliases])),
+    relationships: present.flatMap((p) => p.relationships),
+    ownedRelationshipTypes: [...new Set(present.flatMap((p) => p.ownedRelationshipTypes))],
+  }
+}
+
 /** The twin snapshot with external objects and relationships composed in. Pure; the inputs are unchanged. */
 export function composeSnapshot(twin: ModelSnapshot, projection: ExternalProjection | null): ModelSnapshot {
   if (!projection) return twin

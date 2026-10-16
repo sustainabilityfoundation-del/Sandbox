@@ -1,3 +1,5 @@
+import type { ConstraintSummary } from '@ews/platform-sdk'
+import type { DesignConstraint } from './designTypes'
 import {
   CONCEPTS_CONTRACT_VERSION,
   ConceptsServiceError,
@@ -66,6 +68,24 @@ export interface HttpServiceConfig extends HttpConfig {
   onReset?: (projectId: string) => void
 }
 
+/** SDK 1.8 ConstraintSummary of a Conceptualize design constraint (bounds are authoritative for other modules). */
+export function toConstraintSummary(c: DesignConstraint, latestRevision: number): ConstraintSummary {
+  return {
+    id: c.id,
+    key: c.key,
+    projectId: c.projectId,
+    revision: c.revision,
+    latestRevision,
+    kind: c.kind,
+    statement: c.statement,
+    bound: c.bound ? { ...(c.bound.symbol ? { symbol: c.bound.symbol } : {}), operator: c.bound.operator, quantity: { value: c.bound.quantity.value ?? null, min: c.bound.quantity.min ?? null, max: c.bound.quantity.max ?? null, unit: c.bound.quantity.unit } } : null,
+    strength: c.strength,
+    status: c.status,
+    basis: c.basis,
+    formalizes: c.source.kind === 'requirement' ? ({ module: c.source.ref.module, id: c.source.ref.id, ...(c.source.ref.revision ? { revision: c.source.ref.revision } : {}), ...(c.source.ref.kind ? { kind: c.source.ref.kind } : {}) } as ArtifactRef) : null,
+  }
+}
+
 /** SDK `ConceptsService` over the PostgreSQL-backed HTTP API (mode 'api'). Failures are thrown, never replaced by demo data. */
 export function createHttpConceptsService(config: HttpServiceConfig): ConceptsService {
   const clients = new Map<string, ConceptsModuleClient>()
@@ -102,6 +122,12 @@ export function createHttpConceptsService(config: HttpServiceConfig): ConceptsSe
     async implementations(conceptId, scope) {
       const list = await client(scope.projectId).implementations(conceptId)
       return list.map(toImplementationSummary)
+    },
+    async getConstraint(id, scope) {
+      const c = await notFoundToUndefined(client(scope.projectId).constraint(id, scope.revision))
+      if (!c) return undefined
+      const latest = scope.revision && scope.revision !== c.revision ? c.revision : scope.revision ? (await client(scope.projectId).constraint(id)).revision : c.revision
+      return toConstraintSummary(c, latest)
     },
     subscribe(projectId, listener) {
       let entry = streams.get(projectId)

@@ -7,13 +7,19 @@ tests: `assistant.test.ts` (Node, real kernel) and the workspace browser flow (d
 
 | Operation | Kind | Purpose |
 | --- | --- | --- |
-| `cad-modeler.describe_model` | read | Documents, feature tree with status and errors, parameters with values, bodies (volume, mass, bounding box, topology), failures, references |
+| `cad-modeler.describe_model` | read | Documents, feature tree with status and errors, parameters with values and bindings, bodies (volume, mass, bounding box, topology), failures, references |
 | `cad-modeler.query` | read | Any query of the catalogue (`get_sketch`, `get_entities`, `get_dependencies`, `get_operation_log`, `get_document`, `list_commands`, …) |
 | `cad-modeler.run_commands` | proposal | A transaction of catalogue commands; creates a document when none is open |
 | `cad-modeler.undo` | proposal | Undo the last transaction (whoever made it) |
 | `cad-modeler.new_document` | proposal | New document with one part |
-| `cad-modeler.open_document` | proposal | Open a native document given as JSON (validated before the preview) |
-| `cad-modeler.export` | proposal | `step` (AP242 with structural report) or `ewscad` (native file) download |
+| `cad-modeler.open_document` | proposal | Open a stored document (documentId, revision) or a native document given as JSON (validated before the preview) |
+| `cad-modeler.list_documents` / `save_document` | read / proposal | Stored documents of the project; save a revision with the proposal's provenance |
+| `cad-modeler.export` | proposal, or read with `return: true` | `step` (AP242 with structural report and **read-back**: re-import, solid count, bounding box and volume compared with the native model) or `ewscad`. A download by default; with `return: true` the file (name, media type, size, SHA-256, content) is returned for another operation, e.g. a project document |
+| `cad-modeler.check` | read | Measurements of the regenerated model compared with design-constraint bounds read through `ConceptsService.getConstraint` (never caller-supplied). Each result records document, stored revision, model version and kernel name and version (ADR-0070 item 3); assumptions are listed |
+| `cad-modeler.check_bindings` | read | Parameters bound to superseded constraint revisions, with the old and new bounds |
+
+All operations also work with no CAD Modeler view mounted (C9). Format 1.2 commands for D1:
+`add_regular_polygon`, `pattern_linear`, `bind_parameter` and `unbind_parameter` (see [api.md](api.md)).
 
 Every operation is listed in the capability inventory (`apps/workspace/src/assistant/capabilities.ts`)
 and mapped to a help topic. The assistant never writes directly: actions return data or SDK 1.5

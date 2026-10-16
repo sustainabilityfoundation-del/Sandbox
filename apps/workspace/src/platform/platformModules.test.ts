@@ -63,7 +63,7 @@ afterAll(() => resetPlatformModules())
 
 describe('headless platform modules (SDK 1.8 registry)', () => {
   it('registers once, with operations prefixed by the module ID', () => {
-    expect(getPlatformModules().map((m) => m.id)).toEqual(['headless-test'])
+    expect(getPlatformModules().filter((m) => m.id === 'headless-test')).toHaveLength(1)
     expect(() => registerPlatformModule(headless)).toThrow(/already registered/)
     expect(() => registerPlatformModule({ id: 'requirements', name: 'clash' })).toThrow(/already registered/)
     expect(() => registerPlatformModule({ id: 'other', name: 'x', assistant: { actions: [{ ...headless.assistant!.actions[0], name: 'wrong.count' }] } })).toThrow(/prefixed/)

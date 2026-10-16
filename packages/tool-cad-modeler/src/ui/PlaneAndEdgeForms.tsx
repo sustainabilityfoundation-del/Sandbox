@@ -2,7 +2,7 @@ import type { CadEngine, DryRunResult, EngineState, Feature, PlaneRef } from '@e
 import { Badge, Button, Checkbox, EmptyState, Notice, Select, TextField } from '@ews/design-system'
 import { useEffect, useMemo, useState } from 'react'
 import type { CadModelerViewState } from '../viewState'
-import { exprValue, fmtNum, makeRun } from './common'
+import { exprValue, fmtNum, makeRun, useMeasure } from './common'
 
 type Update = (u: Partial<CadModelerViewState>) => void
 
@@ -115,6 +115,7 @@ export function DatumPlaneForm({ engine, state, featureId, update }: { engine: C
 
 /** Fillet or chamfer: edges chosen by stable name (list, selected face or picked edges), size, preview. */
 export function EdgeFeatureForm({ engine, state, vs, kind, featureId, update }: { engine: CadEngine; state: EngineState; vs: CadModelerViewState; kind: 'fillet' | 'chamfer'; featureId?: string; update: Update }) {
+  const M = useMeasure()
   const part = state.doc.parts[0]
   const existing = featureId ? (part.features.find((f) => f.id === featureId) as Extract<Feature, { type: 'fillet' | 'chamfer' }> | undefined) : undefined
   // Edges of the body as it was before this feature: the latest body state that does not include it.
@@ -178,7 +179,7 @@ export function EdgeFeatureForm({ engine, state, vs, kind, featureId, update }: 
             ? [
                 ...(preview.after?.bodies ?? []).map((b) => (
                   <span key={b.bodyId} className="cadm-block">
-                    {b.bodyId}: {fmtNum(b.volume, 1)} mm³, {b.faces} faces{b.valid ? '' : ', invalid solid'}
+                    {b.bodyId}: {M.volume(b.volume, 1)}, {b.faces} faces{b.valid ? '' : ', invalid solid'}
                   </span>
                 )),
                 ...(preview.after?.failures ?? []).map((f) => (

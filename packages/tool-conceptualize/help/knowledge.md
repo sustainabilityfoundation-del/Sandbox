@@ -4,7 +4,7 @@ title: Design knowledge: functions, constraints, assumptions and links
 kind: guide
 summary: Functions say what must be accomplished, Constraints bound the design, Assumptions record what is taken as given; typed links connect them to Concepts, evidence and decisions.
 keywords: [function, constraint, assumption, design link, performs, decomposes into, formalizes, depends on, rationale, review, validity, graph, search, batch]
-operations: [conceptualize.create_function, conceptualize.convert_to_function, conceptualize.create_constraint, conceptualize.promote_constraint, conceptualize.record_assumption, conceptualize.create_link, conceptualize.rationale, conceptualize.traverse, conceptualize.search_design]
+operations: [conceptualize.revise_constraint, conceptualize.record_evidence, conceptualize.create_function, conceptualize.convert_to_function, conceptualize.create_constraint, conceptualize.promote_constraint, conceptualize.record_assumption, conceptualize.create_link, conceptualize.rationale, conceptualize.traverse, conceptualize.search_design]
 related: [conceptualize.concept.model, conceptualize.structure, conceptualize.decision, conceptualize.explorer]
 ---
 Conceptualize keeps four kinds of design knowledge as separate records, each with a key, immutable
@@ -86,6 +86,21 @@ answers with **Still valid** or **Invalidate**. Flags are kept with who cleared 
 Evidence can have several subjects. Records with basis **Calculated** carry a reproducibility manifest.
 Reviewers **Accept** or **Reject** evidence independently; nobody can accept their own record and the
 assistant cannot review.
+
+## Evidence from checks
+
+A check of a design (for example a CAD Modeler check of a part) is recorded as evidence with the **source**
+artifact and the revision it measured (for example the CAD document revision), the **tool** name and version,
+and its **results**. Each result has a value with unit and its qualification: *point value*, *sampled range (not
+proven)* or *bounds (exact or enclosure)*. When a result names a constraint, Conceptualize compares it with the
+constraint's bound at that revision and shows **satisfied**, **violated** or **uncertain**; a sampled range is
+never shown as satisfied. The record states what was measured, not adequacy, safety or compliance, and is not
+*verified evidence*. Evidence with basis *Calculated* is refused until calculation models let Conceptualize
+re-verify the calculation; record such results as *Estimate* or *Assessment*.
+
+The assistant can prepare a **constraint revision** (new revision with a reason; status changes stay with a
+person) and an **evidence record from a check**, and lists decisions **under review** with their open flags.
+Every change is a preview you apply.
 
 ## Through the API and the assistant
 

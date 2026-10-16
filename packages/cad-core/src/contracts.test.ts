@@ -27,6 +27,12 @@ function sampleDocument(): CadDocument {
       { command: 'create_sketch', input: { partId: '$p', plane: 'XZ', offset: 'w', ref: '$t' } },
       { command: 'add_rectangle', input: { sketchId: '$t', corner: [5, 0], width: 5, height: 10 } },
       { command: 'revolve_profile', input: { sketchId: '$t', axis: 'y-axis', angle: 'a', operation: 'join' } },
+      // Format 1.2: regular polygon, linear pattern, parameter binding.
+      { command: 'create_sketch', input: { partId: '$p', plane: 'XY', offset: 5, ref: '$hx' } },
+      { command: 'add_regular_polygon', input: { sketchId: '$hx', center: [10, 10], sides: 6, size: { acrossFlats: 4 }, rotation: 30 } },
+      { command: 'extrude_profile', input: { sketchId: '$hx', distance: 2, direction: 'reverse', operation: 'cut', ref: '$pk' } },
+      { command: 'pattern_linear', input: { features: ['$pk'], direction: 'x', count: 3, spacing: 'w / 4' } },
+      { command: 'bind_parameter', input: { partId: '$p', name: 'w', ref: { module: 'conceptualize', kind: 'constraint', id: 'c-1', revision: 1 }, quantity: 'width' } },
       { command: 'add_semantic', input: { partId: '$p', kind: 'interface', name: 'Mount', targets: ['$e'] } },
       { command: 'add_reference', input: { subject: '$p', role: 'represents', target: { module: 'twin', id: 'HSG-110', revision: 3, kind: 'part' } } },
       { command: 'set_suppressed', input: { featureId: '$e', suppressed: true } },
@@ -82,8 +88,8 @@ function sources(dir: string): string[] {
 describe('CAD package boundaries (ADR-0020)', () => {
   const RULES: Record<string, { ews: RegExp; forbidden: RegExp }> = {
     'packages/cad-core': { ews: /^$/, forbidden: /^(react|react-dom|three|replicad|replicad-opencascadejs)(\/|$)/ },
-    'packages/cad-client': { ews: /^@ews\/cad-core$/, forbidden: /^(react|react-dom|three|replicad|replicad-opencascadejs|pg|fastify)(\/|$)/ },
-    'services/cad': { ews: /^@ews\/(cad-core(\/schema\/ews-cad\.schema\.json)?|platform-sdk)$/, forbidden: /^(react|react-dom|three|replicad|replicad-opencascadejs)(\/|$)/ },
+    'packages/cad-client': { ews: /^@ews\/(cad-core|platform-sdk)$/, forbidden: /^(react|react-dom|three|replicad|replicad-opencascadejs|pg|fastify)(\/|$)/ },
+    'services/cad': { ews: /^@ews\/(cad-core(\/schema\/ews-cad\.schema\.json)?|platform-sdk|cad-client)$/, forbidden: /^(react|react-dom|three|replicad|replicad-opencascadejs)(\/|$)/ },
     'packages/cad-kernel': { ews: /^@ews\/cad-core$/, forbidden: /^(react|react-dom|three)(\/|$)/ },
     'packages/tool-cad-modeler': { ews: /^@ews\/(platform-sdk|design-system|cad-core|cad-kernel|cad-client)(\/[\w.-]+)?$/, forbidden: /^(replicad|replicad-opencascadejs|react-aria-components|@phosphor-icons\/.*)(\/|$)/ },
   }

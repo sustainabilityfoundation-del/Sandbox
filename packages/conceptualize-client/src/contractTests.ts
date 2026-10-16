@@ -17,6 +17,8 @@ export interface ConceptsContractFixture {
   createConcept?: () => Promise<string>
   /** Waits until committed events are delivered. */
   settle?: () => Promise<void>
+  /** A design constraint with a quantity bound, at revision 1 (SDK 1.8 getConstraint). */
+  constraintId?: string
   cleanup?: () => Promise<void>
 }
 
@@ -91,6 +93,23 @@ export function defineConceptsServiceContract(name: string, setup: () => Promise
         expect(await service.conceptsForArtifact({ module: 'cad', id: 'CAD-999' }, { projectId })).toEqual([])
         const impls = await service.implementations(CON_001, { projectId })
         expect(impls[0]).toMatchObject({ status: 'in-development' })
+      }),
+    )
+
+    it(
+      'reads a design constraint with its bound at a revision (SDK 1.8 getConstraint)',
+      withFixture(async ({ service, projectId, constraintId }) => {
+        if (!constraintId) return
+        expect(typeof service.getConstraint).toBe('function')
+        const c = await service.getConstraint!(constraintId, { projectId })
+        expect(c).toMatchObject({ id: constraintId, projectId, key: expect.stringMatching(/^CST-\d{3,}$/), strength: expect.any(String), status: expect.any(String), basis: expect.any(String) })
+        expect(c!.latestRevision).toBeGreaterThanOrEqual(c!.revision)
+        expect(c!.bound?.quantity.unit).toBeTruthy()
+        expect(['<=', '<', '=', '>=', '>', 'in-range']).toContain(c!.bound?.operator)
+        const r1 = await service.getConstraint!(constraintId, { projectId, revision: 1 })
+        expect(r1).toMatchObject({ id: constraintId, revision: 1, latestRevision: c!.latestRevision })
+        expect(await service.getConstraint!(constraintId, { projectId, revision: 999 })).toBeUndefined()
+        expect(await service.getConstraint!('00000000-0000-4000-8000-000000000000', { projectId })).toBeUndefined()
       }),
     )
 

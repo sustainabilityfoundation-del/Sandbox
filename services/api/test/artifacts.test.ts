@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { ARTIFACT_LIFECYCLES, ARTIFACT_SOURCE_CONTRACT_VERSION, type ArtifactChange, type ArtifactDescriptor, type ArtifactSource } from '@ews/platform-sdk'
-import { composeTwinDirectory, createRequirementsArtifactSource, staticTwinDirectory } from '@ews/requirements-service'
+import { composeTwinDirectory, createRequirementsArtifactSource, staticTwinDirectory, type TwinDirectory } from '@ews/requirements-service'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { prepareDatabase, SAMPLE_TWIN } from '../src/server'
 import { BASE, PROJECT, REQ1, createTestEnv, type TestEnv } from './helpers'
@@ -11,6 +11,25 @@ import { BASE, PROJECT, REQ1, createTestEnv, type TestEnv } from './helpers'
  */
 const NEW_PROJECT = 'PRJ-NEW-001'
 const PRODUCT_ELEMENT = '9e4f0b5d-0001-4d9c-8f40-9c3d6e5f4001'
+const ALIASED_ELEMENT = '9e4f0b5d-0002-4d9c-8f40-9c3d6e5f4002'
+/** A product directory that resolves an alias to the element's canonical UUID. */
+const aliasDirectory: TwinDirectory = {
+  description: 'test aliases',
+  async lookup(projectId, ids) {
+    return new Map(projectId === PROJECT && ids.includes('GBX-200') ? [['GBX-200', { id: ALIASED_ELEMENT, type: 'assembly', name: 'Gearbox (alias)' }]] : [])
+  },
+}
+const TWIN = composeTwinDirectory(
+  aliasDirectory,
+  SAMPLE_TWIN,
+  staticTwinDirectory(
+    {
+      [PROJECT]: [{ id: PRODUCT_ELEMENT, type: 'product-element', name: 'Gearbox (product element)' }],
+      [NEW_PROJECT]: [{ id: 'PE-NEW-1', type: 'product-element', name: 'Frame' }],
+    },
+    'test product registry',
+  ),
+)
 
 let env: TestEnv
 let source: ArtifactSource
@@ -44,21 +63,10 @@ async function changeFor(predicate: (c: ArtifactChange) => boolean): Promise<Art
 }
 
 beforeAll(async () => {
-  env = await createTestEnv({
-    twin: composeTwinDirectory(
-      SAMPLE_TWIN,
-      staticTwinDirectory(
-        {
-          [PROJECT]: [{ id: PRODUCT_ELEMENT, type: 'product-element', name: 'Gearbox (product element)' }],
-          [NEW_PROJECT]: [{ id: 'PE-NEW-1', type: 'product-element', name: 'Frame' }],
-        },
-        'test product registry',
-      ),
-    ),
-  })
+  env = await createTestEnv({ twin: TWIN })
   // A new project as Project Management creates it: memberships only (CR-PM-API-1), nothing else.
   await env.pool.query(`INSERT INTO platform.project_memberships (project_id, user_id, role) VALUES ($1, 'eli', 'editor'), ($1, 'rho', 'reader')`, [NEW_PROJECT])
-  source = createRequirementsArtifactSource(env.pool, env.server.events)
+  source = createRequirementsArtifactSource(env.pool, env.server.events, { twin: TWIN })
   source.subscribe((c) => changes.push(c))
 })
 afterAll(async () => env?.close())
@@ -129,6 +137,28 @@ describe('Requirements ArtifactSource (CR-PM-REG-1)', () => {
     const [d] = await source.describe(PROJECT, [{ module: 'requirements', kind: 'requirement', id: a.id }])
     const req1Rev = (await env.call('rho', 'GET', `${BASE}/requirements/${REQ1}`)).body.revision
     expect(d.relations).toEqual([{ type: 'derives-from', to: { module: 'requirements', kind: 'requirement', id: REQ1 }, toRevision: req1Rev }])
+  })
+
+  it('reports allocations to product elements with the C3 ref (by UUID or via a resolved alias); sample-twin allocations are not reported', async () => {
+    const r = (await createIn(PROJECT, 'Gearbox efficiency')).body
+    for (const toTwinId of [PRODUCT_ELEMENT, 'GBX-200', 'ROD-120']) {
+      expect((await env.call('eli', 'POST', `${BASE}/relationships`, { type: 'allocated-to', fromId: r.id, toTwinId })).status).toBe(201)
+    }
+    const [d] = await source.describe(PROJECT, [{ module: 'requirements', kind: 'requirement', id: r.id }])
+    expect(d.relations).toEqual(
+      expect.arrayContaining([
+        { type: 'allocated-to', to: { module: 'product', kind: 'product-element', id: PRODUCT_ELEMENT } },
+        { type: 'allocated-to', to: { module: 'product', kind: 'product-element', id: ALIASED_ELEMENT } },
+      ]),
+    )
+    expect(d.relations).toHaveLength(2)
+    // Without the directory only UUID targets are recognised.
+    const plain = createRequirementsArtifactSource(env.pool, env.server.events)
+    const [p] = await plain.describe(PROJECT, [{ module: 'requirements', kind: 'requirement', id: r.id }])
+    expect(p.relations).toEqual([{ type: 'allocated-to', to: { module: 'product', kind: 'product-element', id: PRODUCT_ELEMENT } }])
+    // The list path reports the same relations.
+    const listed = (await listAll(PROJECT, undefined, ['requirement'])).find((x) => x.ref.id === r.id)!
+    expect(listed.relations).toEqual(d.relations)
   })
 
   it('a new project starts empty: provision is not-needed, nothing is seeded, also after the seed runs again', async () => {

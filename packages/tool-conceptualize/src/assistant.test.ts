@@ -4,6 +4,7 @@ import { sampleModel } from '@ews/platform-sdk/testing'
 import { createDemoConceptsService, createHttpConceptsService } from '@ews/conceptualize-client'
 import { generateExploration } from './ai/generator'
 import { conceptsAssistant, conceptsDemo } from './assistant'
+import { registerReferencePort } from './references'
 
 const OWNER = 'Develop three alternative concepts for a compact mechanical actuator capable of delivering 500 N of linear force within a 100 mm envelope.'
 const ASSISTANT_BASES = ['ai-hypothesis', 'assumption', 'estimate']
@@ -131,5 +132,101 @@ describe('design-knowledge operations (Design Reasoning P1)', () => {
       { op: 'createFunction', as: '$fn', body: { name: 'Reject heat', reason: 'Assistant proposal CP-9' } },
       { op: 'createLink', as: '$l1', body: { type: 'performs', from: { module: 'conceptualize', type: 'concept', id: 'c6' }, to: { module: 'conceptualize', type: 'function', id: '$fn' } } },
     ])
+  })
+})
+
+describe('implementation links to the real modules (C3, C5)', () => {
+  const fetchFor = (calls: { url: string; body: any }[]) =>
+    (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = String(input)
+      calls.push({ url, body: init.body ? JSON.parse(String(init.body)) : undefined })
+      const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } })
+      if (url.includes('/concepts?')) return json({ items: [{ id: 'c1', key: 'CON-001', name: 'Drive' }], total: 1, limit: 20, offset: 0 })
+      if (url.endsWith('/concepts/c1')) return json({ id: 'c1', key: 'CON-001', name: 'Drive', revision: 1, statements: [] })
+      if (url.endsWith('/implementations')) return json({ id: 'i1', key: 'IMP-009' }, 201)
+      return json({})
+    }) as typeof globalThis.fetch
+  const ctxFor = (projectId: string, concepts: ReturnType<typeof createHttpConceptsService>) => {
+    const c = context({ concepts })
+    return { ...c, captured: { ...c.captured, projectId } }
+  }
+
+  it('checks a SysML Modeler element through an injected port and pins its revision', async () => {
+    const off = registerReferencePort({ name: 'Fake SysML adapter', adapter: true, supports: (r) => r.module === 'sysml' && r.id.includes('/'), resolve: async () => ({ state: 'found', label: 'Spindle (Drill rig)', latest: 7 }) })
+    try {
+      const calls: { url: string; body: any }[] = []
+      const concepts = createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch: fetchFor(calls) })
+      const p = (await action('conceptualize.link_artifact').run({ conceptId: 'CON-001', artifactId: 'p1/e1' }, ctxFor('PRJ-NEW', concepts))) as ServiceProposal
+      expect(p.preview[1].proposed).toBe('sysml (sysml-model-element):p1/e1 pinned at revision 7')
+      expect(p.assumptions?.join(' ')).toMatch(/Fake SysML adapter/)
+      await p.apply({ conversationId: 'C-3', proposalId: 'CP-1', messageId: 'M1' })
+      const body = calls.find((c) => c.url.endsWith('/implementations'))!.body
+      expect(body.artifacts).toEqual([{ module: 'sysml', id: 'p1/e1', revision: 7, kind: 'sysml-model-element', label: 'Spindle (Drill rig)' }])
+    } finally {
+      off()
+    }
+  })
+
+  it('keeps legacy twin objects to the PRJ-ACT100 demo', async () => {
+    const concepts = createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch: fetchFor([]) })
+    await expect(action('conceptualize.link_artifact').run({ conceptId: 'CON-001', artifactId: 'CAD-120' }, ctxFor('PRJ-NEW', concepts))).rejects.toThrow(/PRJ-ACT100 demo/)
+    expect(conceptsDemo('Link CON-001 to p1/e1', { selectionIds: [] })?.calls[0]).toEqual({ name: 'conceptualize.link_artifact', arguments: { conceptId: 'CON-001', artifactId: 'p1/e1' } })
+  })
+})
+
+describe('D1-CON operations (headless, service proposals)', () => {
+  const CST = '7e57c0de-0000-4000-8000-0000000c5701'
+  const constraint = { id: CST, key: 'CST-004', projectId: 'PRJ-ACT100', revision: 2, kind: 'dimensional', statement: 'Wall at least 2 mm', bound: { symbol: 't', operator: '>=', quantity: { value: 2, unit: 'mm' } }, strength: 'hard', source: { kind: 'stated', basis: 'user-assertion' }, basis: 'user-assertion', status: 'active', subjects: [] }
+  const make = () => {
+    const calls: { method: string; url: string; headers: Record<string, string>; body: any }[] = []
+    const fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = String(input)
+      calls.push({ method: init.method ?? 'GET', url, headers: init.headers as Record<string, string>, body: init.body ? JSON.parse(String(init.body)) : undefined })
+      const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } })
+      if (url.includes('/search?')) return json({ items: [{ ref: { module: 'conceptualize', type: url.includes('CON-') ? 'concept' : 'constraint', id: url.includes('CON-') ? 'c1' : CST }, key: url.includes('CON-') ? 'CON-001' : 'CST-004', label: 'x', status: 'active', rank: 1, snippet: '' }], total: 1 })
+      if (url.endsWith(`/constraints/${CST}`) && (init.method ?? 'GET') === 'GET') return json(constraint)
+      if (url.endsWith(`/constraints/${CST}`)) return json({ ...constraint, revision: 3, bound: init.body ? JSON.parse(String(init.body)).bound : constraint.bound })
+      if (url.endsWith('/evidence')) return json({ id: 'e1', key: 'EVD-031', results: [{ name: 'Minimum wall', status: 'violated' }] }, 201)
+      if (url.includes('/decisions?') || url.endsWith('/decisions')) return json([{ id: 'd1', key: 'DEC-002', title: 'Pocket layout', status: 'recorded', validity: 'under-review', reviewFlags: [{ at: '2026-10-15T00:00:00Z', by: 'eli', reason: 'Wall changed', impactReportId: 'IR-3' }], recordVersion: 2 }, { id: 'd2', key: 'DEC-003', title: 'Material', status: 'recorded', validity: 'valid', reviewFlags: [], recordVersion: 1 }])
+      if (url.endsWith('/decisions/d1/rationale')) return json({ stale: ['CST-004 pinned at revision 1, now 2'] })
+      return json({})
+    }) as typeof globalThis.fetch
+    return { calls, concepts: createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch }) }
+  }
+
+  it('revise_constraint proposes a new revision with the reason and applies it with expectedRevision', async () => {
+    const { calls, concepts } = make()
+    const p = (await action('conceptualize.revise_constraint').run({ constraintId: 'CST-004', value: 2.5, reason: 'Thin walls cracked in the print' }, context({ concepts }))) as ServiceProposal
+    expect(p.preview.find((i) => i.label === 'Bound')).toMatchObject({ current: 't >= 2 mm', proposed: 't >= 2.5 mm', basis: 'ai-hypothesis' })
+    const before = calls.length
+    await p.apply({ conversationId: 'C-9', proposalId: 'CP-2', messageId: 'M1' })
+    const patch = calls.slice(before).find((c) => c.method === 'PATCH')!
+    expect(patch.body).toMatchObject({ expectedRevision: 2, reason: 'Thin walls cracked in the print', bound: { operator: '>=', quantity: { value: 2.5, unit: 'mm' }, symbol: 't' } })
+    expect(patch.headers).toMatchObject({ 'X-Source-Kind': 'assistant', 'X-Proposal-Id': 'CP-2' })
+    expect(conceptsDemo('Revise CST-004 to 2.5 mm because thin walls cracked', { selectionIds: [] })?.calls[0]).toEqual({ name: 'conceptualize.revise_constraint', arguments: { constraintId: 'CST-004', value: 2.5, unit: 'mm', reason: 'thin walls cracked' } })
+  })
+
+  it('record_evidence carries the pinned source, tool, point results and pinned constraints; basis estimate', async () => {
+    const { calls, concepts } = make()
+    const p = (await action('conceptualize.record_evidence').run(
+      { title: 'CAD check', subjects: ['CON-001'], source: { module: 'cad', kind: 'cad-modeler-entity', id: 'doc/doc', revision: 4 }, tool: { name: 'CAD Modeler check', version: '1.2.0' }, results: [{ name: 'Minimum wall', value: 1.8, unit: 'mm', constraintId: 'CST-004' }] },
+      context({ concepts }),
+    )) as ServiceProposal
+    expect(p.preview.map((i) => i.proposed).join(' | ')).toContain('1.8 mm (point) vs CST-004 t >= 2 mm (rev 2)')
+    expect(p.preview.every((i) => i.basis !== 'evidence')).toBe(true)
+    const before = calls.length
+    const applied = await p.apply({ conversationId: 'C-9', proposalId: 'CP-3', messageId: 'M1' })
+    expect(applied.summary).toContain('Minimum wall: violated')
+    const body = calls.slice(before).find((c) => c.url.endsWith('/evidence'))!.body
+    expect(body).toMatchObject({ basis: 'estimate', source: { module: 'cad', revision: 4 }, tool: { name: 'CAD Modeler check', version: '1.2.0' }, results: [{ name: 'Minimum wall', value: 1.8, unit: 'mm', qualification: { kind: 'point' }, constraint: { type: 'constraint', id: CST, revision: 2 } }] })
+    expect(body.subjects).toEqual([{ module: 'conceptualize', type: 'concept', id: 'c1' }, { module: 'conceptualize', type: 'constraint', id: CST }])
+    expect(action('conceptualize.record_evidence').parameters).toMatchObject({ properties: { basis: { enum: ['estimate', 'assessment', 'assumption', 'ai-hypothesis'] } } })
+  })
+
+  it('review_flags reads decisions under review with open flags and stale pins', async () => {
+    const { concepts } = make()
+    const r = (await action('conceptualize.review_flags').run({}, context({ concepts }))) as { kind: string; data: { decisions: unknown[] } }
+    expect(r.data.decisions).toEqual([{ key: 'DEC-002', title: 'Pocket layout', validity: 'under-review', openFlags: [{ reason: 'Wall changed', by: 'eli', at: '2026-10-15T00:00:00Z', impactReportId: 'IR-3' }], stale: ['CST-004 pinned at revision 1, now 2'] }])
+    expect(conceptsDemo('Which decisions need review?', { selectionIds: [] })?.calls[0].name).toBe('conceptualize.review_flags')
   })
 })

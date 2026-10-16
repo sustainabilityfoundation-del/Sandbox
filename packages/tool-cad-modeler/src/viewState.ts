@@ -10,6 +10,7 @@ export type Editing =
   | { kind: 'fillet'; featureId?: string }
   | { kind: 'chamfer'; featureId?: string }
   | { kind: 'datum-plane'; featureId?: string }
+  | { kind: 'pattern-linear'; featureId?: string }
 
 export type SelectionItem =
   | { kind: 'face' | 'edge'; id: string; bodyId: string }
@@ -27,6 +28,8 @@ export interface CadModelerViewState {
   editing: Editing | null
   selection: SelectionItem[]
   showEdges: boolean
+  /** True once the person toggled edges in this view; before that the "Show edges" setting applies. */
+  showEdgesSet?: boolean
   /** Edges highlighted in the 3D view (fillet and chamfer forms). */
   highlightEdges?: string[]
   /** Open dialog (documents of the project in the CAD service). */

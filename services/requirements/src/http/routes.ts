@@ -445,14 +445,14 @@ export function registerRequirementRoutes(app: FastifyInstance, services: HostSe
     operationId: 'createRelationship',
     tag: 'Traceability',
     summary: 'Create a typed relationship',
-    description: 'Endpoints are validated per type; self-links, duplicates and cycles in derives-from/decomposes are refused. Allocation targets must be components (assembly or part) or product elements known to the host twin directory.',
+    description: 'Endpoints are validated per type; self-links, duplicates and cycles in derives-from/decomposes are refused. Allocation targets must be components (assembly or part) or product elements known to the host twin directory, or SysML Modeler elements (toSysmlElement) known to the host SysML directory. expectedFromRevision refuses the write with 409 if the from requirement changed.',
     params: P,
     body: S.RelationshipCreate,
     permission: 'author',
     idempotency: 'optional',
     responses: { 201: { description: 'Created', schema: S.Relationship }, ...WRITE_ERRORS },
     handler: async (rc) => rc.write(async (ctx) => {
-      const rel = await createRelationship(ctx, services.twin, rc.body as Static<typeof S.RelationshipCreate>)
+      const rel = await createRelationship(ctx, services.twin, rc.body as Static<typeof S.RelationshipCreate>, { sysml: services.sysml })
       return { status: 201, body: rel, etag: rel.revision }
     }),
   })

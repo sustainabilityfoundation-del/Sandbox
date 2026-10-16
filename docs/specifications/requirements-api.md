@@ -104,6 +104,7 @@ project lookup; otherwise it uses the project it has seen the ID in, or `GET /re
   lifecycle mapping and paging are documented in the progress file. `provision` returns `not-needed`:
   data is keyed by project ID and a new project starts empty (the development seed writes
   `PRJ-ACT100` only).
+- **Origin and allocations (D1, migration 0003):** requirements carry `origin` (`stakeholder` | `ai-proposed` | `derived` | null). Creating with `origin: 'derived'` needs `derivesFrom`, and the derives-from link is created in the same transaction. Allocations may target SysML Modeler elements (`toSysmlElement`, validated by the host `SysmlElementDirectory`), and relationship reads return `targetKind` and `toTargetRevision`. `expectedFromRevision` on relationship create refuses the write if the requirement changed.
 - **Allocation targets** (CR-PM-REQ-2): `allocated-to` targets are validated by the host's
   `TwinDirectory` (`ServerOptions.twin`, default: the static sample twin for `PRJ-ACT100`). Allowed
   target types: `assembly`, `part`, `product-element`. `composeTwinDirectory(...)` combines

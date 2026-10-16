@@ -28,6 +28,9 @@ const OPERATIONS: [string, string][] = [
   ['conceptualize.rationale', 'conceptualize.decision'],
   ['conceptualize.traverse', 'conceptualize.knowledge'],
   ['conceptualize.search_design', 'conceptualize.knowledge'],
+  ['conceptualize.revise_constraint', 'conceptualize.knowledge'],
+  ['conceptualize.record_evidence', 'conceptualize.knowledge'],
+  ['conceptualize.review_flags', 'conceptualize.decision'],
 ]
 
 const CONTROLS: [string, string][] = [
@@ -84,6 +87,7 @@ const CONTROLS: [string, string][] = [
   ['conceptualize.decision.rationale', 'conceptualize.decision'],
   ['conceptualize.decision.validity', 'conceptualize.decision'],
   ['conceptualize.evidence.review', 'conceptualize.knowledge'],
+  ['conceptualize.evidence.results', 'conceptualize.knowledge'],
 ]
 
 export const conceptualizeHelp: HelpManifest = {

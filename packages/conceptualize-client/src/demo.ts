@@ -4,6 +4,7 @@ import {
   type ConceptImplementationSummary,
   type ConceptSummary,
   type ConceptsService,
+  type ConstraintSummary,
 } from '@ews/platform-sdk'
 
 /**
@@ -25,6 +26,13 @@ const SEED: Omit<ConceptSummary, 'projectId' | 'revision' | 'updatedAt'>[] = [
   { id: id(7), key: 'CON-007', name: 'Belt drive', summary: 'Toothed belt and pulleys.', abstraction: 'component', classifications: ['power transmission'], maturity: 'evaluated' },
   { id: id(8), key: 'CON-008', name: 'Chain drive', summary: 'Roller chain and sprockets.', abstraction: 'component', classifications: ['power transmission'], maturity: 'evaluated' },
   { id: id(9), key: 'CON-009', name: 'Direct-drive motor', summary: 'Motor shaft coupled directly to the screw.', abstraction: 'component', classifications: ['power transmission'], maturity: 'evaluated' },
+]
+
+/** Demo design constraints (SDK 1.8 getConstraint), illustrative, revision 1. */
+export const DEMO_CONSTRAINT_IDS = { envelope: 'c57c0000-0000-4000-8000-000000000001', load: 'c57c0000-0000-4000-8000-000000000002' }
+const CONSTRAINTS: Omit<ConstraintSummary, 'projectId'>[] = [
+  { id: DEMO_CONSTRAINT_IDS.envelope, key: 'CST-001', revision: 1, latestRevision: 1, kind: 'dimensional', statement: 'Fits a 100 mm envelope', bound: { symbol: 'L', operator: '<=', quantity: { value: 100, min: null, max: null, unit: 'mm' } }, strength: 'hard', status: 'active', basis: 'user-assertion', formalizes: null },
+  { id: DEMO_CONSTRAINT_IDS.load, key: 'CST-002', revision: 1, latestRevision: 1, kind: 'mathematical', statement: 'REQ-001 operating load as F ≥ 12 kN', bound: { symbol: 'F', operator: '>=', quantity: { value: 12, min: null, max: null, unit: 'kN' } }, strength: 'hard', status: 'active', basis: 'user-assertion', formalizes: { module: 'requirements', id: '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001', revision: 1, kind: 'requirement' } },
 ]
 
 const IMPLEMENTATIONS: Omit<ConceptImplementationSummary, 'updatedAt'>[] = [
@@ -100,6 +108,13 @@ export function createDemoConceptsService(options: DemoOptions = {}): ConceptsSe
       await latency()
       inProject(scope.projectId)
       return impls.filter((i) => i.conceptIds.includes(conceptId)).map((i) => ({ ...i }))
+    },
+    async getConstraint(cid, scope) {
+      await latency()
+      inProject(scope.projectId)
+      const c = CONSTRAINTS.find((x) => x.id === cid)
+      if (!c || (scope.revision && scope.revision !== 1)) return undefined
+      return { ...structuredClone(c), projectId }
     },
     subscribe() {
       // Demo data never changes, so there is nothing to announce.

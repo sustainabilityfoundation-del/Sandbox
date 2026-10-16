@@ -21,7 +21,7 @@ export const StatementKind = L('function', 'behavior', 'principle', 'effect', 'i
 export const VerificationStatus = L('not-verified', 'partially-verified', 'verified', 'failed')
 export const ImplementationStatus = L('candidate', 'in-development', 'implemented', 'retired')
 export const ConceptImplementationStatus = Type.Union([L('none', 'candidate', 'in-development', 'implemented', 'retired')], { description: 'Derived from the linked implementations (most advanced, retired only when all are retired)' })
-export const ArtifactModule = L('requirements', 'sysml', 'cad', 'analysis', 'twin', 'external')
+export const ArtifactModule = L('requirements', 'sysml', 'cad', 'analysis', 'twin', 'external', 'product', 'projects')
 export const RelationshipType = L('contains', 'depends-on', 'interfaces-with', 'alternative-to', 'derived-from', 'refines', 'implements', 'conflicts-with', 'replaces')
 export const SourceKind = L('user', 'assistant', 'import', 'system')
 
@@ -64,7 +64,7 @@ export const Attribute = Type.Object(
 export const ArtifactRef = Type.Object(
   {
     module: ArtifactModule,
-    id: Type.String({ minLength: 1, maxLength: 2000, description: 'Canonical ID in the owning module: requirement UUID, twin object ID (SYS-…, CAD-…, ROD-…), artifact ID (OUT-…), test-adapter ID for analysis, URL for external' }),
+    id: Type.String({ minLength: 1, maxLength: 2000, description: 'Canonical ID in the owning module: requirement UUID, twin object ID (SYS-…, CAD-…, ROD-…), artifact ID (OUT-…), test-adapter ID for analysis, URL for external, product-element UUID (product), Project Management entity UUID such as a project document (projects)' }),
     revision: Type.Optional(Type.Integer({ minimum: 1, description: 'Pinned revision; omit to follow the latest deliberately' })),
     kind: Type.Optional(Text(60)),
     label: Type.Optional(Text(300)),
