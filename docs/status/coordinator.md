@@ -103,6 +103,12 @@ Owner: "focus on getting the cad working better woth more functionality". CAD Mo
 [cad-sprints-c1-c3.md](../specifications/cad-sprints-c1-c3.md): C1 sketching by clicks and reliability (after OSS-9 merges), C2 part features
 (holes, mirror, circular pattern, shell, draft, body booleans), C3 measurement, STEP import, STL, loft and sweep. Owner decisions listed there.
 
+## Model routing override (owner, 16 October 2026)
+Owner: "Can you switch to fable for a sprint to maximize usage for this week?" All newly started agents use Fable
+(`model: fable`) until the end of Sunday 19 October 2026, instead of the AGENTS.md routing (Opus review and architecture, Sonnet
+implementation and runs). Agents already running keep their model. Reviews and integration runs still gate every merge. The
+coordinator's own model is switched by the owner with /model.
+
 ## Owner decisions, 16 October 2026 (owner's words in the session)
 - Old illustrative tools: "Yes remove the two old ones" (hide from UI and AI; data and IDs kept). Running on branch
   ui/retire-illustrative-rename-system-model, ADR-0076.
