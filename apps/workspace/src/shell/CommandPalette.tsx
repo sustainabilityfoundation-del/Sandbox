@@ -8,6 +8,7 @@ import { Autocomplete, Dialog, Input, Modal, ModalOverlay, SearchField, useFilte
 import { getToolApi, openToolOrExplain, sharedContextOf } from '../platform/api'
 import { PLANS, toolAccess, useEntitlements } from '../platform/entitlements'
 import { getTool, getTools } from '../platform/registry'
+import { DEMO_TOOL_EXPLANATION, isDemoTool } from '../platform/demoTools'
 import { useWorkspaceStore } from '../platform/store'
 import { toolIdOfView } from '../platform/views'
 import { openInSeparateWindow, restoreWorkspaceWindows } from '../session/windows'
@@ -24,6 +25,8 @@ interface Command {
   keywords?: string
   isDisabled?: boolean
   locked?: boolean
+  /** An illustrative tool (labelled "Demo", C12). */
+  demo?: boolean
   run: () => void
 }
 
@@ -51,7 +54,8 @@ export function CommandPalette({ isOpen, onOpenChange }: { isOpen: boolean; onOp
         key: `${prefix}:${t.id}`,
         label: t.name,
         icon: access.ok ? t.icon : 'locked',
-        description: access.ok ? t.description : `Locked: not in your subscription (${plan.name}). Your ${t.name} data is kept.`,
+        description: !access.ok ? `Locked: not in your subscription (${plan.name}). Your ${t.name} data is kept.` : isDemoTool(t.id) ? DEMO_TOOL_EXPLANATION : t.description,
+        demo: isDemoTool(t.id),
         keywords: `${t.category} ${t.description}`,
         isDisabled: !access.ok,
         locked: !access.ok,
@@ -176,6 +180,8 @@ export function CommandPalette({ isOpen, onOpenChange }: { isOpen: boolean; onOp
       trailing={
         c.locked ? (
           <AppIcon name="locked" size={16} className="text-fg-3" label="Locked" />
+        ) : c.demo ? (
+          <span className="ws-dock-demo">Demo</span>
         ) : c.key.startsWith('fav:') ? (
           <AppIcon name="favorite" filled size={16} className="text-favorite" label="Favourite" />
         ) : undefined

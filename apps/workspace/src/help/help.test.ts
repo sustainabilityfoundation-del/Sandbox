@@ -124,9 +124,9 @@ describe('workspace help', () => {
   })
 
   it('follows the subscription: tools outside it are not listed', () => {
-    expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler', 'sysml-modeler', 'ai'])
+    expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler', 'sysml-modeler', 'projects', 'ai'])
     useEntitlements.getState().setPlan('requirements')
-    expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'ai'])
+    expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'projects', 'ai'])
     expect(workspaceHelp.contextual({ moduleId: 'cad' }).map((r) => r.topic.id)).toEqual(['platform.getting-started'])
   })
 
@@ -143,7 +143,7 @@ describe('workspace help', () => {
     expect(useHelpCentre.getState()).toMatchObject({ isOpen: true, topicId: null, notice: expect.stringContaining('not available') })
   })
 
-  it('lists every registered tool plus the workspace and AI interface', () => {
-    expect(helpSources().map((s) => s.moduleId)).toEqual(['platform', ...getTools().map((t) => t.id), 'ai'])
+  it('lists every registered tool, the platform modules with help, the workspace and AI interface', () => {
+    expect(helpSources().map((s) => s.moduleId)).toEqual(['platform', ...getTools().map((t) => t.id), 'projects', 'ai'])
   })
 })
