@@ -382,6 +382,23 @@ export class ConceptsModuleClient {
     return this.get<T.Staleness>(`/concepts/${conceptId}/staleness`, { revision, purpose })
   }
 
+  conceptCard(conceptId: string) {
+    return this.get<T.ConceptCard>(`/concepts/${conceptId}/card`)
+  }
+  setCards(setId: string) {
+    return this.get<T.SetCards>(`/alternative-sets/${setId}/cards`)
+  }
+  /** Builds the revision-pinned CAD handoff package from the Concept's current revision. */
+  createHandoff(conceptId: string, opts: WriteOpts & { conceptRevision?: number } = {}) {
+    return this.create<T.CadHandoff>(`/concepts/${conceptId}/handoffs`, { target: 'cad', ...(opts.conceptRevision ? { conceptRevision: opts.conceptRevision } : {}) }, opts)
+  }
+  handoffs(conceptId?: string) {
+    return this.get<T.CadHandoff[]>('/handoffs', { conceptId })
+  }
+  handoff(id: string) {
+    return this.get<T.CadHandoff>(`/handoffs/${id}`)
+  }
+
   // ---- calculation models (CR-C8) ---------------------------------------------------------------------------------
   calculationModels(q: { text?: string; status?: string } = {}) {
     return this.get<T.CalculationModel[]>('/calculation-models', q)

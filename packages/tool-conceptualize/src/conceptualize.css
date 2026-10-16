@@ -100,4 +100,44 @@
   @container tool (max-width: 640px) {
     .con-tree-badges { display: none; }
   }
+
+  /* Visual comparison (structured layouts are the primary visual) */
+  .cv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: var(--ws-space-3); align-items: start; }
+  .cv-card { display: flex; flex-direction: column; gap: var(--ws-space-2); padding: var(--ws-space-3); border: 1px solid var(--ws-border); border-radius: var(--ws-radius-lg); background: var(--ws-surface); min-width: 0; }
+  .cv-card.is-selected { border-color: var(--ws-success-border); }
+  .cv-card.is-rejected { opacity: 0.75; border-style: dashed; }
+  .cv-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--ws-space-2); }
+  .cv-card-head h3 { margin: 0; font-size: var(--ws-font-size); font-weight: var(--ws-weight-strong); }
+  .cv-card-actions { flex-wrap: wrap; }
+  .cv-principle { margin: 0; color: var(--ws-text-2); }
+  .cv-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: var(--ws-font-size-sm); }
+  .cv-list li.cv-diff { color: var(--ws-accent-strong); }
+  .cv-validation { margin: 0; }
+  .cv-figure { margin: 0; display: flex; flex-direction: column; gap: var(--ws-space-1); }
+  .cv-layout { display: block; width: 100%; height: auto; background: var(--ws-diagram-bg); border: 1px solid var(--ws-border); border-radius: var(--ws-radius); }
+  .cv-figure.is-compact .cv-layout { max-height: 280px; }
+  .cv-layout.is-pickable { cursor: crosshair; }
+  .cv-layout text { fill: var(--ws-text); font-size: 11px; font-family: var(--ws-font-sans); }
+  .cv-component rect, .cv-component ellipse { fill: var(--ws-diagram-part-1); stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.2; }
+  .cv-component.cv-kind-envelope rect, .cv-component.cv-kind-envelope ellipse { fill: none; stroke: var(--ws-diagram-stroke); stroke-dasharray: 6 4; }
+  .cv-component.cv-kind-purchased rect, .cv-component.cv-kind-purchased ellipse { fill: var(--ws-diagram-part-2); }
+  .cv-component.cv-kind-feature rect, .cv-component.cv-kind-feature ellipse { fill: var(--ws-diagram-part-3); }
+  .cv-component.cv-highlight rect, .cv-component.cv-highlight ellipse { stroke: var(--ws-accent); stroke-width: 2.5; }
+  .cv-component-label { font-size: 10px; }
+  .cv-interface line { stroke: var(--ws-diagram-leader); stroke-width: 1.2; stroke-dasharray: 3 3; }
+  .cv-interface text { fill: var(--ws-text-2); font-size: 10px; }
+  .cv-dimension line { stroke: var(--ws-diagram-detail); stroke-width: 1; }
+  .cv-dimension text { fill: var(--ws-text); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .cv-dimension.cv-not-to-scale text { fill: var(--ws-warning); }
+  .cv-dimension.cv-highlight text { fill: var(--ws-accent-strong); font-weight: var(--ws-weight-strong); }
+  .cv-annotation circle, .cv-annotation rect { fill: var(--ws-accent-soft); stroke: var(--ws-accent); stroke-width: 2; }
+  .cv-annotation.is-pending circle, .cv-annotation.is-pending rect { stroke-dasharray: 4 3; }
+  .cv-annotation text { fill: var(--ws-accent-strong); font-weight: var(--ws-weight-strong); }
+  .cv-caption { fill: var(--ws-text-3); font-size: 10px; }
+  .cv-illustration { display: block; max-width: 100%; border-radius: var(--ws-radius); border: 1px solid var(--ws-border); }
+  .cv-refine { display: flex; flex-direction: column; gap: var(--ws-space-2); padding: var(--ws-space-3); border: 1px solid var(--ws-accent-border); border-radius: var(--ws-radius-lg); background: var(--ws-surface); }
+  .cv-refine-body { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--ws-space-3); }
+  @container tool (max-width: 760px) {
+    .cv-refine-body { grid-template-columns: minmax(0, 1fr); }
+  }
 }

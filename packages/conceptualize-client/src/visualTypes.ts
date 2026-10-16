@@ -211,3 +211,88 @@ export interface ConceptDependents {
   currentRevision: number
   dependents: ConceptDependent[]
 }
+
+export type Coverage = 'intended' | 'preliminary-check' | 'verified'
+export interface CardConstraint {
+  id: string
+  key: string
+  revision: number
+  statement: string
+  bound: { operator: string; quantity: { value?: number | null; min?: number | null; max?: number | null; unit: string } } | null
+  strength: string
+  status: string
+  requirement: { module: string; id: string; revision?: number; label?: string } | null
+  coverage: Coverage
+  checkStatus: string | null
+  checkedBy: string | null
+}
+export interface ConceptCard {
+  concept: { id: string; key: string; name: string; summary: string; revision: number; stage: Stage; maturity: string; verificationStatus: string }
+  intent: string
+  principle: string[]
+  components: DefinedComponent[]
+  interfaces: (ComponentInterface & { betweenNames: string[] })[]
+  parameters: DefinedParameter[]
+  benefits: string[]
+  tradeOffs: string[]
+  constraints: CardConstraint[]
+  requirements: { relation: string; artifact: { module: string; id: string; revision?: number; label?: string }; coverage: 'intended' }[]
+  assumptions: { id: string; key: string; statement: string; validationStatus: string }[]
+  questions: { kind: string; text: string; state: string | null }[]
+  validation: { verificationStatus: string; openQuestions: number; unconfirmedHypotheses: number; constraintsVerified: number; constraintsChecked: number; constraintsTotal: number }
+  visuals: Visual[]
+  primaryVisualId: string | null
+  decisions: { id: string; key: string; title: string; status: string; outcome: string; rationale: string }[]
+  membership: { setId: string; setKey: string; setName: string; status: string }[]
+}
+export interface SetCards {
+  setId: string
+  key: string
+  name: string
+  question: string
+  parentId: string
+  cards: ConceptCard[]
+}
+export interface HandoffItem {
+  kind: 'open-question' | 'uncertainty' | 'missing-definition' | 'parameter-range' | 'unplaced-component' | 'interface-without-parameters' | 'unchecked-constraint' | 'not-selected' | 'unvalidated-assumption'
+  text: string
+  ref: string | null
+}
+export interface HandoffExtent {
+  value: number | null
+  unit: string
+  parameterId: string | null
+  symbol?: string
+  basis: string
+}
+/** conceptualize.cad-handoff/1 */
+export interface HandoffPackage {
+  schema: 'conceptualize.cad-handoff/1'
+  concept: { id: string; key: string; name: string; revision: number; stage: Stage; maturity: string }
+  intent: string
+  components: DefinedComponent[]
+  relationships: ComponentRelationship[]
+  interfaces: ComponentInterface[]
+  parameters: DefinedParameter[]
+  envelopes: { componentId: string; view: LayoutView; shape: 'rect' | 'circle'; width: HandoffExtent; height: HandoffExtent; position: { x: HandoffExtent; y: HandoffExtent } }[]
+  constraints: CardConstraint[]
+  requirements: { relation: string; artifact: unknown; coverage: Coverage; constraintId?: string }[]
+  decisions: ConceptCard['decisions']
+  assumptions: ConceptCard['assumptions']
+  visuals: { id: string; key: string; kind: VisualKind; revision: number; notToScale: boolean; illustrative: boolean; testAsset: boolean; assetId: string | null }[]
+  note: string
+  unresolved: HandoffItem[]
+}
+export interface CadHandoff {
+  id: string
+  key: string
+  projectId: string
+  conceptId: string
+  conceptRevision: number
+  target: 'cad'
+  package: HandoffPackage
+  staleness: Staleness
+  createdAt: string
+  createdBy: string
+  provenance: { sourceKind: string; conversationId: string | null; proposalId: string | null; messageId: string | null }
+}

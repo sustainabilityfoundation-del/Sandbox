@@ -4,7 +4,7 @@ import type { ConceptMaturity } from '@ews/platform-sdk'
 import type { Basis, RelationshipType, StatementKind } from '@ews/conceptualize-client'
 
 /** Private view state of one Conceptualize view instance. */
-export type ConceptPage = 'explorer' | 'alternatives' | 'integration' | 'ai'
+export type ConceptPage = 'explorer' | 'alternatives' | 'visual' | 'integration' | 'ai'
 export interface ConceptualizeViewState {
   page: ConceptPage
   /** The open Concept (canonical UUID). */
