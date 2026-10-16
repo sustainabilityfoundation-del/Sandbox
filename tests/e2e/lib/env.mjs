@@ -37,3 +37,17 @@ export function shotsDir(name) {
 export function exampleUrl(query = '') {
   return `${env.base}?project=PRJ-ACT100${query ? `&${query}` : ''}`
 }
+
+/**
+ * A browser context whose workspace always uses the demo assistant (development builds), so flows never reach a
+ * person's connected AI account. Flows that test the AI connection itself use the fake provider instead.
+ */
+export async function demoAssistantContext(browser, options = {}) {
+  const context = await browser.newContext(options)
+  // Both stores: some flows clear localStorage in their own init script, which runs after this one.
+  await context.addInitScript(() => {
+    localStorage.setItem('ews.assistant.forceDemo', '1')
+    sessionStorage.setItem('ews.assistant.forceDemo', '1')
+  })
+  return context
+}

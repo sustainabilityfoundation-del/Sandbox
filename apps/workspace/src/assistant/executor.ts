@@ -76,6 +76,15 @@ function optStr(args: Record<string, unknown>, key: string): string | undefined 
   return args[key] === undefined ? undefined : str(args, key)
 }
 
+/**
+ * Models often send optional arguments as empty strings or null (provider function-calling may require every
+ * property to be present). An empty optional argument means "not given"; required ones are left for checkArguments.
+ */
+export function normalizeArguments(parameters: ActionParameters, args: Record<string, unknown>): Record<string, unknown> {
+  const required = new Set(parameters.required ?? [])
+  return Object.fromEntries(Object.entries(args).filter(([key, value]) => required.has(key) || !(value === null || (typeof value === 'string' && value.trim() === ''))))
+}
+
 /** Basic schema check for tool-contributed actions: required keys present, no unknown keys. */
 function checkArguments(parameters: ActionParameters, args: Record<string, unknown>) {
   for (const key of parameters.required ?? []) {
@@ -328,7 +337,7 @@ async function runToolAction(call: ToolCallRequest, ctx: ExecutionContext): Prom
   if (tool.entitlement && !ctx.env.isEntitled(tool.entitlement)) {
     throw new ToolError('not-entitled', `${action.label} needs ${tool.name}, which is not included in your subscription. Nothing was changed.`)
   }
-  const args = call.arguments ?? {}
+  const args = normalizeArguments(action.parameters, call.arguments ?? {})
   checkArguments(action.parameters, args)
   const model = ctx.env.getModel()
   const artifacts = ctx.env.getOutputs().filter((o) => o.configurationId === ctx.captured.configurationId)

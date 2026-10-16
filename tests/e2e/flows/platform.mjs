@@ -1,5 +1,5 @@
 // Acceptance flow for the modular platform. Usage: node platform-flow.mjs [baseUrl]
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -11,7 +11,7 @@ const check = (tag, cond, msg) => {
   if (!cond) failures++
 }
 
-const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } })
+const context = await demoAssistantContext(browser, { viewport: { width: 1600, height: 1000 } })
 const page = await context.newPage()
 const problems = []
 const watch = (p) => {

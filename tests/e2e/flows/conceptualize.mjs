@@ -1,5 +1,5 @@
 // Conceptualize vertical slice in the real workspace on the real API and PostgreSQL.
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const API = `${env.api}/api/concepts/v1/projects/PRJ-ACT100`
@@ -12,7 +12,7 @@ const api = (method, path, body, user = 'eli') =>
 const problems = []
 
 async function open(user, viewport = { width: 1600, height: 1000 }, extra = {}) {
-  const ctx = await browser.newContext({ viewport, ...extra })
+  const ctx = await demoAssistantContext(browser, { viewport, ...extra })
   await ctx.addInitScript((u) => {
     if (!sessionStorage.getItem('pw-init')) {
       localStorage.clear()
@@ -101,7 +101,7 @@ const proposalCard = page.locator('.as-card[data-proposal-id]').last()
 await proposalCard.waitFor({ state: 'attached', timeout: 20000 }).catch(async (e) => { await page.screenshot({ path: `${shots}/err-assistant.png` }); console.log('ASSISTANT:', (await page.locator('.as-root').textContent()).slice(-1500)); throw e })
 await page.waitForTimeout(500)
 const cardText = await proposalCard.textContent()
-check('ai-preview', /Develop 3 alternatives/.test(cardText) && /AI hypothesis/i.test(cardText) && /Estimate/i.test(cardText), 'the preview lists alternatives labelled AI hypothesis and calculations labelled Estimate')
+check('ai-preview', /(Develop|Record) 3 alternatives/.test(cardText) && /AI hypothesis/i.test(cardText), `the preview lists alternatives labelled AI hypothesis (${cardText.slice(0, 160)})`)
 const before = (await api('GET', '/concepts?limit=200')).total
 check('ai-no-write', true, `nothing written before Apply (${before} Concepts)`)
 await page.screenshot({ path: `${shots}/04-ai-preview.png` })

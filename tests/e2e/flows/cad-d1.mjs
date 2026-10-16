@@ -1,12 +1,12 @@
 // CAD Modeler D1 building blocks in the workspace UI: a regular polygon (fully constrained) on a face, a
 // pocket cut, and a linear pattern of it; the volume matches the analytic value. Fixture: the built-in
 // example plate (no product data). Run against `npm run dev` in API or demo mode.
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const shots = shotsDir('cad-d1')
 const browser = await chromium.launch({ ...launchOptions, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
-const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
+const page = await (await demoAssistantContext(browser, { viewport: { width: 1600, height: 1000 } })).newPage()
 const problems = []
 page.on('console', (m) => m.type() === 'error' && !/favicon|404|ERR_CONNECTION_REFUSED|Failed to fetch/.test(m.text()) && problems.push(m.text()))
 page.on('pageerror', (e) => problems.push(e.message))

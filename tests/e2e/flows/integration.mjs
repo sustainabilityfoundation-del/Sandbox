@@ -1,5 +1,5 @@
 // Coordinator integration: workspace Requirements tool on the real API, service menu, demo mode, user switch.
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -10,7 +10,7 @@ const check = (tag, cond, msg) => {
   console.log(`[${tag}] ${cond ? 'PASS' : 'FAIL'} ${msg}`)
   if (!cond) failures++
 }
-const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } })
+const context = await demoAssistantContext(browser, { viewport: { width: 1600, height: 1000 } })
 const page = await context.newPage()
 const problems = []
 page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && !/DevTools|\[vite\]|favicon/.test(m.text()) && problems.push(m.text().slice(0, 200)))

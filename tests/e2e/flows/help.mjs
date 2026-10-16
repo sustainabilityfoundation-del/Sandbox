@@ -1,5 +1,5 @@
 // Unified help system: Help menu, dynamic module submenus, Help Centre, F1, tour, fallbacks, phone.
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -12,7 +12,7 @@ const watch = (p) => {
   p.on('pageerror', (e) => problems.push(e.message))
   p.on('console', (m) => m.type() === 'error' && !/favicon|DevTools/.test(m.text()) && problems.push(m.text().slice(0, 200)))
 }
-const page = await (await b.newContext({ viewport: { width: 1600, height: 1000 } })).newPage()
+const page = await (await demoAssistantContext(b, { viewport: { width: 1600, height: 1000 } })).newPage()
 watch(page)
 await page.goto(exampleUrl()); await page.waitForSelector('.ws-app'); await page.evaluate(() => localStorage.clear())
 await page.goto(exampleUrl(`tool=requirements`)); await page.waitForSelector('.ws-app'); await page.waitForTimeout(2500)
@@ -104,7 +104,7 @@ check('subscription', !limited.some((t) => /^SysML|^CAD/.test(t.trim())) && limi
 await page.keyboard.press('Escape')
 
 // 8. Phone.
-const phone = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage()
+const phone = await (await demoAssistantContext(b, { viewport: { width: 390, height: 844 } })).newPage()
 watch(phone)
 await phone.goto(exampleUrl()); await phone.waitForSelector('.ws-app'); await phone.waitForTimeout(1500)
 await phone.getByRole('button', { name: 'Help', exact: true }).click()

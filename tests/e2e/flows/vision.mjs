@@ -1,5 +1,5 @@
 // Architecture vision Phase 1 flow: baseline, verification, stale evidence, compare, impact, about.
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -10,7 +10,7 @@ const check = (tag, cond, msg) => {
   console.log(`[${tag}] ${cond ? 'PASS' : 'FAIL'} ${msg}`)
   if (!cond) failures++
 }
-const page = await (await browser.newContext({ viewport: { width: 1600, height: 1000 } })).newPage()
+const page = await (await demoAssistantContext(browser, { viewport: { width: 1600, height: 1000 } })).newPage()
 const problems = []
 page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && !/DevTools|\[vite\]|favicon/.test(m.text()) && problems.push(m.text().slice(0, 200)))
 page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`))
