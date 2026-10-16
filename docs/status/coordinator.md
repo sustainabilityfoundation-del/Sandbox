@@ -79,6 +79,12 @@ Backlog (tracked here until done):
 - OSS-2 done on branch infra/oss-register-sbom (aa2a66b, ADR-0073 Proposed): npm built-ins for SBOM and audit, own policy layer, register.json
   from the lockfile, CI licence check. 578 preferred, 17 conditional, 0 restricted, 1 unknown (webgl-constants, MIT text, pending); 15 entries
   pending review incl. OCCT (ADR-0021). npm audit: 14 advisories, 1 high (follow-up OSS-18). Merged with M4/M5 after the green integration run.
+- OSS-6 and OSS-18 merged: generated THIRD_PARTY_NOTICES.txt (33 shipped packages; npm run notices, --check); audit triage in
+  docs/dependencies.md: all 14 advisories from @scalar/api-reference (services/api), high one (undici) not reachable in the shipped
+  product. OSS-19: raise that pin once a fixed release (1.75.0, 16 Oct) is two weeks old (about 30 October). Line-ending fix: the
+  register test ignores CRLF; .gitattributes keeps generated files LF.
+- CT-2a done on branch feature/ct-2a-registry-contract (8337ce3): SDK 1.13.0, design system 1.2.0 CommandBar; Opus review running.
+  Coordinator rule for CT-2b: entries in KNOWN_EVIDENCE_GAPS render ready (no partial dot); list_capabilities reports them as implemented with unverified evidence.
 - OSS-3 Module assessments (Phase 2), one per module agent, in priority order set by OSS-1; each ends in an ADR and backlog entries.
 - OSS-4 Shared integration interfaces (solver, geometry, simulation, visualization) documented, after OSS-1.
 - OSS-5 Upstream contribution workflow: nothing is published without explicit owner authorization.
