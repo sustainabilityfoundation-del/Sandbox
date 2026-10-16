@@ -16,6 +16,7 @@ import { useSimulatedFailures } from './WorkArea'
 import { useBaselineDialog } from './Baselines'
 import { useCapabilitiesDialog } from './CapabilitiesDialog'
 import { useCoverageDialog } from './CoverageDialog'
+import { PRESETS, PRESET_IDS, applyPreset, dockAssistant, restoreDefaultLayout, showAssistant, showDockTab } from './layout/presets'
 
 interface Command {
   key: string
@@ -72,10 +73,28 @@ export function CommandPalette({ isOpen, onOpenChange }: { isOpen: boolean; onOp
 
     const layout = state.layout
     const workspace: Command[] = [
-      { key: 'ws:tree', label: layout.treeOpen ? 'Hide product tree' : 'Show product tree', icon: 'panel-left', run: () => state.setLayout({ treeOpen: !layout.treeOpen }) },
+      { key: 'ws:tree', label: layout.treeOpen ? 'Hide explorer' : 'Show explorer', icon: 'panel-left', run: () => state.setLayout({ treeOpen: !layout.treeOpen }) },
       { key: 'ws:inspector', label: layout.inspectorOpen ? 'Hide inspector' : 'Show inspector', icon: 'panel-right', run: () => state.setLayout({ inspectorOpen: !layout.inspectorOpen }) },
-      { key: 'ws:chat', label: 'Open ChatGPT', icon: 'assistant', run: () => state.setLayout({ activityOpen: true, dockTab: 'assistant' }) },
-      { key: 'ws:activity', label: 'Open Activity', icon: 'history', run: () => state.setLayout({ activityOpen: true, dockTab: 'activity' }) },
+      { key: 'ws:chat', label: 'Open the AI Assistant', icon: 'assistant', run: showAssistant },
+      { key: 'ws:activity', label: 'Open Activity', icon: 'history', run: () => showDockTab('activity') },
+      { key: 'ws:validation', label: 'Open Validation', icon: 'validate', description: 'Potentially stale artifacts and save failures', run: () => showDockTab('validation') },
+      ...PRESET_IDS.map(
+        (id): Command => ({ key: `ws:preset:${id}`, label: `Layout preset: ${PRESETS[id].label}`, icon: PRESETS[id].icon, description: PRESETS[id].description, keywords: 'workspace layout preset', run: () => applyPreset(id) }),
+      ),
+      {
+        key: 'ws:maximize',
+        label: layout.canvasMaximized ? 'Restore panels' : 'Maximize the canvas',
+        icon: layout.canvasMaximized ? 'minimize' : 'maximize',
+        run: () => state.setLayout({ canvasMaximized: !layout.canvasMaximized }),
+      },
+      {
+        key: 'ws:dock',
+        label: layout.assistantDock === 'right' ? 'Dock the assistant at the bottom' : 'Dock the assistant on the right',
+        icon: layout.assistantDock === 'right' ? 'dock-bottom' : 'dock-right',
+        isDisabled: state.layoutClass !== 'spacious',
+        run: () => dockAssistant(layout.assistantDock === 'right' ? 'bottom' : 'right'),
+      },
+      { key: 'ws:layout-reset', label: 'Restore the default layout', icon: 'reset', run: restoreDefaultLayout },
       {
         key: 'ws:favourite',
         label: active && state.favorites.includes(active.id) ? `Remove ${active.name} from favourites` : `Add ${active?.name ?? 'tool'} to favourites`,
@@ -92,7 +111,7 @@ export function CommandPalette({ isOpen, onOpenChange }: { isOpen: boolean; onOp
         run: () => active && openInSeparateWindow('tool', active.id),
       },
       { key: 'ws:win-inspector', label: 'Open inspector in separate window', icon: 'open-window', run: () => openInSeparateWindow('inspector') },
-      { key: 'ws:win-chat', label: 'Open ChatGPT in separate window', icon: 'open-window', run: () => openInSeparateWindow('assistant') },
+      { key: 'ws:win-chat', label: 'Open the AI Assistant in separate window', icon: 'open-window', run: () => openInSeparateWindow('assistant') },
       { key: 'ws:baseline-create', label: 'Create baseline…', icon: 'baseline', description: 'Pin the exact current definition', run: () => useBaselineDialog.getState().open('create') },
       { key: 'ws:baseline-compare', label: 'Compare with a baseline…', icon: 'baseline', isDisabled: state.baselines.length === 0, run: () => useBaselineDialog.getState().open('compare') },
       { key: 'ws:ai-coverage', label: 'AI capability coverage', icon: 'assistant', description: 'What the assistant can and cannot do', run: () => useCoverageDialog.getState().setOpen(true) },

@@ -15,15 +15,21 @@ import {
   MenuButton,
   MenuItem,
   MenuSection,
+  PanelHeader,
   PopoverButton,
+  SearchField,
   SegmentedControl,
   Select,
   StatusBadge,
+  ToggleIconButton,
   cx,
   useToasts,
   type IconName,
 } from '@ews/design-system'
 import type { ViewportMode } from './layout/viewport'
+import { useExplorerFilter } from './layout/explorerFilter'
+import { PRESETS as LAYOUT_PRESETS, PRESET_IDS, applyPreset, assistantOnRight, currentPreset, dockAssistant, showAssistant } from './layout/presets'
+import { AssistantPanel } from './assistant/AssistantPanel'
 
 // ---- Side panel ----------------------------------------------------------------------------
 
@@ -34,37 +40,138 @@ import type { ViewportMode } from './layout/viewport'
 export function SidePanel({
   side,
   title,
+  icon,
   open,
   mode,
   onClose,
   actions,
+  toolbar,
   children,
 }: {
   side: 'left' | 'right'
   title: string
+  icon?: IconName
   open: boolean
   mode: ViewportMode
   onClose: () => void
   actions?: ReactNode
+  /** Content under the header (a search filter). */
+  toolbar?: ReactNode
   children: ReactNode
 }) {
   if (mode !== 'desktop') {
     return (
       <Drawer side={side} title={title} isOpen={open} onOpenChange={(o) => !o && onClose()} actions={actions} fullWidth={mode === 'phone'}>
+        {toolbar && <div className="ws-side-toolbar pt-2">{toolbar}</div>}
         {children}
       </Drawer>
     )
   }
   return (
     <aside className={cx('ws-side', `ws-side-${side}`, open && 'is-open')} aria-label={title} aria-hidden={!open} inert={!open}>
-      <div className="ws-pane-title">
-        <span>{title}</span>
-        <span className="flex items-center gap-0.5">
-          {actions}
-          <IconButton label={`Hide ${title.toLowerCase()}`} icon={side === 'left' ? 'panel-left' : 'panel-right'} size="sm" onPress={onClose} />
-        </span>
-      </div>
+      <PanelHeader
+        title={title}
+        icon={icon}
+        actions={
+          <>
+            {actions}
+            <IconButton label={`Hide ${title.toLowerCase()}`} icon={side === 'left' ? 'panel-left' : 'panel-right'} size="sm" onPress={onClose} />
+          </>
+        }
+      >
+        {toolbar && <div className="ws-side-toolbar">{toolbar}</div>}
+      </PanelHeader>
       <div className="ws-side-body">{children}</div>
+    </aside>
+  )
+}
+
+/** Search filter for the explorer (product tree or project explorer). */
+export function ExplorerFilter({ label }: { label: string }) {
+  const query = useExplorerFilter((s) => s.query)
+  const setQuery = useExplorerFilter((s) => s.setQuery)
+  return <SearchField label={label} placeholder="Search project…" value={query} onChange={setQuery} className="ws-explorer-filter" />
+}
+
+/** Panel toggles at the end of the document tab bar: explorer, inspector, assistant and canvas maximize. */
+export function PanelToggles({ mode, layout }: { mode: ViewportMode; layout: Layout }) {
+  const setLayout = useWorkspaceStore((s) => s.setLayout)
+  const desktop = mode === 'desktop'
+  const max = layout.canvasMaximized
+  const right = assistantOnRight(layout, desktop)
+  return (
+    <div className="ws-pane-tabs-actions" role="group" aria-label="Panels" data-help-id="platform.panels">
+      <ToggleIconButton
+        className="ws-panel-toggle"
+        label="Explorer"
+        icon="panel-left"
+        size="sm"
+        isSelected={layout.treeOpen && !max}
+        onChange={() => setLayout(desktop ? { treeOpen: !(layout.treeOpen && !max), canvasMaximized: false } : { treeOpen: !layout.treeOpen, inspectorOpen: false })}
+      />
+      <ToggleIconButton
+        className="ws-panel-toggle"
+        label="Inspector"
+        icon="panel-right"
+        size="sm"
+        isSelected={layout.inspectorOpen && !max}
+        onChange={() =>
+          setLayout(desktop ? { inspectorOpen: !(layout.inspectorOpen && !max), canvasMaximized: false } : { inspectorOpen: !layout.inspectorOpen, treeOpen: false })
+        }
+      />
+      {right && (
+        <ToggleIconButton
+          className="ws-panel-toggle"
+          label="AI Assistant"
+          icon="assistant"
+          size="sm"
+          isSelected={layout.assistantOpen && !max}
+          onChange={(on) => (on ? showAssistant() : setLayout({ assistantOpen: false }))}
+        />
+      )}
+      {desktop && (
+        <ToggleIconButton
+          className="ws-panel-toggle"
+          label={max ? 'Restore panels' : 'Maximize the canvas'}
+          icon={max ? 'minimize' : 'maximize'}
+          size="sm"
+          isSelected={max}
+          onChange={() => setLayout({ canvasMaximized: !max })}
+        />
+      )}
+    </div>
+  )
+}
+
+/** The assistant docked as a right-hand column (desktop). The bottom-dock variant lives in BottomDock. */
+export function AssistantDockPanel({ open }: { open: boolean }) {
+  const setLayout = useWorkspaceStore((s) => s.setLayout)
+  const info = useConversation((s) => s.service?.info)
+  return (
+    <aside className={cx('ws-side ws-side-assistant', open && 'is-open')} aria-label="AI Assistant" aria-hidden={!open} inert={!open} data-help-id="ai.panel">
+      <PanelHeader
+        title={
+          <span className="flex items-center gap-2">
+            AI Assistant
+            {info?.kind !== 'remote' && (
+              <span className="ws-dock-demo" title={`${info?.name ?? 'Assistant'} (not connected to an AI model; connect in Settings → AI and reasoning)`}>
+                Demo
+              </span>
+            )}
+          </span>
+        }
+        icon="assistant"
+        actions={
+          <>
+            <IconButton label="Dock the assistant at the bottom" icon="dock-bottom" size="sm" onPress={() => dockAssistant('bottom')} />
+            <IconButton label="Open the assistant in a separate window" icon="open-window" size="sm" onPress={() => openInSeparateWindow('assistant')} />
+            <IconButton label="Collapse the assistant" icon="close" size="sm" onPress={() => setLayout({ assistantOpen: false })} />
+          </>
+        }
+      />
+      <div className="ws-assistant-body">
+        <AssistantPanel />
+      </div>
     </aside>
   )
 }
@@ -78,7 +185,7 @@ export function MobileNav({ onOpenLauncher }: { onOpenLauncher: () => void }) {
   const layout = useWorkspaceStore((s) => s.layout)
   const setLayout = useWorkspaceStore((s) => s.setLayout)
   const pending = useConversation((s) => Object.values(s.proposals).filter((p) => p.status === 'pending' || p.status === 'conflict').length)
-  const current: Destination | null = layout.treeOpen ? 'tree' : layout.inspectorOpen ? 'inspector' : layout.activityOpen ? layout.dockTab : null
+  const current: Destination | null = layout.treeOpen ? 'tree' : layout.inspectorOpen ? 'inspector' : layout.activityOpen ? (layout.dockTab === 'validation' ? 'activity' : layout.dockTab) : null
 
   const go = (d: Destination) => {
     if (d === 'tools') return onOpenLauncher()
@@ -94,7 +201,7 @@ export function MobileNav({ onOpenLauncher }: { onOpenLauncher: () => void }) {
     { id: 'tools', label: 'Tools', icon: 'tools' },
     { id: 'inspector', label: 'Inspect', icon: 'info' },
     { id: 'activity', label: 'Activity', icon: 'history' },
-    { id: 'assistant', label: 'ChatGPT', icon: 'assistant', badge: pending },
+    { id: 'assistant', label: 'Assistant', icon: 'assistant', badge: pending },
   ]
 
   return (
@@ -192,11 +299,33 @@ export function DisplaySettings({ mode }: { mode: ViewportMode }) {
             ]}
           />
         </section>
+        {mode === 'desktop' && (
+          <section className="flex flex-col gap-1.5">
+            <h3 className="m-0 text-ui-xs font-medium text-fg-3">Workspace preset</h3>
+            <SegmentedControl
+              label="Workspace preset"
+              size="sm"
+              value={currentPreset(layout) ?? 'custom'}
+              onChange={(id) => id !== 'custom' && applyPreset(id as (typeof PRESET_IDS)[number])}
+              options={[...PRESET_IDS.map((id) => ({ value: id as string, label: LAYOUT_PRESETS[id].label })), ...(currentPreset(layout) ? [] : [{ value: 'custom', label: 'Custom' }])]}
+            />
+            <SegmentedControl
+              label="Assistant position"
+              size="sm"
+              value={layout.assistantDock}
+              onChange={(dock) => dockAssistant(dock)}
+              options={[
+                { value: 'right', label: 'Assistant right', icon: 'dock-right' },
+                { value: 'bottom', label: 'Assistant bottom', icon: 'dock-bottom' },
+              ]}
+            />
+          </section>
+        )}
         <section className="flex flex-col gap-2">
           <h3 className="m-0 text-ui-xs font-medium text-fg-3">Layout ({layoutClass === 'spacious' ? 'wide screens' : 'narrow screens'})</h3>
           {mode === 'desktop' && (
             <>
-              <PresetRow label="Product tree" preset="tree" value={layout.treeWidth} onChange={(treeWidth) => setLayout({ treeOpen: true, treeWidth })} />
+              <PresetRow label="Explorer" preset="tree" value={layout.treeWidth} onChange={(treeWidth) => setLayout({ treeOpen: true, treeWidth })} />
               <PresetRow label="Inspector" preset="inspector" value={layout.inspectorWidth} onChange={(inspectorWidth) => setLayout({ inspectorOpen: true, inspectorWidth })} />
             </>
           )}
@@ -274,7 +403,7 @@ export function WindowsMenu() {
             Inspector
           </MenuItem>
           <MenuItem id="assistant" icon="open-window">
-            ChatGPT
+            AI Assistant
           </MenuItem>
           {tool && (
             <MenuItem

@@ -2,9 +2,9 @@
 help_id: platform.getting-started
 title: Getting started
 kind: guide
-summary: Find your way around the workspace: product tree, tools, inspector, activity and the assistant.
+summary: Find your way around the workspace: rail, explorer, canvas, inspector, AI Assistant, bottom panel and status bar.
 keywords: [getting started, introduction, workspace, layout, first steps, tour]
-related: [platform.shortcuts, platform.help, platform.subscriptions]
+related: [platform.layout, platform.shortcuts, platform.help, platform.subscriptions]
 ---
 
 The workspace connects engineering tools around one shared product definition (the actuator example
@@ -12,11 +12,14 @@ ACT-100 with its housing, rod and motor).
 
 | Area | What it is for |
 | --- | --- |
-| **Product tree** (left) | Components, requirements, SysML elements and CAD representations. Selecting one selects it in every tool |
-| **Tools** (centre) | Requirements, SysML and CAD. Open more with **Tools** or Ctrl+K; split the view to see two |
+| **Navigation rail** (left edge) | The explorer toggle, every module you can use, the assistant and the layout menu |
+| **Explorer** (left) | Components, requirements, SysML elements and CAD representations (or the project's artifacts). Selecting one selects it in every tool |
+| **Canvas** (centre) | The open tools as tabs. Open more with **+** or Ctrl+K; split the view to see two |
 | **Inspector** (right) | Properties, relationships, owning module, change impact and revision history of the selection |
-| **Activity and ChatGPT** (bottom) | Everything that was saved or changed, and the assistant |
-| **Header** | Configuration and scenario, search, commands, baselines, subscription, Requirements service, windows, display, help |
+| **AI Assistant** (right or bottom) | The conversation with the assistant |
+| **Bottom panel** | Activity (everything saved or changed) and Validation |
+| **Header** | Project, configuration and scenario, modules, search, commands, notifications, baselines, subscription, Requirements service, windows, display, settings, help |
+| **Status bar** | Save state, configuration, revision, validation, background work and the selection |
 
 ## First steps
 
@@ -26,4 +29,5 @@ ACT-100 with its housing, rod and motor).
    ([Requirements Management](help:requirements.overview)).
 3. Press **F1** anywhere for help on what you are looking at.
 
-On phones the areas become tabs at the bottom of the screen; every action works without dragging.
+Arrange the panels and use presets as described in [Workspace layout](help:platform.layout). On phones the areas
+become tabs at the bottom of the screen; every action works without dragging.

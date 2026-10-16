@@ -1,83 +1,27 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { DemoRepository } from '@ews/model-service'
-import { clearSession } from '../platform/session'
+import { create } from 'zustand'
 import { useWorkspaceStore } from '../platform/store'
-import { Button, Checkbox, Dialog, Icon, IconButton, Notice, PopoverButton, Select, StatusBadge, cx } from '@ews/design-system'
-import { PLANS, useEntitlements } from '../platform/entitlements'
+import { AppIcon, Avatar, Button, Dialog, Icon, IconButton, Notice, PopoverButton, Select, cx } from '@ews/design-system'
+import { PLANS, canOpenTool, useEntitlements } from '../platform/entitlements'
+import { openToolOrExplain } from '../platform/api'
+import { isDemoTool } from '../platform/demoTools'
+import { getTools } from '../platform/registry'
+import { serviceSettings } from '../platform/services'
 import { GlobalSearch } from './GlobalSearch'
 import type { ViewportMode } from './layout/viewport'
+import { showDockTab } from './layout/presets'
 import { DisplaySettings, WindowsMenu } from './ShellParts'
 import { BaselinesMenu } from './Baselines'
 import { ServicesMenu } from './ServicesMenu'
+import { SaveStatus } from './StatusBar'
 import { HelpMenu } from '../help/HelpMenu'
 import { ProjectSwitcher } from '../projects/ProjectHome'
 import { useCurrentProject } from '../projects/bootstrap'
 import { SettingsButton } from '../settings/SettingsButton'
+import { useSettingsCentre } from '../settings/SettingsCentre'
 
-/** Repository connection and save state, with demo controls. */
-function RepositoryStatus({ repository, compact = false }: { repository: DemoRepository; compact?: boolean }) {
-  const pending = useWorkspaceStore((s) => s.pendingWrites)
-  const lastError = useWorkspaceStore((s) => s.lastWriteError)
-  const dismissWriteError = useWorkspaceStore((s) => s.dismissWriteError)
-  const [offline, setOffline] = useState(repository.offline)
-  const [resetting, setResetting] = useState(false)
-  const status = offline ? 'save-failed' : pending > 0 ? 'saving' : lastError ? 'save-failed' : 'saved'
-  const label = offline ? 'Offline (simulated)' : pending > 0 ? 'Saving…' : lastError ? 'Last save failed' : 'Saved'
-
-  return (
-    <PopoverButton
-      label={`${repository.info.label}: ${label}`}
-      title={repository.info.label}
-      text={
-        <span className="ws-repo-pill flex items-center gap-2" data-state={status}>
-          <Icon name="repository" size={18} />
-          {!compact && <span className="ws-repo-name whitespace-nowrap font-medium">{repository.info.label}</span>}
-          <span className={cx('ws-repo-dot size-2 rounded-full', `is-${status}`)} aria-hidden="true" />
-          <span className={compact ? 'sr-only' : 'whitespace-nowrap text-ui-xs'}>{label}</span>
-        </span>
-      }
-      triggerClassName="border border-header-line bg-header-input text-header-fg"
-    >
-      <div className="flex flex-col gap-3 text-ui-sm">
-        <StatusBadge status={status} label={label} />
-        <p className="m-0 text-fg-2">{repository.info.description} No real backend or authentication is involved.</p>
-        {lastError && (
-          <div className="flex items-start gap-2 rounded-field bg-error-soft p-2 text-error">
-            <span className="flex-1">{lastError}</span>
-            <Button size="sm" variant="text" onPress={dismissWriteError}>
-              Dismiss
-            </Button>
-          </div>
-        )}
-        <Checkbox
-          isSelected={offline}
-          onChange={(value) => {
-            repository.offline = value
-            setOffline(value)
-          }}
-        >
-          Simulate repository outage
-        </Checkbox>
-        <Button
-          size="sm"
-          variant="outlined"
-          icon="reset"
-          isPending={resetting}
-          onPress={async () => {
-            setResetting(true)
-            await repository.reset()
-            clearSession()
-            window.location.reload()
-          }}
-        >
-          Reset demo data
-        </Button>
-      </div>
-    </PopoverButton>
-  )
-}
-
-/** Configuration, scenario and revision; inline on wide headers, in a popover on phones. */
+/** Project, configuration and scenario; inline on wide headers, in a popover on phones. */
 function ContextFields({ stacked = false }: { stacked?: boolean }) {
   const model = useWorkspaceStore((s) => s.model)!
   const context = useWorkspaceStore((s) => s.context)
@@ -88,13 +32,16 @@ function ContextFields({ stacked = false }: { stacked?: boolean }) {
   return (
     <div className={stacked ? 'flex flex-col gap-3' : 'ws-header-context'} aria-label="Shared context" role="group">
       <div className="ws-ctx ws-ctx-project">
-        <span className="ws-ctx-label">Project</span>
+        {stacked && <span className="ws-ctx-label">Project</span>}
         <span className="ws-ctx-value">
           {/* Project switcher and Project Home entry (CR-PM-WS-1); the twin's own project label without Project Management. */}
-          {opened ? <ProjectSwitcher /> : (
-            <>
+          {opened ? (
+            <ProjectSwitcher />
+          ) : (
+            <span className="ws-project-static" title={`${project.id} ${project.name}`}>
+              <AppIcon name="project" size={16} />
               <span className="font-mono">{project.id}</span> <span className="ws-ctx-project-name">{project.name}</span>
-            </>
+            </span>
           )}
         </span>
       </div>
@@ -102,7 +49,7 @@ function ContextFields({ stacked = false }: { stacked?: boolean }) {
         label={stacked ? 'Configuration' : undefined}
         ariaLabel="Configuration"
         size={stacked ? 'md' : 'sm'}
-        className={stacked ? undefined : 'ws-ctx-select'}
+        className={stacked ? undefined : 'ws-ctx-select ws-ctx-config'}
         value={context.configurationId}
         onChange={setConfiguration}
         options={configurations.map((c) => ({ id: c.id, label: `${c.id} · ${c.name}`, textValue: `${c.id} ${c.name}` }))}
@@ -111,17 +58,17 @@ function ContextFields({ stacked = false }: { stacked?: boolean }) {
         label={stacked ? 'Scenario' : undefined}
         ariaLabel="Scenario"
         size={stacked ? 'md' : 'sm'}
-        className={stacked ? undefined : 'ws-ctx-select'}
+        className={stacked ? undefined : 'ws-ctx-select ws-ctx-scenario'}
         value={context.scenarioId}
         onChange={setScenario}
         options={scenarios.map((s) => ({ id: s.id, label: s.name }))}
       />
-      <div className="ws-ctx">
-        <span className="ws-ctx-label">Model rev</span>
-        <span className="ws-ctx-value font-mono" data-testid={stacked ? undefined : 'model-revision'}>
-          {model.revision}
-        </span>
-      </div>
+      {stacked && (
+        <div className="ws-ctx">
+          <span className="ws-ctx-label">Model rev</span>
+          <span className="ws-ctx-value font-mono">{model.revision}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -155,38 +102,144 @@ function ContextChip() {
   )
 }
 
+/**
+ * Module navigation in the header (wide screens; the navigation rail always has it). Built from the tool registry
+ * and the subscription, so a newly installed or entitled module appears without shell changes.
+ */
+function ModuleNav() {
+  const activeToolId = useWorkspaceStore((s) => s.activeToolId)
+  useEntitlements((s) => s.plan.id)
+  return (
+    <nav className="ws-module-nav" aria-label="Modules (header)">
+      <div className="ws-module-nav-inner">
+      {getTools().map((tool) => {
+        const active = tool.id === activeToolId
+        const allowed = canOpenTool(tool.id)
+        return (
+          <Button
+            key={tool.id}
+            variant="quiet"
+            size="sm"
+            aria-current={active ? 'page' : undefined}
+            aria-label={`${tool.name}${isDemoTool(tool.id) ? ' (demo)' : ''}${allowed ? '' : ' (not in your subscription)'}`}
+            onPress={() => openToolOrExplain(tool.id)}
+            className={cx('ws-module-link', active && 'is-active')}
+          >
+            <AppIcon name={tool.icon} size={16} />
+            <span>{tool.name}</span>
+            {!allowed && <AppIcon name="locked" size={12} />}
+          </Button>
+        )
+      })}
+      </div>
+    </nav>
+  )
+}
+
+/** Notifications: new Activity entries since the panel was last opened in this window. */
+const useSeenActivity = create<{ seen: string | null; markSeen: (id: string | null) => void }>()((set) => ({
+  seen: null,
+  markSeen: (seen) => set({ seen }),
+}))
+
+function Notifications() {
+  const activity = useWorkspaceStore((s) => s.activity)
+  const seen = useSeenActivity((s) => s.seen)
+  const markSeen = useSeenActivity((s) => s.markSeen)
+  // Everything loaded at start-up counts as seen.
+  useEffect(() => {
+    if (seen === null && activity.length) markSeen(activity[0]!.id)
+  }, [seen, activity, markSeen])
+  const index = seen ? activity.findIndex((a) => a.id === seen) : 0
+  const fresh = index < 0 ? activity.length : index
+  return (
+    <span className="relative inline-flex">
+      <IconButton
+        label={fresh ? `Notifications: ${fresh} new activity entr${fresh === 1 ? 'y' : 'ies'}` : 'Notifications: no new activity'}
+        icon="notifications"
+        onPress={() => {
+          markSeen(activity[0]?.id ?? null)
+          showDockTab('activity')
+        }}
+      />
+      {fresh > 0 && (
+        <span className="ws-nav-badge ws-header-badge" aria-hidden="true">
+          {fresh > 9 ? '9+' : fresh}
+        </span>
+      )}
+    </span>
+  )
+}
+
 /** Demo subscription switcher. The real subscription would come from the account service. */
 function SubscriptionMenu({ compact }: { compact: boolean }) {
   const plan = useEntitlements((s) => s.plan)
   const setPlan = useEntitlements((s) => s.setPlan)
   return (
+    <span data-help-id="platform.header.subscription">
+      <PopoverButton
+        label={`Subscription: ${plan.name} (demo)`}
+        title="Subscription (demo)"
+        icon="subscription"
+        text={compact ? undefined : <span className="whitespace-nowrap text-ui-sm">{plan.name}</span>}
+        triggerClassName="ws-subscription-button"
+      >
+        <div className="flex max-w-80 flex-col gap-3 text-ui-sm">
+          <Select
+            label="Subscription (demo)"
+            value={plan.id}
+            onChange={setPlan}
+            options={PLANS.map((p) => ({ id: p.id, label: p.name, description: p.description }))}
+          />
+          <p className="m-0 text-fg-2">
+            Tools outside the subscription are shown locked. Their data is never deleted; it stays visible in the product tree and
+            inspector and becomes editable again when access returns. Open windows update immediately.
+          </p>
+          <Notice tone="warning" title="Prototype only">
+            This check runs in the browser. In production, entitlements and permissions are enforced by the backend on every
+            operation and file access.
+          </Notice>
+        </div>
+      </PopoverButton>
+    </span>
+  )
+}
+
+/** The development identity the backend sees (there is no real sign-in yet). */
+function Account() {
+  const user = serviceSettings.devUser
+  return (
     <PopoverButton
-      label={`Subscription: ${plan.name} (demo)`}
-      title="Subscription (demo)"
-      icon="subscription"
-      text={compact ? undefined : <span className="whitespace-nowrap text-ui-sm">{plan.name}</span>}
-      triggerClassName="ws-subscription-button"
+      label={`Account: ${user} (development identity)`}
+      title="Account"
+      text={<Avatar name={user} size={26} />}
+      triggerClassName="ws-account-button"
     >
-      <div className="flex max-w-80 flex-col gap-3 text-ui-sm">
-        <Select
-          label="Subscription (demo)"
-          value={plan.id}
-          onChange={setPlan}
-          options={PLANS.map((p) => ({ id: p.id, label: p.name, description: p.description }))}
-        />
+      <div className="flex flex-col gap-3 text-ui-sm">
+        <div className="flex items-center gap-3">
+          <Avatar name={user} size={36} />
+          <div>
+            <strong className="block font-medium">{user}</strong>
+            <span className="text-fg-3">Development identity</span>
+          </div>
+        </div>
         <p className="m-0 text-fg-2">
-          Tools outside the subscription are shown locked. Their data is never deleted; it stays visible in the product tree and
-          inspector and becomes editable again when access returns. Open windows update immediately.
+          Requests to the backend are sent as this development user (Requirements service menu). There is no real sign-in or
+          account service yet.
         </p>
-        <Notice tone="warning" title="Prototype only">
-          This check runs in the browser. In production, entitlements and permissions are enforced by the backend on every
-          operation and file access.
-        </Notice>
+        <Button size="sm" icon="settings" onPress={() => useSettingsCentre.getState().show()} className="self-start">
+          Settings…
+        </Button>
       </div>
     </PopoverButton>
   )
 }
 
+/**
+ * Global application header (brief §4 A): a compact dark-slate bar with identity, project, configuration and
+ * scenario, module navigation (wide screens), search and commands, notifications, baselines, subscription and
+ * services, windows, display, settings, help and the account.
+ */
 export function Header({ repository, mode, onOpenPalette }: { repository: DemoRepository; mode: ViewportMode; onOpenPalette?: () => void }) {
   const [searchOpen, setSearchOpen] = useState(false)
   const phone = mode === 'phone'
@@ -200,26 +253,34 @@ export function Header({ repository, mode, onOpenPalette }: { repository: DemoRe
         <span className="ws-brand-name">Engineering Workspace</span>
       </div>
       {phone ? <ContextChip /> : <ContextFields />}
+      {!phone && (
+        <span data-help-id="platform.header.baselines" className="inline-flex">
+          <BaselinesMenu compact />
+        </span>
+      )}
+      {mode === 'desktop' && <ModuleNav />}
       <div className="ws-header-right">
         {phone ? (
           <IconButton label="Search objects and outputs" icon="search" onPress={() => setSearchOpen(true)} />
         ) : (
-          <GlobalSearch />
+          <div className="ws-header-search">
+            <GlobalSearch />
+          </div>
         )}
         {onOpenPalette && !phone && (
-          <Button variant="quiet" icon="command" onPress={onOpenPalette} aria-label="Tools and commands (Ctrl+K)" className="ws-palette-button">
-            <span className="ws-palette-text">Commands</span>
-            <kbd className="ws-kbd">Ctrl K</kbd>
-          </Button>
+          <IconButton label="Tools and commands" icon="command" shortcut="Control+K" onPress={onOpenPalette} className="ws-palette-button" />
         )}
-        {!phone && <BaselinesMenu compact={mode !== 'desktop'} />}
-        <SubscriptionMenu compact={phone || mode === 'tablet'} />
-        <ServicesMenu compact={phone || mode !== 'desktop'} />
+        {!phone && <Notifications />}
+        {phone && <SaveStatus repository={repository} compact />}
+        <SubscriptionMenu compact={phone || mode !== 'desktop'} />
+        <span data-help-id="platform.header.services" className="inline-flex">
+          <ServicesMenu compact={phone || mode !== 'desktop'} />
+        </span>
         {!phone && <WindowsMenu />}
         <DisplaySettings mode={mode} />
-        <RepositoryStatus repository={repository} compact={phone || mode === 'tablet'} />
         <SettingsButton />
         <HelpMenu />
+        {!phone && <Account />}
       </div>
       <Dialog title="Search" isOpen={searchOpen} onOpenChange={setSearchOpen}>
         {(close) => <GlobalSearch autoFocus onDone={close} />}
