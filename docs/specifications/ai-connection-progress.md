@@ -252,3 +252,15 @@ Brief: [demo-ai-engineering.md](demo-ai-engineering.md) §3 D1-AI. Boundaries: A
   - In the dev server, the first CAD use makes Vite optimise `replicad` and reload the page, which interrupts the
     running reply. Proposal to the coordinator: add `replicad` and `replicad-opencascadejs` to
     `optimizeDeps.include` of the workspace Vite config.
+
+### Verification (checkpoint after main f68369c)
+
+- `npm run check`: typecheck clean; 1107 tests passed, 1 skipped.
+- `npm run build` and `npm run build:harnesses`: pass.
+- `npm run req:test:db`: 380 passed, 2 failed.
+  - `services/projects/test/acceptance.i1.test.ts` passes when run alone: timing (artifact registry confirmation).
+  - `services/api/test/sprint002.test.ts` "requirements.collection-changed is emitted after commit…" times out, also
+    when run alone. This branch has no changes in `services/api`, `services/requirements` or the Requirements
+    packages compared with main f68369c. I have not checked whether it also fails on main.
+- Browser flows against my stack (API 8801 with the fake provider, PostgreSQL 54343, workspace 5202): all 14 pass,
+  including `demo-d1` and `ai-headless`. `platform` failed once with a search-option timeout and passed on the rerun.
