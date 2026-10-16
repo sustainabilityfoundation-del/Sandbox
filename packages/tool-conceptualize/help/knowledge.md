@@ -4,7 +4,7 @@ title: Design knowledge: functions, constraints, assumptions and links
 kind: guide
 summary: Functions say what must be accomplished, Constraints bound the design, Assumptions record what is taken as given; typed links connect them to Concepts, evidence and decisions.
 keywords: [function, constraint, assumption, design link, performs, decomposes into, formalizes, depends on, rationale, review, validity, graph, search, batch]
-operations: [conceptualize.revise_constraint, conceptualize.record_evidence, conceptualize.create_function, conceptualize.convert_to_function, conceptualize.create_constraint, conceptualize.promote_constraint, conceptualize.record_assumption, conceptualize.create_link, conceptualize.rationale, conceptualize.traverse, conceptualize.search_design]
+operations: [conceptualize.list_constraints, conceptualize.revise_constraint, conceptualize.record_evidence, conceptualize.create_function, conceptualize.convert_to_function, conceptualize.create_constraint, conceptualize.promote_constraint, conceptualize.record_assumption, conceptualize.create_link, conceptualize.rationale, conceptualize.traverse, conceptualize.search_design]
 related: [conceptualize.concept.model, conceptualize.structure, conceptualize.decision, conceptualize.explorer]
 ---
 Conceptualize keeps four kinds of design knowledge as separate records, each with a key, immutable
@@ -97,6 +97,13 @@ constraint's bound at that revision and shows **satisfied**, **violated** or **u
 never shown as satisfied. The record states what was measured, not adequacy, safety or compliance, and is not
 *verified evidence*. Evidence with basis *Calculated* is refused until calculation models let Conceptualize
 re-verify the calculation; record such results as *Estimate* or *Assessment*.
+
+**Binding a CAD parameter to a constraint.** Each constraint has a reference other modules bind to:
+`{ module: "conceptualize", kind: "constraint", id, revision }`. The assistant reports it when it creates, promotes or
+revises a constraint and when it lists a Concept's constraints, so the CAD Modeler can bind a parameter to it and
+check the parameter against the bound read from Conceptualize. A revised constraint has a new revision; bindings
+pinned to the old one are reported as outdated by the CAD Modeler. A check can also name a whole CAD document as
+its source (`kind: "cad-document"` with the document revision).
 
 The assistant can prepare a **constraint revision** (new revision with a reason; status changes stay with a
 person) and an **evidence record from a check**, and lists decisions **under review** with their open flags.

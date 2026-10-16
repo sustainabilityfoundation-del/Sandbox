@@ -45,6 +45,16 @@ export async function resolveRef(client: ConceptsModuleClient, key: string, allo
   throw new ActionError('not-found', `${key} was not found in this project.`)
 }
 
+/**
+ * The reference other modules bind to (CAD Modeler bind_parameter and check, CR-AI-9): exactly the scheme
+ * CAD accepts, { module: 'conceptualize', kind: 'constraint', id, revision }.
+ */
+export const constraintBindingRef = (c: { id: string; revision: number }) => ({ module: 'conceptualize' as const, kind: 'constraint' as const, id: c.id, revision: c.revision })
+
+/** Model-visible result line of an applied constraint write: key, UUID, revision and the binding reference. */
+export const constraintResult = (verb: string, c: { id: string; key: string; revision: number }) =>
+  `${verb} ${c.key} (id ${c.id}, revision ${c.revision}). Binding reference for CAD bind_parameter and check: ${JSON.stringify(constraintBindingRef(c))}`
+
 export const assistantProvenance = (p: { conversationId: string; proposalId: string; messageId: string }): Provenance => ({ sourceKind: 'assistant', conversationId: p.conversationId, proposalId: p.proposalId, messageId: p.messageId })
 export const string = { type: 'string' }
 

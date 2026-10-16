@@ -2,7 +2,7 @@ import { ActionError, argOptionalString, argString, type AssistantActionDefiniti
 import type { BatchItem, ConstraintKind, DesignEntityType, DesignRef, EvaluateResult, Quantity } from '@ews/conceptualize-client'
 import { checkStatusLabel, limitsText, rangeLabel } from './calcLabels'
 import { formatQuantity } from './domain'
-import { assistantProvenance, connection, proposal, resolve, resolveRef, string, UUID } from './assistantShared'
+import { assistantProvenance, connection, constraintBindingRef, constraintResult, proposal, resolve, resolveRef, string, UUID } from './assistantShared'
 
 /**
  * Assistant operations for design knowledge (Design Reasoning P1: Functions, Constraints, Assumptions,
@@ -146,7 +146,7 @@ export const designActions: AssistantActionDefinition[] = [
         async apply(p) {
           const c = await client.createConstraint({ kind, statement, ...(bound ? { bound } : {}), strength, status: 'proposed', source: { kind: 'stated' }, subjects: [subject.ref], reason: `Assistant proposal ${p.proposalId}` }, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:constraint` })
           createdId = c.id
-          return { summary: `Proposed ${c.key} on ${subject.key}`, createdIds: [c.id] }
+          return { summary: `${constraintResult('Proposed', c)} Subject: ${subject.key}.`, createdIds: [c.id] }
         },
         async undo() {
           if (!createdId) return { summary: 'Nothing to undo.' }
@@ -175,11 +175,13 @@ export const designActions: AssistantActionDefinition[] = [
         explanation: 'Each constraint statement with a quantity becomes a design constraint (operator from min/max). The statements stay as they are.',
         preview: statements.map((s): ServiceProposalItem => ({ label: 'Constraint from statement', proposed: `${s.text} ${formatQuantity(s.quantity)}`, targetId: c.id, basis: s.basis === 'ai-hypothesis' ? 'ai-hypothesis' : s.basis === 'assumption' ? 'assumption' : s.basis === 'estimate' ? 'estimate' : 'user-statement' })),
         async apply(p) {
+          const lines: string[] = []
           for (const [i, s] of statements.entries()) {
             const x = await client.promoteStatement(c.id, { statementId: s.id, reason: `Assistant proposal ${p.proposalId}` }, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:promote:${i}` })
             created.push(x.id)
+            lines.push(constraintResult('Created', x))
           }
-          return { summary: `Created ${created.length} constraint(s) from ${c.key}`, createdIds: [...created] }
+          return { summary: `From ${c.key}: ${lines.join(' ')}`, createdIds: [...created] }
         },
         async undo() {
           for (const id of created) {
@@ -370,7 +372,7 @@ designActions.push(
         async apply(p) {
           const r = await client.updateConstraint(c.id, { ...patch, reason }, { expectedRevision: c.revision, provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:revise` })
           revised = { id: r.id, revision: r.revision }
-          return { summary: `${r.key} is at revision ${r.revision}`, createdIds: [r.id] }
+          return { summary: `${constraintResult('Revised', r)} Bindings pinned to revision ${c.revision} are now outdated (CAD check_bindings).`, createdIds: [r.id] }
         },
         async undo() {
           if (!revised) return { summary: 'Nothing to undo.' }
@@ -385,7 +387,7 @@ designActions.push(
     name: 'conceptualize.record_evidence',
     label: 'Prepare an evidence record from a check',
     description:
-      'Prepare an evidence record from a check result (for example a CAD Modeler check): the source artifact with its revision (e.g. the CAD document revision), the tool name and version, the measured values with units, each optionally checked against a constraint (CST-…), and the subjects (constraints, Concepts, Functions). Values are points (C11 qualification kind point). Conceptualize computes satisfied/violated from the constraint bound at its current revision; nothing is claimed beyond what was measured. Basis is estimate unless given; the assistant never records verified evidence.',
+      'Prepare an evidence record from a check result (for example a CAD Modeler check): the source artifact with its revision (a whole CAD document as { module: "cad", kind: "cad-document", id: <documentUuid>, revision: <document revision> }, or a cad-modeler-entity), the tool name and version, the measured values with units, each optionally checked against a constraint (CST-…), and the subjects (constraints, Concepts, Functions). Values are points (C11 qualification kind point). Conceptualize computes satisfied/violated from the constraint bound at its current revision; nothing is claimed beyond what was measured. Basis is estimate unless given; the assistant never records verified evidence.',
     parameters: {
       type: 'object',
       properties: {
@@ -469,6 +471,27 @@ designActions.push(
     },
   },
 )
+
+designActions.push({
+  name: 'conceptualize.list_constraints',
+  label: 'List design constraints',
+  description:
+    'List design constraints with id (UUID), key, revision, statement, bound, strength, status and basis, and the ready-made binding reference { module: "conceptualize", kind: "constraint", id, revision } for CAD bind_parameter and check. Optionally only those on one Concept or Function (CON-…, FN-…) or matching text. Read-only.',
+  parameters: { type: 'object', properties: { subjectId: string, text: string, includeRetired: { type: 'boolean' } }, additionalProperties: false },
+  async run(args, ctx) {
+    const { client } = connection(ctx)
+    const subjectArg = argOptionalString(args, 'subjectId')
+    const subject = subjectArg ? await resolveRef(client, subjectArg, ['concept', 'function']) : undefined
+    const all = await client.constraints({ ...(subject ? { subjectId: subject.ref.id } : {}), ...(argOptionalString(args, 'text') ? { text: argOptionalString(args, 'text') } : {}) })
+    const list = args.includeRetired === true ? all : all.filter((c) => c.status !== 'retired')
+    return {
+      kind: 'data',
+      data: { constraints: list.map((c) => ({ id: c.id, key: c.key, revision: c.revision, statement: c.statement, kind: c.kind, bound: c.bound, strength: c.strength, status: c.status, basis: c.basis, formalizes: c.source.kind === 'requirement' ? c.source.ref : null, bindingRef: constraintBindingRef(c) })) },
+      summary: `${list.length} constraint(s)${subject ? ` on ${subject.key}` : ''}`,
+      inspected: list.slice(0, 20).map((c) => ({ id: c.key, detail: `revision ${c.revision}` })),
+    }
+  },
+})
 
 // ---- CR-C8 calculation models (headless) --------------------------------------------------------------------
 

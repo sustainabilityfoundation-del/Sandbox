@@ -3,7 +3,7 @@ import { draftConcept, referencePortsFor, isLegacyTwinReference, isRealModuleRef
 import type { ArtifactModule } from '@ews/platform-sdk'
 import { registeredReferencePorts } from './references'
 import { designActions, designDemo } from './assistantDesign'
-import { assistantProvenance, connection, proposal, resolve, string, UUID } from './assistantShared'
+import { assistantProvenance, connection, constraintBindingRef, proposal, resolve, string, UUID } from './assistantShared'
 import { GENERATOR, generateExploration } from './ai/generator'
 import { formatQuantity, KIND_LABEL } from './domain'
 
@@ -37,12 +37,12 @@ const conceptActions: AssistantActionDefinition[] = [
   {
     name: 'conceptualize.read',
     label: 'Read Concept',
-    description: 'Read one Concept: intent statements with their basis, relationships, alternatives, implementations and the maturity assessment.',
+    description: 'Read one Concept: intent statements with their basis, relationships, implementations, its design constraints (id, key, revision, bound and the CAD binding reference) and the maturity assessment.',
     parameters: { type: 'object', properties: { conceptId: string }, required: ['conceptId'], additionalProperties: false },
     async run(args, ctx) {
       const { client } = connection(ctx)
       const c = await resolve(client, argString(args, 'conceptId'))
-      const [relationships, implementations, assessment] = await Promise.all([client.relationships({ conceptId: c.id }), client.implementations(c.id), client.assessment(c.id)])
+      const [relationships, implementations, assessment, constraints] = await Promise.all([client.relationships({ conceptId: c.id }), client.implementations(c.id), client.assessment(c.id), client.constraints({ subjectId: c.id })])
       return {
         kind: 'data',
         data: {
@@ -50,6 +50,8 @@ const conceptActions: AssistantActionDefinition[] = [
           relationships: relationships.map((r) => ({ type: r.type, from: r.fromId, to: r.toId })),
           implementations: implementations.map((i) => ({ key: i.key, name: i.name, status: i.status, artifacts: i.artifacts.filter((a) => !a.removed).map((a) => `${a.module}:${a.artifactId}${a.revision ? `@${a.revision}` : ''}`) })),
           assessment: { completeness: assessment.completeness, suggestedMaturity: assessment.suggestedMaturity, nextSteps: assessment.nextSteps.map((s) => s.text) },
+          // CR-AI-9: constraints with their UUID, revision and the binding reference other modules (CAD) use.
+          constraints: constraints.filter((x) => x.status !== 'retired').map((x) => ({ id: x.id, key: x.key, revision: x.revision, statement: x.statement, bound: x.bound, strength: x.strength, status: x.status, bindingRef: constraintBindingRef(x) })),
         },
         summary: `Read ${c.key} ${c.name} (rev ${c.revision})`,
         inspected: [{ id: c.key, detail: `statements, relationships, implementations (rev ${c.revision})` }],

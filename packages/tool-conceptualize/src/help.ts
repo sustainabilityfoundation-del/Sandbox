@@ -31,6 +31,7 @@ const OPERATIONS: [string, string][] = [
   ['conceptualize.revise_constraint', 'conceptualize.knowledge'],
   ['conceptualize.record_evidence', 'conceptualize.knowledge'],
   ['conceptualize.review_flags', 'conceptualize.decision'],
+  ['conceptualize.list_constraints', 'conceptualize.knowledge'],
   ['conceptualize.evaluate_calculation', 'conceptualize.calculations'],
   ['conceptualize.record_calculation', 'conceptualize.calculations'],
 ]
