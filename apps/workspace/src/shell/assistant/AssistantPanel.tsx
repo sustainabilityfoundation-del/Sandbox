@@ -7,7 +7,11 @@ import { useWorkspaceStore } from '../../platform/store'
 import { instanceId, isInstanceAlive } from '../../session/windowSession'
 import { iconForType } from '@ews/platform-sdk/react'
 import { formatTime } from '@ews/platform-sdk/react'
-import { AppIcon, Button, Checkbox, Icon, Spinner, TextField } from '@ews/design-system'
+import { AppIcon, Avatar, Button, Checkbox, Icon, IconButton, Spinner, Tab, TabList, TabPanel, Tabs, TextField } from '@ews/design-system'
+import { create } from 'zustand'
+import { serviceSettings } from '../../platform/services'
+import { ComposerActions, ContextView, ModelSelector, ToolsView, VoiceButton } from './AssistantChrome'
+import { ASSISTANT_FEATURES, UNAVAILABLE } from './features'
 import { ChangeCard } from './ChangeCard'
 import { MessageText, Reference } from './MessageText'
 import { useAiConnection } from '../../assistant/connection'
@@ -117,6 +121,7 @@ function Message({ message, focused }: { message: ChatMessage; focused: boolean 
 
   if (message.role === 'user') {
     return (
+      <div className="as-row is-user">
       <div className={`as-msg as-user${focused ? ' is-focused' : ''}`} data-message-id={message.id}>
         <div className="as-msg-head">
           <strong>You</strong>
@@ -126,6 +131,8 @@ function Message({ message, focused }: { message: ChatMessage; focused: boolean 
         </div>
         <div className="as-user-text">{message.text}</div>
         <CapturedChips context={message.context} />
+      </div>
+      <Avatar name={serviceSettings.devUser} size={26} className="as-avatar-user" />
       </div>
     )
   }
@@ -142,6 +149,10 @@ function Message({ message, focused }: { message: ChatMessage; focused: boolean 
   // Replies are executed only by the window that sent them.
   const foreign = !!message.owner && message.owner !== instanceId
   return (
+    <div className="as-row">
+    <span className="as-avatar" aria-hidden="true">
+      <AppIcon name="assistant" size={16} />
+    </span>
     <div className={`as-msg as-assistant${focused ? ' is-focused' : ''}`} data-message-id={message.id}>
       <div className="as-msg-head">
         <strong>{serviceName}</strong>
@@ -180,6 +191,7 @@ function Message({ message, focused }: { message: ChatMessage; focused: boolean 
           ))}
         </div>
       )}
+    </div>
     </div>
   )
 }
@@ -249,7 +261,11 @@ function ReopenedProposals() {
   )
 }
 
-/** The ChatGPT panel: conversation with the (replaceable) assistant service. */
+/**
+ * The AI Assistant panel (presentation only): Chat, Context and Tools tabs, conversational messages, a rounded
+ * composer with the plus menu, attachments and voice (feature-flagged, see ./features.ts), send and stop, and the
+ * model selector. Conversation logic, proposals and Apply live in apps/workspace/src/assistant.
+ */
 export function AssistantPanel() {
   const messages = useConversation((s) => s.messages)
   const running = useConversation((s) => s.running !== null)
@@ -260,6 +276,8 @@ export function AssistantPanel() {
   const focusMessage = useConversation((s) => s.focusMessage)
   const draft = useConversation((s) => s.draft)
   const setDraft = useConversation((s) => s.setDraft)
+  const tab = useAssistantTab((s) => s.tab)
+  const setTab = useAssistantTab((s) => s.setTab)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
 
@@ -285,79 +303,113 @@ export function AssistantPanel() {
   }
 
   return (
-    <div className="as-root">
-      <div className="as-conversation">
-        <div className="as-banner" role="note">
-          {messages.length > 0 && (
-            <Button size="sm" variant="text" icon="add" onPress={clear} isDisabled={running} className="float-right">
-              New conversation
-            </Button>
-          )}
-          {messages.length > 0 && (
-            <Button size="sm" variant="text" icon="save" onPress={downloadTranscript} isDisabled={running} className="float-right" data-testid="export-transcript">
-              Export transcript
-            </Button>
-          )}
-          <ConnectionLine />
-          Model changes are only made when you choose Apply.{' '}
-          <Button size="sm" variant="text" onPress={() => useCoverageDialog.getState().setOpen(true)}>
-            What can the assistant do?
-          </Button>
-        </div>
-        <div className="as-messages" ref={listRef} aria-live="polite">
-          {messages.length === 0 && (
-            <div className="as-empty">
-              <p>
-                Ask about requirements, the SysML model or CAD dimensions, or request a change. The assistant uses the
-                same repository and validation as the tools, by stable object ID.
-              </p>
-            </div>
-          )}
-          {messages.map((m) => (
-            <Message key={m.id} message={m} focused={m.id === focusId} />
-          ))}
-          <ReopenedProposals />
-        </div>
-      </div>
-      <div className="as-composer">
-        <LiveContextChips />
-        <div className="as-input-row">
-          <TextField
-            ref={inputRef}
-            aria-label="Message"
-            multiline
-            rows={2}
-            className="as-input"
-            placeholder="Ask about the model… (Enter to send, Shift+Enter for a new line)"
-            value={draft}
-            onChange={setDraft}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault()
-                submit()
-              }
-            }}
-          />
-          <div className="as-actions">
-            {running && (
-              <Button variant="outlined" icon="stop" onPress={stop}>
-                Stop
+    <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(k as AssistantTab)} className="as-root">
+      <TabList aria-label="Assistant views" className="as-tabs">
+        <Tab id="chat">Chat</Tab>
+        <Tab id="context">Context</Tab>
+        <Tab id="tools">Tools</Tab>
+      </TabList>
+      <TabPanel id="chat" shouldForceMount className="as-chat">
+        <div className="as-conversation">
+          <div className="as-banner" role="note">
+            <div className="as-banner-text">
+              <ConnectionLine />
+              Model changes are only made when you choose Apply.{' '}
+              <Button size="sm" variant="text" onPress={() => useCoverageDialog.getState().setOpen(true)}>
+                What can the assistant do?
               </Button>
+            </div>
+            {messages.length > 0 && (
+              <div className="as-banner-actions">
+                <Button size="sm" variant="text" icon="add" onPress={clear} isDisabled={running}>
+                  New conversation
+                </Button>
+                <Button size="sm" variant="text" icon="save" onPress={downloadTranscript} isDisabled={running} data-testid="export-transcript">
+                  Export transcript
+                </Button>
+              </div>
             )}
-            <Button variant="filled" icon="send" onPress={() => submit()} isDisabled={running || !draft.trim()}>
-              Send
-            </Button>
+          </div>
+          <div className="as-messages" ref={listRef} aria-live="polite">
+            {messages.length === 0 && (
+              <div className="as-empty">
+                <span className="as-avatar" aria-hidden="true">
+                  <AppIcon name="assistant" size={16} />
+                </span>
+                <p>
+                  Ask about requirements, the SysML model or CAD dimensions, or request a change. The assistant uses the
+                  same repository and validation as the tools, by stable object ID.
+                </p>
+              </div>
+            )}
+            {messages.map((m) => (
+              <Message key={m.id} message={m} focused={m.id === focusId} />
+            ))}
+            <ReopenedProposals />
           </div>
         </div>
-        <div className="as-examples">
-          <span className="text-fg-3">Try:</span>
-          {EXAMPLE_PROMPTS.map((p) => (
-            <Button key={p} size="sm" variant="outlined" className="as-suggestion" isDisabled={running} onPress={() => submit(p)}>
-              {p}
-            </Button>
-          ))}
+        <div className="as-composer">
+          <div className="as-composer-box">
+            <TextField
+              ref={inputRef}
+              aria-label="Message"
+              multiline
+              rows={2}
+              className="as-input"
+              placeholder="Ask anything about your model… (Enter to send, Shift+Enter for a new line)"
+              value={draft}
+              onChange={setDraft}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault()
+                  submit()
+                }
+              }}
+            />
+            <div className="as-composer-bar">
+              <ComposerActions />
+              <span className="as-attach" title={ASSISTANT_FEATURES.attachments ? undefined : UNAVAILABLE.attachments}>
+                <IconButton
+                  label={ASSISTANT_FEATURES.attachments ? 'Attach a file' : 'Attach a file (not available yet)'}
+                  icon="attach"
+                  size="sm"
+                  isDisabled={!ASSISTANT_FEATURES.attachments}
+                />
+              </span>
+              <span className="flex-1" />
+              <VoiceButton />
+              {running && <IconButton label="Stop" icon="stop" size="sm" variant="outlined" onPress={stop} className="as-stop" />}
+              <IconButton label="Send" icon="send" variant="filled" onPress={() => submit()} isDisabled={running || !draft.trim()} className="as-send" />
+            </div>
+          </div>
+          <div className="as-composer-meta">
+            <ModelSelector />
+            <LiveContextChips />
+          </div>
+          <div className="as-examples">
+            <span className="text-fg-3">Try:</span>
+            {EXAMPLE_PROMPTS.map((p) => (
+              <Button key={p} size="sm" variant="outlined" className="as-suggestion" isDisabled={running} onPress={() => submit(p)}>
+                {p}
+              </Button>
+            ))}
+          </div>
         </div>
-      </div>
-    </div>
+      </TabPanel>
+      <TabPanel id="context" shouldForceMount className="as-side-panel">
+        <ContextView />
+      </TabPanel>
+      <TabPanel id="tools" className="as-side-panel">
+        <ToolsView />
+      </TabPanel>
+    </Tabs>
   )
 }
+
+type AssistantTab = 'chat' | 'context' | 'tools'
+
+/** The assistant panel's tab (shared by the right and bottom placements). */
+const useAssistantTab = create<{ tab: AssistantTab; setTab: (tab: AssistantTab) => void }>()((set) => ({
+  tab: 'chat',
+  setTab: (tab) => set({ tab }),
+}))

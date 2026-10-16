@@ -7,8 +7,8 @@ Maintained by the ui-ux-design-system agent (worktree `Sandbox-ui`, branch `feat
 - [x] Phase 2 design system (design-system 1.1.0)
 - [x] Phase 3 application shell
 - [x] Phase 4 engineering workspace
-- [ ] Phase 5 AI assistant panel
-- [ ] Phase 6 validation and screenshots
+- [x] Phase 5 AI assistant panel
+- [x] Phase 6 validation and screenshots
 
 ## 1. Audit (16 October 2026, baseline 314f79f)
 
@@ -121,3 +121,55 @@ Each item is checked in the running application and, where marked, by a committe
   requirements.get_conventions have no example arguments in the flow): both module/test drift from main, not UI.
   Lesson: vite serves an HMR-edited module (store.ts) under a new URL, so flows that import /workspace/src/... see a
   second instance until the dev server restarts; restart before e2e after editing such modules.
+- 16 Oct 2026, phases 5 and 6: see §5 and §6.
+
+## 5. Phase 5: AI Assistant panel
+
+Presentation only (`apps/workspace/src/shell/assistant/**`); `apps/workspace/src/assistant/**` unchanged. Chat, Context
+and Tools tabs; conversational bubbles with avatars; rounded composer with the plus menu (attach selection, new
+conversation, export transcript, capability coverage), attach (disabled until CR-PM-SDK-4), microphone (dictation and
+live voice flagged off in `shell/assistant/features.ts`, with the integration requirements), round send and stop;
+model selector over `listModels`/`chooseModel` (demo: opens AI settings); provider and model in the right panel
+header. Docs: `docs/modules/design-system/assistant.md`; help `ai.overview` updated. Verified in the running app with
+the demo assistant and with the fake provider connected (provider and model in the header, model list, Apply).
+
+## 6. Phase 6: validation (branch head after merging main 1aa6609)
+
+| Check | Result |
+| --- | --- |
+| `npm run check` | 1219 passed, 1 skipped (84 files) |
+| `npm run build`, `npm run build:harnesses` | pass |
+| Browser flows, fake-provider stack (own ports 5210/8803, own database) | PASS: ai-headless, cad-d1, cad-modeler, cad-modeler-persistence, conceptualize, coverage, demo-d1, help, integration, platform, projects, sysml-modeler, vision, visualization |
+| concept-visual | PASS on the normal stack (its README setup); on the fake stack the fake image adapter is registered, so the "refused" step does not apply |
+| ai-fake-provider | All connection, proposal, policy, audit, disconnect and demo-label checks pass; the drill-bit demo's last step fails in the module: "Prepare draft requirements failed: CON-030 has no quantified constraints" (Conceptualize demo plan and data, not presentation). Reproduced on a fresh database |
+
+Screenshots (`tests/e2e/.output/focused-canvas/`, git-ignored, from the running application, demo assistant):
+`final-engineering-*`, `final-ai-assisted-*`, `final-review-*` at 1920x1080 and 1366x768, light and dark; earlier
+checkpoints `phase2-*`, `phase4-*`.
+
+### Comparison with the approved mockup
+
+Matches: dark slate header with brand, project, configuration, module navigation, search, notifications and
+account; dark navigation rail with labelled modules, active background and accent bar; explorer with search and
+object-type icons; bright canvas with document tabs, location trail, compact toolbar and zoom/fit controls from the
+tools; inspector with identity, type, status, tabs and collapsible sections; AI Assistant on the right with Chat,
+Context and Tools, bubbles, rounded composer with plus, attach, microphone and send, model selector; light status bar
+with save state, configuration, revision, validation and selection. Differences by design: real module output only
+(no part renders); the mockup's bottom "Assistant / Activity / Validation / Requirements (filtered)" panel is
+Activity and Validation here (filtered requirements are in the Requirements tool); at 1920 px the header module
+navigation shows icons when the header is full (labels need about 2100 px with every header control present);
+the mockup's quick-action chips are the assistant's real suggestions and examples.
+
+### Remaining UI issues and deferred enhancements
+
+- Status-bar units: needs a platform-level units setting (only CAD Modeler has one).
+- Per-tab close buttons on document tabs (closing is in the tab menu and Ctrl K).
+- Explorer context menus (actions exist in the tools and the palette; no right-click menu yet).
+- Project Explorer virtualization (the product tree virtualizes above 400 objects; the registry explorer pages
+  up to 5000 artifacts and renders them all).
+- Change cards in a narrow assistant column scroll horizontally for wide previews.
+- Attachments and voice wait for their services (assistant.md §3).
+- Phone layout restyled lightly (tokens, dark bottom navigation); no phone-specific redesign.
+- Module CSS (requirements, Conceptualize, SysML, CAD) inherits the tokens; module-specific toolbars or headers
+  inside views were not changed (owners may adopt `ToolbarGroup`, `PanelHeader`, `CollapsibleSection`).
+- `KNOWN` flow notes: restart vite before flows after HMR-editing modules that flows import.

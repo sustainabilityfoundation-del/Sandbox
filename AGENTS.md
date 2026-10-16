@@ -112,9 +112,12 @@ On Windows PowerShell use `npm.cmd` if script execution is disabled.
 - Use `@ews/design-system` components (React Aria behaviour, Tailwind on design tokens). No raw
   `<button>`, `<select>`, `<textarea>` or `<input>` (a hidden file picker is the one exception).
   The visual direction is Focused Canvas ([design system](docs/modules/design-system/README.md),
-  [components](docs/modules/design-system/components.md), [shell](docs/modules/design-system/shell.md)):
-  modules consume the shared components and do not develop competing styles. Package rules:
-  `packages/design-system/AGENTS.md`.
+  [components](docs/modules/design-system/components.md), [shell](docs/modules/design-system/shell.md),
+  [assistant panel](docs/modules/design-system/assistant.md)): modules consume the shared components and do
+  not develop competing styles. Package rules: `packages/design-system/AGENTS.md`. A module integrates into
+  navigation, document tabs, the command palette and help from its registration alone (`registerTool`,
+  `registerPlatformModule`); it renders inside the canvas container (`.ws-tool-host`) with any rendering technology
+  and contributes toolbar items rather than its own top-level chrome.
 - Icons: `AppIcon` with semantic names only. New names go in
   `packages/design-system/src/icons/names.ts` and are mapped in `registry.tsx` (Lucide, or a
   custom engineering glyph made with `createLucideIcon`, same interface). 16 px in toolbars, trees

@@ -4,8 +4,10 @@ Owned by platform work. The shell hosts tools; it never contains tool-specific c
 
 ## Responsibilities
 
-- Navigation and docking: header, tabs, split view, toolbar rendering (overflow), command palette,
-  global search, product tree, inspector, bottom dock (Activity, ChatGPT), phone navigation.
+- Navigation and docking (Focused Canvas, docs/modules/design-system/shell.md): header, navigation rail,
+  explorer, document tabs, split view, toolbar rendering (overflow), command palette, global search, inspector,
+  AI Assistant (right or bottom; presentation in src/shell/assistant, logic in src/assistant), bottom panel
+  (Activity, Validation), status bar, layout presets and persistence, phone navigation.
 - Tool discovery: `src/platform/registry.ts` (SDK compatibility check), `src/platform/tools.ts`
   (the catalogue).
 - Subscriptions: `src/platform/entitlements.ts` (mock service, plans, `toolAccess`). Every way of

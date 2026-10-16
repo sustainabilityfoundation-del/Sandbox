@@ -435,82 +435,17 @@
 
 /* =================== ChatGPT panel (assistant) =================== */
 
-.as-root {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
-  height: 100%;
-  min-height: 0;
-}
 
-.as-conversation {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
 
-.as-banner {
-  padding: 5px 12px;
-  border-bottom: 1px solid var(--ws-border);
-  background: var(--ws-warning-soft);
-  color: var(--ws-text-2);
-  font-size: var(--ws-font-size-sm);
-  flex: none;
-}
 
-.as-messages {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 10px 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
 
-.as-empty {
-  color: var(--ws-text-3);
-  max-width: 640px;
-}
 
-.as-empty p {
-  margin: 4px 0;
-}
 
-.as-msg {
-  max-width: 900px;
-  padding: 8px 10px;
-  border: 1px solid var(--ws-border);
-  border-radius: 6px;
-  background: var(--ws-surface);
-  transition: box-shadow 200ms;
-}
 
-.as-user {
-  align-self: flex-start;
-  background: var(--ws-surface-2);
-}
 
-.as-assistant {
-  border-left: 3px solid var(--ws-accent);
-}
 
-.as-msg.is-focused,
-.as-event.is-focused {
-  box-shadow: 0 0 0 2px var(--ws-accent);
-}
 
-.as-msg-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 4px;
-  font-size: var(--ws-font-size-sm);
-}
 
-.as-user-text {
-  white-space: pre-wrap;
-}
 
 .as-captured {
   display: flex;
@@ -759,16 +694,6 @@
 
 /* Composer */
 
-.as-composer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
-  border-left: 1px solid var(--ws-border);
-  background: var(--ws-surface-2);
-  min-height: 0;
-  overflow: auto;
-}
 
 .as-context {
   display: flex;

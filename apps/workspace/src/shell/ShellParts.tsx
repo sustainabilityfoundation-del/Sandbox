@@ -153,7 +153,12 @@ export function AssistantDockPanel({ open }: { open: boolean }) {
         title={
           <span className="flex items-center gap-2">
             AI Assistant
-            {info?.kind !== 'remote' && (
+            {info?.kind === 'remote' ? (
+              <span className="ws-assistant-provider" title="Connected provider and model, as reported by the assistant service">
+                {info.name}
+                {info.model ? ` · ${info.model}` : ''}
+              </span>
+            ) : (
               <span className="ws-dock-demo" title={`${info?.name ?? 'Assistant'} (not connected to an AI model; connect in Settings → AI and reasoning)`}>
                 Demo
               </span>
