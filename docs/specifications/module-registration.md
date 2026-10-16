@@ -109,10 +109,9 @@ Changes from the plan and notes for the M-steps:
 1. The I3 manifests declare no `operations` or `aiModule` yet: the existing entries stay in `AI_MODULES` and `OPERATION_CATALOGUE` (legacy) and an M-step moves
    a module's entries into its manifest in the same change as deleting the legacy ones (a duplicate fails `createPolicy`, tested). The platform-owned entries
    (workspace, illustrative, projects, reasoning, help) stay in policy.ts.
-2. Visualization is a manifest in the list, so it now registers with the other leaf modules before projects, settings and the assistant (it was last); it reads the
-   assistant lazily through `host.assistant()`. Artifact sources are now ordered requirements, conceptualize, sysml, cad (was requirements, sysml, cad, conceptualize); `services/projects/test/registry.test.ts` compares the reconcile report order-insensitively.
+2. Plugin order is as before: requirements, conceptualize, sysml, cad, then projects, settings, assistant, then visualization. Visualization starts its job runner while registering and needs the running assistant, so its manifest has `phase: 'after-host'` (additive SDK 1.11 field; such a module cannot contribute an artifact source, settings or provisioning). `ApiServer.registrationOrder` records the order and `services/api/test/modules.test.ts` asserts it. Artifact sources are ordered requirements, conceptualize, sysml, cad (was requirements, sysml, cad, conceptualize); `services/projects/test/registry.test.ts` asserts the new order exactly.
 3. Kept in the host as the plan's Risks list says: the requirements twin (`composeTwinDirectories(productTwinDirectory, options.twin ?? SAMPLE_TWIN)`) and SysML
    directory sit inside the requirements adapter; the SysML/CAD `onReady` services stay inside their adapters; `prepareDatabase` (migration and seed order) is unchanged,
    so `migrate`/`seed` of the manifest are not used yet. `SAMPLE_TWIN` moved to `services/api/src/sampleTwin.ts` (still exported from `server.ts`).
-4. The assistant proposal APIs (entitlement and project parameter per module) are a small table in `server.ts` (`PROPOSAL_APIS`); the manifest has no field for them yet.
+4. The assistant proposal APIs (entitlement and project parameter per module) are a small table in `server.ts` (`PROPOSAL_APIS`); the first M-step that moves a module to its own package adds an optional manifest field `proposals?: { entitlement; projectParam? }` and removes the table.
 5. `@ews/platform-sdk` ranges of `services/api` and `services/assistant` are now `^1.11.0`.

@@ -114,6 +114,12 @@ export interface ServerModuleManifest<H extends ServerModuleHost = ServerModuleH
   basePath: string
   /** Title of the API documentation page served at `<basePath>/docs`, if the module has one. */
   docs?: string
+  /**
+   * When the host registers the module: `modules` (default) with the other installed modules, before the host-composed
+   * services (projects, settings, assistant); `after-host` after them, for a module that must see them running. An
+   * `after-host` module cannot contribute an artifact source, settings or provisioning (those are consumed earlier).
+   */
+  phase?: 'modules' | 'after-host'
   operations?: Record<string, OperationClass>
   aiModule?: AiModuleDescriptor
   settings?: ServerModuleSettings

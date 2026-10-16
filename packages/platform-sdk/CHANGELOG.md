@@ -24,6 +24,7 @@ What changed:
 - `ServerModuleHost` gains optional `production` and `eventPollMs`; the manifest is generic: `ServerModuleManifest<H extends ServerModuleHost = ServerModuleHost>`
   (`register`, `migrate` and `seed` take `H`), so a host types its manifests with its own host object (Fastify, pool, services) without the SDK importing them.
 - `ServerModuleRegistration.artifactSource` is now `ArtifactSource` (was `unknown`).
+- `ServerModuleManifest.phase?: 'modules' | 'after-host'` (default `modules`): `after-host` modules register after the host-composed services; they cannot contribute an artifact source, settings or provisioning.
 - New `ServerModuleSettings` (`{ page, definitions: SettingDefinition[] }`) and `ServerModuleProvisioning` (`{ module?, lazyReason }`); `settings`
   and `provisioning` of the manifest use them (were `unknown`). `docs` is the title of the page served at `<basePath>/docs`.
 

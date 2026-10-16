@@ -10,6 +10,10 @@ beforeAll(async () => {
 afterAll(async () => env?.close())
 
 describe('server module manifests', () => {
+  it('register in the original plugin order: modules, then projects, settings and assistant, then visualization', () => {
+    expect(env.server.registrationOrder).toEqual(['requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'projects', 'settings', 'assistant', 'visualization'])
+  })
+
   for (const m of INSTALLED_SERVER_MODULES) {
     it(`${m.id}: ${m.basePath} serves /openapi.json`, async () => {
       const res = await env.call('ada', 'GET', `${m.basePath}/openapi.json`)

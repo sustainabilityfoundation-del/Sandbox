@@ -23,6 +23,12 @@ describe('installed server modules', () => {
     expect(INSTALLED_SERVER_MODULES.map((m) => m.id)).toEqual(['requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'visualization'])
   })
 
+  it('registers visualization after the host services and gives it no settings or provisioning', () => {
+    const viz = INSTALLED_SERVER_MODULES.find((m) => m.id === 'visualization')!
+    expect(viz.phase).toBe('after-host')
+    expect(viz.settings ?? viz.provisioning).toBeUndefined()
+  })
+
   it('keep the module IDs, names and lazy-provisioning reasons the host used before', () => {
     const provisioning = INSTALLED_SERVER_MODULES.flatMap((m) => (m.provisioning ? [{ module: m.provisioning.module ?? m.id, name: m.name }] : []))
     expect(provisioning).toEqual([

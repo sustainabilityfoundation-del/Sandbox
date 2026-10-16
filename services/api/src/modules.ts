@@ -118,6 +118,8 @@ export const INSTALLED_SERVER_MODULES: ApiServerModule[] = [
     name: 'Visualization',
     basePath: VISUALIZATION_BASE_PATH,
     docs: 'Visualization API',
+    // The plugin starts its job runner while registering; the assistant must already be running (image access) when jobs resume.
+    phase: 'after-host',
     async register(host) {
       const { app, pool, auth, options, production } = host
       // Image generation jobs. Credentials stay in the assistant service: the port hands the adapter a credential for one

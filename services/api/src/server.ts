@@ -93,6 +93,8 @@ export interface ServerOptions {
 
 export interface ApiServer {
   app: FastifyInstance
+  /** IDs of the plugins and modules in the order the host registered them (a test asserts it). */
+  registrationOrder: string[]
   events: EventHub
   /** Conceptualize outbox (its own schema and publisher). */
   conceptEvents: ConceptsEventHub
@@ -168,12 +170,20 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     assistant: () => assistantBackend,
   }
   const artifactSources: ArtifactSource[] = []
-  for (const m of INSTALLED_SERVER_MODULES) {
+  const registrationOrder: string[] = []
+  const registerModule = async (m: (typeof INSTALLED_SERVER_MODULES)[number]) => {
     if (m.docs) registerApiDocs(app, { path: `${m.basePath}/docs`, openapiUrl: `${m.basePath}/openapi.json`, title: m.docs })
     const registration = await m.register(moduleHost)
-    if (registration?.artifactSource) {
-      artifactSources.push(registration.artifactSource)
+    registrationOrder.push(m.id)
+    return registration
+  }
+  for (const m of INSTALLED_SERVER_MODULES) {
+    if (m.phase === 'after-host') {
+      if (m.settings || m.provisioning) throw new Error(`Server module “${m.id}” registers after the host services and cannot contribute settings or provisioning.`)
+      continue
     }
+    const registration = await registerModule(m)
+    if (registration?.artifactSource) artifactSources.push(registration.artifactSource)
   }
   // Provisioning uses each module's own provision() where it has an ArtifactSource.
   const provisioned = INSTALLED_SERVER_MODULES.flatMap((m) => (m.provisioning ? [{ manifest: m, module: m.provisioning.module ?? m.id, lazyReason: m.provisioning.lazyReason }] : []))
@@ -211,6 +221,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     modules: installedModules,
     settings: projectSettings,
   })
+  registrationOrder.push('projects')
   // Settings (SDK 1.6) and the AI connection (docs/specifications/ai-connection.md §5, §5a).
   const settingsRegistry = new SettingsRegistry()
   // The AI policy: platform-owned entries plus what the server manifests declare (operations and AI modules).
@@ -223,6 +234,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   let settingsStore: SettingsStore | undefined
   registerApiDocs(app, { path: `${SETTINGS_BASE_PATH}/docs`, openapiUrl: `${SETTINGS_BASE_PATH}/openapi.json`, title: 'Settings API' })
   await app.register(settingsPlugin, { prefix: SETTINGS_BASE_PATH, pool: options.pool, registry: settingsRegistry, authenticate: auth.authenticate, roleOf: auth.roleOf, onReady: (s) => (settingsStore = s) })
+  registrationOrder.push('settings')
   let assistantBackend: AssistantBackend | undefined
   const assistantKey = options.assistant?.key ?? (production ? undefined : CredentialVault.randomKey())
   if (assistantKey) {
@@ -261,9 +273,13 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
         return { status: res.statusCode, body: parsed }
       },
     })
+    registrationOrder.push('assistant')
     registerOAuthCallback(app, () => assistantBackend)
   } else app.log.warn('EWS_ASSISTANT_KEY is not set: the assistant API (/api/assistant/v1) is not started.')
+  // Modules that need the host services running (visualization resumes jobs on start and needs the assistant).
+  for (const m of INSTALLED_SERVER_MODULES) if (m.phase === 'after-host') await registerModule(m)
   return {
+    registrationOrder,
     app,
     events,
     conceptEvents,
