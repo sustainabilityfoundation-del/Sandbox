@@ -132,13 +132,13 @@ Same behaviour, IDs and operation names. One change per module, with the legacy 
    structurally a `ClientModule`. A module that already is a tool package exports the same shape from its entry point.
 2. **Help and assistant move with the module.** `help.ts`, `help/*.md` and the assistant actions go into the same package (`import.meta.glob('../help/*.md', ...)`,
    source paths `packages/<pkg>/help/...`). Update the path mentions in docs (`grep -rn "<old path>" docs`).
-3. **Server side.** Export a `ServerModuleManifest` from the service package (`src/manifest.ts`): `id`, `name`, `basePath`, `docs`, `aiModule`,
+3. **Server side.** Export a `ServerModuleManifest` (or, for a host-composed module, a `ServerModuleDescriptor`) from the service package (`src/manifest.ts`): `id`, `name`, `basePath`, `docs`, `aiModule`,
    `operations`, `proposals`, and for a module the host does not compose, `register`. Move the module's `AI_MODULES` entry and its
    `OPERATION_CATALOGUE` lines out of `services/assistant/src/policy.ts` into the manifest (delete them there; `createPolicy` throws on a
    duplicate). Operations missing from the catalogue take the default class `propose`; keep that unless the owner decides otherwise.
    Move the module's `PROPOSAL_APIS` row (`services/api/src/server.ts`) to `proposals`; the host uses `m.proposals ?? PROPOSAL_APIS[m.id]`.
    A module that the host composes itself (projects, because it consumes the other modules' artifact sources) is listed in
-   `ALL_SERVER_MANIFESTS` (`services/api/src/modules.ts`) next to `INSTALLED_SERVER_MODULES`; the host reads docs, operations and
+   `ALL_SERVER_MODULES` (`services/api/src/modules.ts`) next to `INSTALLED_SERVER_MODULES`; the host reads docs, operations and
    `aiModule` from the manifest and keeps the plugin registration. Do not reorder registration: `services/api/test/modules.test.ts` asserts the order.
 4. **SDK.** Only if the manifest needs a new optional field: bump `version.ts`, `platform-sdk/package.json`, `package-lock.json` (the
    `packages/platform-sdk` entry), the AGENTS.md "SDK version" line, CHANGELOG, and the version assertions in `modules.test.ts` and `sdk19.test.ts`;
@@ -154,8 +154,8 @@ Same behaviour, IDs and operation names. One change per module, with the legacy 
    npm run ai:dev:fake -- --port <p> --strictPort`, then `E2E_BASE=http://localhost:<p>/workspace/ E2E_API=http://127.0.0.1:<api> API_PORT=<api> npm run e2e -- <flows>`.
 7. **Pitfalls.** (a) The Help Centre lists tools first, then headless platform modules (the registry keeps them apart), while `collect()` keeps list
    order; both build their sources with `toolHelpSource`/`platformModuleHelpSource` (`platform/helpSources.ts`). (b) `ProjectsModuleHost`-style hooks
-   keep the package free of workspace imports. (c) `register` is mandatory on `ServerModuleManifest`; a host-composed module throws from it and the
-   host never calls it. (d) The tool-package assistant-action test in `services/api/src/modules.test.ts` only scans `packages/tool-*`; headless
+   keep the package free of workspace imports. (c) `register` belongs to `ServerModuleManifest`; a host-composed module exports a `ServerModuleDescriptor` instead and the
+   host registers its plugin itself and reads `proposals`, `docs` and policy from the descriptor. (d) The tool-package assistant-action test in `services/api/src/modules.test.ts` only scans `packages/tool-*`; headless
    modules are covered by the capability inventory test. (e) Files in this repository mix CRLF and LF; edit in place.
 
 ### M1 result (16 October 2026)
@@ -165,10 +165,19 @@ M1 (branch feature/manifests-m1-projects, SDK 1.12.0): Project Management moved 
   `projects/help/` and `PROJECTS_CAPABILITIES` in `installedCapabilities.ts` are gone. Behaviour, IDs and operation names are unchanged.
 - Server: `services/projects/src/manifest.ts` exports `projectsServerManifest` (base path, docs title, AI module descriptor). The legacy `projects` entry in
   `AI_MODULES` is deleted; the host registers the plugin as before (registration order unchanged) and reads docs and policy from the manifest via
-  `ALL_SERVER_MANIFESTS`. Projects has no `OPERATION_CATALOGUE` lines (all `projects.*` operations take the default class `propose`; unchanged) and no
+  `ALL_SERVER_MODULES`. Projects has no `OPERATION_CATALOGUE` lines (all `projects.*` operations take the default class `propose`; unchanged) and no
   `PROPOSAL_APIS` row, so `proposals` is declared by no module yet.
 - SDK 1.12.0 (additive): `ServerModuleManifest.proposals?: { entitlement; projectParam? }` (`ServerModuleProposals`). `server.ts` uses
   `m.proposals ?? PROPOSAL_APIS[m.id]`; the table shrinks as the modules of M2-M4 move.
 - Tests: the I2 proof test now registers the fixture, runs `toolbarProblems`, `operationProblems` and `honestyProblems` (shared with `capabilities.test.ts`,
   `assistant/capabilityChecks.ts`) on the collected list, and asserts that `helpSources()` (the Help Centre, `help/workspaceHelp.ts`, built with the same
   `platform/helpSources.ts` functions as `collect()`) lists the fixture and returns the very same source object. A new policy test covers the projects manifest.
+- Review fixes (same day): (1) the AI settings page and `Policy.modules` keep the pre-manifest order (workspace, requirements, conceptualize, sysml-modeler,
+  cad-modeler, illustrative, projects, reasoning, help) wherever an entry is defined: `createPolicy` orders by a fixed presentation list in
+  `services/assistant/src/policy.ts` (`MODULE_ORDER_HEAD`, `MODULE_ORDER_TAIL`); a module not listed there follows the listed ones in installed-list order and
+  precedes the platform tail (`reasoning`, `help`). `services/api/src/modules.test.ts` asserts the module and settings-row order. **Recipe rule:** an M-step never
+  changes this order; a genuinely new module needs no entry in the lists unless the owner wants a fixed position. (2) SDK 1.12.0 also adds `ServerModuleDescriptor`
+  (`ServerModuleManifest` extends it); projects exports a descriptor without `register`, and `ALL_SERVER_MODULES`, `assertUniqueManifests` and `collectPolicyContributions` take descriptors.
+  (3) The host reads `proposals` from every descriptor in `ALL_SERVER_MODULES`. (4) Placement: the client module lives in the existing `packages/projects-client`
+  (not a new package) because the workspace's boundary rule lists only existing packages and `boundaries.test.ts` is out of scope until I4; the coordinator adds the
+  Project Management ownership row to AGENTS.md.

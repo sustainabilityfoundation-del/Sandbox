@@ -23,6 +23,7 @@ Type: additive
 What changed:
 - `ServerModuleManifest.proposals?: ServerModuleProposals` (`{ entitlement: string; projectParam?: string }`): how the assistant may call the module's API for
   declarative proposals (module-registration.md, M1). The host replaces its per-module table (`PROPOSAL_APIS` in services/api) with this field, module by module.
+- New `ServerModuleDescriptor` (id, name, basePath, docs, phase, operations, aiModule, proposals, settings, provisioning): what the host reads about a server module. `ServerModuleManifest<H>` now `extends ServerModuleDescriptor` and adds `migrate`, `seed` and `register`, so a host-composed module (Project Management) exports a descriptor without a registration function. Existing manifests are unchanged.
 Why: the table was the last shared place that listed a module's assistant entitlement and project parameter.
 Migration for tools: none. Server modules may declare `proposals`; modules without it keep the host's table row until their M-step.
 Validated with: npm run check.

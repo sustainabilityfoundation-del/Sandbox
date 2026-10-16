@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import type { Pool } from 'pg'
-import type { AiModuleDescriptor, OperationClass, ServerModuleHost, ServerModuleManifest } from '@ews/platform-sdk'
+import type { AiModuleDescriptor, OperationClass, ServerModuleHost, ServerModuleDescriptor, ServerModuleManifest } from '@ews/platform-sdk'
 import { BASE_PATH, createRequirementsArtifactSource, requirementsPlugin, type EventHub, type SysmlElementDirectory, type TwinDirectory } from '@ews/requirements-service'
 import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsArtifactSource, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { SYSML_BASE_PATH, createSysmlArtifactSource, sysmlPlugin, type SysmlEventHub, type SysmlRepository } from '@ews/sysml-service'
@@ -153,10 +153,10 @@ export const INSTALLED_SERVER_MODULES: ApiServerModule[] = [
  * Every server manifest the host knows: the installed modules plus the host-composed Project Management manifest (its
  * docs page, operations and AI module come from `@ews/projects-service`; the host registers its plugin itself).
  */
-export const ALL_SERVER_MANIFESTS: ServerModuleManifest<never>[] = [...INSTALLED_SERVER_MODULES, projectsServerManifest]
+export const ALL_SERVER_MODULES: ServerModuleDescriptor[] = [...INSTALLED_SERVER_MODULES, projectsServerManifest]
 
 /** What the manifests contribute to the AI access policy (`createPolicy(aiModules, operations)` in services/assistant). */
-export function collectPolicyContributions(modules: ServerModuleManifest<never>[]): { aiModules: AiModuleDescriptor[]; operations: Record<string, OperationClass> } {
+export function collectPolicyContributions(modules: ServerModuleDescriptor[]): { aiModules: AiModuleDescriptor[]; operations: Record<string, OperationClass> } {
   const aiModules: AiModuleDescriptor[] = []
   const operations: Record<string, OperationClass> = {}
   const definedBy = new Map<string, string>()
@@ -173,7 +173,7 @@ export function collectPolicyContributions(modules: ServerModuleManifest<never>[
 }
 
 /** Throws when two manifests share an ID or a base path (a second module would silently shadow the first). */
-export function assertUniqueManifests(modules: ServerModuleManifest<never>[]): void {
+export function assertUniqueManifests(modules: ServerModuleDescriptor[]): void {
   const ids = new Set<string>()
   const paths = new Set<string>()
   for (const m of modules) {

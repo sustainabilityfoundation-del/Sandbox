@@ -113,7 +113,11 @@ export interface ServerModuleProposals {
   projectParam?: string
 }
 
-export interface ServerModuleManifest<H extends ServerModuleHost = ServerModuleHost> {
+/**
+ * What the host reads about a server module without registering it (SDK 1.12): identity, API docs, AI policy, proposal
+ * target, settings and provisioning. A module the host composes itself (Project Management) exports only a descriptor.
+ */
+export interface ServerModuleDescriptor {
   id: string
   name: string
   /** URL base path (for example `/api/cad/v1`); it serves `/openapi.json`. */
@@ -135,6 +139,10 @@ export interface ServerModuleManifest<H extends ServerModuleHost = ServerModuleH
   proposals?: ServerModuleProposals
   settings?: ServerModuleSettings
   provisioning?: ServerModuleProvisioning
+}
+
+/** A server module with its registration code: the descriptor plus `register` (and optional `migrate`/`seed`), typed by the host object. */
+export interface ServerModuleManifest<H extends ServerModuleHost = ServerModuleHost> extends ServerModuleDescriptor {
   migrate?: (host: H) => void | Promise<void>
   seed?: (host: H) => void | Promise<void>
   /** Registers the module's routes; may return an artifact source for the assistant and projects. */

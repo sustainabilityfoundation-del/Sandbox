@@ -37,6 +37,20 @@ export const AI_MODULES: AiModule[] = [
   { id: 'help', label: 'Help', description: 'Product documentation (read_help).', prefixes: [], names: ['read_help'] },
 ]
 
+/**
+ * Presentation order of the AI modules (AI settings page, `Policy.modules`), independent of where an entry is defined, so
+ * moving a module into its manifest never reorders the page. Known modules keep this order; modules not listed (new
+ * installed modules) follow in installed-list order, after the listed ones and before the platform tail.
+ */
+const MODULE_ORDER_HEAD = ['workspace', 'requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'illustrative', 'projects']
+const MODULE_ORDER_TAIL = ['reasoning', 'help']
+function moduleRank(id: string): number {
+  const head = MODULE_ORDER_HEAD.indexOf(id)
+  if (head >= 0) return head
+  const tail = MODULE_ORDER_TAIL.indexOf(id)
+  return tail >= 0 ? 1000 + tail : 500
+}
+
 /** Illustrative tools need the entitlement of their tool (SysML → tool:sysml, CAD → tool:cad). */
 const PREFIX_ENTITLEMENT: Record<string, string> = { 'sysml.': 'tool:sysml', 'cad.': 'tool:cad' }
 
@@ -308,12 +322,14 @@ export interface Policy {
  */
 export function createPolicy(extraModules: AiModule[] = [], extraCatalogue: Record<string, OperationClass> = {}): Policy {
   const seen = new Set<string>()
-  const modules: AiModule[] = []
+  const all: AiModule[] = []
   for (const m of [...AI_MODULES, ...extraModules]) {
     if (seen.has(m.id)) throw new Error(`AI module “${m.id}” is defined twice (existing entry and module manifest, or two manifests).`)
     seen.add(m.id)
-    modules.push(m)
+    all.push(m)
   }
+  // The AI settings page and the module list keep one order wherever an entry is defined (platform list or manifest).
+  const modules = all.map((m, i) => ({ m, i, rank: moduleRank(m.id) })).sort((a, b) => a.rank - b.rank || a.i - b.i).map((x) => x.m)
   const catalogue: Record<string, OperationClass> = { ...OPERATION_CATALOGUE }
   for (const [name, cls] of Object.entries(extraCatalogue)) {
     if (name in catalogue) throw new Error(`Operation “${name}” is defined twice (existing entry and module manifest, or two manifests).`)
