@@ -3,7 +3,8 @@ import { evaluateIn, evaluateParameters, type EvaluatedParameter, type Parameter
 import { KernelError, toModel, v3, type FaceProbe, type GeometryKernel, type KernelPlane, type ShapeAnalysis, type ShapeHandle, type Vec3 } from '../kernel'
 import { isDimensional, SKETCH_X_AXIS, SKETCH_Y_AXIS, type CadDocument, type ExtrudeFeature, type Feature, type Part, type PlaneRef, type RevolveFeature, type SketchFeature } from '../model/types'
 import { extractProfile, type Profile } from '../sketch/profile'
-import { solveSketch, type SketchSolution } from '../sketch/solver'
+import type { SketchSolution } from '../sketch/solver'
+import { builtInSketchSolver, type SketchSolver } from '../sketch/solverPort'
 import { hashOf, now } from '../util'
 import { crossesAxis, extrudeProbes, planeOf, revolveProbes, toKernelRegions } from './geometry'
 
@@ -194,7 +195,7 @@ interface BodyState {
 }
 
 /** Evaluated sketch values and solution on a resolved plane (no kernel needed). */
-export function solveSketchFeature(sketch: SketchFeature, scope: ParameterScope, resolvedPlane?: KernelPlane): { result?: SketchResult; key: string; error?: CadErrorInfo } {
+export function solveSketchFeature(sketch: SketchFeature, scope: ParameterScope, resolvedPlane?: KernelPlane, solver: SketchSolver = builtInSketchSolver): { result?: SketchResult; key: string; error?: CadErrorInfo } {
   const values: Record<string, number> = {}
   let plane: KernelPlane
   try {
@@ -206,7 +207,7 @@ export function solveSketchFeature(sketch: SketchFeature, scope: ParameterScope,
     return { key: '', error: toErrorInfo(e) }
   }
   const key = hashOf({ entities: sketch.entities, constraints: sketch.constraints.map((c) => ({ ...c, value: values[c.id] ?? null, name: undefined })), plane })
-  const solution = solveSketch(sketch, { values })
+  const solution = solver.solve(sketch, { values })
   const profile = extractProfile(sketch.entities, sketch.constraints, solution)
   const lines: SketchResult['lines'] = {}
   for (const e of sketch.entities) if (e.type === 'line') lines[e.id] = { start: e.start, end: e.end, construction: !!e.construction }
