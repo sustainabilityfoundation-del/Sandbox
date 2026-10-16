@@ -2,7 +2,7 @@
 // module with the real modules as default tabs, reopening after reload and in a fresh session, the overview with
 // module provisioning states, and switching back to the example project with its data intact.
 // Creates one new project per run (unique key); the example project is not changed.
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, exampleUrl, launchOptions, shotsDir } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -22,10 +22,10 @@ const watch = (p) => {
 const ctx = await b.newContext({ viewport: { width: 1600, height: 1000 } })
 const page = await ctx.newPage()
 watch(page)
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.waitForSelector('.ws-app')
 await page.evaluate(() => localStorage.clear())
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.waitForSelector('.ws-app')
 await page.waitForTimeout(2000)
 
@@ -67,10 +67,12 @@ await page.waitForTimeout(2500)
 check('reopen', (await switcher.textContent())?.includes(uniqueKey), 'the remembered project reopens after reload')
 const fresh = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage()
 watch(fresh)
-await fresh.goto(`${base}?project=${projectId}`)
+// No ?project= and no stored choice: the most recently opened project on the server reopens.
+await fresh.goto(base)
+await fresh.waitForURL(/project=/, { timeout: 20000 })
 await fresh.waitForSelector('.ws-app')
 await fresh.waitForTimeout(2500)
-check('reopen', (await fresh.locator('[data-help-id="projects.switcher"]').textContent())?.includes(uniqueKey), 'a fresh browser session opens the project from the server')
+check('reopen', (await fresh.locator('[data-help-id="projects.switcher"]').textContent())?.includes(uniqueKey), 'a fresh browser (no stored project) reopens the most recently opened project from the server')
 
 // 4. Overview: module states and members.
 await switcher.click()
