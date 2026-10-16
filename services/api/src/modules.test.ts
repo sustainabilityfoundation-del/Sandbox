@@ -88,7 +88,7 @@ describe('AI policy from the installed manifests', () => {
 
   it('takes the CAD Modeler from its manifest (no legacy entry): same module, classes, settings and proposal API as before', () => {
     expect(aiModules.filter((m) => m.id === 'cad-modeler')).toEqual([{ id: 'cad-modeler', label: 'CAD Modeler', description: 'Parametric CAD documents and exports.', entitlement: 'tool:cad', prefixes: ['cad-modeler.'] }])
-    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('cad-modeler.'))).toHaveLength(12)
+    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('cad-modeler.'))).toHaveLength(13)
     expect(policy.classify('cad-modeler.describe_model')).toMatchObject({ operationClass: 'read', module: { id: 'cad-modeler' } })
     expect(policy.classify('cad-modeler.run_commands')?.operationClass).toBe('propose')
     expect(policy.classify('cad-modeler.export')?.operationClass).toBe('export')
