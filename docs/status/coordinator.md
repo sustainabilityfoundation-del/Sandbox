@@ -42,7 +42,7 @@ Next work (start as new agents, at most 2-3 implementers at once):
 
 | Integration run on integrate/codex (4e3239f) | integration-runner role (Sonnet) | main checkout | green: typecheck, unit 1255, all six DB suites, build, e2e demo-d1 and ai-fake-provider on fake ports 18787/15173/54399 |
 | Owner request: remove top workspace tabs (keep left), tab Inspector and AI Assistant in one right panel | module-agent role (Sonnet), UI | worktree branch ui/remove-top-tabs | running; owner words recorded in shell.md by the agent |
-
+| Open item 1, increment I1: SDK 1.10 module manifest types | task-worker role (Sonnet) | branch feature/manifests-i1, 5372578 | implemented (check, build pass in worktree); confirmation run (typecheck, unit, build) running before merge; notes for I2/I3 in module-registration.md |
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
 2. **D1 owner acceptance**: ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.
