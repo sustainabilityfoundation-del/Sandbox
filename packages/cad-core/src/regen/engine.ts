@@ -41,7 +41,7 @@ export interface FeatureResult {
   /** Solid features: the body this feature created or modified. */
   bodyId?: string
   /** Linear patterns: evaluated count and spacing, and the measured gap between neighbouring occurrences (mm; null when not measurable). */
-  pattern?: { count: number; spacing: number; direction: Vec3; gap: number | null }
+  pattern?: { count: number; spacing: number; direction: Vec3; gap: number | null; occurrenceWidth?: number | null }
   /** Sketches and datum planes: the resolved plane. */
   plane?: KernelPlane
 }
@@ -421,7 +421,21 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
             if (gap !== null) cache.putMeta(gapKey, gap, gen)
           }
         }
-        r.pattern = { count, spacing, direction, gap }
+        // Width of occurrence 1 along the pattern direction: the kernel bounding box of its tool solids
+        // (only when the direction is a coordinate axis, where the box extent is the exact extent).
+        let occurrenceWidth: number | null = null
+        const axis = direction.findIndex((c) => Math.abs(Math.abs(c) - 1) < 1e-9)
+        if (axis >= 0 && direction.every((c, k) => k === axis || Math.abs(c) < 1e-9)) {
+          const widthKey = hashOf({ width: tools[0].map((t) => t.id), axis })
+          const cachedWidth = cache.getMeta<number>(widthKey, gen)
+          if (cachedWidth !== undefined) occurrenceWidth = cachedWidth
+          else {
+            const boxes = await Promise.all(tools[0].map(async (t) => (await kernel.analyze(t, [])).boundingBox))
+            occurrenceWidth = Math.max(...boxes.map((b) => b.max[axis])) - Math.min(...boxes.map((b) => b.min[axis]))
+            cache.putMeta(widthKey, occurrenceWidth, gen)
+          }
+        }
+        r.pattern = { count, spacing, direction, gap, occurrenceWidth }
         r.rebuilt = rebuilt
         r.bodyId = target.bodyId
         r.key = target.key

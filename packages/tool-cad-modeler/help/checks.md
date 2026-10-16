@@ -25,13 +25,15 @@ What is checked:
   - volume and surface area;
   - mass (needs a material);
   - a pattern's spacing and count;
-  - a pattern's gap: the material left between neighbouring occurrences, measured by the kernel.
+  - a pattern's gap: the material left between neighbouring occurrences, measured by the kernel;
+  - a pattern's occurrence width: the width of one occurrence along the pattern direction (for a hexagonal pocket with flats facing the direction, its across-flats size), measured by the kernel.
 
 Units are converted where they are compatible: mm, cm, m, in; g, kg, lb; mm³, cm³; deg and rad.
 
 Each result states:
 
 - the quantity, the measured value and its unit, and the method used;
+- provenance: whether the value was measured on the solid by the kernel or read from the model (a parameter or sketch dimension), the kernel name and version, and what was measured;
 - the bound: constraint key, revision, operator and limits;
 - the status: **satisfied**, **violated**, or **not checkable** with the reason;
 - the CAD document, its stored revision and model version, and the kernel name and version.

@@ -121,7 +121,7 @@ async function dryRunFor(open: OpenDocument | undefined, commands: CommandCall[]
 }
 
 
-const MEASURE_KINDS = ['parameter', 'dimension', 'bounding-size', 'volume', 'surface-area', 'mass', 'pattern-spacing', 'pattern-gap', 'pattern-count']
+const MEASURE_KINDS = ['parameter', 'dimension', 'bounding-size', 'volume', 'surface-area', 'mass', 'pattern-spacing', 'pattern-gap', 'pattern-width', 'pattern-count']
 
 /** Checks requested by the assistant: a measurement and a constraint ID (bounds are never accepted). */
 function validateCheckRequests(raw: unknown): CheckRequest[] {
@@ -699,7 +699,7 @@ const actions: AssistantActionDefinition[] = [
     name: 'cad-modeler.check',
     label: 'Check the CAD model against design constraints',
     description:
-      'Measure the regenerated CAD model and compare the measurements with design-constraint bounds read from Conceptualize (never with numbers given here). By default every parameter bound to a Conceptualize constraint (bind_parameter) is checked, and the solid validity of every body is reported. Optional "checks" add measurements, each against a constraint: parameter, dimension (named sketch dimension), bounding-size (x, y, z, max, min), volume, surface-area, mass (needs a material), pattern-spacing, pattern-gap (material between neighbouring pattern occurrences), pattern-count. Each result has checkId, quantity, measured value and unit, bound (constraint key, revision, operator, limits), status (satisfied, violated, not-checkable with reason), method, documentId, documentRevision and kernel name and version; open assumptions are listed. Results report geometry and values only; they make no claim of structural adequacy, safety or compliance. Read-only.',
+      'Measure the regenerated CAD model and compare the measurements with design-constraint bounds read from Conceptualize (never with numbers given here). By default every parameter bound to a Conceptualize constraint (bind_parameter) is checked, and the solid validity of every body is reported. Optional "checks" add measurements, each against a constraint: parameter, dimension (named sketch dimension), bounding-size (x, y, z, max, min), volume, surface-area, mass (needs a material), pattern-spacing, pattern-gap (material between neighbouring pattern occurrences), pattern-width (kernel-measured width of one occurrence along an axis-aligned pattern direction, for example the across flats of a pocket), pattern-count. Each result has checkId, quantity, measured value and unit, bound (constraint key, revision, operator, limits), status (satisfied, violated, not-checkable with reason), method, provenance (source kernel or model, kernel name and version, what was measured), documentId, documentRevision and kernel name and version; open assumptions are listed. Results report geometry and values only; they make no claim of structural adequacy, safety or compliance. Read-only.',
     parameters: {
       type: 'object',
       properties: {
@@ -714,7 +714,7 @@ const actions: AssistantActionDefinition[] = [
               measure: {
                 type: 'object',
                 properties: {
-                  kind: { type: 'string', enum: ['parameter', 'dimension', 'bounding-size', 'volume', 'surface-area', 'mass', 'pattern-spacing', 'pattern-gap', 'pattern-count'] },
+                  kind: { type: 'string', enum: ['parameter', 'dimension', 'bounding-size', 'volume', 'surface-area', 'mass', 'pattern-spacing', 'pattern-gap', 'pattern-width', 'pattern-count'] },
                   name: { type: 'string', description: 'Parameter name, or dimension name.' },
                   constraintId: { type: 'string', description: 'Sketch dimension (constraint) ID.' },
                   axis: { type: 'string', enum: ['x', 'y', 'z', 'max', 'min'] },

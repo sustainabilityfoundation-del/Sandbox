@@ -134,6 +134,32 @@ describe('D1-CAD: check against bound constraints', () => {
     expect(report.assumptions.some((a) => /not stored in the project/.test(a))).toBe(true)
   })
 
+  it('OSS-9: geometric values come from the kernel (across flats, volume, validity, bounding box, gap), parameter values are labelled as model values', async () => {
+    const { pat } = await model()
+    const report = await check({
+      checks: [
+        { measure: { kind: 'pattern-width', featureId: pat }, constraint: { id: 'c-af' } },
+        { measure: { kind: 'volume' }, constraint: { id: 'c-af' } },
+        { measure: { kind: 'bounding-size', axis: 'x' }, constraint: { id: 'c-length' } },
+        { measure: { kind: 'pattern-gap', featureId: pat }, constraint: { id: 'c-wall' } },
+      ],
+    })
+    const by = (q: string) => report.results.find((r) => r.quantity.startsWith(q))!
+    // Hexagon with 7 mm across flats, flats facing the pattern direction: the kernel-measured width is 7 mm.
+    const w = report.results.find((r) => r.quantity.endsWith('occurrence width'))!
+    expect(w).toMatchObject({ status: 'satisfied', measuredModel: { unit: 'mm' }, provenance: { source: 'kernel', kernel: { name: report.kernel.name, version: report.kernel.version } } })
+    expect(w.measuredModel!.value).toBeCloseTo(7, 6)
+    const hexArea = (Math.sqrt(3) / 2) * 49
+    const vol = report.results.find((r) => r.quantity === 'volume')!
+    expect(vol.measuredModel!.value).toBeCloseTo(60 * 20 * 20 - 4 * hexArea * 12, 4)
+    for (const q of ['bounding size x', 'volume']) expect(by(q).provenance?.source).toBe('kernel')
+    expect(report.results.find((r) => r.quantity.startsWith('pattern') && r.quantity.endsWith('gap between neighbouring occurrences'))!.provenance?.source).toBe('kernel')
+    expect(report.results.find((r) => r.quantity.startsWith('solid validity'))!.provenance).toMatchObject({ source: 'kernel' })
+    // A parameter value is read from the model, and says so.
+    expect(by('parameter af').provenance).toMatchObject({ source: 'model' })
+    expect(by('parameter af').method).toMatch(/not measured on geometry/)
+  })
+
   it('a change regenerates and the rerun check reflects it; mass is checked once a material is set', async () => {
     await model()
     await apply('cad-modeler.run_commands', { commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'af', expression: '6.5' } }, { command: 'set_material', input: { partId: 'part-1', name: 'Aluminium', density: 2700 } }] })

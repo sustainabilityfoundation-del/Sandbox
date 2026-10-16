@@ -84,6 +84,8 @@ describe('linear pattern (pattern_linear)', () => {
     expect(pat.pattern).toMatchObject({ count: 4, spacing: 12, direction: [1, 0, 0] })
     // Rotation 30°: flats are perpendicular to x, so the gap between pockets is pitch − across flats.
     expect(pat.pattern!.gap).toBeCloseTo(12 - AF, 6)
+    // Kernel-measured width of one pocket along x (OSS-9): the across-flats size.
+    expect(pat.pattern!.occurrenceWidth).toBeCloseTo(AF, 6)
     const a = body(e.regeneration)
     expect(a.valid).toBe(true)
     expect(a.volume).toBeCloseTo(60 * 20 * 20 - 4 * hexArea(AF) * DEPTH, 4)
