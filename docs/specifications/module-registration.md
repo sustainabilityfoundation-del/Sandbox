@@ -140,7 +140,7 @@ Same behaviour, IDs and operation names. One change per module, with the legacy 
    A module that the host composes itself (projects, because it consumes the other modules' artifact sources) is listed in
    `ALL_SERVER_MODULES` (`services/api/src/modules.ts`) next to `INSTALLED_SERVER_MODULES`; the host reads docs, operations and
    `aiModule` from the manifest and keeps the plugin registration. Do not reorder registration: `services/api/test/modules.test.ts` asserts the order.
-4. **SDK.** Only if the manifest needs a new optional field: bump `version.ts`, `platform-sdk/package.json`, `package-lock.json` (the
+4. **SDK.** A manifest that uses `ServerModuleDescriptor`, `ClientModule` or `proposals` (SDK 1.12) needs `@ews/platform-sdk` `^1.12.0` in its package (`package.json` and that package's entry in `package-lock.json`). Only if the manifest needs a new optional field: bump `version.ts`, `platform-sdk/package.json`, `package-lock.json` (the
    `packages/platform-sdk` entry), the AGENTS.md "SDK version" line, CHANGELOG, and the version assertions in `modules.test.ts` and `sdk19.test.ts`;
    raise the `@ews/platform-sdk` range of packages that use the field and run `npm install`.
 5. **Tests that must stay green unchanged:** `installedModules.test.ts` (proof test, runs the real checks from `assistant/capabilityChecks.ts` and
@@ -148,7 +148,7 @@ Same behaviour, IDs and operation names. One change per module, with the legacy 
    `ALL_SERVER_MODULES` plus fixtures and `base.slice(0, 7)` since M2/M3; add a per-module manifest test) and `services/api/test/modules.test.ts`.
    Tests that use the default policy for a moved module's operations or `ai.access.<id>` settings (`services/assistant/src/policy.test.ts`,
    `wire.test.ts`, `test/env.ts`) must build their policy from manifests; the assistant service never imports another service, so tests
-   there use an inline module descriptor (M2). Tests that import the moved files by relative path (`services/projects/test/assistant.actions.test.ts`
+   there use an inline module descriptor (M2). This holds even for a single assertion (M4: `decide('cad-modeler.query', ...)`); a test that only lists a moved operation as not offered (`wire.test.ts`) needs no change. Tests that import the moved files by relative path (`services/projects/test/assistant.actions.test.ts`
    imported `apps/workspace/src/projects/assistant`) must import the package entry point instead. Do not touch `boundaries.test.ts` or
    `designSystem.test.ts` (I4); a new package outside `ALLOWED` is unchecked and `apps/workspace` may only import packages in its regex, so
    put a module into its existing `*-client` package rather than creating a new one.
