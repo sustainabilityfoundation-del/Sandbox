@@ -291,6 +291,32 @@ export class AssistantBackend {
     return { disconnected: true, ...(revoked === undefined ? {} : { revoked }) }
   }
 
+  // ---- image generation credential port (services/visualization) ----------------------------------------
+
+  /**
+   * What the person may use for image generation (the visualization service's ImageAccessPort). The connection is
+   * described without its secret; `credential()` decrypts it for one adapter call at run time. The settings are the
+   * person's effective values within the project limits. A dedicated image-only credential (purpose 'images') can be
+   * added later without changing this shape.
+   */
+  async imageAccess(userId: string, projectId: string) {
+    const values = await this.o.settings.effective(userId, projectId)
+    const row = await this.store.connection(userId)
+    const usable = !!row && row.status !== 'needs-sign-in' && row.status !== 'plan-usage-disabled' && !!this.o.providers.get(row.provider)
+    const quality = values['ai.images.quality']
+    return {
+      connection: usable ? { provider: row!.provider, method: row!.method, purpose: 'assistant' as const } : null,
+      enabled: values['ai.images.enabled'] === true,
+      quality: (quality === 'low' || quality === 'high' ? quality : 'medium') as 'low' | 'medium' | 'high',
+      dailyLimit: Number(values['ai.images.daily-limit'] ?? 20),
+      credential: async () => {
+        const current = await this.store.connection(userId)
+        if (!current) throw new ProviderError('invalid-credential', 'No AI account is connected any more.')
+        return this.credential(current)
+      },
+    }
+  }
+
   // ---- policy, preview, respond ---------------------------------------------------------------------
 
   async policy(principal: Principal, projectId: string): Promise<AiPolicy> {

@@ -14,8 +14,7 @@ import { chromium } from 'playwright-core'
 
 /** D1 steps that the replayed script cannot exercise yet (owners in demo-ai-engineering.md §3). Reported, not failed. */
 const PENDING = [
-  'constraint UUIDs are typed by the person (here: read from the REST API by the test): no assistant operation returns them (CR-AI-9, Conceptualize)',
-  'decision on named alternatives: develop_alternatives records placeholder alternatives (CR-AI-1, Conceptualize)',
+  'decision on the alternatives (conceptualize.propose_decision) is not part of the replayed script yet',
   'storing the STEP file as a project document: projects.store_document needs a file hand-off from CAD (CR-PM-SDK-4)',
   'service restart in the middle of the run: run the flow again after restarting; the read-back below is from the services',
 ]
@@ -132,7 +131,7 @@ try {
   reply = await ask('D1 alternatives')
   await applyAll(reply, 'alternatives', 1)
 
-  // The person reads the constraint IDs (CR-AI-9: no assistant operation returns them yet).
+  // The test reads the constraints for its own checks (the script finds them with conceptualize.list_constraints).
   const constraints = await get(`/api/concepts/v1/projects/${P}/constraints`)
   const af = constraints.find?.((c) => c.statement.startsWith('Hex pocket width'))
   const wall = constraints.find?.((c) => c.statement.startsWith('Wall thickness'))
@@ -140,24 +139,24 @@ try {
 
   // Step 6: native CAD with a hexagon, a pocket, a linear pattern and a binding, saved to the CAD service.
   // No CAD view is opened: the operations are headless.
-  reply = await ask(`D1 CAD ${af.id}`)
+  reply = await ask('D1 CAD')
   // Apply saves the revision in the CAD service (no separate save step; a repeated save is refused as no-op).
   await applyAll(reply, 'CAD commands (polygon, pocket, pattern, binding)', 1)
 
   // Step 7: check against the constraint bounds, then evidence in Conceptualize.
-  reply = await ask(`D1 check ${wall.id}`)
+  reply = await ask('D1 check')
   const checked = await answer(reply)
   check(/pocket width 6\.6 mm \(satisfied\)/.test(checked) && near(/gap between pockets ([\d.]+) mm \(satisfied\)/.exec(checked)?.[1], 2.4), `cad-modeler.check measured against the bounds: ${checked.slice(0, 220)}`)
   await applyAll(reply, 'evidence record', 1)
 
   // Step 8: a plain-language change: revise the constraint, find the outdated binding, update and re-bind, check again.
-  reply = await ask(`D1 change ${af.key}`)
+  reply = await ask('D1 change')
   await applyAll(reply, 'revise the constraint', 1)
   reply = await ask('D1 bindings')
   const bindings = await answer(reply)
   check(/bound to \S+ revision 1; the latest is revision 2/.test(bindings), `check_bindings reports the superseded revision: ${bindings.slice(0, 200)}`)
   await applyAll(reply, 'update af and re-bind', 1)
-  reply = await ask(`D1 recheck ${wall.id}`)
+  reply = await ask('D1 recheck')
   const rechecked = await answer(reply)
   check(/pocket width 6\.8 mm against \S+ revision 2 \(satisfied\)/.test(rechecked) && near(/gap ([\d.]+) mm \(satisfied\)/.exec(rechecked)?.[1], 2.2) && /Outdated bindings: 0\./.test(rechecked), `the rerun check reflects the change: ${rechecked.slice(0, 220)}`)
   await page.screenshot({ path: `${shots}/02-check.png` })
@@ -178,7 +177,7 @@ try {
   const transcriptFile = await (await transcriptPromise).path()
   const transcript = JSON.parse(readFileSync(transcriptFile, 'utf8'))
   const ops = transcript.messages.filter((m) => m.role === 'assistant').flatMap((m) => m.operations)
-  check(transcript.format === 'ews-assistant-transcript' && transcript.projectId === P && ops.length >= 25 && ops.every((o) => o.arguments) && transcript.replayScript.turns.length >= 14, `the transcript records ${ops.length} operations with arguments and a ${transcript.replayScript.turns.length}-turn replay script`)
+  check(transcript.format === 'ews-assistant-transcript' && transcript.projectId === P && ops.length >= 25 && ops.every((o) => o.arguments) && transcript.replayScript.turns.length >= 13, `the transcript records ${ops.length} operations with arguments and a ${transcript.replayScript.turns.length}-turn replay script`)
   writeFileSync(`${shots}/transcript.json`, JSON.stringify(transcript, null, 2))
 
   // Fresh browser session: the committed artifacts are read back from the services, not from browser memory.

@@ -219,6 +219,25 @@ export const AI_SETTING_DEFINITIONS: SettingDefinition[] = [
   ...pair({ id: 'ai.limits.tool-calls', ceilingId: 'ai.limits-ceiling.tool-calls', label: 'Operations per answer', description: 'Maximum operations the model may request while answering one message.', helpId: 'ai.policy', type: 'number', unit: 'operations', min: 1, max: 60, integer: true, default: 24, ceilingDefault: 60, group: 'Limits' }),
   ...pair({ id: 'ai.limits.output-tokens', ceilingId: 'ai.limits-ceiling.output-tokens', label: 'Maximum answer length', description: 'Output token limit per model call (not accepted by ChatGPT plan usage, where the plan’s limits apply).', helpId: 'ai.policy', type: 'number', unit: 'tokens', min: 256, max: 32000, integer: true, default: 4000, ceilingDefault: 32000, group: 'Limits' }),
   ...pair({ id: 'ai.limits.timeout', ceilingId: 'ai.limits-ceiling.timeout', label: 'Request timeout', description: 'How long the server waits for one model call.', helpId: 'ai.policy', type: 'number', unit: 's', min: 10, max: 300, integer: true, default: 90, ceilingDefault: 300, group: 'Limits' }),
+  // Image generation for concept visuals (services/visualization). Off by default: it uses the person's provider
+  // account and is billed there, so the person turns it on explicitly.
+  ...pair({ id: 'ai.images.enabled', ceilingId: 'ai.images-ceiling.enabled', label: 'Image generation', description: 'Generate concept illustrations with your connected provider account (OpenAI API key; billed to that account). Off: illustrations are refused with an explanation; structured layouts keep working.', helpId: 'ai.images', type: 'boolean', default: false, ceilingDefault: true, group: 'Image generation' }),
+  {
+    id: 'ai.images.quality',
+    label: 'Image quality',
+    description: 'Default quality of generated illustrations. Higher quality uses more output tokens and costs more.',
+    helpId: 'ai.images',
+    scope: 'user',
+    type: 'enum',
+    options: [
+      { value: 'low', label: 'Low (cheapest, fastest)' },
+      { value: 'medium', label: 'Medium' },
+      { value: 'high', label: 'High (most expensive)' },
+    ],
+    default: 'medium',
+    group: 'Image generation',
+  },
+  ...pair({ id: 'ai.images.daily-limit', ceilingId: 'ai.images-ceiling.daily-limit', label: 'Images per day', description: 'Maximum paid image generations you can request in 24 hours (retries of a job do not count again).', helpId: 'ai.images', type: 'number', unit: 'images', min: 0, max: 200, integer: true, default: 20, ceilingDefault: 200, group: 'Image generation' }),
   ...pair({ id: 'ai.audit.store-prompts', ceilingId: 'ai.audit-ceiling.store-prompts', label: 'Store prompts for debugging', description: 'Keep the full request sent to the provider in your audit records. Off by default; turn it on only to diagnose a problem.', helpId: 'ai.privacy', type: 'boolean', default: false, ceilingDefault: true, group: 'Audit' }),
 ]
 
