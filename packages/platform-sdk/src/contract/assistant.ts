@@ -243,7 +243,9 @@ export function argString(args: Record<string, unknown>, key: string): string {
 }
 
 export function argOptionalString(args: Record<string, unknown>, key: string): string | undefined {
-  return args[key] === undefined || args[key] === null ? undefined : argString(args, key)
+  // Models often send an optional string as "" (or null) to mean "not given".
+  const v = args[key]
+  return v === undefined || v === null || (typeof v === 'string' && v.trim() === '') ? undefined : argString(args, key)
 }
 
 /**
