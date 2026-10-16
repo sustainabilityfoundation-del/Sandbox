@@ -284,3 +284,26 @@ with the fake adapter and stubbed HTTP, but **no live generation has been run**.
 Finding: OpenAI's Sign in with ChatGPT preview lists image generation as unsupported on plan usage, so
 illustrations need an OpenAI API key. The connection port carries `purpose` (`assistant` | `images`), so a later
 image-only key does not change the visualization service. It is not built (owner decision).
+
+### Verification (visualization checkpoint, branch after main e2b6dcd)
+
+- `services/visualization` tests:
+  - unit: `src/adapters.test.ts`, 8 tests;
+  - database: `test/visualization.api.test.ts`, 9 tests, all passing. They cover idempotency (including concurrent
+    requests), retry, cancel (running and pending), a batch where one item fails and one is refused while the others
+    keep their images, interrupted recovery, validation and roles, refusals without a job, and generation through the
+    assistant's credential port with stubbed OpenAI. The key does not appear in responses, events or tables.
+- `npm run check`: 1136 passed. 3 tests failed, all timeouts under parallel load, and all pass when run alone:
+  - `connection.test.ts` refusal wording;
+  - two SysML Modeler tests.
+- `npm run build` and `npm run build:harnesses`: pass.
+- `npm run req:test:db`: the failing files are startup or plugin timeouts under the machine's parallel load ("Plugin
+  did not start in time"). Each one passed when run serially. The remaining timing assertions were
+  `assistant.api` "stops a call at the request timeout" (20.8 s against 20 s) and `acceptance.i1`.
+- Browser flows on 5202/8801/54343, all pass:
+  - `visualization` (new);
+  - `ai-headless`: 62 operations, after following the Conceptualize changes on main;
+  - `demo-d1`: the constraint IDs now come from `conceptualize.list_constraints`;
+  - `ai-fake-provider`: the drill demo plan records its alternatives with `develop_alternatives`;
+  - every other flow. `vision` failed once inside the full run and passed alone.
+- No live image generation was run (owner decision).
