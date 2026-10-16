@@ -20,6 +20,8 @@ editing an accepted one.
 | [0012](0012-read-time-projection-of-external-objects.md) | Read-time projection of externally owned objects into the twin's model | Accepted |
 | [0014](0014-unified-help-system.md) | Unified help system with module-owned documentation | Accepted |
 | [0015](0015-conceptualize-module.md) | Conceptualize: Concepts independent of their implementations | Accepted |
+| [0076](0076-cad-sketch-solver-planegcs-oracle.md) | CAD sketch solver: replaceable interface, planegcs as a development-time oracle only | Proposed |
+| [0075](0075-cad-occt-shape-history-naming.md) | CAD naming: OCCT shape history as the second signal (amends 0024) | Proposed |
 | [0074](0074-capability-registry-and-toolbars.md) | Capability registry and capability-complete toolbars (manifest inventory extended; computed implementation state; CommandBar; AI list_capabilities; amends ADR-0013) | Accepted |
 | [0073](0073-sbom-and-licence-checks.md) | SBOM, machine-readable dependency register and licence policy check from npm built-ins and the lockfile (no new dependency) | Proposed |
 | [0072](0072-agent-context-management.md) | Agent context management: context levels, model routing, controls and lifecycle hooks | Accepted (16 Oct 2026) |
