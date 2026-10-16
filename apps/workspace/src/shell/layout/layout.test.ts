@@ -1,7 +1,23 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_LAYOUTS, useWorkspaceStore } from '../../platform/store'
 import { visibleWithAncestors } from './explorerFilter'
-import { PRESETS, PRESET_IDS, applyPreset, assistantOnRight, currentPreset, dockAssistant, restoreDefaultLayout, showAssistant, showDockTab } from './presets'
+import {
+  PRESETS,
+  PRESET_IDS,
+  applyPreset,
+  assistantOnRight,
+  assistantVisibleRight,
+  currentPreset,
+  dockAssistant,
+  hideRightArea,
+  inspectorVisible,
+  restoreDefaultLayout,
+  rightAreaOpen,
+  rightTabShown,
+  showAssistant,
+  showDockTab,
+  showInspector,
+} from './presets'
 import { clampLayout } from './viewport'
 
 const layout = () => useWorkspaceStore.getState().layout
@@ -65,6 +81,54 @@ describe('workspace presets and docking (layout preferences only)', () => {
     expect(restored.assistantDock).toBe('right')
     expect(clampLayout({ ...restored, assistantWidth: 2000 }, 1366, 768).assistantWidth).toBeLessThanOrEqual(1366 * 0.4)
     expect(clampLayout({ ...restored, assistantWidth: 10 }, 1920, 1080).assistantWidth).toBe(300)
+  })
+})
+
+describe('Inspector and AI Assistant share one right-hand panel (owner decision 16 October 2026)', () => {
+  beforeEach(() => {
+    useWorkspaceStore.setState({ layoutClass: 'spacious', layouts: DEFAULT_LAYOUTS, layout: DEFAULT_LAYOUTS.spacious })
+  })
+
+  it('opens on the Inspector tab by default and opening the assistant selects its tab in the same area', () => {
+    expect(rightAreaOpen(layout(), true)).toBe(true)
+    expect(rightTabShown(layout(), true)).toBe('inspector')
+    expect(inspectorVisible(layout(), true)).toBe(true)
+    showAssistant()
+    expect(layout()).toMatchObject({ assistantOpen: true, inspectorOpen: true, rightTab: 'assistant' })
+    expect(assistantVisibleRight(layout(), true)).toBe(true)
+    expect(inspectorVisible(layout(), true)).toBe(false)
+    showInspector()
+    expect(rightTabShown(layout(), true)).toBe('inspector')
+    expect(layout().assistantOpen).toBe(true) // the conversation panel keeps its state; only the tab changed
+  })
+
+  it('closing the area hides both tabs and the selected tab is a layout preference', () => {
+    showAssistant()
+    hideRightArea()
+    expect(rightAreaOpen(layout(), true)).toBe(false)
+    expect(layout().rightTab).toBe('assistant')
+    showAssistant()
+    expect(assistantVisibleRight(layout(), true)).toBe(true)
+  })
+
+  it('presets choose a tab without making the layout custom when it is switched', () => {
+    applyPreset('ai-assisted')
+    expect(layout().rightTab).toBe('assistant')
+    useWorkspaceStore.getState().setLayout({ rightTab: 'inspector' })
+    expect(currentPreset(layout())).toBe('ai-assisted')
+    applyPreset('engineering')
+    expect(layout().rightTab).toBe('inspector')
+  })
+
+  it('a bottom-docked assistant leaves the right-hand area to the Inspector alone', () => {
+    dockAssistant('bottom')
+    expect(rightTabShown(layout(), true)).toBe('inspector')
+    expect(assistantVisibleRight(layout(), true)).toBe(false)
+  })
+
+  it('layouts saved before the tab existed gain the Inspector tab', () => {
+    const { rightTab: _t, ...old } = DEFAULT_LAYOUTS.spacious
+    expect({ ...DEFAULT_LAYOUTS.spacious, ...old }.rightTab).toBe('inspector')
   })
 })
 

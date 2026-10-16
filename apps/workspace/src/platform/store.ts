@@ -55,6 +55,8 @@ export interface Layout {
   /** Whether the right-docked assistant column is expanded. */
   assistantOpen: boolean
   assistantWidth: number
+  /** The tab shown in the shared right-hand panel when the assistant is docked there (Inspector and AI Assistant share one column). */
+  rightTab: 'inspector' | 'assistant'
   /** Navigation rail with labels (true) or icons only. */
   railExpanded: boolean
   /** Side panels and the bottom panel hidden so the canvas takes the space (their settings are kept). */
@@ -69,11 +71,12 @@ export const DEFAULT_LAYOUTS: Record<LayoutClass, Layout> = {
     dockTab: 'activity',
     dockHeight: 240,
     treeWidth: 264,
-    inspectorWidth: 300,
+    inspectorWidth: 320,
     split: null,
     assistantDock: 'right',
     assistantOpen: false,
     assistantWidth: 380,
+    rightTab: 'inspector',
     railExpanded: true,
     canvasMaximized: false,
   },
@@ -89,6 +92,7 @@ export const DEFAULT_LAYOUTS: Record<LayoutClass, Layout> = {
     assistantDock: 'bottom',
     assistantOpen: false,
     assistantWidth: 360,
+    rightTab: 'inspector',
     railExpanded: false,
     canvasMaximized: false,
   },

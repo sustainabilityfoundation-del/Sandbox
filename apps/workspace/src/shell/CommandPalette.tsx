@@ -16,7 +16,7 @@ import { useSimulatedFailures } from './WorkArea'
 import { useBaselineDialog } from './Baselines'
 import { useCapabilitiesDialog } from './CapabilitiesDialog'
 import { useCoverageDialog } from './CoverageDialog'
-import { PRESETS, PRESET_IDS, applyPreset, dockAssistant, restoreDefaultLayout, showAssistant, showDockTab } from './layout/presets'
+import { PRESETS, PRESET_IDS, applyPreset, assistantVisibleRight, dockAssistant, hideRightArea, inspectorVisible, restoreDefaultLayout, showAssistant, showDockTab, showInspector } from './layout/presets'
 
 interface Command {
   key: string
@@ -72,10 +72,15 @@ export function CommandPalette({ isOpen, onOpenChange }: { isOpen: boolean; onOp
     })).filter((s) => s.items.length)
 
     const layout = state.layout
+    const desktop = state.layoutClass === 'spacious'
+    const inspectorShown = inspectorVisible(layout, desktop)
+    const assistantShown = assistantVisibleRight(layout, desktop)
     const workspace: Command[] = [
       { key: 'ws:tree', label: layout.treeOpen ? 'Hide explorer' : 'Show explorer', icon: 'panel-left', run: () => state.setLayout({ treeOpen: !layout.treeOpen }) },
-      { key: 'ws:inspector', label: layout.inspectorOpen ? 'Hide inspector' : 'Show inspector', icon: 'panel-right', run: () => state.setLayout({ inspectorOpen: !layout.inspectorOpen }) },
+      // Inspector and AI Assistant are tabs of one right-hand panel: these commands select their tab; hiding closes the panel.
+      { key: 'ws:inspector', label: inspectorShown ? 'Hide inspector' : 'Show inspector', icon: 'panel-right', run: () => (inspectorShown ? hideRightArea() : showInspector()) },
       { key: 'ws:chat', label: 'Open the AI Assistant', icon: 'assistant', run: showAssistant },
+      ...(assistantShown ? [{ key: 'ws:chat-hide', label: 'Hide the AI Assistant', icon: 'panel-right' as IconName, run: hideRightArea } satisfies Command] : []),
       { key: 'ws:activity', label: 'Open Activity', icon: 'history', run: () => showDockTab('activity') },
       { key: 'ws:validation', label: 'Open Validation', icon: 'validate', description: 'Potentially stale artifacts and save failures', run: () => showDockTab('validation') },
       ...PRESET_IDS.map(
@@ -102,7 +107,11 @@ export function CommandPalette({ isOpen, onOpenChange }: { isOpen: boolean; onOp
         isDisabled: !active,
         run: () => active && state.toggleFavorite(active.id),
       },
-      { key: 'ws:close', label: `Close ${active?.name ?? 'tool'}`, icon: 'close', isDisabled: !active, run: () => active && state.closeTool(active.id) },
+      // Closing a tool used to live on the top tab strip; it is a command now, for every open tool (not only the active one).
+      ...state.openToolIds.flatMap((id): Command[] => {
+        const t = byId(id)
+        return t ? [{ key: `ws:close:${t.id}`, label: `Close ${t.name}`, icon: 'close', keywords: 'close tool tab', run: () => state.closeTool(t.id) }] : []
+      }),
       {
         key: 'ws:win-tool',
         label: `Open ${active?.name ?? 'tool'} in separate window`,

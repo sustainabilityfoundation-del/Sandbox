@@ -136,7 +136,7 @@ await page.screenshot({ path: `${shots}/5-help.png` })
 await page.keyboard.press('Escape')
 
 // ---- devices and themes --------------------------------------------------------------------------
-await page.click('.ws-tab-main[data-tool-id="sysml-modeler"]').catch(() => undefined)
+await page.click('[data-rail-tool="sysml-modeler"]').catch(() => undefined)
 for (const [w, h, name] of [[1024, 768, 'tablet'], [390, 844, 'phone']]) {
   await page.setViewportSize({ width: w, height: h })
   await page.waitForTimeout(800)

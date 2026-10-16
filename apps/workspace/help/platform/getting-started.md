@@ -14,9 +14,9 @@ ACT-100 with its housing, rod and motor).
 | --- | --- |
 | **Navigation rail** (left edge) | The explorer toggle, every module you can use, the assistant and the layout menu |
 | **Explorer** (left) | Components, requirements, SysML elements and CAD representations (or the project's artifacts). Selecting one selects it in every tool |
-| **Canvas** (centre) | The open tools as tabs. Open more with **+** or Ctrl+K; split the view to see two |
-| **Inspector** (right) | Properties, relationships, owning module, change impact and revision history of the selection |
-| **AI Assistant** (right or bottom) | The conversation with the assistant |
+| **Canvas** (centre) | The active tool, with the location trail above it. Switch tools from the navigation rail, or open and close them with Ctrl+K; split the view to see two |
+| **Inspector** (right, first tab) | Properties, relationships, owning module, change impact and revision history of the selection |
+| **AI Assistant** (right, second tab, or bottom) | The conversation with the assistant; on the right it shares one panel with the Inspector |
 | **Bottom panel** | Activity (everything saved or changed) and Validation |
 | **Header** | Project, configuration and scenario, modules, search, commands, notifications, baselines, subscription, Requirements service, windows, display, settings, help |
 | **Status bar** | Save state, configuration, revision, validation, background work and the selection |

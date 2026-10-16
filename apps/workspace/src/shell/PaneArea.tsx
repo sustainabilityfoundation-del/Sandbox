@@ -3,7 +3,7 @@ import { DEFAULT_LAYOUTS, useWorkspaceStore } from '../platform/store'
 import { splitViewId } from '../platform/views'
 import { openToolOrExplain } from '../platform/api'
 import { getTool, getTools } from '../platform/registry'
-import { AppIcon, Breadcrumbs, Button, Icon, IconButton, MenuButton, MenuItem, ResizeHandle, Select, Tab, TabList, TabPanel, Tabs, type BreadcrumbItem } from '@ews/design-system'
+import { Breadcrumbs, Button, Icon, IconButton, ResizeHandle, Select, type BreadcrumbItem } from '@ews/design-system'
 import { displayId } from '@ews/model-service'
 import { iconForType } from '@ews/platform-sdk/react'
 import { useCurrentProject } from '../projects/bootstrap'
@@ -13,7 +13,7 @@ import { PANEL_LIMITS, type ViewportMode } from './layout/viewport'
 import { ToolToolbar } from './ToolToolbar'
 import { ToolViewHost, UnsupportedSelectionNotice, ViewControls } from './WorkArea'
 import { canOpenTool, useEntitlements } from '../platform/entitlements'
-import { DEMO_TOOL_EXPLANATION, isDemoTool } from '../platform/demoTools'
+import { isDemoTool } from '../platform/demoTools'
 
 /**
  * Where the canvas is: project › configuration › module › selection. Built from the shared context only;
@@ -49,10 +49,10 @@ function ContextBreadcrumbs() {
 }
 
 /**
- * Main tool pane: tool tabs (React Aria Tabs, arrow-key navigation), the active
- * tool's toolbar and its view. Tools that must keep their state stay mounted
- * in an inert panel when another tab is selected. A tab whose tool the
- * subscription no longer includes stays (nothing is lost) and shows why.
+ * Main tool pane: a location bar (breadcrumbs, split view, panel toggles), the active tool's toolbar and its
+ * view. Switching tools is done from the navigation rail (or the command palette); there is no second tab strip.
+ * Tools that must keep their state stay mounted in a hidden panel when another tool is active. A tool the
+ * subscription no longer includes stays open (nothing is lost) and shows why.
  */
 function MainPane({
   mode,
@@ -70,9 +70,7 @@ function MainPane({
   const split = useWorkspaceStore((s) => s.layouts.spacious.split)
   const setLayout = useWorkspaceStore((s) => s.setLayout)
   const layoutClass = useWorkspaceStore((s) => s.layoutClass)
-  const focusTab = useWorkspaceStore((s) => s.focusTab)
   useEntitlements((s) => s.plan) // re-render when the subscription changes
-  const closeTool = useWorkspaceStore((s) => s.closeTool)
   const [visited, setVisited] = useState<Set<string>>(() => new Set())
 
   if (activeToolId && !visited.has(activeToolId)) setVisited(new Set(visited).add(activeToolId))
@@ -87,53 +85,14 @@ function MainPane({
 
   return (
     <section className="ws-pane ws-pane-main" aria-label="Main tool view">
-      <Tabs
-        selectedKey={activeToolId ?? ''}
-        onSelectionChange={(key) => focusTab(String(key))}
-        className="min-h-0 flex-1"
-      >
-        <div className="ws-pane-tabs">
-          {tabsLeading}
-          {/* Static children (not `items`), so the lock state re-renders when the subscription changes. */}
-          <TabList aria-label="Open tools" className="ws-tool-tabs">
-            {openTools.map((tool) => (
-              <Tab key={tool.id} id={tool.id} data-tool-id={tool.id} className="ws-tool-tab">
-                <AppIcon name={tool.icon} size={16} />
-                <span>{tool.name}</span>
-                {isDemoTool(tool.id) && (
-                  <span className="ws-dock-demo" title={DEMO_TOOL_EXPLANATION}>
-                    Demo
-                  </span>
-                )}
-                {!canOpenTool(tool.id) && <AppIcon name="locked" size={16} label="Not in your subscription" className="text-fg-3" />}
-              </Tab>
-            ))}
-          </TabList>
-          <MenuButton
-            label="Open tools"
-            icon="more"
-            onAction={(key) => {
-              const [action, id] = String(key).split(':')
-              if (action === 'close') closeTool(id)
-              else if (action === 'palette') onOpenLauncher()
-            }}
-          >
-            <MenuItem id="palette" icon="tools" shortcut="Ctrl K">
-              Open a tool or command…
-            </MenuItem>
-            {openTools.map((t) => (
-              <MenuItem key={t.id} id={`close:${t.id}`} icon="close" isDisabled={openTools.length === 1}>
-                {`Close ${t.name}${isDemoTool(t.id) ? ' (Demo)' : ''}`}
-              </MenuItem>
-            ))}
-          </MenuButton>
-          <IconButton label="Open a tool or command" shortcut="Control+K" icon="add" size="sm" onPress={onOpenLauncher} className="ws-tools-button" />
-          <ContextBreadcrumbs />
-          {mode === 'desktop' && !split && (
-            <IconButton label="Split view: show a second tool beside this one" icon="split" size="sm" onPress={openSplit} className="ws-panel-toggle" />
-          )}
-          {tabsTrailing}
-        </div>
+      <div className="ws-pane-bar">
+        {tabsLeading}
+        <ContextBreadcrumbs />
+        {mode === 'desktop' && !split && (
+          <IconButton label="Split view: show a second tool beside this one" icon="split" size="sm" onPress={openSplit} className="ws-panel-toggle" />
+        )}
+        {tabsTrailing}
+      </div>
         {active && canOpenTool(active.id) && (
           <ToolToolbar tool={active} viewId={active.id} trailing={<ViewControls viewId={active.id} detach={{ kind: 'tool', toolId: active.id }} />} />
         )}
@@ -149,15 +108,15 @@ function MainPane({
             </div>
           )}
           {openTools.map((tool) => {
-            const mounted = tool.id === activeToolId || (tool.keepMounted && visited.has(tool.id))
+            const isActive = tool.id === activeToolId
+            if (!isActive && !(tool.keepMounted && visited.has(tool.id))) return null
             return (
-              <TabPanel key={tool.id} id={tool.id} shouldForceMount={tool.keepMounted && visited.has(tool.id)} className="ws-tabpanel">
-                {mounted && <ToolViewHost tool={tool} viewId={tool.id} active={tool.id === activeToolId} />}
-              </TabPanel>
+              <div key={tool.id} className="ws-tabpanel" hidden={!isActive} data-tool-panel={tool.id}>
+                <ToolViewHost tool={tool} viewId={tool.id} active={isActive} />
+              </div>
             )
           })}
         </div>
-      </Tabs>
     </section>
   )
 }
@@ -174,7 +133,7 @@ function SplitPane({ toolId, hidden }: { toolId: string; hidden: boolean }) {
 
   return (
     <section className="ws-pane ws-pane-split" aria-label={`Second view: ${tool.name}`} hidden={hidden}>
-      <div className="ws-pane-tabs ws-pane-split-header">
+      <div className="ws-pane-bar ws-pane-split-header">
         <Select
           ariaLabel="Tool in the second view"
           size="sm"

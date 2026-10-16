@@ -4,6 +4,7 @@ import { useWorkspaceStore } from '../../platform/store'
 import { useInspectorTab } from '../Inspector'
 import { ObjectRef, RefChip } from '@ews/platform-sdk/react'
 import { Icon } from '@ews/design-system'
+import { showInspector } from '../layout/presets'
 
 /** Selects an output's component and reveals the output in the inspector. */
 export function showOutput(output: OutputRecord) {
@@ -11,7 +12,7 @@ export function showOutput(output: OutputRecord) {
   const ws = useWorkspaceStore.getState()
   const target = output.objectIds.find((id) => ws.model?.get(id)?.type !== 'procedure') ?? output.objectIds[0]
   ws.select(target ? [target] : [])
-  ws.setLayout({ inspectorOpen: true })
+  showInspector()
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
       const el = document.querySelector(`.ws-inspector [data-output-id="${output.id}"]`)

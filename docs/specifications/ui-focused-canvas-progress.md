@@ -10,6 +10,15 @@ Maintained by the ui-ux-design-system agent (worktree `Sandbox-ui`, branch `feat
 - [x] Phase 5 AI assistant panel
 - [x] Phase 6 validation and screenshots
 
+Status (16 October 2026, branch `ui/remove-top-tabs`). Owner decision, verbatim: "The user interface has duplication of
+tabs on the left of the screen and the top of the workspace. have the UI agent Remove the top of the workspace tabs and
+have the ones on the left." Done: the tab strip above the canvas is gone; the navigation rail is the only way to switch
+tools. Closing a tool moved to the command palette ("Close <tool>" for every open tool). The bar above the canvas stays
+as a location bar (breadcrumbs, split view, panel toggles; class `.ws-pane-bar`). Phone has no rail, so tools switch
+through **Tools** in the bottom navigation (the palette).
+
+Status (16 October 2026, same branch, second commit). Owner decision, verbatim: "Also, the Inspector panel and the AI assistant panel both expand into their own space on the right. They should be tabbed in the same space so they don't take up so much room" Done: `RightPanel` (shell/ShellParts.tsx) is one right-hand column with Inspector and AI Assistant tabs and one resize gutter; `Layout.rightTab` remembers the tab; both panels stay mounted. Details: docs/modules/design-system/shell.md section 6.
+
 ## 1. Audit (16 October 2026, baseline 314f79f)
 
 ### 1.1 Frontend architecture
@@ -38,8 +47,8 @@ the canvas gets about 60% of the width and 55% of the height.
 ### 1.3 Constraints and hooks to preserve
 
 - Committed browser flows (`tests/e2e/flows/*.mjs`) select: `.ws-app`, `header.ws-header` (text "Demo data"),
-  `[data-testid="model-revision"]`, `[role="tab"][data-tool-id]`, `.ws-tab-main[data-tool-id]`, `.ws-pane-main`,
-  `.ws-pane-tabs`, `.ws-toolbar`, `[data-toolbar-id]`, `.ws-view-controls`, `.ws-tree`, `.ws-tree-item[data-object-id]`,
+  `[data-testid="model-revision"]`, `[data-rail-tool]` (rail entry, `aria-current="page"` when active; replaces the removed top tabs `[role="tab"][data-tool-id]`), `.ws-pane-main`,
+  `.ws-pane-bar` (was `.ws-pane-tabs`), `.ws-toolbar`, `[data-toolbar-id]`, `.ws-view-controls`, `.ws-tree`, `.ws-tree-item[data-object-id]`,
   `.ws-tree-group`, `.ws-inspector`, `.ws-inspector-body`, `.ws-insp-object[data-inspected-id]`, `.ws-insp-statement`,
   `.ws-dock`, `.ws-activity-row`, `[data-dock-tab="assistant"]` (opens the assistant; `.ws-dock-demo` inside it in demo
   mode), `.as-*` assistant classes, `.ws-mobile-nav` (text "ChatGPT"), `.ws-launcher`, `.ws-overlay`, `.ws-detached`,
