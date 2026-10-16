@@ -1,4 +1,4 @@
-import type { SettingDefinition, SettingValue } from '@ews/platform-sdk'
+import type { AiModuleDescriptor, OperationClass, SettingDefinition, SettingValue } from '@ews/platform-sdk'
 
 /**
  * The AI access policy (docs/specifications/ai-connection.md §5a), enforced on the server:
@@ -11,19 +11,14 @@ import type { SettingDefinition, SettingValue } from '@ews/platform-sdk'
  */
 
 export type AccessLevel = 'off' | 'read' | 'propose'
-export type OperationClass = 'read' | 'search' | 'calculate' | 'propose' | 'export' | 'external-generation'
+export type { OperationClass }
+/** A module's place in the AI access policy (the SDK descriptor, SDK 1.10). */
+export type AiModule = AiModuleDescriptor
 
-export interface AiModule {
-  id: string
-  label: string
-  description: string
-  /** Server-side entitlement the person needs (platform.entitlements); none for platform functions. */
-  entitlement?: string
-  /** Operation name prefixes (`<toolId>.`) or exact platform operation names. */
-  prefixes: string[]
-  names?: string[]
-}
-
+/**
+ * Platform-owned modules and (until each moves into its module manifest, module-registration.md M-steps) the
+ * existing module entries. The host adds the modules collected from server manifests with `createPolicy`.
+ */
 export const AI_MODULES: AiModule[] = [
   {
     id: 'workspace',
@@ -156,11 +151,11 @@ export interface Classified {
   entitlement?: string
 }
 
-export function classify(name: string): Classified | null {
-  for (const module of AI_MODULES) {
-    if (module.names?.includes(name)) return { module, operationClass: OPERATION_CATALOGUE[name] ?? 'propose', entitlement: module.entitlement }
+function classifyIn(modules: AiModule[], catalogue: Record<string, OperationClass>, name: string): Classified | null {
+  for (const module of modules) {
+    if (module.names?.includes(name)) return { module, operationClass: catalogue[name] ?? 'propose', entitlement: module.entitlement }
     const prefix = module.prefixes.find((p) => name.startsWith(p))
-    if (prefix && /^[a-z0-9-]+\.[a-z0-9_]+$/.test(name)) return { module, operationClass: OPERATION_CATALOGUE[name] ?? 'propose', entitlement: module.entitlement ?? PREFIX_ENTITLEMENT[prefix] }
+    if (prefix && /^[a-z0-9-]+\.[a-z0-9_]+$/.test(name)) return { module, operationClass: catalogue[name] ?? 'propose', entitlement: module.entitlement ?? PREFIX_ENTITLEMENT[prefix] }
   }
   return null
 }
@@ -194,7 +189,8 @@ function pair(base: PairInput): SettingDefinition[] {
 }
 
 /** Definitions registered with the settings service by the API host. `ai.reasoning.*` is reserved. */
-export const AI_SETTING_DEFINITIONS: SettingDefinition[] = [
+function settingDefinitions(modules: AiModule[]): SettingDefinition[] {
+  return [
   {
     id: 'ai.connection.active',
     label: 'Connected account',
@@ -206,7 +202,7 @@ export const AI_SETTING_DEFINITIONS: SettingDefinition[] = [
     default: null,
     group: 'Connection',
   },
-  ...AI_MODULES.flatMap((m) =>
+  ...modules.flatMap((m) =>
     pair({ id: `ai.access.${m.id}`, ceilingId: `ai.ceiling.${m.id}`, label: m.label, description: `AI access to ${m.label}: ${m.description}`, helpId: 'ai.policy', type: 'enum', options: LEVELS, default: 'propose', ceilingDefault: 'propose', group: 'Access per module' }),
   ),
   ...OPERATION_CLASSES.flatMap((c) =>
@@ -240,7 +236,10 @@ export const AI_SETTING_DEFINITIONS: SettingDefinition[] = [
   },
   ...pair({ id: 'ai.images.daily-limit', ceilingId: 'ai.images-ceiling.daily-limit', label: 'Images per day', description: 'Maximum paid image generations you can request in 24 hours (retries of a job do not count again).', helpId: 'ai.images', type: 'number', unit: 'images', min: 0, max: 200, integer: true, default: 20, ceilingDefault: 200, group: 'Image generation' }),
   ...pair({ id: 'ai.audit.store-prompts', ceilingId: 'ai.audit-ceiling.store-prompts', label: 'Store prompts for debugging', description: 'Keep the full request sent to the provider in your audit records. Off by default; turn it on only to diagnose a problem.', helpId: 'ai.privacy', type: 'boolean', default: false, ceilingDefault: true, group: 'Audit' }),
-]
+  ]
+}
+
+export const AI_SETTING_DEFINITIONS: SettingDefinition[] = settingDefinitions(AI_MODULES)
 
 // ---- effective policy ------------------------------------------------------------------------------
 
@@ -252,13 +251,10 @@ export interface AiPolicy {
   storePrompts: boolean
 }
 
-const DEFAULTS = new Map(AI_SETTING_DEFINITIONS.map((d) => [d.id, d.default]))
-
-/** Builds the policy from effective setting values (already clamped to project ceilings). */
-export function policyFromSettings(values: Record<string, SettingValue>): AiPolicy {
-  const v = (id: string) => (id in values ? values[id] : DEFAULTS.get(id))
+function buildPolicy(modulesList: AiModule[], defaults: Map<string, SettingValue>, values: Record<string, SettingValue>): AiPolicy {
+  const v = (id: string) => (id in values ? values[id] : defaults.get(id))
   const modules: Record<string, AccessLevel> = {}
-  for (const m of AI_MODULES) {
+  for (const m of modulesList) {
     const level = v(`ai.access.${m.id}`)
     modules[m.id] = level === 'off' || level === 'read' || level === 'propose' ? level : 'off'
   }
@@ -281,8 +277,7 @@ export function policyFromSettings(values: Record<string, SettingValue>): AiPoli
 
 export type Decision = { ok: true; classified: Classified } | { ok: false; reason: string; code: 'unknown-operation' | 'not-entitled' | 'module-off' | 'read-only' | 'class-off' }
 
-/** Whether the policy and the person's server-side entitlements allow an operation. */
-export function decide(name: string, policy: AiPolicy, entitlements: string[]): Decision {
+function decideWith(classify: (name: string) => Classified | null, name: string, policy: AiPolicy, entitlements: string[]): Decision {
   const classified = classify(name)
   if (!classified) return { ok: false, code: 'unknown-operation', reason: `“${name}” is not an operation of this platform.` }
   const { module, operationClass, entitlement } = classified
@@ -294,3 +289,52 @@ export function decide(name: string, policy: AiPolicy, entitlements: string[]): 
   if (!policy.operations[operationClass]) return { ok: false, code: 'class-off', reason: `The operation class “${OPERATION_CLASSES.find((c) => c.id === operationClass)?.label ?? operationClass}” is off in your AI settings.` }
   return { ok: true, classified }
 }
+
+/** The AI modules, operation catalogue and rules in force: the platform's own entries plus what the host collected. */
+export interface Policy {
+  modules: AiModule[]
+  catalogue: Record<string, OperationClass>
+  /** Definitions of the "AI and reasoning" settings page (one access and ceiling setting per module). */
+  settingDefinitions: SettingDefinition[]
+  classify(name: string): Classified | null
+  /** Builds the policy from effective setting values (already clamped to project ceilings). */
+  policyFromSettings(values: Record<string, SettingValue>): AiPolicy
+  /** Whether the policy and the person's server-side entitlements allow an operation. */
+  decide(name: string, policy: AiPolicy, entitlements: string[]): Decision
+}
+
+/**
+ * Merges module contributions into the platform-owned AI modules and catalogue. An ID or operation name defined twice
+ * (a platform or legacy entry and a manifest, or two manifests) is an error: nothing is silently overridden.
+ */
+export function createPolicy(extraModules: AiModule[] = [], extraCatalogue: Record<string, OperationClass> = {}): Policy {
+  const seen = new Set<string>()
+  const modules: AiModule[] = []
+  for (const m of [...AI_MODULES, ...extraModules]) {
+    if (seen.has(m.id)) throw new Error(`AI module “${m.id}” is defined twice (existing entry and module manifest, or two manifests).`)
+    seen.add(m.id)
+    modules.push(m)
+  }
+  const catalogue: Record<string, OperationClass> = { ...OPERATION_CATALOGUE }
+  for (const [name, cls] of Object.entries(extraCatalogue)) {
+    if (name in catalogue) throw new Error(`Operation “${name}” is defined twice (existing entry and module manifest, or two manifests).`)
+    catalogue[name] = cls
+  }
+  const settingDefs = settingDefinitions(modules)
+  const defaults = new Map(settingDefs.map((d) => [d.id, d.default]))
+  const classify = (name: string) => classifyIn(modules, catalogue, name)
+  return {
+    modules,
+    catalogue,
+    settingDefinitions: settingDefs,
+    classify,
+    policyFromSettings: (values) => buildPolicy(modules, defaults, values),
+    decide: (name, policy, entitlements) => decideWith(classify, name, policy, entitlements),
+  }
+}
+
+/** The platform's own policy plus the existing entries (no manifest contributions): the default for tests and hosts that pass none. */
+export const DEFAULT_POLICY = createPolicy()
+export const classify = DEFAULT_POLICY.classify
+export const policyFromSettings = DEFAULT_POLICY.policyFromSettings
+export const decide = DEFAULT_POLICY.decide

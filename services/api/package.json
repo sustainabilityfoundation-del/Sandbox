@@ -13,7 +13,7 @@
   "dependencies": {
     "@ews/assistant-service": "^0.1.0",
     "@ews/conceptualize-service": "^0.1.0",
-    "@ews/platform-sdk": "^1.2.0",
+    "@ews/platform-sdk": "^1.11.0",
     "@ews/projects-service": "^0.1.0",
     "@ews/requirements-service": "^0.1.0",
     "@ews/settings-service": "^0.1.0",

@@ -2,7 +2,7 @@ import type { Pool } from 'pg'
 import type { SettingValue } from '@ews/platform-sdk'
 import { CredentialVault } from './crypto'
 import { OAuthError, authorizationUrl, exchangeCode, loopbackRedirect, newAttemptSecrets, refreshTokens, revokeRefreshToken, validateIdToken } from './oauth'
-import { AI_MODULES, OPERATION_CATALOGUE, OPERATION_CLASSES, policyFromSettings, type AiPolicy } from './policy'
+import { DEFAULT_POLICY, OPERATION_CLASSES, type AiPolicy, type Policy } from './policy'
 import type { ProviderRegistry } from './providers/registry'
 import { ProviderError, type AssistantProvider, type AuthMethod, type ProviderCredential, type ProviderMessage, type ProviderTool, type RespondOutput } from './providers/types'
 import { AssistantStore, publicStatus, type ConnectionRow, type ConnectionStatus } from './store'
@@ -61,6 +61,8 @@ export interface AssistantBackendOptions {
   /** Origin at which the person's browser reaches this API directly (OAuth loopback redirect), e.g. http://127.0.0.1:8801. */
   publicOrigin?: string
   fetch?: typeof fetch
+  /** AI modules and operation catalogue in force (createPolicy with the modules the host collected). Default: the platform's own. */
+  policy?: Policy
   log?: { warn: (obj: unknown, msg?: string) => void }
 }
 
@@ -72,11 +74,13 @@ export interface AssistantBackendOptions {
 export class AssistantBackend {
   readonly store: AssistantStore
   private readonly doFetch: typeof fetch
+  private readonly rules: Policy
   private readonly refreshing = new Map<string, Promise<ConnectionRow>>()
 
   constructor(private readonly o: AssistantBackendOptions) {
     this.store = new AssistantStore(o.pool, o.vault)
     this.doFetch = o.fetch ?? fetch
+    this.rules = o.policy ?? DEFAULT_POLICY
   }
 
   // ---- providers and connection -----------------------------------------------------------------------
@@ -321,17 +325,17 @@ export class AssistantBackend {
 
   async policy(principal: Principal, projectId: string): Promise<AiPolicy> {
     await this.member(principal.userId, projectId)
-    return policyFromSettings(await this.o.settings.effective(principal.userId, projectId))
+    return this.rules.policyFromSettings(await this.o.settings.effective(principal.userId, projectId))
   }
 
   async policyView(principal: Principal, projectId: string) {
     const policy = await this.policy(principal, projectId)
     return {
       policy,
-      modules: AI_MODULES.map((m) => ({ id: m.id, label: m.label, description: m.description, prefixes: m.prefixes, names: m.names ?? [], entitlement: m.entitlement ?? null, entitled: !m.entitlement || principal.entitlements.includes(m.entitlement) })),
+      modules: this.rules.modules.map((m) => ({ id: m.id, label: m.label, description: m.description, prefixes: m.prefixes, names: m.names ?? [], entitlement: m.entitlement ?? null, entitled: !m.entitlement || principal.entitlements.includes(m.entitlement) })),
       entitlements: principal.entitlements,
       operationClasses: OPERATION_CLASSES,
-      catalogue: OPERATION_CATALOGUE,
+      catalogue: this.rules.catalogue,
     }
   }
 
@@ -354,7 +358,7 @@ export class AssistantBackend {
 
   private prepare(principal: Principal, request: WireRequest, policy: AiPolicy) {
     try {
-      return prepareRequest(request, policy, principal.entitlements, this.o.vault, principal.userId)
+      return prepareRequest(request, policy, principal.entitlements, this.o.vault, principal.userId, this.rules)
     } catch (e) {
       if (e instanceof ForgedResultError) throw new AssistantError('forged-tool-result', e.message, 403)
       throw e
@@ -399,7 +403,7 @@ export class AssistantBackend {
       for (let round = 0; round < 3; round++) {
         last = await provider.respond({ credential, method: row.method, model: row.model, instructions: prepared.instructions, messages, tools: prepared.tools, maxOutputTokens: policy.limits.outputTokens, signal })
         if (last.type === 'final') return { value: { type: 'final', text: last.text, meta: meta(last, refusedAll) }, output: last, called: [], refused: refusedAll.map((r) => r.name), outcome: 'answer' }
-        const { allowed, refused } = screenCalls(last, prepared.tools, policy, principal.entitlements, Math.max(0, policy.limits.toolCalls - prepared.callsSoFar))
+        const { allowed, refused } = screenCalls(last, prepared.tools, policy, principal.entitlements, Math.max(0, policy.limits.toolCalls - prepared.callsSoFar), this.rules)
         refusedAll.push(...refused.map((r) => ({ name: r.name, reason: r.reason })))
         if (allowed.length) {
           return {
@@ -430,12 +434,12 @@ export class AssistantBackend {
     const credential = await this.credential(row).catch((e) => {
       throw providerFailure(e)
     })
-    const tools = (input.tools ?? []).filter((t) => screenCalls({ type: 'tool_calls', calls: [{ callId: 'x', name: t.name, arguments: {} }] }, [t], policy, principal.entitlements, 1).allowed.length)
+    const tools = (input.tools ?? []).filter((t) => screenCalls({ type: 'tool_calls', calls: [{ callId: 'x', name: t.name, arguments: {} }] }, [t], policy, principal.entitlements, 1, this.rules).allowed.length)
     const timeout = AbortSignal.timeout(policy.limits.timeoutSeconds * 1000)
     return this.audited<RespondOutput>(principal, row, { projectId: input.projectId, purpose: input.purpose, toolsOffered: tools.length, prompt: policy.storePrompts ? input : undefined }, async () => {
       const out = await provider.respond({ credential, method: row.method, model: row.model, instructions: input.instructions ?? INSTRUCTIONS, messages: input.messages, tools, maxOutputTokens: policy.limits.outputTokens, signal: signal ? AbortSignal.any([signal, timeout]) : timeout })
       if (out.type === 'final') return { value: out, output: out, called: [], refused: [], outcome: 'answer' }
-      const { allowed, refused } = screenCalls(out, tools, policy, principal.entitlements, policy.limits.toolCalls)
+      const { allowed, refused } = screenCalls(out, tools, policy, principal.entitlements, policy.limits.toolCalls, this.rules)
       return { value: { ...out, calls: allowed }, output: out, called: allowed.map((c) => c.name), refused: refused.map((r) => r.name), outcome: allowed.length ? 'tool-calls' : 'refused' }
     })
   }

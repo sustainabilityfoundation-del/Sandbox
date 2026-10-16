@@ -1,5 +1,5 @@
 /**
- * Per-module registration manifests (docs/specifications/module-registration.md, SDK 1.10).
+ * Per-module registration manifests (docs/specifications/module-registration.md, SDK 1.10, host typing SDK 1.11).
  *
  * A module package exports one manifest describing what it contributes to shared inventories: its
  * capability-coverage entries and AI operation classes. The shapes of `CapabilityEntry` and its
@@ -7,6 +7,8 @@
  * `AiModuleDescriptor` match services/assistant/src/policy.ts (`AiModule`); those files adopt these
  * types in later increments. Framework-free: no React, Fastify or service imports.
  */
+import type { ArtifactSource } from './artifacts'
+import type { SettingDefinition } from './settings'
 
 /** Where the capability is reached by a person. */
 export type CapabilitySurface = 'toolbar' | 'panel' | 'field' | 'header' | 'palette' | 'tree' | 'inspector' | 'dialog' | 'api'
@@ -71,35 +73,59 @@ export interface ModuleManifest {
 
 /**
  * What a server module may use when it registers. Structural, so the SDK needs no Fastify
- * dependency: the API host passes its own objects, which satisfy these shapes.
+ * dependency: the API host passes its own object, which extends this shape with its typed services
+ * (`ServerModuleManifest<ApiModuleHost>`; SDK 1.11).
  */
 export interface ServerModuleHost {
   /** The server application, typed by the host (a Fastify instance). */
   app: unknown
+  /** True in production: modules switch off development-only features (seeds, fake adapters). */
+  production?: boolean
+  /** Poll interval of event hubs in milliseconds (tests shorten it). */
+  eventPollMs?: number
   /** Host configuration and services the module may read (database, settings), typed by the host. */
   context?: Record<string, unknown>
 }
 
 /** What a server module's `register` may return. */
 export interface ServerModuleRegistration {
-  /** Source of saved artifacts for the assistant, typed by the host. */
-  artifactSource?: unknown
+  /** Source of saved artifacts: the host passes it to the project registry and to provisioning. */
+  artifactSource?: ArtifactSource
 }
 
-export interface ServerModuleManifest {
+/** Settings a server module contributes: the host registers them with the settings service for validation. */
+export interface ServerModuleSettings {
+  page: { id: string; title: string }
+  definitions: SettingDefinition[]
+}
+
+/** How a module takes part in project creation (docs/modules/projects/registration-and-provisioning.md). */
+export interface ServerModuleProvisioning {
+  /** Module ID in project module states and enablement settings; defaults to the manifest `id`. */
+  module?: string
+  /** Why no provisioning step is needed (shown in the project context); the module's `ArtifactSource.provision` replaces it. */
+  lazyReason: string
+}
+
+export interface ServerModuleManifest<H extends ServerModuleHost = ServerModuleHost> {
   id: string
   name: string
   /** URL base path (for example `/api/cad/v1`); it serves `/openapi.json`. */
   basePath: string
-  /** Documentation page for the API, if any. */
+  /** Title of the API documentation page served at `<basePath>/docs`, if the module has one. */
   docs?: string
+  /**
+   * When the host registers the module: `modules` (default) with the other installed modules, before the host-composed
+   * services (projects, settings, assistant); `after-host` after them, for a module that must see them running. An
+   * `after-host` module cannot contribute an artifact source, settings or provisioning (those are consumed earlier).
+   */
+  phase?: 'modules' | 'after-host'
   operations?: Record<string, OperationClass>
   aiModule?: AiModuleDescriptor
-  /** Settings the module contributes (typed by the host). */
-  settings?: unknown
-  provisioning?: unknown
-  migrate?: (host: ServerModuleHost) => void | Promise<void>
-  seed?: (host: ServerModuleHost) => void | Promise<void>
-  /** Registers the module's routes; may return an artifact source for the assistant. */
-  register(host: ServerModuleHost): ServerModuleRegistration | void | Promise<ServerModuleRegistration | void>
+  settings?: ServerModuleSettings
+  provisioning?: ServerModuleProvisioning
+  migrate?: (host: H) => void | Promise<void>
+  seed?: (host: H) => void | Promise<void>
+  /** Registers the module's routes; may return an artifact source for the assistant and projects. */
+  register(host: H): ServerModuleRegistration | void | Promise<ServerModuleRegistration | void>
 }
