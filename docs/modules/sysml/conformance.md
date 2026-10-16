@@ -119,3 +119,14 @@ payloads must be complete elements; commits record extra provenance fields (`num
 
 Not implemented: SysML v1.7 XMI import/export and the v1-to-v2 transformation are Phase 5 (brief
 §11). No compatibility with Cameo, Rhapsody or Enterprise Architect files is claimed.
+
+## CX-004 scope blocker (review required)
+
+Standalone `accept [name :] Type [via port]` already has parser, builder,
+serializer and a supported `accept-action` corpus case. `send` remains unsupported.
+Implementing send actions without a parallel model requires registering
+`SendActionUsage` in `packages/sysml-core/src/metamodel/metaclasses.ts` (currently
+absent). That file is outside CX-004's permitted paths. The package's definition
+of done also requires updating `packages/tool-sysml-modeler/help/language.md`,
+which is outside those paths. No parser or semantic behaviour has been changed.
+The coordinator must expand task scope before implementation can proceed.
