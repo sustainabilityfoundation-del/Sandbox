@@ -46,13 +46,15 @@ describe('connected assistant service', () => {
 
 describe('refusal wording', () => {
   it('names the AI access settings, not the subscription, when the policy removed an operation', async () => {
-    await import('../platform/tools')
+    // Only the tool this wording concerns: importing the whole registry loads the CAD kernel and is slow under load.
+    const { registerTool, getTool } = await import('../platform/registry')
+    const { conceptualizeTool } = await import('@ews/tool-conceptualize')
+    if (!getTool(conceptualizeTool.id)) registerTool(conceptualizeTool)
     const { DemoAssistantService } = await import('./DemoAssistantService')
     usePolicyView.setState({ view: view({ workspace: 'propose', conceptualize: 'off' }) })
     const service = new DemoAssistantService({ thinkingMs: 0 })
     const r = await service.respond({ history: [], turn: { text: 'Create a concept for a compact gripper that holds 2 kg', context: { selection: [] } as never, toolResults: [] }, tools: [] }, new AbortController().signal)
     expect(r.type === 'final' && r.text).toMatch(/AI access to Conceptualize is off/)
     expect(r.type === 'final' && r.text).not.toMatch(/subscription/)
-    // Importing the whole tool registry (CAD kernel included) can exceed the default 5 s under parallel load.
-  }, 30_000)
+  })
 })
