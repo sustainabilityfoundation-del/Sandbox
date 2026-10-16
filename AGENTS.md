@@ -48,6 +48,7 @@ that completes the workflow; do not substitute disconnected module demonstration
 | Conceptualize | `packages/tool-conceptualize`, `packages/conceptualize-client`, `services/conceptualize` | Concepts, alternatives, trade studies, decisions, evidence, implementations ([contracts](docs/specifications/conceptualize-contracts.md)) |
 | CAD Modeler | `packages/cad-core`, `packages/cad-kernel`, `packages/cad-client`, `services/cad`, `packages/tool-cad-modeler` | Native parametric model, commands, OCCT kernel adapter, modeler UI ([contracts](docs/specifications/cad-program-contracts.md)) |
 | SysML Modeler | `packages/sysml-core`, `services/sysml`, `packages/sysml-client`, `packages/tool-sysml-modeler` | SysML v2 semantic core, repository and API, modeler UI ([contracts](docs/specifications/sysml-program-contracts.md)) |
+| Project Management | `packages/projects-client`, `services/projects` | Projects, artifact registry, product registry, lifecycle, documents and blobs; the module's client manifest, assistant actions and help (module registration M1) ([ADR-0060](docs/decisions/0060-projects-module-placement.md)) |
 | GLB viewer | `apps/glb-viewer` | Standalone viewer (not part of the platform) |
 
 Work on one area at a time. A tool change must not require changes in another tool. If it needs a

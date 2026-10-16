@@ -50,4 +50,4 @@ checks, determinism and approval.
 ## Amendments on acceptance
 
 - Mutations return a DeclarativeProposal when the CAD service is connected; the closure service proposal is the fallback only.
-- The inventory has about 13 `cad-modeler.*` operations, not "one shared operation plus queries".
+- The inventory has 12 `cad-modeler.*` operations, not "one shared operation plus queries".

@@ -60,9 +60,8 @@ and the rest by targeted search, so each acceptance still needs the ADR read aga
   module-registration.md "stay where they are"; no M-step covers them. Fix the spec after M1 merges; ADR-0027 phase 4 and any SysML
   retirement become "flag or drop the manifest entry", keeping the cad and sysml IDs (demo-d1.mjs:202 checks cad).
 Coordinator decisions after two full reviews against main 186db1c (16 October 2026): **accept with factual amendments** 0020,
-0022-0026, 0030-0036, 0038, 0048, 0049, 0060-0062, 0066, 0068, 0072 (edits on branch docs/adr-acceptance, running). **Keep Proposed**: 0013
-(registry not built); 0021 (technically sound; owner: LGPL-2.1 suitability and 23 MB WASM hosting cost; the required licence notice is
-missing from dist/ and is being added); 0037 and 0063 (conflict with AGENTS.md identity rules: second server record with alias for
+0022-0026, 0030-0036, 0038, 0048, 0049, 0060-0062, 0066, 0068, 0072 (merged to main 46e9f2a; 22 ADRs incl. 0034 and 0049 without amendments). **Keep Proposed**: 0013
+(registry not built); 0021 (technically sound; owner: LGPL-2.1 suitability and 23 MB WASM hosting cost; the required licence notice now ships as apps/workspace/public/THIRD_PARTY_NOTICES.txt; OCCT 7.6 series inferred); 0037 and 0063 (conflict with AGENTS.md identity rules: second server record with alias for
 ACT-100/ROD-120; SysML-to-product links by metadata instead of represents) need an architecture decision. AGENTS.md is out of date on
 tools importing their own module packages: recorded as an exception pending owner decision (a).
 
