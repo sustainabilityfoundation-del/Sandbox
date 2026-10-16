@@ -19,7 +19,7 @@ export interface EmbeddedHandle {
 }
 
 /** Starts embedded PostgreSQL unless something already listens on its port. */
-export async function startEmbedded(cfg: { port: number; dataDir: string; user: string; password: string; persistent?: boolean }, log: (m: string) => void = console.log): Promise<EmbeddedHandle> {
+export async function startEmbedded(cfg: { port: number; dataDir: string; user: string; password: string; persistent?: boolean; postgresFlags?: string[] }, log: (m: string) => void = console.log): Promise<EmbeddedHandle> {
   const adminUrl = `postgres://${encodeURIComponent(cfg.user)}:${encodeURIComponent(cfg.password)}@127.0.0.1:${cfg.port}/postgres`
   if (await canConnect(adminUrl)) {
     log(`PostgreSQL already running on port ${cfg.port}; using it.`)
@@ -34,6 +34,7 @@ export async function startEmbedded(cfg: { port: number; dataDir: string; user: 
     persistent: cfg.persistent ?? true,
     // UTF-8 regardless of the OS code page (Windows would default to WIN1252).
     initdbFlags: ['--encoding=UTF8', '--locale=C'],
+    ...(cfg.postgresFlags ? { postgresFlags: cfg.postgresFlags } : {}),
     onLog: () => undefined,
     onError: (e: unknown) => log(`[postgres] ${String(e)}`),
   })
