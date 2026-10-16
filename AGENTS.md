@@ -146,7 +146,7 @@ On Windows PowerShell use `npm.cmd` if script execution is disabled.
   `registerPlatformModule`); it renders inside the canvas container (`.ws-tool-host`) with any rendering technology
   and contributes toolbar items rather than its own top-level chrome.
 - Icons: `AppIcon` with semantic names only. New names go in
-  `packages/design-system/src/icons/names.ts` and are mapped in `registry.tsx` (Lucide, or a
+  `packages/design-system/src/icons/names/<domain>.ts` (joined by `names.ts`) and are mapped in `registry.tsx` (Lucide, or a
   custom engineering glyph made with `createLucideIcon`, same interface). 16 px in toolbars, trees
   and menus, 18–20 px in primary navigation; `filled` for selected states. Icon-only buttons need an
   accessible label (shown as the tooltip, with any shortcut); keep text labels on important actions.

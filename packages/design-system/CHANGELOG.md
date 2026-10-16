@@ -1,5 +1,32 @@
 # @ews/design-system changelog
 
+## 1.3.0 (16 October 2026): command surfaces (CT-2c1)
+
+Additive; no tool changes are required. Specification: docs/specifications/capability-registry.md, Amendment CT-2c. The design system
+still imports no SDK; every surface takes neutral models. No new dependency (React Aria Components only).
+
+- **CommandBar:** `mode` (`action`, `toggle`, `tool`; `aria-pressed` for toggle and armed tool), `split` children rendered by `SplitCommandButton`
+  (each child has its own state), `exclusive` groups, `counts` in the group description and menu header, an all-planned group rendered
+  as one muted group button with a count ("0 of 6") that opens a menu of its planned commands, a width-driven "More tabs" menu
+  (`fitTabs`), a `quick` prop with `QuickBar` as a leading icon-only segment, and a `number` entry. New exports: `CommandMenuButton`,
+  `SplitCommandButton`, `QuickBar`, `fitTabs`, `activateCommand`, `groupCounts`, `groupCountText`, `isAllPlanned`, `CommandMode`, `CommandBarNumber`.
+- **New components:** `MenuBar` (WAI-ARIA menubar from React Aria `MenuTrigger` and `SubmenuTrigger`; roving arrows, Home, End, Escape,
+  mnemonic underlines when `keyTips` is set; sections, submenus, separators and checked items; tablet "Menu" button; phone sheet with
+  search first), `ToolPalette` (vertical toolbar, collapsible groups, armed tool, Escape disarms, phone "Add" sheet), `ContextCommands`
+  (floating, menu and sheet renderings; 40 px targets in the sheet), `CommandSessionStrip` (title, fields, Preview, OK with
+  `okUnavailableReason`, Cancel; Enter and Escape), `DockPanel` (promotes `PanelHeader`, `Drawer` and `Sheet`), and `NumberField` in `Fields`
+  (`unit`, `min`, `max`, `step`).
+- **Planned entries never run:** the neutral types have no `onInvoke` on a planned or unavailable state, and every surface goes through
+  `activateCommand`, which checks the state kind at runtime. Pressing one opens its explanation.
+- **Icons:** `icons/names.ts` is split into `icons/names/core.ts`, `glyphs.ts`, `cad.ts` and `sysml.ts` and joined into `ICON_NAMES`; existing
+  names and their order are unchanged and `names.ts` still exports `ICON_NAMES`, `IconName` and `isIconName`. New generic names:
+  `cmd-create`, `cmd-modify`, `cmd-draw`, `cmd-constrain`, `cmd-pattern`, `cmd-measure`, `cmd-exchange`, `cmd-view`, `sysml-definition`,
+  `sysml-usage`, `sysml-relation`, `diagram-tool` (Lucide icons and two `createLucideIcon` glyphs). A module adds its names to its
+  domain file in `names/`.
+- **Smaller changes:** `ToolbarGroup` accepts `description`; `MenuSection` accepts `flush`, `label`, `selectionMode` and `selectedKeys`
+  (checked items); `MenuItem` accepts `tone="muted"`; a command button now passes keys it does not handle on to its parents (an
+  `onKeyDown` handler on a React Aria control otherwise stops them).
+
 ## 1.2.0 (16 October 2026): CommandBar
 
 Additive; no tool changes are required.

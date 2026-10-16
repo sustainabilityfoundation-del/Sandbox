@@ -45,7 +45,7 @@ describe.skipIf(!haveChrome)('CommandBar in a browser', () => {
   afterAll(async () => {
     await browser?.close()
     await server?.close()
-  })
+  }, 60_000)
 
   async function open(query = '', viewport = { width: 1000, height: 600 }): Promise<Page> {
     const page = await browser.newPage({ viewport })
@@ -166,6 +166,38 @@ describe.skipIf(!haveChrome)('CommandBar in a browser', () => {
     expect(await page.getByRole('tablist').count()).toBe(0)
     await page.getByRole('button', { name: 'Edit', exact: true }).click()
     await page.getByRole('menuitem', { name: /Fillet, planned/ }).waitFor()
+    await page.close()
+  })
+
+  // The measured layout (no forced layout): below 520 px a phone, below 840 px a tablet, otherwise desktop.
+  it('at 520 px is the tablet layout: secondary commands move into a group menu, and nothing scrolls sideways', async () => {
+    const page = await open('', { width: 520, height: 600 })
+    await page.getByRole('button', { name: 'Edit: more commands' }).waitFor()
+    expect(await page.getByRole('button', { name: 'Fillet, planned' }).count()).toBe(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+    await page.close()
+  })
+
+  it('at 519 px is the phone layout: groups are menus and the tabs are a select', async () => {
+    const page = await open('tabs=1', { width: 519, height: 600 })
+    await page.getByRole('button', { name: 'Edit', exact: true }).waitFor()
+    expect(await page.getByRole('tablist').count()).toBe(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+    await page.close()
+  })
+
+  it('at 840 px is the desktop layout: every command is in the bar, tabs are a tab list, and nothing scrolls sideways', async () => {
+    const page = await open('tabs=1', { width: 840, height: 600 })
+    await page.getByRole('button', { name: 'Fillet, planned' }).waitFor()
+    await page.getByRole('tablist').waitFor()
+    expect(await page.getByRole('button', { name: 'Edit: more commands' }).count()).toBe(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+    await page.close()
+  })
+
+  it('at 839 px is the tablet layout', async () => {
+    const page = await open('', { width: 839, height: 600 })
+    await page.getByRole('button', { name: 'Edit: more commands' }).waitFor()
     await page.close()
   })
 
