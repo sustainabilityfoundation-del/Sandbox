@@ -3,6 +3,7 @@
  * use these hooks; the platform (workspace or harness) provides the host.
  */
 export { defineTool, type AnyToolDefinition, type ToolDefinition } from './defineTool'
+export type { ClientModule, ModuleHostEnv } from './modules'
 export { PlatformHostProvider, ToolScope, shallowEqual, useHostValue, usePlatformHost, useToolScope } from './host'
 export {
   hasUnsavedChanges,

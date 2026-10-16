@@ -16,6 +16,21 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.10.0 (2026-10-16)
+
+Type: additive
+
+What changed:
+- `contract/modules.ts` (root entry): `ModuleManifest`, `CapabilityEntry` and its unions (`CapabilitySurface`, `CapabilityEffect`,
+  `CapabilityStatus`, `AiCoverage`, `CapabilityModule` as `string`), `OperationClass`, `AiModuleDescriptor`,
+  `ServerModuleManifest`, `ServerModuleHost` (structural, no Fastify) and `ServerModuleRegistration`.
+- `/react`: `ClientModule` and `ModuleHostEnv`.
+
+Why: per-module registration manifests, so adding a module no longer edits shared append-only files
+(docs/specifications/module-registration.md). Types only in this version; the workspace and services adopt them in later increments.
+Migration for tools: none (no tool steps).
+Validated with: npm run check; npm run build
+
 ## 1.9.0 (2026-10-16)
 
 Type: additive
