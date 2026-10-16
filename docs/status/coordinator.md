@@ -41,7 +41,7 @@ uses built-in agent types with the same model and the definition file as instruc
 Next work (start as new agents, at most 2-3 implementers at once):
 
 | Integration run on integrate/codex (4e3239f) | integration-runner role (Sonnet) | main checkout | green: typecheck, unit 1255, all six DB suites, build, e2e demo-d1 and ai-fake-provider on fake ports 18787/15173/54399 |
-| Owner request: remove top workspace tabs (keep left), tab Inspector and AI Assistant in one right panel | module-agent role (Sonnet), UI | worktree branch ui/remove-top-tabs | running; owner words recorded in shell.md by the agent |
+| Owner request: remove top workspace tabs (keep left), tab Inspector and AI Assistant in one right panel | module-agent role (Sonnet), UI | merged to main via integrate/ui | done: typecheck, unit 1265, all DB suites, build, 14 e2e flows pass on fake ports. Not checked: tablet, dark theme, compact density screenshots. Two e2e flows fail independently of the UI change (help.mjs expects no SysML docs since PR #6; concept-visual refusal reason undefined): fix assigned |
 | Open item 1, increment I1: SDK 1.10 module manifest types | task-worker role (Sonnet) | merged to main | done: typecheck, unit (after one load-related rerun), build pass. Known flaky test under load: packages/tool-sysml-modeler/src/tool.test.ts CodeMirror completion (20 s timeout), seen twice |
 | Open item 1, increment I3: API host module list, createPolicy | task-worker role (Sonnet) | worktree branch feature/manifests-i3 from 9d096c9 | running. I2 (workspace) waits for the UI branch: both edit capabilities.ts and help.test.ts |
 ## Open items (priority order)
