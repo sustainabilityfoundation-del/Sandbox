@@ -16,6 +16,18 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.13.0 (2026-10-16)
+
+Type: additive
+
+What changed:
+- New `contract/capabilities.ts` (root entry): `ImplementationState`, `TestRef`, `CommandLayout`, `Placement`, `Prerequisite`, `Availability`, `AvailabilityContext` and the pure functions `implementationState(entry)`, `availability(entry, ctx)` and `checkPrerequisite`.
+- Optional `CapabilityEntry` fields (placement, description, icon, behaviour, contract, limitations, prerequisites, helpId, requirements, backlog, verifiedBy, entitlement, alternatives), optional `ModuleManifest.inventory` and `commandLayout`, optional `ToolbarItem.unavailableReason` (button items).
+- `@ews/platform-sdk/react`: `buildCommandModel(manifest, entries, items, availCtx)`. The harness now renders its toolbar through it and the design system's new `CommandBar`.
+Why: capability registry and capability-complete toolbars ([specification](../../docs/specifications/capability-registry.md), ADR-0074).
+Migration for tools: none. No tool steps: every new field is optional, and a tool without registry data renders as before.
+Validated with: npm run check; npm run build; harness of each tool.
+
 ## 1.12.0 (2026-10-16)
 
 Type: additive

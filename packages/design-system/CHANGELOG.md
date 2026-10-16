@@ -1,5 +1,12 @@
 # @ews/design-system changelog
 
+## 1.2.0 (16 October 2026): CommandBar
+
+Additive; no tool changes are required.
+
+- **New components:** `CommandBar` and `CommandInfoPopover` (capability-aware toolbar: tabs, labelled groups, four command states: ready, partial, planned, unavailable) and the types `CommandState`, `CommandBarCommand`, `CommandBarProps` and related. A planned command has no `onInvoke`, by type. Specification: docs/specifications/capability-registry.md §4.
+- `ToggleButton` accepts a `ref`. No new icon names or tokens.
+
 ## 1.1.0 (16 October 2026): Focused Canvas foundation
 
 Additive; no tool changes are required. Tools keep their semantic icon names, token names and component props.
