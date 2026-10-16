@@ -88,6 +88,17 @@ export async function projectEdges(db: Queryable, projectId: string, asOf?: stri
     [projectId],
   )
   for (const r of asm.rows) if (!at || r.created_at <= at) for (const s of r.scope.subjects ?? []) edges.push({ id: `applies:${r.id}:${s.id}`, type: 'applies-to', from: d('assumption', r.id), to: d(s.type, s.id), basis: r.basis, pinned: false, stored: 'derived', derived: true })
+  const cm = await db.query<{ id: string; parameters: { symbol: string; defaultBinding?: { ref: GRef } }[]; assumptions: GRef[]; created_at: Date }>(
+    'SELECT m.id::text, v.parameters, v.assumptions, m.created_at FROM conceptualize.calculation_models m JOIN conceptualize.calculation_model_revisions v ON v.model_id = m.id AND v.revision = m.current_revision WHERE m.project_id = $1',
+    [projectId],
+  )
+  for (const r of cm.rows) {
+    if (at && r.created_at > at) continue
+    for (const p of r.parameters) if (p.defaultBinding) edges.push({ id: `binds:${r.id}:${p.symbol}`, type: 'binds', from: d('calculation-model' as DesignEntityType, r.id), to: p.defaultBinding.ref, basis: null, pinned: !!p.defaultBinding.ref.revision, stored: 'derived', derived: true })
+    for (const a of r.assumptions ?? []) edges.push({ id: `binds:${r.id}:assumption:${a.id}`, type: 'binds', from: d('calculation-model' as DesignEntityType, r.id), to: a, basis: null, pinned: !!a.revision, stored: 'derived', derived: true })
+  }
+  const pe = await db.query<{ id: string; calculation: { modelId: string; modelRevision: number }; created_at: Date; basis: string }>("SELECT id::text, calculation, created_at, basis FROM conceptualize.evidence WHERE project_id = $1 AND calculation IS NOT NULL", [projectId])
+  for (const r of pe.rows) if (!at || r.created_at <= at) edges.push({ id: `produced-by:${r.id}`, type: 'produced-by', from: d('evidence', r.id), to: d('calculation-model' as DesignEntityType, r.calculation.modelId, r.calculation.modelRevision), basis: r.basis, pinned: true, stored: 'derived', derived: true })
   for (const e of edges) e.derived = e.stored === 'derived'
   return edges
 }

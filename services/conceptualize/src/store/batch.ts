@@ -3,7 +3,9 @@ import addFormatsModule from 'ajv-formats'
 import { Type, type TSchema } from '@sinclair/typebox'
 import { forbidden, invalid, ServiceError } from '../errors'
 import { roleAllows } from '../domain/rules'
+import * as C from '../http/calcSchemas'
 import * as D from '../http/designSchemas'
+import { createCalculationModel } from './calculations'
 import * as S from '../http/schemas'
 import { addMember, createDecision, createSet, flagDecision, getDecision, recordDecision } from './alternatives'
 import { createAssumption } from './assumptions'
@@ -73,7 +75,7 @@ export const BATCH_BODIES: Record<string, TSchema> = {
   recordDecision: Type.Object({ ...Id, reason: Type.Optional(Type.String({ maxLength: 2000 })), expectedRevision: Type.Optional(Type.Integer({ minimum: 1 })) }, { additionalProperties: false }),
   flagDecisionForReview: withFields(D.ReviewFlag, Id),
   createImplementation: R1Implementation,
-  createCalculationModel: Type.Object({}, { additionalProperties: true }),
+  createCalculationModel: C.CalculationModelCreate,
   // Conceptualize extensions
   updateConcept: withFields(S.ConceptPatch, { ...Id, ...Expected }, ['expectedRevision']),
   updateFunction: withFields(D.FunctionPatch, { ...Id, ...Expected }, ['expectedRevision']),
@@ -121,8 +123,6 @@ export async function runBatch(ctx: Ctx, request: D.BatchRequestDto) {
     const body = substitute(item.body, ids, `${path}.body`) as Record<string, unknown>
     let out: Result
     try {
-      if (item.op === 'createCalculationModel') throw notImplemented('createCalculationModel arrives with CR-C8 (calculation models); it is not available yet.')
-      if (item.op === 'createEvidence' && 'calculation' in body) throw notImplemented('Evidence with a calculation model reference (calculation) arrives with CR-C8; record the manifest in manifest for now.')
       const validate = validatorFor(item.op)
       if (!validate(body)) {
         const fields = Object.fromEntries((validate.errors ?? []).map((e) => [`${path}.body${e.instancePath.replace(/\//g, '.')}`, `${e.message ?? 'invalid'}${e.params && 'additionalProperty' in e.params ? ` (${e.params.additionalProperty})` : ''}`]))
@@ -207,6 +207,8 @@ async function execute(ctx: Ctx, op: string, body: Record<string, unknown>): Pro
       const d = await flagDecision(ctx, id, flag)
       return { id: d.id, key: d.key, revision: d.recordVersion }
     }
+    case 'createCalculationModel':
+      return createCalculationModel(ctx, body as C.CalculationModelCreateDto)
     case 'createImplementation': {
       const b = body as { name: string; description?: string; status?: S.ImplementationCreateDto['status']; concepts?: { conceptId: string; realizedConceptRevision?: number | null }[]; conceptIds?: string[]; artifacts?: S.ImplementationCreateDto['artifacts']; reason?: string }
       if (b.concepts?.some((c) => c.realizedConceptRevision != null)) throw notImplemented('realizedConceptRevision arrives with CR-C11 (implementation synchronization).')

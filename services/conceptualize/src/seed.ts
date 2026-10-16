@@ -5,6 +5,7 @@ import { assumptionsFromStatements } from './store/assumptions'
 import { createConstraint } from './store/constraints'
 import { createDesignLink } from './store/designLinks'
 import { createFunction } from './store/functions'
+import { createCalculationModel, evaluateCalculation } from './store/calculations'
 import { changeMaturity, createConcept } from './store/concepts'
 import { withTransaction, type Ctx } from './store/context'
 import { createEvidence, createImplementation, createLink } from './store/implementations'
@@ -56,8 +57,10 @@ export const SEED_REQUIREMENTS = {
 export async function seedConcepts(pool: Pool): Promise<{ seeded: boolean; message: string }> {
   const exists = await pool.query('SELECT 1 FROM conceptualize.concepts WHERE id = $1', [SEED_IDS.actuator])
   if (exists.rowCount) {
-    const knowledge = await seedDesignKnowledge(pool)
-    return { seeded: knowledge, message: knowledge ? 'Conceptualize seed present; added the design-knowledge examples (functions, constraints, assumptions).' : 'Conceptualize seed already present; nothing changed.' }
+    const designKnowledge = await seedDesignKnowledge(pool)
+    const calculations = await seedCalculations(pool)
+    const knowledge = designKnowledge || calculations
+    return { seeded: knowledge, message: knowledge ? 'Conceptualize seed present; added the design-knowledge examples (functions, constraints, assumptions, calculation model).' : 'Conceptualize seed already present; nothing changed.' }
   }
   const as = <T>(actor: string, role: string, fn: (ctx: Ctx) => Promise<T>) =>
     withTransaction(pool, { projectId: SEED_PROJECT, actor, role, provenance: { sourceKind: 'system' } }, fn)
@@ -255,6 +258,7 @@ export async function seedConcepts(pool: Pool): Promise<{ seeded: boolean; messa
   })
   await as('eli', 'editor', (ctx) => seedCompactActuator(ctx))
   await seedDesignKnowledge(pool)
+  await seedCalculations(pool)
   return { seeded: true, message: 'Seeded example Concepts (ACT-100, power transmission alternatives, propulsion decompositions, 500 N compact actuator alternatives).' }
 }
 
@@ -448,6 +452,33 @@ export async function seedDesignKnowledge(pool: Pool): Promise<boolean> {
     }, { id: CONSTRAINT_SEED_IDS.load })
     const { rows: all } = await ctx.db.query<{ id: string }>('SELECT id FROM conceptualize.concepts WHERE project_id = $1', [SEED_PROJECT])
     await assumptionsFromStatements(ctx, all.map((c) => c.id))
+  })
+  return true
+}
+
+export const CALCULATION_SEED_IDS = { rodBuckling: 'ca1c0000-0000-4000-8000-000000000001' }
+
+/**
+ * CR-C8 example (PRJ-ACT100 only, runs once): the engine library's Euler buckling model for the ACT-100 rod and
+ * an evidence record of its evaluation. The library model is an unvalidated AI hypothesis, so the result is an
+ * estimate; the service reproduces the manifest before it is stored.
+ */
+export async function seedCalculations(pool: Pool): Promise<boolean> {
+  const exists = await pool.query('SELECT 1 FROM conceptualize.calculation_models WHERE id = $1', [CALCULATION_SEED_IDS.rodBuckling])
+  if (exists.rowCount) return false
+  await withTransaction(pool, { projectId: SEED_PROJECT, actor: 'eli', role: 'editor', provenance: { sourceKind: 'system' } }, async (ctx) => {
+    const m = await createCalculationModel(ctx, { fromLibrary: 'lib.column.euler-round', name: 'ACT-100 rod buckling (Euler)', reason: 'Seeded example' , id: CALCULATION_SEED_IDS.rodBuckling })
+    const literal = { kind: 'literal' as const, basis: 'user-assertion' as const }
+    const inputs = { F: { value: 12, unit: 'kN', source: literal }, E: { value: 210, unit: 'GPa', source: literal }, Sy: { value: 600, unit: 'MPa', source: literal }, d: { value: 25, unit: 'mm', source: literal }, L: { value: 600, unit: 'mm', source: literal }, K: { value: 1, unit: '-', source: literal }, n: { value: 2, unit: '-', source: literal } }
+    const r = await evaluateCalculation(ctx.db, SEED_PROJECT, m.id, { inputs, uncertainty: 'point' })
+    await createEvidence(ctx, {
+      subjects: [{ module: 'conceptualize', type: 'concept', id: SEED_IDS.axialLoad }, { module: 'conceptualize', type: 'concept', id: SEED_IDS.actuator }],
+      kind: 'calculation',
+      title: 'Rod buckling capacity (Euler, library model)',
+      summary: 'Ø25 mm steel rod, 600 mm, pinned–pinned, design factor 2 against the 12 kN operating load.',
+      basis: r.basis,
+      calculation: { modelId: m.id, modelRevision: m.revision, manifest: r.manifest },
+    })
   })
   return true
 }

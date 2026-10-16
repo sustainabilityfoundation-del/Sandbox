@@ -46,6 +46,8 @@ interface ScoreRow {
   rationale: string
   evidence_id: string | null
   entered_unit: string | null
+  evidence_output: string | null
+  qualification: TradeStudyDto['scores'][number]['qualification']
   created_at: Date
   created_by: string
   source_kind: TradeStudyDto['scores'][number]['provenance']['sourceKind']
@@ -86,6 +88,8 @@ export async function getStudy(db: Queryable, projectId: string, id: string): Pr
     rationale: r.rationale,
     evidenceId: r.evidence_id,
     enteredUnit: r.entered_unit,
+    evidenceOutput: r.evidence_output ?? null,
+    qualification: r.qualification ?? null,
     studyRevision: r.study_revision,
     createdAt: isoRequired(r.created_at),
     createdBy: r.created_by,
@@ -260,8 +264,32 @@ export async function putScores(ctx: Ctx, id: string, scores: ScoreInputDto[], e
     }
     if (ctx.provenance.sourceKind === 'assistant' && !ASSISTANT_BASES.includes(sc.basis)) errors[`${path}.basis`] = 'the assistant may only score as ai-hypothesis, assumption or estimate'
     if (sc.basis === 'calculated') {
-      const ok = ctx.provenance.sourceKind !== 'assistant' && sc.evidenceId && (await ctx.db.query(`SELECT 1 FROM conceptualize.evidence WHERE id = $1 AND basis IN ('calculated', 'evidence')`, [sc.evidenceId])).rowCount
-      if (!ok) errors[`${path}.evidenceId`] = 'basis calculated needs a calculated evidence record (and cannot come from the assistant until CR-C8)'
+      // CR-C8: calculated evidence is verified on write, so the assistant may cite it too.
+      const ok = sc.evidenceId && (await ctx.db.query(`SELECT 1 FROM conceptualize.evidence WHERE id = $1 AND project_id = $2 AND basis IN ('calculated', 'evidence')`, [sc.evidenceId, ctx.projectId])).rowCount
+      if (!ok) errors[`${path}.evidenceId`] = 'basis calculated needs a calculated evidence record of this project'
+    }
+    // C11 (Q5): a score taken from calculated evidence equals that output and copies its qualification.
+    let qualification: Record<string, unknown> | null = null
+    if (sc.evidenceOutput && !sc.clear) {
+      const { rows } = sc.evidenceId ? await ctx.db.query<{ key: string; qualifications: { outputs: { symbol: string; unit: string; value: number; range: { kind: 'point' | 'sampled-range' | 'bounds'; quality?: 'exact' | 'enclosure'; min?: number; max?: number } }[] } | null; calculation: { manifest: unknown } | null }>('SELECT key, qualifications, calculation FROM conceptualize.evidence WHERE id = $1 AND project_id = $2', [sc.evidenceId, ctx.projectId]) : { rows: [] }
+      const ev = rows[0]
+      const q = ev?.qualifications ?? (ev?.calculation ? (await import('@ews/engineering-calc')).qualifyManifest(ev.calculation.manifest as never) : null)
+      const out = q?.outputs.find((o) => o.symbol === sc.evidenceOutput)
+      if (!ev || !q) errors[`${path}.evidenceOutput`] = 'a score with evidenceOutput references calculated evidence (evidenceId)'
+      else if (!out) errors[`${path}.evidenceOutput`] = `evidence ${ev.key} has no output ${sc.evidenceOutput}`
+      else if (c.scale !== 'quantity') errors[`${path}.evidenceOutput`] = 'only quantity criteria take scores from calculated outputs'
+      else {
+        const unit = sc.unit ?? c.unit!
+        const near = (a: number | null | undefined, b: number) => a != null && Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b), 1e-300)
+        const conv = (v: number) => convert(v, out.unit, unit)
+        if (sc.value != null && !near(sc.value, conv(out.value))) errors[`${path}.value`] = `the score differs from ${ev.key} ${out.symbol} = ${out.value} ${out.unit}`
+        if (out.range.kind === 'point') {
+          if (sc.low != null || sc.high != null) errors[`${path}.low`] = `${ev.key} ${out.symbol} is a point value; a score range cannot be taken from it`
+        } else if ((sc.low != null || sc.high != null) && (!near(sc.low, conv(out.range.min!)) || !near(sc.high, conv(out.range.max!)))) {
+          errors[`${path}.low`] = `the score range differs from the ${out.range.kind} of ${ev.key} ${out.symbol}`
+        }
+        qualification = { source: 'calculation', evidenceId: sc.evidenceId, symbol: out.symbol, kind: out.range.kind, ...(out.range.kind === 'bounds' ? { quality: out.range.quality } : {}) }
+      }
     }
     if (sc.basis === 'evidence') {
       const ok = sc.evidenceId && (await ctx.db.query(`SELECT 1 FROM conceptualize.evidence WHERE id = $1 AND basis = 'evidence' AND concept_id = $2`, [sc.evidenceId, sc.conceptId])).rowCount
@@ -290,7 +318,7 @@ export async function putScores(ctx: Ctx, id: string, scores: ScoreInputDto[], e
     } else {
       value = low = high = qualitative = null
     }
-    rows.push([id, sc.criterionId, sc.conceptId, revision, value, low, high, qualitative, !!sc.clear, sc.basis, (sc.rationale ?? '').trim(), sc.evidenceId ?? null, c.scale === 'quantity' ? (sc.unit ?? c.unit) : null, ctx.now, ctx.actor, sourceKind, conversationId, proposalId])
+    rows.push([id, sc.criterionId, sc.conceptId, revision, value, low, high, qualitative, !!sc.clear, sc.basis, (sc.rationale ?? '').trim(), sc.evidenceId ?? null, c.scale === 'quantity' ? (sc.unit ?? c.unit) : null, ctx.now, ctx.actor, sourceKind, conversationId, proposalId, sc.evidenceOutput && !sc.clear ? sc.evidenceOutput : null, qualification ? JSON.stringify(qualification) : null])
   }
   if (Object.keys(errors).length) throw invalid('Some scores are not valid.', errors)
   const keys = new Set<string>()
@@ -299,8 +327,8 @@ export async function putScores(ctx: Ctx, id: string, scores: ScoreInputDto[], e
     if (keys.has(k)) throw invalid('Each criterion and option may be scored once per request.', { scores: 'duplicate' })
     keys.add(k)
     await ctx.db.query(
-      `INSERT INTO conceptualize.trade_scores (study_id, criterion_id, concept_id, study_revision, value, low, high, qualitative, cleared, basis, rationale, evidence_id, entered_unit, created_at, created_by, source_kind, conversation_id, proposal_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+      `INSERT INTO conceptualize.trade_scores (study_id, criterion_id, concept_id, study_revision, value, low, high, qualitative, cleared, basis, rationale, evidence_id, entered_unit, created_at, created_by, source_kind, conversation_id, proposal_id, evidence_output, qualification)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
       r,
     )
   }

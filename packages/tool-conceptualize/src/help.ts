@@ -31,6 +31,8 @@ const OPERATIONS: [string, string][] = [
   ['conceptualize.revise_constraint', 'conceptualize.knowledge'],
   ['conceptualize.record_evidence', 'conceptualize.knowledge'],
   ['conceptualize.review_flags', 'conceptualize.decision'],
+  ['conceptualize.evaluate_calculation', 'conceptualize.calculations'],
+  ['conceptualize.record_calculation', 'conceptualize.calculations'],
 ]
 
 const CONTROLS: [string, string][] = [
@@ -88,6 +90,15 @@ const CONTROLS: [string, string][] = [
   ['conceptualize.decision.validity', 'conceptualize.decision'],
   ['conceptualize.evidence.review', 'conceptualize.knowledge'],
   ['conceptualize.evidence.results', 'conceptualize.knowledge'],
+  ['conceptualize.knowledge.calculation', 'conceptualize.calculations'],
+  ['conceptualize.knowledge.calculations', 'conceptualize.calculations'],
+  ['conceptualize.calculation.create', 'conceptualize.calculations'],
+  ['conceptualize.calculation.evaluate', 'conceptualize.calculations'],
+  ['conceptualize.calculation.record', 'conceptualize.calculations'],
+  ['conceptualize.calculation.validation', 'conceptualize.calculations'],
+  ['conceptualize.calculation.qualifications', 'conceptualize.calculations'],
+  ['conceptualize.calculation.limits', 'conceptualize.calculations'],
+  ['conceptualize.calculation.evidence', 'conceptualize.calculations'],
 ]
 
 export const conceptualizeHelp: HelpManifest = {

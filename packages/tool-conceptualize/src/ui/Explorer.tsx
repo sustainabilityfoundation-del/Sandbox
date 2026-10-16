@@ -3,6 +3,7 @@ import { useToolViewState } from '@ews/platform-sdk/react'
 import type { ConceptListItem, Graph, Relationship } from '@ews/conceptualize-client'
 import { useMemo, useState, type KeyboardEvent } from 'react'
 import { MATURITIES, MATURITY, RECORDS, RELATION_LABEL, type ConceptualizeViewState, type RecordsFilter } from '../domain'
+import { NewCalculationForm } from './Calculations'
 import { NewFunctionForm, RecordList } from './Knowledge'
 import { MaturityBadge } from './common'
 
@@ -208,6 +209,7 @@ export function ExplorerPanel({ graph, loading }: { graph: Graph | undefined; lo
       </div>
       {recordType && <RecordList type={recordType} />}
       {recordType === 'function' && <NewFunctionForm />}
+      {recordType === 'calculation' && <NewCalculationForm />}
       {!recordType && loading && !graph && <LoadingState label="Loading Concepts" />}
       {!recordType && graph && state.explorerMode === 'graph' && <GraphView graph={graph} openId={state.conceptId} onOpen={open} />}
       {!recordType && graph && state.explorerMode === 'tree' && flat && (

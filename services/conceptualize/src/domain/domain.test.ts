@@ -152,3 +152,20 @@ describe('maturity assessment', () => {
     expect(assess({ ...empty, decisions: { recorded: 1, accepted: true, proposed: 0 } }).suggestedMaturity).toBe('selected')
   })
 })
+
+describe('trade-study qualifications (C11 Q6)', () => {
+  const crit = [{ id: 'k', name: 'Mass', weight: 1, direction: 'minimize' as const, scale: 'quantity' as const, unit: 'kg' }]
+  const scores = (kind: 'sampled-range' | 'bounds') => [
+    { criterionId: 'k', conceptId: 'a', value: 1, low: 0.9, high: 1.1, basis: 'calculated' as const, qualification: { kind, ...(kind === 'bounds' ? { quality: 'enclosure' as const } : {}) } },
+    { criterionId: 'k', conceptId: 'b', value: 3, low: 2.9, high: 3.1, basis: 'estimate' as const },
+  ]
+  it('never ranks robustly on sampled ranges; enclosures may support robustness', () => {
+    const sampled = evaluateStudy(crit, ['a', 'b'], scores('sampled-range'))
+    expect(sampled.ranking).toBe('uncertain')
+    expect(sampled.qualifications).toMatchObject({ sampledRanges: 1, statedRanges: 1, robustnessNote: expect.stringMatching(/not bounds/) })
+    const enclosed = evaluateStudy(crit, ['a', 'b'], scores('bounds'))
+    expect(enclosed.ranking).toBe('robust')
+    expect(enclosed.qualifications).toMatchObject({ enclosures: 1, statedRanges: 1 })
+    expect(enclosed.qualifications.robustnessNote).toBeUndefined()
+  })
+})

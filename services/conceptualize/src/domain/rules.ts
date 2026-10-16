@@ -227,13 +227,13 @@ export const DECISION_OUTCOMES = ['accepted', 'rejected', 'deferred'] as const
 /** Which artifact modules are only reachable through a labelled test adapter (contracts §9). */
 export const TEST_ADAPTER_MODULES = ['analysis'] as const
 
-export const KEY_PREFIX = { concept: 'CON', decision: 'DEC', study: 'TS', implementation: 'IMP', set: 'ALT', evidence: 'EVD', function: 'FN', constraint: 'CST', assumption: 'ASM' } as const
+export const KEY_PREFIX = { concept: 'CON', decision: 'DEC', study: 'TS', implementation: 'IMP', set: 'ALT', evidence: 'EVD', function: 'FN', constraint: 'CST', assumption: 'ASM', calculation: 'CALC' } as const
 
 // ---- design knowledge (docs/modules/design-reasoning, CR-C1…C6) ------------------------------------------
 
 /** Design entity types (SDK DesignEntityType, CR-S1; defined here until the SDK carries it). */
-export type DesignEntityType = 'function' | 'concept' | 'implementation' | 'constraint' | 'assumption' | 'evidence' | 'decision' | 'alternative-set' | 'trade-study' | 'exploration' | 'statement'
-export const DESIGN_ENTITY_TYPES: DesignEntityType[] = ['function', 'concept', 'implementation', 'constraint', 'assumption', 'evidence', 'decision', 'alternative-set', 'trade-study', 'exploration', 'statement']
+export type DesignEntityType = 'function' | 'concept' | 'implementation' | 'constraint' | 'assumption' | 'evidence' | 'decision' | 'alternative-set' | 'trade-study' | 'exploration' | 'calculation-model' | 'statement'
+export const DESIGN_ENTITY_TYPES: DesignEntityType[] = ['function', 'concept', 'implementation', 'constraint', 'assumption', 'evidence', 'decision', 'alternative-set', 'trade-study', 'exploration', 'calculation-model', 'statement']
 export interface DesignRef {
   module: 'conceptualize'
   type: DesignEntityType

@@ -190,6 +190,34 @@ Deviations 1–5 accepted.
   - The record holds the document revision, kernel name and version, measurement spec and results digest.
   - Re-verification is a Node regeneration (`@ews/cad-kernel/node`).
 
+### CR-C8 calculation models and the C11 storage contract
+
+Implemented from `contract-change-requests.md` ("CR-C8 and C11: storage contract", Q1–Q8). Conceptualize depends on `@ews/engineering-calc` ^0.3.0 (boundary rule in a COORDINATOR REVIEW commit). It uses `compileModel`, `validateModel`, `evaluateModel`, `verifyManifest` and `qualifyManifest`, and never re-implements their semantics.
+- **Models (CALC-…)**, migration `0006_calculation_models.sql`:
+  - Immutable revisions with the engine digest, assumptions, sources and library origin. Parameters may have a default binding: an Assumption's `quantity`, a Constraint's `bound`, a Concept attribute, or an artifact property.
+  - The engine validates units and expressions on write. AI-proposed and library models start `unvalidated` (R1-5).
+  - A reviewer records **validation**, never the assistant. A new revision resets it to unvalidated. Authors may deprecate.
+  - Endpoints: list, create (or `fromLibrary`), get by revision, revise, revisions, validate, a read-only **evaluate** (bindings resolved on the server), and the library.
+  - The batch op `createCalculationModel` is supported (no longer 501).
+- **Evidence (Q1, Q2, Q3, Q7)**:
+  - `calculation: { modelId, modelRevision, manifest }` is re-verified against the stored model revision; a manifest that does not reproduce gives 422 with `details.reasons`. The basis may not exceed `manifest.basis`.
+  - `verification` and `qualifications` (= `qualifyManifest`) are recorded at insert; values supplied by a client are ignored. Older rows are `computed-on-read`.
+  - Basis `calculated` now needs such a calculation, which closes D6 properly. Because calculations are verified, the assistant may record calculated evidence.
+  - Evidence never changes verification status.
+- **Scores (Q5, Q6)**: a score naming `evidenceOutput` must equal the output (unit-converted, relative 1e-9), and a range cannot come from a point. The qualification is copied; a client's is ignored. Study results carry `qualifications` counts. A ranking is never `robust` on sampled ranges; enclosures may support robustness.
+- **Rationale (Q8)**: support entries for calculated evidence list `checks` (status, statusBasis) and `limits`.
+- **Graph**: derived `binds` (model → bound record, model → assumption) and `produced-by` (evidence → model revision). `calculation-model` is a DesignRef type, a link endpoint for depends-on/derived-from, and an ArtifactSource kind.
+- **UI**:
+  - Explorer → Calculations; the inspector shows parameters, bindings, relations and validity conditions.
+  - Evaluate supports point and interval modes. *Record as evidence* lets the service reproduce the calculation.
+  - Validate and Deprecate are available.
+  - Evidence cards show the reproduction, the qualifications and the limits text. Trade-study cells show score qualification labels.
+  - Labels follow the contract vocabulary §4 (`calcLabels.ts`, unit-tested). Nothing reproducible reads as verified, and no range shows as satisfied unless proven.
+- **Assistant**: `conceptualize.evaluate_calculation` (calculate class) and `conceptualize.record_calculation` (service proposal). Policy classes are in the COORDINATOR REVIEW commit.
+- **Seed** (PRJ-ACT100 only, once): CALC-001 *ACT-100 rod buckling (Euler)* from the library, plus one estimate evidence record of its evaluation, reproduced at seed time.
+- **Help**: `conceptualize.calculations` (new page).
+- Not done: evaluation in a worker with hard isolation (`@ews/engineering-calc/node`). The service evaluates in-process with the engine's operation and time budgets.
+
 ### Project scoping (integration milestone 1, C13)
 
 `test/scoping.test.ts` (5 tests, real PostgreSQL) uses a second project with memberships.

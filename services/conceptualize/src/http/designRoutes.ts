@@ -12,7 +12,9 @@ import { convertToFunction, createFunction, listFunctionRevisions, listFunctions
 import { paths, search, traverse } from '../store/graph'
 import { getEvidence, reviewEvidence } from '../store/implementations'
 import { createFunctionDecomposition } from '../store/relationships'
+import * as C from './calcSchemas'
 import * as D from './designSchemas'
+import { calculationLibrary, createCalculationModel, evaluateCalculation, listCalculationModelRevisions, listCalculationModels, requireCalculationModel, setCalculationValidation, updateCalculationModel } from '../store/calculations'
 import { registerRoute, type HostServices, type RequestContext, type RouteSpec } from './route'
 import * as S from './schemas'
 
@@ -233,6 +235,57 @@ export function registerDesignRoutes(app: FastifyInstance, services: HostService
     summary: 'Append a review (accepted or rejected) to an evidence record (reviewer; not the person who recorded it for acceptance)', params: PI('evidenceId'), body: D.EvidenceReviewCreate,
     permission: 'decide', idempotency: 'optional', responses: { 200: { description: 'Evidence', schema: D.EvidenceV }, ...WRITE },
     handler: async (rc) => rc.write(async (ctx) => ({ body: await reviewEvidence(ctx, rc.params.evidenceId, body(rc)) })),
+  })
+
+  // ---- calculation models (CR-C8) ------------------------------------------------------------------------------
+  route({
+    method: 'GET', path: '/projects/{projectId}/calculation-models', operationId: 'listCalculationModels', tag: 'Calculations', summary: 'Calculation models (deprecated ones only with a status filter)', params: P,
+    query: Type.Object({ text: Type.Optional(Type.String({ maxLength: 200 })), status: Type.Optional(Type.String()) }, { additionalProperties: false }),
+    permission: 'read', crossModule: true, responses: { 200: { description: 'Models', schema: Type.Array(C.CalculationModelDto) }, ...READ },
+    handler: async (rc) => ({ body: await rc.read((ctx) => listCalculationModels(ctx.db, rc.projectId, rc.query as { text?: string; status?: string })) }),
+  })
+  route({
+    method: 'POST', path: '/projects/{projectId}/calculation-models', operationId: 'createCalculationModel', tag: 'Calculations',
+    summary: 'Create a calculation model (validated by the calculation engine; optionally from a library entry)', params: P, body: C.CalculationModelCreate,
+    permission: 'author', idempotency: 'required', responses: { 201: { description: 'Created', schema: C.CalculationModelDto }, ...WRITE },
+    handler: async (rc) => rc.write(async (ctx) => { const m = await createCalculationModel(ctx, body(rc)); return { status: 201, body: m, etag: m.revision, headers: { Location: `${base(rc)}/calculation-models/${m.id}` } } }),
+  })
+  route({
+    method: 'GET', path: '/projects/{projectId}/calculation-models/{modelId}', operationId: 'getCalculationModel', tag: 'Calculations', summary: 'Read a calculation model (current or an exact revision)', params: PI('modelId'),
+    query: Type.Object({ revision: Type.Optional(Type.Integer({ minimum: 1 })) }, { additionalProperties: false }), permission: 'read', crossModule: true, concurrency: CONC,
+    responses: { 200: { description: 'Model', schema: C.CalculationModelDto }, ...READ },
+    handler: async (rc) => { const m = await rc.read((ctx) => requireCalculationModel(ctx.db, rc.projectId, rc.params.modelId, (rc.query as { revision?: number }).revision)); return { body: m, etag: m.revision } },
+  })
+  route({
+    method: 'PATCH', path: '/projects/{projectId}/calculation-models/{modelId}', operationId: 'reviseCalculationModel', tag: 'Calculations', summary: 'Revise a calculation model (new revision; validation is reset)', params: PI('modelId'), body: C.CalculationModelPatch,
+    permission: 'author', idempotency: 'optional', concurrency: CONC, responses: { 200: { description: 'Model', schema: C.CalculationModelDto }, ...WRITE },
+    handler: async (rc) => { const b = body<C.CalculationModelPatchDto>(rc); const ex = rc.expected(b.expectedRevision); return rc.write(async (ctx) => { const m = await updateCalculationModel(ctx, rc.params.modelId, b, ex); return { body: m, etag: m.revision } }) },
+  })
+  route({
+    method: 'GET', path: '/projects/{projectId}/calculation-models/{modelId}/revisions', operationId: 'listCalculationModelRevisions', tag: 'Calculations', summary: 'Revisions of a calculation model', params: PI('modelId'),
+    permission: 'read', responses: { 200: { description: 'Revisions', schema: Type.Array(S.RevisionSummary) }, ...READ },
+    handler: async (rc) => ({ body: await rc.read(async (ctx) => { await requireCalculationModel(ctx.db, rc.projectId, rc.params.modelId); return listCalculationModelRevisions(ctx.db, rc.projectId, rc.params.modelId) }) }),
+  })
+  route({
+    method: 'POST', path: '/projects/{projectId}/calculation-models/{modelId}/validate', operationId: 'setCalculationModelValidation', tag: 'Calculations',
+    summary: 'Record the validation status of a calculation model (validated: reviewer or administrator, never the assistant)', params: PI('modelId'), body: C.ModelValidationChange,
+    permission: 'read', anyOf: ['author', 'decide'], idempotency: 'optional', concurrency: CONC, responses: { 200: { description: 'Model', schema: C.CalculationModelDto }, ...WRITE },
+    handler: async (rc) => {
+      const b = body<{ status: 'unvalidated' | 'validated' | 'deprecated'; expectedRevision?: number; reason: string }>(rc)
+      const ex = b.expectedRevision !== undefined || rc.request.headers['if-match'] ? rc.expected(b.expectedRevision) : undefined
+      return rc.write(async (ctx) => { const m = await setCalculationValidation(ctx, rc.params.modelId, b.status, ex, b.reason); return { body: m, etag: m.revision } })
+    },
+  })
+  route({
+    method: 'POST', path: '/projects/{projectId}/calculation-models/{modelId}/evaluate', operationId: 'evaluateCalculationModel', tag: 'Calculations',
+    summary: 'Evaluate a model revision (read-only): manifest and C11 qualifications; record them with createEvidence calculation', params: PI('modelId'), body: C.EvaluateRequest,
+    permission: 'read', crossModule: true, responses: { 200: { description: 'Result', schema: C.EvaluateResult }, ...WRITE },
+    handler: async (rc) => ({ body: await rc.read((ctx) => evaluateCalculation(ctx.db, rc.projectId, rc.params.modelId, body(rc))) }),
+  })
+  route({
+    method: 'GET', path: '/projects/{projectId}/calculation-library', operationId: 'calculationLibrary', tag: 'Calculations', summary: 'Engine library models (with sources, assumptions and limitations) to start from', params: P,
+    permission: 'read', crossModule: true, responses: { 200: { description: 'Entries', schema: Type.Array(C.LibraryEntryDto) }, ...READ },
+    handler: async () => ({ body: calculationLibrary() }),
   })
 
   // ---- batch (CR-C10) --------------------------------------------------------------------------------------

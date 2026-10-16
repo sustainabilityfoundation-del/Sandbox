@@ -1,5 +1,6 @@
 import { ActionError, argOptionalString, argString, type AssistantActionDefinition, type DemoPlanner, type ServiceProposalItem } from '@ews/platform-sdk'
-import type { BatchItem, ConstraintKind, DesignEntityType, DesignRef, Quantity } from '@ews/conceptualize-client'
+import type { BatchItem, ConstraintKind, DesignEntityType, DesignRef, EvaluateResult, Quantity } from '@ews/conceptualize-client'
+import { checkStatusLabel, limitsText, rangeLabel } from './calcLabels'
 import { formatQuantity } from './domain'
 import { assistantProvenance, connection, proposal, resolve, resolveRef, string, UUID } from './assistantShared'
 
@@ -465,6 +466,81 @@ designActions.push(
         summary: rows.length ? `${rows.length} decision(s) need attention` : `No recorded decision is under review or invalidated${concept ? ` for ${concept.key}` : ''}`,
         inspected: decisions.slice(0, 20).map((d) => ({ id: d.key, detail: d.validity ?? 'valid' })),
       }
+    },
+  },
+)
+
+// ---- CR-C8 calculation models (headless) --------------------------------------------------------------------
+
+async function modelOf(client: ReturnType<typeof connection>['client'], idOrKey: string) {
+  if (UUID.test(idOrKey)) return client.calculationModel(idOrKey)
+  const hit = (await client.calculationModels({ text: idOrKey })).find((m) => m.key.toUpperCase() === idOrKey.toUpperCase())
+  if (!hit) throw new ActionError('not-found', `${idOrKey} is not a calculation model of this project (key CALC-…).`)
+  return hit
+}
+const inputsArg = (args: Record<string, unknown>) =>
+  Array.isArray(args.inputs) ? Object.fromEntries((args.inputs as { symbol: string; value?: number; min?: number; max?: number; unit: string }[]).map((i) => [i.symbol, { value: i.value ?? null, ...(i.min !== undefined ? { min: i.min } : {}), ...(i.max !== undefined ? { max: i.max } : {}), unit: i.unit }])) : undefined
+const INPUTS_SCHEMA = { type: 'array', maxItems: 50, items: { type: 'object', properties: { symbol: string, value: { type: 'number' }, min: { type: 'number' }, max: { type: 'number' }, unit: string }, required: ['symbol', 'unit'], additionalProperties: false } }
+function summarize(r: EvaluateResult) {
+  return {
+    basis: r.basis,
+    outputs: r.qualifications.outputs.map((o) => ({ symbol: o.symbol, value: o.value, unit: o.unit, qualification: rangeLabel(o.range, o.unit) })),
+    checks: r.qualifications.checks.map((c) => ({ relation: c.text, status: c.status, statusBasis: c.statusBasis, label: checkStatusLabel(c.status, c.statusBasis), nominalMargin: `${c.margin} ${c.unit}` })),
+    validity: r.qualifications.validity,
+    limits: limitsText(r.qualifications.limits),
+    warnings: r.warnings,
+  }
+}
+
+designActions.push(
+  {
+    name: 'conceptualize.evaluate_calculation',
+    label: 'Evaluate a calculation model',
+    description:
+      'Evaluate a calculation model (CALC-…) read-only with the deterministic engine: inputs given (value or min/max with unit), else the parameter bindings (assumptions, constraints, Concept attributes) or defaults. Returns outputs and checks with their C11 qualifications (point value, exact bounds, enclosure, sampled values) and what the calculation does not establish. Nothing is stored.',
+    parameters: { type: 'object', properties: { modelId: string, inputs: INPUTS_SCHEMA, uncertainty: { type: 'string', enum: ['point', 'interval'] } }, required: ['modelId'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const m = await modelOf(client, argString(args, 'modelId'))
+      const r = await client.evaluateCalculation(m.id, { revision: m.revision, ...(inputsArg(args) ? { inputs: inputsArg(args) } : {}), uncertainty: (argOptionalString(args, 'uncertainty') ?? 'point') as 'point' | 'interval' })
+      return { kind: 'data', data: { model: `${m.key} ${m.name} rev ${m.revision} (${m.validationStatus})`, ...summarize(r) }, summary: `Evaluated ${m.key}: ${r.qualifications.checks.map((c) => `${c.text} ${c.status}`).join(', ') || 'no checks'}`, inspected: [{ id: m.key, detail: `revision ${m.revision}` }] }
+    },
+  },
+  {
+    name: 'conceptualize.record_calculation',
+    label: 'Prepare calculated evidence',
+    description:
+      'Prepare an evidence record of a calculation model evaluation (CALC-…) for subjects (CON-…, FN-…, CST-…). On Apply the service re-verifies the manifest against the model revision and stores the engine qualifications; the basis is what the engine allows (estimate for an unvalidated AI-hypothesis model or AI-hypothesis inputs, otherwise calculated). It never establishes model validity or requirement satisfaction.',
+    parameters: { type: 'object', properties: { modelId: string, subjects: { type: 'array', items: string, minItems: 1, maxItems: 20 }, inputs: INPUTS_SCHEMA, uncertainty: { type: 'string', enum: ['point', 'interval'] }, title: string }, required: ['modelId', 'subjects'], additionalProperties: false },
+    async run(args, ctx) {
+      const { client } = connection(ctx)
+      const m = await modelOf(client, argString(args, 'modelId'))
+      const subjects = await Promise.all((args.subjects as unknown[]).map((k) => resolveRef(client, String(k), ['concept', 'function', 'constraint', 'assumption'])))
+      const r = await client.evaluateCalculation(m.id, { revision: m.revision, ...(inputsArg(args) ? { inputs: inputsArg(args) } : {}), uncertainty: (argOptionalString(args, 'uncertainty') ?? 'point') as 'point' | 'interval' })
+      const title = argOptionalString(args, 'title') ?? `${m.key} ${m.name}`
+      const sum = summarize(r)
+      let createdId: string | undefined
+      return proposal({
+        title: `Record calculated evidence: ${title}`,
+        explanation: `Evaluation of ${m.key} revision ${m.revision} (${m.validationStatus}). Conceptualize reproduces the manifest before storing it. ${sum.limits}`,
+        preview: [
+          ...sum.outputs.map((o): ServiceProposalItem => ({ label: `Output ${o.symbol}`, proposed: `${o.value} ${o.unit} (${o.qualification})`, basis: 'estimate' /* ServiceProposalItem has no calculated basis until CR-S4; the Basis item shows it */ })),
+          ...sum.checks.map((c): ServiceProposalItem => ({ label: 'Check', proposed: `${c.relation}: ${c.label}`, basis: 'estimate' })),
+          { label: 'Subjects', proposed: subjects.map((x) => x.key).join(', ') },
+          { label: 'Basis', proposed: r.basis },
+        ],
+        assumptions: [sum.limits, ...sum.warnings],
+        inspected: [{ id: m.key, detail: `revision ${m.revision}` }],
+        async apply(p) {
+          const ev = await client.createEvidence({ subjects: subjects.map((x) => x.ref), kind: 'calculation', title, basis: r.basis, calculation: { modelId: m.id, modelRevision: m.revision, manifest: r.manifest } }, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:calculation` })
+          createdId = ev.id
+          return { summary: `Recorded ${ev.key} (${ev.basis}, reproduced by the service)`, createdIds: [ev.id] }
+        },
+        async undo() {
+          if (!createdId) return { summary: 'Nothing to undo.' }
+          return { summary: 'Evidence records are immutable; review it as rejected in Conceptualize if it should not be used.' }
+        },
+      })
     },
   },
 )

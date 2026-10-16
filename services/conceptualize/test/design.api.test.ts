@@ -346,7 +346,6 @@ describe('atomic batch with placeholders (CR-C10, R1-1)', () => {
     const twice = await env.call('eli', 'POST', `${BASE}/batch`, { items: [{ op: 'createFunction', as: '$x', body: { name: 'Replayed' } }] }, key)
     expect(twice.body.ids).toEqual(once.body.ids)
     // Operations of later change requests answer 501.
-    expect((await post('/batch', { items: [{ op: 'createCalculationModel', body: { name: 'Euler buckling' } }] })).status).toBe(501)
   })
 
   it('separates proposing and recording decisions (R1-3) and invalidates a superseded decision (R1-7)', async () => {

@@ -1,10 +1,11 @@
 import { Badge, Button, EmptyState, IconButton, LoadingState, Notice, SearchField, Select, TextField } from '@ews/design-system'
 import { useToolViewState } from '@ews/platform-sdk/react'
-import type { AnyRef, Assumption, AssumptionStatus, Basis, Concept, ConstraintStatus, Decision, DesignConstraint, DesignEntityType, DesignFunction, DesignRef, Evidence, Graph, GraphNode } from '@ews/conceptualize-client'
+import type { AnyRef, Assumption, CalculationModel, AssumptionStatus, Basis, Concept, ConstraintStatus, Decision, DesignConstraint, DesignEntityType, DesignFunction, DesignRef, Evidence, Graph, GraphNode } from '@ews/conceptualize-client'
 import { useState, type ReactNode } from 'react'
 import { useModuleData, useResource } from '../data'
 import { BASIS, formatDate, formatQuantity, type ConceptualizeViewState, type DesignRecordType } from '../domain'
 import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, Section } from './common'
+import { CalculationDetail, CalculationEvidence } from './Calculations'
 
 /**
  * Design knowledge (Design Reasoning P1): Functions, Constraints and Assumptions in the Explorer and the
@@ -15,7 +16,7 @@ import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, Section
 export const dref = (type: DesignEntityType, id: string, revision?: number): DesignRef => ({ module: 'conceptualize', type, id, ...(revision ? { revision } : {}) })
 const isDesignRef = (r: AnyRef): r is DesignRef => r.module === 'conceptualize'
 
-const TYPE_LABEL: Record<string, string> = { concept: 'Concept', function: 'Function', constraint: 'Constraint', assumption: 'Assumption', evidence: 'Evidence', decision: 'Decision', implementation: 'Implementation', exploration: 'Exploration' }
+const TYPE_LABEL: Record<string, string> = { calculation: 'Calculation model', 'calculation-model': 'Calculation model', concept: 'Concept', function: 'Function', constraint: 'Constraint', assumption: 'Assumption', evidence: 'Evidence', decision: 'Decision', implementation: 'Implementation', exploration: 'Exploration' }
 const VALIDATION_TONE: Record<AssumptionStatus, 'neutral' | 'warning' | 'success' | 'danger' | 'info'> = { unvalidated: 'warning', 'under-review': 'info', validated: 'success', invalidated: 'danger', retired: 'neutral' }
 const CONSTRAINT_TONE: Record<ConstraintStatus, 'neutral' | 'warning' | 'success' | 'info'> = { proposed: 'warning', active: 'success', relaxed: 'info', retired: 'neutral' }
 const LINK_BASES: Basis[] = ['user-assertion', 'assumption', 'assessment', 'estimate']
@@ -46,6 +47,12 @@ export function RefButton({ target, label }: { target: AnyRef; label: ReactNode 
   const [, setState] = useToolViewState<ConceptualizeViewState>()
   if (!isDesignRef(target)) return <span title={`${target.module} ${target.id}`}>{label}</span>
   if (target.type === 'concept') return <ConceptLinkButton id={target.id} label={label} />
+  if (target.type === 'calculation-model')
+    return (
+      <Button size="sm" variant="text" className="con-link" onPress={() => setState({ record: { type: 'calculation', id: target.id }, conceptId: null, page: 'explorer' })}>
+        {label}
+      </Button>
+    )
   if (target.type === 'function' || target.type === 'constraint' || target.type === 'assumption')
     return (
       <Button size="sm" variant="text" className="con-link" onPress={() => setState({ record: { type: target.type as DesignRecordType, id: target.id }, conceptId: null, page: 'explorer' })}>
@@ -71,6 +78,7 @@ export function RecordList({ type }: { type: DesignRecordType }) {
   const data = useResource<{ id: string; key: string; label: string; status: string; tone: 'neutral' | 'warning' | 'success' | 'danger' | 'info'; basis?: Basis; ai: boolean }[]>(
     async () => {
       if (type === 'function') return (await client.functions({ text })).map((f) => ({ id: f.id, key: f.key, label: f.name, status: f.status, tone: f.status === 'active' ? 'success' : 'neutral', ai: f.provenance.sourceKind === 'assistant' }))
+      if (type === 'calculation') return (await client.calculationModels({ text })).map((m) => ({ id: m.id, key: m.key, label: m.name, status: m.validationStatus, tone: m.validationStatus === 'validated' ? 'success' : m.validationStatus === 'deprecated' ? 'neutral' : 'warning', basis: m.basis, ai: m.provenance.sourceKind === 'assistant' }))
       if (type === 'constraint') return (await client.constraints({ text })).map((c) => ({ id: c.id, key: c.key, label: `${c.statement}${c.bound ? ` (${boundText(c)})` : ''}`, status: c.status, tone: CONSTRAINT_TONE[c.status], basis: c.basis, ai: c.provenance.sourceKind === 'assistant' }))
       return (await client.assumptions({ text })).map((a) => ({ id: a.id, key: a.key, label: `${a.statement}${a.quantity ? ` ${formatQuantity(a.quantity)}` : ''}`, status: a.validationStatus, tone: VALIDATION_TONE[a.validationStatus], basis: a.basis, ai: a.provenance.sourceKind === 'assistant' }))
     },
@@ -515,8 +523,17 @@ export function DesignRecordPanel() {
   const { client } = useModuleData()
   const [state] = useToolViewState<ConceptualizeViewState>()
   const rec = state.record
-  const data = useResource<{ type: 'function'; v: DesignFunction } | { type: 'constraint'; v: DesignConstraint } | { type: 'assumption'; v: Assumption } | null>(
-    rec ? async () => (rec.type === 'function' ? { type: 'function', v: await client.function(rec.id) } : rec.type === 'constraint' ? { type: 'constraint', v: await client.constraint(rec.id) } : { type: 'assumption', v: await client.assumption(rec.id) }) : null,
+  const data = useResource<{ type: 'function'; v: DesignFunction } | { type: 'constraint'; v: DesignConstraint } | { type: 'assumption'; v: Assumption } | { type: 'calculation'; v: CalculationModel } | null>(
+    rec
+      ? async () =>
+          rec.type === 'function'
+            ? { type: 'function', v: await client.function(rec.id) }
+            : rec.type === 'constraint'
+              ? { type: 'constraint', v: await client.constraint(rec.id) }
+              : rec.type === 'calculation'
+                ? { type: 'calculation', v: await client.calculationModel(rec.id) }
+                : { type: 'assumption', v: await client.assumption(rec.id) }
+      : null,
     [client, rec?.type, rec?.id],
   )
   if (!rec) return null
@@ -528,6 +545,7 @@ export function DesignRecordPanel() {
       {d.type === 'function' && <FunctionDetail fn={d.v} />}
       {d.type === 'constraint' && <ConstraintDetail c={d.v} />}
       {d.type === 'assumption' && <AssumptionDetail a={d.v} />}
+      {d.type === 'calculation' && <CalculationDetail m={d.v} />}
     </div>
   )
 }
@@ -854,6 +872,7 @@ export function EvidenceReviewControl({ e }: { e: Evidence }) {
   return (
     <div className="con-stack" data-help-id="conceptualize.evidence.review">
       <EvidenceResults e={e} />
+      <CalculationEvidence e={e} />
       <div className="con-row">
         {e.validationStatus && <Badge tone={e.validationStatus === 'accepted' ? 'success' : e.validationStatus === 'rejected' ? 'danger' : 'neutral'} title="Independent review of this record">{e.validationStatus}</Badge>}
         {e.manifest && <Badge tone="info" title="A reproducibility manifest is recorded">manifest</Badge>}

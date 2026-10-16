@@ -230,3 +230,32 @@ describe('D1-CON operations (headless, service proposals)', () => {
     expect(conceptsDemo('Which decisions need review?', { selectionIds: [] })?.calls[0].name).toBe('conceptualize.review_flags')
   })
 })
+
+describe('calculation operations (CR-C8, headless)', () => {
+  it('record_calculation evaluates, previews qualifications and limits, and records with the calculation', async () => {
+    const calls: { method: string; url: string; body: any }[] = []
+    const M = '7e57c0de-0000-4000-8000-0000000ca1c0'
+    const manifest = { model: { id: M, revision: 2 } }
+    const fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = String(input)
+      calls.push({ method: init.method ?? 'GET', url, body: init.body ? JSON.parse(String(init.body)) : undefined })
+      const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } })
+      if (url.includes('/calculation-models?')) return json([{ id: M, key: 'CALC-001', name: 'Rod buckling', revision: 2, validationStatus: 'unvalidated' }])
+      if (url.endsWith(`/calculation-models/${M}/evaluate`))
+        return json({ model: { id: M, key: 'CALC-001', revision: 2 }, inputs: {}, manifest, basis: 'estimate', warnings: [], qualifications: { outputs: [{ symbol: 'P_cr', unit: 'kN', value: 110.4, range: { kind: 'point' } }], checks: [{ relationId: 'c1', text: 'P_cr >= n * F', unit: 'kN', margin: 86.4, nominalSatisfied: true, status: 'satisfied', statusBasis: 'point', marginRange: { kind: 'point' } }], validity: { satisfied: true, violated: [], uncertain: [], over: 'point' }, limits: { establishesModelValidity: false, establishesRequirementSatisfaction: false, modelValidationStatus: 'unvalidated', modelBasis: 'ai-hypothesis' } } })
+      if (url.includes('/search?')) return json({ items: [{ ref: { module: 'conceptualize', type: 'concept', id: 'c1' }, key: 'CON-001', label: 'x', status: 'idea', rank: 1, snippet: '' }], total: 1 })
+      if (url.endsWith('/evidence')) return json({ id: 'e9', key: 'EVD-040', basis: 'estimate' }, 201)
+      return json({})
+    }) as typeof globalThis.fetch
+    const concepts = createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch })
+    const p = (await action('conceptualize.record_calculation').run({ modelId: 'CALC-001', subjects: ['CON-001'] }, context({ concepts }))) as ServiceProposal
+    const text = p.preview.map((i) => `${i.label}: ${i.proposed}`).join(' | ')
+    expect(text).toContain('110.4 kN (point value)')
+    expect(text).toContain('P_cr >= n * F: satisfied at the nominal point')
+    expect(p.explanation).toContain('does not establish that the model is valid')
+    const before = calls.length
+    await p.apply({ conversationId: 'C-5', proposalId: 'CP-7', messageId: 'M1' })
+    const body = calls.slice(before).find((c) => c.url.endsWith('/evidence'))!.body
+    expect(body).toMatchObject({ basis: 'estimate', kind: 'calculation', calculation: { modelId: M, modelRevision: 2, manifest }, subjects: [{ type: 'concept', id: 'c1' }] })
+  })
+})

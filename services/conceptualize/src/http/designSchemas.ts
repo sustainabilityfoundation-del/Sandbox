@@ -10,7 +10,7 @@ const Nullable = <T extends TSchema>(t: T) => Type.Union([t, Type.Null()])
 const L = <T extends string>(...values: T[]) => Type.Union(values.map((v) => Type.Literal(v)))
 const Text = (max: number, min = 0) => Type.String({ minLength: min, maxLength: max })
 
-export const DesignEntityType = L('function', 'concept', 'implementation', 'constraint', 'assumption', 'evidence', 'decision', 'alternative-set', 'trade-study', 'exploration', 'statement')
+export const DesignEntityType = L('function', 'concept', 'implementation', 'constraint', 'assumption', 'evidence', 'decision', 'alternative-set', 'trade-study', 'exploration', 'calculation-model', 'statement')
 export const DesignRef = Type.Object(
   { module: Type.Literal('conceptualize'), type: DesignEntityType, id: Type.String({ minLength: 1, maxLength: 100 }), revision: Type.Optional(Type.Integer({ minimum: 1 })) },
   { $id: 'DesignRef', additionalProperties: false, description: 'Reference to a Conceptualize record (SDK DesignRef, CR-S1)', examples: [{ module: 'conceptualize', type: 'function', id: '0c0a0001-0000-4000-8000-000000000001' }] },
@@ -353,7 +353,7 @@ export const Rationale = Type.Object(
     decision: Type.Unknown(),
     question: Type.String(),
     alternatives: Type.Array(Type.Object({ ref: DesignRef, key: Type.String(), name: Type.String(), outcome: Nullable(Type.String()), outcomeRationale: Type.String(), memberStatus: Nullable(Type.String()) })),
-    support: Type.Array(Type.Object({ ref: DesignRef, key: Type.String(), title: Type.String(), role: Type.String(), basis: Type.String(), validationStatus: Type.String() })),
+    support: Type.Array(Type.Object({ ref: DesignRef, key: Type.String(), title: Type.String(), role: Type.String(), basis: Type.String(), validationStatus: Type.String(), checks: Type.Optional(Type.Array(Type.Unknown(), { description: 'C11 Q8: each check with status and statusBasis (calculated evidence)' })), limits: Type.Optional(Type.Unknown({ description: 'What the reproducible calculation does not establish' })) })),
     assumptions: Type.Array(Type.Object({ ref: DesignRef, key: Type.String(), statement: Type.String(), pinnedRevision: Nullable(Type.Integer()), currentRevision: Type.Integer(), validationStatus: Type.String() })),
     constraints: Type.Array(Type.Object({ ref: DesignRef, key: Type.String(), statement: Type.String(), pinnedRevision: Nullable(Type.Integer()), currentRevision: Type.Integer(), status: Type.String() })),
     tradeStudy: Nullable(Type.Object({ ref: DesignRef, key: Type.String(), title: Type.String(), ranking: Type.String(), preliminary: Type.Boolean() })),
@@ -405,6 +405,15 @@ export const EvidenceResult = Type.Object(
   { $id: 'EvidenceResult' },
 )
 export const ToolInfo = Type.Object({ name: Text(200, 1), version: Text(100, 1) }, { $id: 'ToolInfo', additionalProperties: false, description: 'Tool that produced the results, e.g. the CAD kernel (ADR-0070 item 3)' })
+/** CR-C8 / C11 storage contract: the calculation an evidence record was produced by. */
+export const EvidenceCalculationInput = Type.Object(
+  { modelId: Uuid, modelRevision: Type.Integer({ minimum: 1 }), manifest: Type.Record(Type.String(), Type.Unknown()) },
+  { $id: 'EvidenceCalculationInput', description: 'Re-verified with verifyManifest on write; the service records the verification' },
+)
+export const EvidenceCalculation = Type.Object(
+  { modelId: Uuid, modelRevision: Type.Integer(), manifest: Type.Record(Type.String(), Type.Unknown()), verification: Type.Optional(Type.Object({ verifiedAt: Timestamp, engineVersion: Type.String(), manifestVersion: Type.Integer(), ok: Type.Literal(true), exactDigestMatch: Type.Optional(Type.Boolean()) })) },
+  { $id: 'EvidenceCalculation' },
+)
 export const EvidenceExtensions = {
   subjects: Type.Optional(Type.Array(DesignRef, { maxItems: 50 })),
   applicability: Type.Optional(Type.Union([Text(2000), Type.Record(Type.String(), Type.Unknown())], { description: 'Where the evidence applies (R1: text; structured objects are kept)' })),
@@ -413,6 +422,9 @@ export const EvidenceExtensions = {
   assumptionIds: Type.Optional(Type.Array(Uuid, { maxItems: 50 })),
   tool: Type.Optional(ToolInfo),
   results: Type.Optional(Type.Array(EvidenceResultInput, { maxItems: 200 })),
+  calculation: Type.Optional(EvidenceCalculationInput),
+  qualifications: Type.Optional(Type.Unknown({ description: 'Ignored: derived by the service with qualifyManifest (Q2)' })),
+  verification: Type.Optional(Type.Unknown({ description: 'Ignored: recorded by the service' })),
 }
 export const EvidenceReview = Type.Object(
   { id: Uuid, outcome: L('accepted', 'rejected'), method: Type.String(), note: Type.String(), reviewer: Type.String(), reviewedAt: Timestamp },
@@ -601,6 +613,9 @@ export const EvidenceV = Type.Object(
     assumptionIds: Type.Array(Uuid),
     tool: Nullable(ToolInfo),
     results: Type.Array(EvidenceResult),
+    calculation: Nullable(EvidenceCalculation),
+    qualifications: Nullable(Type.Record(Type.String(), Type.Unknown(), { description: 'CalculationQualifications of @ews/engineering-calc, unchanged' })),
+    qualificationsSource: Nullable(L('stored', 'computed-on-read')),
     reviews: Type.Array(EvidenceReview),
     validationStatus: L('unreviewed', 'accepted', 'rejected'),
   },
