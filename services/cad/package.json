@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@ews/cad-core": "^0.1.0",
-    "@ews/platform-sdk": "^1.5.0",
+    "@ews/platform-sdk": "^1.12.0",
     "ajv": "8.20.0",
     "fastify": "5.12.5",
     "pg": "8.23.0",

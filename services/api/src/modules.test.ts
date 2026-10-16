@@ -80,6 +80,19 @@ describe('AI policy from the installed manifests', () => {
     expect(ALL_SERVER_MODULES.find((m) => m.id === 'sysml-modeler')?.proposals).toEqual({ entitlement: 'tool:sysml' })
   })
 
+  it('takes the CAD Modeler from its manifest (no legacy entry): same module, classes, settings and proposal API as before', () => {
+    expect(aiModules.filter((m) => m.id === 'cad-modeler')).toEqual([{ id: 'cad-modeler', label: 'CAD Modeler', description: 'Parametric CAD documents and exports.', entitlement: 'tool:cad', prefixes: ['cad-modeler.'] }])
+    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('cad-modeler.'))).toHaveLength(12)
+    expect(policy.classify('cad-modeler.describe_model')).toMatchObject({ operationClass: 'read', module: { id: 'cad-modeler' } })
+    expect(policy.classify('cad-modeler.run_commands')?.operationClass).toBe('propose')
+    expect(policy.classify('cad-modeler.export')?.operationClass).toBe('export')
+    expect(policy.classify('cad-modeler.not_yet_catalogued')?.operationClass).toBe('propose')
+    const cad = INSTALLED_SERVER_MODULES.find((m) => m.id === 'cad-modeler')
+    expect(cad?.proposals).toEqual({ entitlement: 'tool:cad', projectParam: 'projectId' })
+    expect(cad?.provisioning?.module).toBe('cad')
+    expect(cad?.settings?.definitions.length).toBeGreaterThan(0)
+  })
+
   it('takes Conceptualize from its manifest (no legacy entry): same module, prefix, entitlement and operation classes as before', () => {
     expect(aiModules.filter((m) => m.id === 'conceptualize')).toEqual([{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] }])
     expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('conceptualize.'))).toHaveLength(34)

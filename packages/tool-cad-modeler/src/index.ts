@@ -1,8 +1,9 @@
 import { useToasts } from '@ews/design-system'
-import { defineTool, type ToolDefinition } from '@ews/platform-sdk/react'
+import { defineTool, type ClientModule, type ModuleHostEnv, type ToolDefinition } from '@ews/platform-sdk/react'
 import { lazy } from 'react'
 import pkg from '../package.json'
 import { cadModelerAssistant } from './assistant'
+import { CAD_MODELER_CAPABILITIES } from './capabilities'
 import { cadModelerHelp } from './help'
 import { createCadReadService, createHttpCadClient, createLocalCadClient, type CadClient } from '@ews/cad-client'
 import type { CadService } from '@ews/platform-sdk'
@@ -65,6 +66,18 @@ export function createWorkspaceCadService(options: { baseUrl?: string; devUser?:
       return regenerator
     },
   })
+}
+
+/**
+ * The CAD Modeler's client module (docs/specifications/module-registration.md, M4): its manifest (capability entries) and its
+ * tool. Separate from the mock CAD tool (cad-program-contracts.md §1). Until the SDK offers PlatformServices.cad the tool builds
+ * its client: API mode follows the Requirements service mode (API → /api/cad/v1 as the development user; demo → files only).
+ */
+export function cadModelerModule(): ClientModule {
+  return {
+    manifest: { schemaVersion: 1, id: 'cad-modeler', name: 'CAD Modeler', capabilities: CAD_MODELER_CAPABILITIES, entitlement: 'tool:cad' },
+    tool: (env: ModuleHostEnv) => createCadModelerTool(env.requirementsMode === 'demo' ? { mode: 'files' } : { mode: 'api', baseUrl: '/api/cad/v1', devUser: env.devUser }),
+  }
 }
 
 export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefinition<CadModelerViewState> {
