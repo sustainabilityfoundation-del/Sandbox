@@ -71,8 +71,8 @@ Recorded in [OPEN_SOURCE_STRATEGY.md](../architecture/OPEN_SOURCE_STRATEGY.md); 
 (with its section 10 domain assignment), the .claude/agents definitions, docs/agents/README.md and the sprint template;
 [evaluation template](../architecture/open-source-evaluation-template.md) published. D1 and the manifest migration keep priority.
 Backlog (tracked here until done):
-- OSS-1 Section 12 assessment report (architect, read-only): what already uses open source, what is built from scratch
-  unnecessarily, biggest immediate advantages, licence/IP risks, target architecture and priorities. Running.
+- OSS-1 Section 12 assessment: done, recorded in [open-source-assessment-2026-10.md](../architecture/open-source-assessment-2026-10.md)
+  (no GPL/AGPL in the lockfile; OCCT LGPL ships to browsers; notices incomplete; backlog OSS-6..17, owner decisions OSS-7, 13, 14, 17).
 - OSS-2 Machine-readable dependency register (section 8 fields) generated from the lockfile, plus SBOM and licence check in CI
   (flags GPL/AGPL/unknown before merge); tool choice by the evaluation template. Running.
 - OSS-3 Module assessments (Phase 2), one per module agent, in priority order set by OSS-1; each ends in an ADR and backlog entries.
