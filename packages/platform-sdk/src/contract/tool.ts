@@ -156,6 +156,8 @@ export type ToolbarItem =
       onClick: () => void
       title?: string
       disabled?: boolean
+      /** Why the item is disabled now (SDK 1.13); the command bar shows it when the item is activated. */
+      unavailableReason?: string
       /** Rendered as pressed (for modes and toggles). */
       active?: boolean
       /** Filled call-to-action button. Always visible. */

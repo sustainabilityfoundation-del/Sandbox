@@ -17,3 +17,16 @@ export { Dialog, Drawer, Menu, MenuButton, MenuItem, MenuSection, MenuSeparator,
 export type { MenuItemProps } from './Overlays'
 export { Badge, EmptyState, LoadingState, Notice, STATUS, Spinner, StatusBadge } from './Status'
 export type { StatusKind, Tone } from './Status'
+export { CommandBar, CommandInfoPopover, commandAccessibleName } from './CommandBar'
+export type {
+  CommandBarCommand,
+  CommandBarEntry,
+  CommandBarGroup,
+  CommandBarLayout,
+  CommandBarProps,
+  CommandBarSelect,
+  CommandBarSeparator,
+  CommandBarTab,
+  CommandBarText,
+  CommandState,
+} from './CommandBar'

@@ -1,6 +1,7 @@
-import { defineTool } from '@ews/platform-sdk/react'
+import { defineTool, type ClientModule } from '@ews/platform-sdk/react'
 import { lazy } from 'react'
 import { requirementsAssistant } from './assistant'
+import { REQUIREMENTS_CAPABILITIES } from './capabilities'
 import { requirementsHelp } from './help'
 import { INITIAL_VIEW_STATE, type RequirementsViewState } from './domain'
 import pkg from '../package.json'
@@ -77,3 +78,14 @@ export const requirementsTool = defineTool<RequirementsViewState>({
     ]
   },
 })
+
+/**
+ * Requirements' client module (docs/specifications/module-registration.md, M6): its manifest (capability entries, default-open
+ * flag) and its tool. The tool does not depend on the host environment: the service mode comes from `ToolApi.services.requirements`.
+ */
+export function requirementsModule(): ClientModule {
+  return {
+    manifest: { schemaVersion: 1, id: 'requirements', name: 'Requirements', capabilities: REQUIREMENTS_CAPABILITIES, entitlement: 'tool:requirements', defaultOpen: true },
+    tool: () => requirementsTool,
+  }
+}

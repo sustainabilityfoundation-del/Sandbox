@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { Pool } from 'pg'
 import type { AiModuleDescriptor, OperationClass, ServerModuleHost, ServerModuleDescriptor, ServerModuleManifest } from '@ews/platform-sdk'
-import { BASE_PATH, createRequirementsArtifactSource, requirementsPlugin, type EventHub, type SysmlElementDirectory, type TwinDirectory } from '@ews/requirements-service'
+import { BASE_PATH, createRequirementsArtifactSource, requirementsPlugin, requirementsServerManifest, type EventHub, type SysmlElementDirectory, type TwinDirectory } from '@ews/requirements-service'
 import { CONCEPTS_BASE_PATH, conceptsPlugin, conceptualizeServerManifest, createConceptsArtifactSource, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { SYSML_BASE_PATH, createSysmlArtifactSource, sysmlPlugin, sysmlServerManifest, type SysmlEventHub, type SysmlRepository } from '@ews/sysml-service'
 import { CAD_BASE_PATH, cadPlugin, cadServerManifest, createCadArtifactSource, type CadEventHub } from '@ews/cad-service'
@@ -44,11 +44,7 @@ export type ApiServerModule = ServerModuleManifest<ApiModuleHost>
  */
 export const INSTALLED_SERVER_MODULES: ApiServerModule[] = [
   {
-    id: 'requirements',
-    name: 'Requirements',
-    basePath: BASE_PATH,
-    docs: 'Requirements Management API',
-    provisioning: { lazyReason: 'Requirements stores data by project ID; its project space appears with the first requirement.' },
+    ...requirementsServerManifest,
     async register(host) {
       const { app, pool, auth, options } = host
       // Special wiring kept in the host (module-registration.md, Risks): allocation targets are the product registry first

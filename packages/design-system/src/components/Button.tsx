@@ -1,4 +1,4 @@
-import { forwardRef, type ReactNode } from 'react'
+import { forwardRef, type ReactNode, type Ref } from 'react'
 import {
   Button as AriaButton,
   ToggleButton as AriaToggleButton,
@@ -184,6 +184,7 @@ export interface ToggleButtonProps extends Omit<AriaToggleButtonProps, 'classNam
   size?: 'md' | 'sm'
   className?: string
   children?: ReactNode
+  ref?: Ref<HTMLButtonElement>
 }
 
 /** A two-state button (on/off), e.g. a display mode or panel toggle. */

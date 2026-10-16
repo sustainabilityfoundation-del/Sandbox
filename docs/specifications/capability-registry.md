@@ -61,7 +61,7 @@ contribution points, `@lumino/commands` and Eclipse Theia's command registry; li
 
 ## 2. Evidence-based status
 
-Adding a binding and a test reference changes the state automatically; removing the test breaks CI. Checks in
+Adding a binding and a test reference changes the state automatically; removing the test breaks CI. State stays strictly evidence-based: a bound entry without `verifiedBy` is `partial` everywhere (toolbar, palette, AI listing), and `buildCommandModel` takes the `KNOWN_EVIDENCE_GAPS` IDs as `evidenceGaps` only to word the limitation ("Implemented; test evidence not yet linked"), never to override the state. Checks in
 `capabilityChecks.ts`, run by `npm run check`:
 
 | Check | Rule |
