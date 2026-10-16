@@ -141,6 +141,7 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   'cad-modeler.save_document': 'propose',
   'cad-modeler.check': 'read',
   'cad-modeler.check_bindings': 'read',
+  'cad-modeler.start_from_handoff': 'propose',
   'sysml.read_model': 'read',
   'sysml.create_part': 'propose',
   'sysml.connect': 'propose',

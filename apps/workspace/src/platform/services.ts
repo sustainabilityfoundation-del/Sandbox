@@ -1,9 +1,9 @@
 import type { CadService, ConceptsService, PlatformServices, ProjectsService, RequirementsService, SysmlModelService } from '@ews/platform-sdk'
 import { createHttpProjectsService } from '@ews/projects-client'
-import { createDemoConceptsService, createHttpConceptsService } from '@ews/conceptualize-client'
+import { createDemoConceptsService, createHttpConceptsService, getConceptsModuleClient } from '@ews/conceptualize-client'
 import { createDemoRequirementsService, createHttpRequirementsService } from '@ews/requirements-client'
 import { createHttpSysmlClient, createSysmlModelService } from '@ews/sysml-client'
-import { createWorkspaceCadService } from '@ews/tool-cad-modeler'
+import { configureConceptHandoffs, createWorkspaceCadService } from '@ews/tool-cad-modeler'
 import { create } from 'zustand'
 import { workspaceHelp } from '../help/workspaceHelp'
 
@@ -100,6 +100,22 @@ export const workspaceServices: PlatformServices = {
   concepts: createConcepts(serviceSettings),
   sysml: createSysml(serviceSettings),
   projects: createProjects(serviceSettings),
+}
+
+// Interim until SDK 1.9 adds ConceptsService.getHandoff / revisionStaleness: the CAD Modeler reads Conceptualize's
+// CAD handoff packages and concept revision staleness through the Conceptualize module client. Remove this block
+// when the SDK members exist (the CAD Modeler prefers them automatically).
+{
+  const concepts = workspaceServices.concepts
+  const sdk19 = concepts as (ConceptsService & { getHandoff?: unknown; revisionStaleness?: unknown }) | undefined
+  if (concepts && !(sdk19?.getHandoff && sdk19?.revisionStaleness)) {
+    const client = (projectId: string) => getConceptsModuleClient(concepts, projectId)
+    const notFound = (e: unknown) => ((e as { status?: number }).status === 404 ? undefined : Promise.reject(e))
+    configureConceptHandoffs({
+      getHandoff: async (id, { projectId }) => (client(projectId) ? client(projectId)!.handoff(id).then((h) => h as never, notFound) : undefined),
+      revisionStaleness: async (conceptId, revision, { projectId, purpose }) => (client(projectId) ? client(projectId)!.revisionStaleness(conceptId, revision, purpose ?? 'downstream').then((x) => x as never, notFound) : undefined),
+    })
+  }
 }
 
 /** Saves new settings and reloads; other windows follow through the storage event below. */

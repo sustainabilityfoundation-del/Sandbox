@@ -3,6 +3,7 @@ import { ActionError, type AssistantActionContext, type AssistantActionDefinitio
 import { cadSession, type OpenDocument } from './session'
 import { runChecks, type CheckRequest, type MeasureSpec } from './checks'
 import pkg from '../package.json'
+import { mapHandoff, portOf } from './handoff'
 
 /**
  * Assistant operations for the CAD Modeler (contracts §5, ADR-0023). Reads return structured data
@@ -241,6 +242,15 @@ async function outdatedBindings(doc: CadDocument | undefined, requested: Command
   }
 }
 
+/** Whether the document's source concept has changed since the recorded revision (derived; null when unknown). */
+async function sourceStaleness(doc: CadDocument, ctx: AssistantActionContext) {
+  const src = doc.metadata.source
+  const port = portOf(ctx)
+  if (!src || !port) return null
+  const s = await port.revisionStaleness(src.concept.id, src.concept.revision, { projectId: ctx.captured.projectId, purpose: 'downstream' }).catch(() => undefined)
+  return s ? { possiblyOutdated: s.outdated, recordedRevision: src.concept.revision, currentConceptRevision: s.currentConceptRevision, changes: s.changes } : null
+}
+
 function validateCalls(raw: unknown): CommandCall[] {
   if (!Array.isArray(raw) || !raw.length) throw new ActionError('invalid-arguments', '“commands” must be a non-empty list of { command, input }.')
   return raw.map((c, i) => {
@@ -275,7 +285,7 @@ const actions: AssistantActionDefinition[] = [
         data: {
           documents: snap.documents,
           kernel: snap.kernel.info ?? null,
-          document: { id: doc.documentId, title: doc.metadata.title, version: doc.version, regeneratedVersion: regen?.documentVersion ?? null, dirty: snap.documents.find((d) => d.id === doc.documentId)?.dirty ?? false, stored: open.stored ?? null, source: doc.metadata.source ?? null },
+          document: { id: doc.documentId, title: doc.metadata.title, version: doc.version, regeneratedVersion: regen?.documentVersion ?? null, dirty: snap.documents.find((d) => d.id === doc.documentId)?.dirty ?? false, stored: open.stored ?? null, source: doc.metadata.source ? { ...doc.metadata.source, staleness: await sourceStaleness(doc, ctx) } : null },
           regeneration: { location: regen?.location ?? null },
           tree: featureTree(doc, regen),
           parameters: Object.fromEntries(doc.parts.map((p) => [p.id, parameterTable(doc, p.id)])),
@@ -325,6 +335,7 @@ const actions: AssistantActionDefinition[] = [
         commands: { type: 'array', items: { type: 'object' }, description: 'List of { command, input }.' },
         label: { type: 'string', description: 'Short description shown in the preview and the undo history.' },
         title: { type: 'string', maxLength: 200, description: 'Title of the new document when the commands create one (ignored for an existing document).' },
+        newDocument: { type: 'boolean', description: 'Create a new document for these commands even when a document is open.' },
         expectedVersion: { type: 'integer', description: 'Document version the commands were planned against (from describe_model); a mismatch is reported instead of applying.' },
         rebind: { type: 'boolean', description: 'Default true: when the commands change a bound parameter whose constraint has a newer revision, the proposal also re-binds it to the latest revision (shown in the preview). false: only flag it.' },
         documentId,
@@ -335,7 +346,7 @@ const actions: AssistantActionDefinition[] = [
     async run(args, ctx) {
       const requested = validateCalls(args.commands)
       const projectId = ctx.captured.projectId
-      const targetDoc = await resolveDocument(args, ctx, { allowNone: true, createsDocument: requested[0]?.command === 'create_part' })
+      const targetDoc = args.newDocument === true ? undefined : await resolveDocument(args, ctx, { allowNone: true, createsDocument: requested[0]?.command === 'create_part' })
       // Bound parameters whose value changes while their constraint has a newer revision: flagged, and
       // re-bound to the latest revision in the same transaction (unless rebind: false).
       const rebinds = await outdatedBindings(targetDoc?.engine.document, requested, ctx)
@@ -434,6 +445,56 @@ const actions: AssistantActionDefinition[] = [
         },
       }
       return proposal
+    },
+  },
+  {
+    name: 'cad-modeler.start_from_handoff',
+    label: 'Start a CAD part from a concept handoff',
+    description:
+      'Propose a new CAD document from a Conceptualize CAD handoff package (HND-…, revision-pinned): one part named after the concept\'s component, the parameters that have a nominal value in a length, angle or count unit (each bound to its design constraint at the revision in the package), a "realizes" reference to the concept, and the source concept and handoff recorded on the document. No geometry is invented: features are modelled afterwards with cad-modeler.run_commands. Everything that cannot be mapped (ranges without a value, other units, interfaces without geometry, open questions, unvalidated assumptions, items Conceptualize listed as unresolved) is reported as a gap in the preview. Apply creates the document (and stores it in the project when no CAD view is open).',
+    effect: 'propose',
+    parameters: {
+      type: 'object',
+      properties: {
+        handoffId: { type: 'string', description: 'CAD handoff package ID (UUID) from Conceptualize (conceptualize.create_cad_handoff).' },
+        title: { type: 'string', maxLength: 200, description: 'Document title (default: concept key and name).' },
+        partName: { type: 'string', maxLength: 120, description: 'Part name (default: the concept\'s first part component).' },
+      },
+      required: ['handoffId'],
+      additionalProperties: false,
+    },
+    async run(args, ctx) {
+      const port = portOf(ctx)
+      if (!port) throw new ActionError('unavailable', 'Concept handoffs cannot be read in this host (Conceptualize handoff reads are not available).')
+      const projectId = ctx.captured.projectId
+      const handoffId = String(args.handoffId ?? '').trim()
+      if (!handoffId) throw new ActionError('invalid-arguments', 'handoffId is required.')
+      let h
+      try {
+        h = await port.getHandoff(handoffId, { projectId })
+      } catch (e) {
+        throw new ActionError('unavailable', (e as Error).message)
+      }
+      if (!h) throw new ActionError('not-found', `CAD handoff ${handoffId} does not exist in project ${projectId}.`)
+      if (h.package?.schema !== 'conceptualize.cad-handoff/1') throw new ActionError('invalid-arguments', `Handoff ${h.key} uses schema ${String(h.package?.schema)}; the CAD Modeler reads conceptualize.cad-handoff/1.`)
+      const m = mapHandoff(h, { title: typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined, partName: typeof args.partName === 'string' && args.partName.trim() ? args.partName.trim() : undefined })
+      const staleness = await port.revisionStaleness(h.conceptId, h.conceptRevision, { projectId, purpose: 'handoff' }).catch(() => undefined)
+      const runCommands = actions.find((a) => a.name === 'cad-modeler.run_commands')!
+      const result = (await runCommands.run({ commands: m.commands, title: m.title, label: `Start from ${h.key}`, newDocument: true }, ctx)) as ServiceProposal | DeclarativeProposal
+      result.title = `Start “${m.title}” from ${h.key} (concept revision ${h.conceptRevision})`
+      result.explanation = `Creates a CAD document from handoff ${h.key} of ${h.package.concept.key} at revision ${h.conceptRevision}: part “${m.partName}”, ${m.parameters.length} parameter(s), ${m.parameters.filter((p) => p.constraint).length} bound to constraints. ${m.gaps.length} gap(s) are listed and nothing was invented for them. Geometry is modelled afterwards.`
+      result.preview = [
+        { label: 'Source', proposed: `${h.package.concept.key} ${h.package.concept.name}, revision ${h.conceptRevision}; handoff ${h.key}` },
+        ...m.parameters.map((p) => ({ label: `Parameter ${p.name}`, proposed: `${p.expression} ${p.unit === 'none' ? '' : p.unit} (${p.symbol}, basis ${p.basis})${p.constraint ? `, bound to ${p.constraint.key} revision ${p.constraint.revision}` : ''}`.replace('  ', ' '), basis: (p.basis === 'ai-hypothesis' ? 'ai-hypothesis' : p.basis === 'assumption' ? 'assumption' : 'user-statement') as ServiceProposalItem['basis'] })),
+        ...m.gaps.map((g) => ({ label: `Gap (${g.kind})`, proposed: g.text, basis: 'assumption' as const })),
+        ...result.preview.filter((i) => i.label === 'Saved to the project' || i.label === 'New document'),
+      ]
+      result.assumptions = [
+        'No geometry is generated from the handoff: the document starts with the part, its parameters and bindings; features are modelled afterwards (cad-modeler.run_commands).',
+        ...(staleness?.outdated ? [`The handoff was built from revision ${h.conceptRevision}; ${h.package.concept.key} is now at revision ${staleness.currentConceptRevision} (${staleness.changes.map((c) => c.label).slice(0, 5).join('; ')}). Consider a new handoff.`] : []),
+        ...(result.assumptions ?? []),
+      ]
+      return result
     },
   },
   {
@@ -700,7 +761,7 @@ const actions: AssistantActionDefinition[] = [
     name: 'cad-modeler.check_bindings',
     label: 'Find outdated parameter bindings',
     description:
-      'List parameters whose binding pins a revision older than the bound artifact\'s latest revision, with the bound values of the pinned and the latest revision (Conceptualize constraints), so the parameter can be reviewed and re-bound. To update an outdated parameter, change its value with cad-modeler.run_commands: the same proposal re-binds it to the latest revision (or include bind_parameter with that revision yourself). Bindings that follow the latest revision, and bindings to modules that cannot be read here, are reported separately. Read-only.',
+      'List parameters whose binding pins a revision older than the bound artifact\'s latest revision (and whether the source concept of the document has been revised since: source.staleness), with the bound values of the pinned and the latest revision (Conceptualize constraints), so the parameter can be reviewed and re-bound. To update an outdated parameter, change its value with cad-modeler.run_commands: the same proposal re-binds it to the latest revision (or include bind_parameter with that revision yourself). Bindings that follow the latest revision, and bindings to modules that cannot be read here, are reported separately. Read-only.',
     parameters: { type: 'object', properties: { documentId }, additionalProperties: false },
     async run(args, ctx) {
       const d = (await resolveDocument(args, ctx))!
@@ -747,7 +808,7 @@ const actions: AssistantActionDefinition[] = [
       }
       return {
         kind: 'data',
-        data: { documentId: doc.documentId, documentRevision: d.stored?.revision ?? null, modelVersion: doc.version, outdated, current, unknown },
+        data: { documentId: doc.documentId, documentRevision: d.stored?.revision ?? null, modelVersion: doc.version, outdated, current, unknown, source: doc.metadata.source ? { ...doc.metadata.source, staleness: await sourceStaleness(doc, ctx) } : null },
         summary: `${outdated.length} outdated, ${current.length} current, ${unknown.length} not checkable binding(s) in “${doc.metadata.title}”`,
         inspected: [{ id: d.id, detail: `parameter bindings, model version ${doc.version}` }],
       }

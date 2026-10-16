@@ -134,6 +134,10 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, EXPECTED_REFUSALS, re
   if (stored.status !== 201) throw new Error(`CAD fixture not stored: HTTP ${stored.status}`)
   const cadId = cadDoc.documentId
   const patternId = cadDoc.parts[0].features.find((x) => x.type === 'pattern-linear').id
+  // A Concept with an engineering definition and its CAD handoff package (Conceptualize API), for start_from_handoff.
+  const hpost = (path, body) => fetch(`/api/concepts/v1/projects/PRJ-ACT100${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-dev-user': 'eli', 'idempotency-key': `hl-${path}-${stamp}-${Math.random()}` }, body: JSON.stringify(body) }).then((r) => r.json())
+  const handoffConcept = await hpost('/concepts', { name: `Headless handoff ${stamp}`, definition: { intent: 'Hold bits', components: [{ name: 'Holder block', kind: 'part' }], parameters: [{ symbol: 'af', name: 'Across flats', value: 6.6, unit: 'mm' }, { symbol: 'wall', name: 'Wall', min: 2, max: 4, unit: 'mm' }] } })
+  const handoff = await hpost(`/concepts/${handoffConcept.id}/handoffs`, {})
   // An unsaved local change in this window's CAD session (the same module the app uses), so undo and save have work.
   const { cadSession } = await import(`/workspace/@fs/${repoFs}/packages/tool-cad-modeler/src/session.ts`)
   const open = await cadSession.openFromStore('PRJ-ACT100', cadId, undefined, { activate: false })
@@ -198,6 +202,7 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, EXPECTED_REFUSALS, re
     'cad-modeler.export': { documentId: cadId, format: 'step', return: true },
     'cad-modeler.check': { documentId: cadId, checks: constraint?.id ? [{ measure: { kind: 'pattern-gap', featureId: patternId }, constraint: { id: constraint.id } }] : [] },
     'cad-modeler.check_bindings': { documentId: cadId },
+    'cad-modeler.start_from_handoff': { handoffId: handoff.id },
     'projects.store_document': { title: 'Headless document', contentBase64: 'aGVhZGxlc3M=', fileName: 'headless.txt', mediaType: 'text/plain', documentKind: 'other' },
     'conceptualize.list_constraints': {},
     'conceptualize.evaluate_calculation': { modelId: calcModel.key, inputs: rodInputs },

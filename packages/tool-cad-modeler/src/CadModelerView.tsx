@@ -1,12 +1,13 @@
 import './modeler.css'
 import type { SketchFeature } from '@ews/cad-core'
 import { Badge, Button, EmptyState, Notice, Spinner, StatusBadge, Tab, TabList, TabPanel, Tabs, useToasts } from '@ews/design-system'
-import { useSharedContext, useToolViewState, useUnsavedChanges, useSetting } from '@ews/platform-sdk/react'
+import { useSharedContext, useToolViewState, useUnsavedChanges, useSetting, usePlatformServices } from '@ews/platform-sdk/react'
 import { OpenDialog } from './ui/OpenDialog'
-import { useCallback, useEffect, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useState, type KeyboardEvent } from 'react'
 import { plateCommands } from './assistant'
 import { cadSession, useCadSession, useEngineState } from './session'
 import { takeCadDeepLink } from './deepLink'
+import { handoffPort, type ConceptRevisionStaleness } from './handoff'
 import { CAD_SETTING_IDS } from './settings'
 import { DiagnosticsPanel } from './ui/DiagnosticsPanel'
 import { EditPanel } from './ui/EditPanel'
@@ -22,6 +23,7 @@ export default function CadModelerView() {
   const session = useCadSession()
   const { projectId } = useSharedContext()
   const showEdgesSetting = useSetting<boolean>(CAD_SETTING_IDS.showEdges)
+  const platformServices = usePlatformServices()
   const meshTolerance = useSetting<number>(CAD_SETTING_IDS.meshTolerance)
   const orientation = useSetting<string>(CAD_SETTING_IDS.orientation)
   // Assistant operations save their changes as revisions while no view is mounted (C9).
@@ -44,6 +46,22 @@ export default function CadModelerView() {
   const own = cadSession.document(vs.documentId)
   const open = (own && cadSession.inCurrentProject(own) ? own : undefined) ?? cadSession.active
   const state = useEngineState(open?.engine)
+  // Source concept revised since the document was started (derived from Conceptualize; never regenerates anything).
+  const src = state?.doc.metadata.source
+  const [sourceStale, setSourceStale] = useState<ConceptRevisionStaleness | undefined>(undefined)
+  useEffect(() => {
+    setSourceStale(undefined)
+    const port = handoffPort(platformServices)
+    if (!src || !port) return
+    let live = true
+    const read = () => port.revisionStaleness(src.concept.id, src.concept.revision, { projectId, purpose: 'downstream' }).then((x) => live && setSourceStale(x), () => undefined)
+    void read()
+    const off = platformServices.concepts?.subscribe?.(projectId, () => void read())
+    return () => {
+      live = false
+      off?.()
+    }
+  }, [src?.concept.id, src?.concept.revision, projectId, platformServices])
   const update = useCallback((u: Partial<CadModelerViewState>) => setVs(u), [setVs])
   const dirty = !!open && !!session.documents.find((d) => d.id === open.id)?.dirty
   useUnsavedChanges(dirty)
@@ -140,6 +158,11 @@ export default function CadModelerView() {
           {state.doc.metadata.source && (
             <Badge tone="neutral" icon="link" title={`Started from Conceptualize concept ${state.doc.metadata.source.concept.id} at revision ${state.doc.metadata.source.concept.revision}${state.doc.metadata.source.handoff ? `, handoff ${state.doc.metadata.source.handoff.id} revision ${state.doc.metadata.source.handoff.revision}` : ''}`}>
               From {state.doc.metadata.source.concept.label ?? 'concept'} r{state.doc.metadata.source.concept.revision}
+            </Badge>
+          )}
+          {sourceStale?.outdated && (
+            <Badge tone="warning" icon="stale" title={`The concept is now at revision ${sourceStale.currentConceptRevision}: ${sourceStale.changes.map((c) => c.label).join('; ')}. Nothing is regenerated automatically.`}>
+              Possibly outdated (concept r{sourceStale.currentConceptRevision})
             </Badge>
           )}
           {entry?.stored && (

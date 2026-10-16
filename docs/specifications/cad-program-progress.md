@@ -56,8 +56,8 @@ all of them.
 | Item | Status |
 | --- | --- |
 | 1. CAD documents record their source concept and revision | **Done.** Format 1.3 `metadata.source { concept: { module: 'conceptualize', kind: 'concept', id, revision, label? }, handoff?: { id, revision } }`. Set with `set_document_source`, removed with `clear_document_source`. Shown in the header badge and in `describe_model`. The artifact source reports `derived-from` → concept with `toRevision`. Tests: core, artifacts (DB), assistant |
-| 2. Start a part from a CAD handoff (map parameters to bound CAD parameters, report gaps) | **Waiting** for the Conceptualize handoff package and its SDK read |
-| 3. Possibly outdated when the source concept revises (no automatic regeneration) | **Waiting** for the handoff contract. The pinned `source.concept.revision` is the basis: compare it with the concept's latest revision, as `check_bindings` does for constraints |
+| 2. Start a part from a CAD handoff | **Done.** `cad-modeler.start_from_handoff { handoffId, title?, partName? }`: one part; parameters with a nominal value in a length, angle or count unit, bound to their constraint at the package revision; source concept and handoff recorded; *realizes* reference. No geometry is invented. Gaps: ranges, other units, constraints missing from the package, interfaces without geometry, multiple components, and every unresolved item from the package. Reuses run_commands (declarative save, `newDocument`). Reads through `ConceptHandoffPort`: SDK 1.9 members when present, else the workspace interim port (COORDINATOR REVIEW fd4968c). Tests: handoff.test (mapping), services/cad handoff.real.test (real Conceptualize, gateway, CAD service), ai-headless step |
+| 3. Possibly outdated | **Done.** Staleness endpoint (purpose downstream), reported as `source.staleness` in describe_model and check_bindings, and as a header badge **Possibly outdated (concept r…)** that is re-read on Conceptualize events. Nothing is regenerated. Tested on the real stack (concept revision, then outdated; CAD revision unchanged) |
 
 ### D1 follow-up (after main 5565018)
 
