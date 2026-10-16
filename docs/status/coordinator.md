@@ -29,10 +29,10 @@ Coordinator session resumed 16 October 2026 (fresh session; hourly check-in recr
 
 | Item | Agent | Where | State |
 | --- | --- | --- | --- |
-| Baseline verification of main (586c635) | integration-runner role (Sonnet) | main checkout, no e2e on 5173/8787 | running |
+| Baseline verification of main (586c635; same code as 595b376) | integration-runner role (Sonnet) | main checkout | done: typecheck, unit (1244), db:req (458, after one load-related rerun), db:concept (86), db:reasoning (15), db:cad (39), db:projects (31), db:ai (64), build all pass; e2e not run (verify.mjs targets 5173/8787) |
 | Open item 1: registration manifests, design plan | architect role (Opus), read-only | — | done; plan and decisions in [module-registration.md](../specifications/module-registration.md); owner decisions (a)-(c) pending; implementation after SDK 1.9 |
 | Open item 3: SDK 1.9 (ConceptsService additions, FilesService) | task-worker role (Sonnet) | isolated worktree, branch feature/sdk-1.9 | running; not merged until verified and reviewed |
-| Open item 4: ai-fake-provider last step | task-worker role (Sonnet) | isolated worktree, branch fix/fake-provider-drill-constraints | running; not merged until verified |
+| Open item 4: ai-fake-provider last step | task-worker role (Sonnet) | worktree branch | done, merged 75c9919: fixture now writes quantified concept statements; flow passed on fake ports 18787/15173/54399 |
 
 Note: `.claude/agents` definitions load only when the session starts in the repository folder; a session started elsewhere
 uses built-in agent types with the same model and the definition file as instructions.
@@ -43,7 +43,7 @@ Next work (start as new agents, at most 2-3 implementers at once):
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
 2. **D1 owner acceptance**: ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.
 3. **SDK 1.9**: Conceptualize's ConceptsService additions (definition, getHandoff, listHandoffs, revisionStaleness; exact TypeScript in conceptualize-progress.md, "Visual concept exploration") and CR-PM-SDK-4 FilesService (exact TypeScript in project-management-progress.md). Then remove the interim handoff port block in apps/workspace/src/platform/services.ts.
-4. **Fix**: tests/e2e/flows/ai-fake-provider.mjs last step fails, "Prepare draft requirements failed: CON-030 has no quantified constraints" (drill demo plan fixture apps/workspace/fixtures/demo-plans/drill-bit-holder.json vs conceptualize.propose_requirement).
+4. ~~Fix ai-fake-provider last step~~: done (75c9919).
 5. **Codex tasks** CX-001..004 in [docs/codex](../codex/README.md): review and merge the owner's Codex pull requests; add new isolated tasks there.
 6. Proposed ADRs awaiting review (ADR index), incl. mock CAD replacement ADR-0027 and the SysML illustrative-tool retirement.
 7. UI follow-ups listed in ui-focused-canvas-progress.md §6 (units in status bar, per-tab close, context menus).
@@ -60,3 +60,8 @@ files, screenshots or module source. Delegate verification to `integration-runne
 
 ## Not yet verified
 Running state of the module agents; whether all module branches are fully merged (branch heads equal main, so the code is, but their later local work is unknown); real test status on main (no suite was run for this record).
+
+Update 16 October 2026 (fresh session): unit, DB suites and build verified green on main (see Assigned work). Watch item:
+`services/projects/test/acceptance.i1.test.ts` (I1 restart acceptance) failed once with a deep-equal mismatch while another
+worktree ran suites in parallel and passed on rerun; if it recurs, check for a timing-dependent field. Gap: `verify.mjs` has no
+e2e mode on fake-provider ports, so e2e on main is only covered by agents that start their own stack.
