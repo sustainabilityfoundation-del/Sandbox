@@ -14,7 +14,7 @@ import type { AnyToolDefinition } from '@ews/platform-sdk/react'
 import type { CapabilityEntry, PlatformModuleContribution } from '@ews/platform-sdk'
 import { cadTool } from '@ews/tool-cad'
 import { createCadModelerTool } from '@ews/tool-cad-modeler'
-import { conceptualizeTool } from '@ews/tool-conceptualize'
+import { conceptualizeModule } from '@ews/tool-conceptualize'
 import { requirementsTool } from '@ews/tool-requirements'
 import { sysmlTool } from '@ews/tool-sysml'
 import { sysmlModelerModule } from '@ews/tool-sysml-modeler'
@@ -25,7 +25,6 @@ import { platformModuleHelpSource, toolHelpSource } from './helpSources'
 import {
   CAD_CAPABILITIES,
   CAD_MODELER_CAPABILITIES,
-  CONCEPTUALIZE_CAPABILITIES,
   REQUIREMENTS_CAPABILITIES,
   SYSML_CAPABILITIES,
 } from './installedCapabilities'
@@ -47,7 +46,7 @@ export const INSTALLED_MODULES: ClientModule[] = [
   { manifest: manifest('requirements', 'Requirements', REQUIREMENTS_CAPABILITIES, { entitlement: 'tool:requirements', defaultOpen: true }), tool: () => requirementsTool },
   { manifest: manifest('sysml', 'SysML', SYSML_CAPABILITIES, { entitlement: 'tool:sysml', defaultOpen: true }), tool: () => sysmlTool },
   { manifest: manifest('cad', 'CAD', CAD_CAPABILITIES, { entitlement: 'tool:cad', defaultOpen: true }), tool: () => cadTool },
-  { manifest: manifest('conceptualize', 'Conceptualize', CONCEPTUALIZE_CAPABILITIES, { entitlement: 'tool:conceptualize', defaultOpen: true }), tool: () => conceptualizeTool },
+  conceptualizeModule(),
   {
     // CAD Modeler (CAD program), separate from the mock CAD tool (cad-program-contracts.md §1). Until the SDK offers
     // PlatformServices.cad the tool builds its client: API mode follows the Requirements service mode

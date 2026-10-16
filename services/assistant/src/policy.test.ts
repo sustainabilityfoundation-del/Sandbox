@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { validateSettingDefinitions } from '@ews/platform-sdk'
-import { AI_MODULES, AI_SETTING_DEFINITIONS, classify, createPolicy, decide, policyFromSettings } from './policy'
+import { AI_MODULES, AI_SETTING_DEFINITIONS, createPolicy } from './policy'
 import { INSTRUCTIONS } from './wire'
+
+// Conceptualize's AI module and operation classes now come from its server manifest (module-registration.md, M2); the assistant
+// service cannot import another service, so these tests use the same module with the operations they exercise.
+const conceptualizePolicy = createPolicy(
+  [{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] }],
+  { 'conceptualize.read': 'read', 'conceptualize.create': 'propose', 'conceptualize.request_realization': 'external-generation' },
+)
+const { classify, decide, policyFromSettings } = conceptualizePolicy
 
 describe('AI access policy', () => {
   it('has valid, namespaced settings definitions with project ceilings, and leaves ai.reasoning.* free', () => {

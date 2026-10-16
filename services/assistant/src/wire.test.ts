@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { CredentialVault } from './crypto'
-import { policyFromSettings } from './policy'
+import { createPolicy } from './policy'
 import { prepareRequest, redact, resultOutput, screenCalls, signCall, type WireRequest } from './wire'
+
+// Conceptualize's AI module and operation classes now come from its server manifest (module-registration.md, M2); the assistant
+// service cannot import another service, so these tests use the same module with the operations they exercise.
+const conceptualizePolicy = createPolicy(
+  [{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] }],
+  { 'conceptualize.read': 'read', 'conceptualize.create': 'propose', 'conceptualize.request_realization': 'external-generation' },
+)
+const { policyFromSettings } = conceptualizePolicy
 
 const vault = new CredentialVault(CredentialVault.randomKey())
 const ALL = ['tool:requirements', 'tool:conceptualize', 'tool:sysml', 'tool:cad']
@@ -22,7 +30,7 @@ function request(over: Partial<WireRequest['turn']> = {}, history: WireRequest['
 
 describe('request preparation (server-side policy)', () => {
   it('sends only allowed operations', () => {
-    const p = prepareRequest(request(), policyFromSettings({ 'ai.access.requirements': 'off' }), ALL, vault, 'eli')
+    const p = prepareRequest(request(), policyFromSettings({ 'ai.access.requirements': 'off' }), ALL, vault, 'eli', conceptualizePolicy)
     expect(p.tools.map((t) => t.name)).toEqual(['read_object', 'propose_changes', 'conceptualize.create'])
     expect(p.removed.map((r) => r.name)).toEqual(['requirements.search', 'requirements.update', 'shell.exec'])
   })
@@ -69,13 +77,14 @@ describe('request preparation (server-side policy)', () => {
 
   it('refuses model calls that were not offered or are not allowed', () => {
     const policy = policyFromSettings({ 'ai.access.conceptualize': 'read' })
-    const offered = prepareRequest(request(), policy, ALL, vault, 'eli').tools
+    const offered = prepareRequest(request(), policy, ALL, vault, 'eli', conceptualizePolicy).tools
     const { allowed, refused } = screenCalls(
       { type: 'tool_calls', calls: [{ callId: 'a', name: 'read_object', arguments: {} }, { callId: 'b', name: 'conceptualize.create', arguments: {} }, { callId: 'c', name: 'cad-modeler.export', arguments: {} }] },
       offered,
       policy,
       ALL,
       5,
+      conceptualizePolicy,
     )
     expect(allowed.map((c) => c.name)).toEqual(['read_object'])
     expect(refused.map((c) => c.name)).toEqual(['conceptualize.create', 'cad-modeler.export'])

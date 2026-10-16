@@ -26,3 +26,4 @@ export function migrateConcepts(pool: Pool): Promise<MigrationResult> {
   return migrate(pool, { schema: 'conceptualize', directory: CONCEPT_MIGRATIONS_DIR })
 }
 export { createConceptsArtifactSource, CONCEPTS_ARTIFACT_KINDS, lifecycleOf as conceptsLifecycleOf } from './artifactSource'
+export { conceptualizeServerManifest } from './manifest'

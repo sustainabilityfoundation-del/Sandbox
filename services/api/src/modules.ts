@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import type { Pool } from 'pg'
 import type { AiModuleDescriptor, OperationClass, ServerModuleHost, ServerModuleDescriptor, ServerModuleManifest } from '@ews/platform-sdk'
 import { BASE_PATH, createRequirementsArtifactSource, requirementsPlugin, type EventHub, type SysmlElementDirectory, type TwinDirectory } from '@ews/requirements-service'
-import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsArtifactSource, type ConceptsEventHub } from '@ews/conceptualize-service'
+import { CONCEPTS_BASE_PATH, conceptsPlugin, conceptualizeServerManifest, createConceptsArtifactSource, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { SYSML_BASE_PATH, createSysmlArtifactSource, sysmlPlugin, sysmlServerManifest, type SysmlEventHub, type SysmlRepository } from '@ews/sysml-service'
 import { CAD_BASE_PATH, CAD_SETTINGS, cadPlugin, createCadArtifactSource, type CadEventHub } from '@ews/cad-service'
 import { composeTwinDirectories, productTwinDirectory, projectsServerManifest, type BlobStore } from '@ews/projects-service'
@@ -70,11 +70,7 @@ export const INSTALLED_SERVER_MODULES: ApiServerModule[] = [
     },
   },
   {
-    id: 'conceptualize',
-    name: 'Conceptualize',
-    basePath: CONCEPTS_BASE_PATH,
-    docs: 'Conceptualize API',
-    provisioning: { lazyReason: 'Conceptualize stores data by project ID; its project space appears with the first concept.' },
+    ...conceptualizeServerManifest,
     async register(host) {
       const { app, pool, auth } = host
       await app.register(conceptsPlugin, { prefix: CONCEPTS_BASE_PATH, pool, events: host.conceptEvents, authenticate: auth.authenticate, roleOf: auth.roleOf })

@@ -8,7 +8,8 @@ import { SettingsRegistry, settingsPlugin, type SettingsStore } from '@ews/setti
 import { dropDatabase, ensureDatabase } from '../../api/src/database'
 import { prepareDatabase } from '../../api/src/server'
 import { identity } from '../../api/src/platform/identity'
-import { AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS } from '../src/policy'
+import { ALL_SERVER_MODULES, collectPolicyContributions } from '../../api/src/modules'
+import { AI_SETTINGS_PAGE, createPolicy } from '../src/policy'
 import { CredentialVault } from '../src/crypto'
 import { assistantPlugin, registerOAuthCallback } from '../src/plugin'
 import { ProviderRegistry } from '../src/providers/registry'
@@ -49,7 +50,10 @@ export async function createAiEnv(options: { openaiFetch?: typeof fetch } = {}):
   const app = Fastify({ logger: { level: 'trace', stream } })
   const auth = identity(pool, { production: false })
   const registry = new SettingsRegistry()
-  registry.register(AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS)
+  // The policy the host builds: platform entries plus what the installed server manifests declare (module-registration.md).
+  const contributions = collectPolicyContributions(ALL_SERVER_MODULES)
+  const policy = createPolicy(contributions.aiModules, contributions.operations)
+  registry.register(AI_SETTINGS_PAGE, policy.settingDefinitions)
   let store: SettingsStore | undefined
   await app.register(settingsPlugin, { prefix: '/api/settings/v1', pool, registry, authenticate: auth.authenticate, roleOf: auth.roleOf, onReady: (s) => (store = s) })
   const fake = createFakeProvider()
@@ -60,6 +64,7 @@ export async function createAiEnv(options: { openaiFetch?: typeof fetch } = {}):
     pool,
     vault: new CredentialVault(CredentialVault.randomKey()),
     providers,
+    policy,
     publicOrigin: 'http://127.0.0.1:8801',
     fetch: options.openaiFetch,
     authenticate: auth.authenticate,
