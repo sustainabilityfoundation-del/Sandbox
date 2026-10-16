@@ -156,3 +156,52 @@ export type VisualReviseDto = Static<typeof VisualRevise>
 export type AnnotationCreateDto = Static<typeof AnnotationCreate>
 export type GenerationRecordDto = Static<typeof GenerationRecord>
 export { Definition, Provenance }
+
+// ---- concept cards and the CAD handoff -------------------------------------------------------------------------
+
+const Coverage = L('intended', 'preliminary-check', 'verified')
+const Any = Type.Unknown()
+export const CardConstraint = Type.Object({
+  id: Uuid, key: Type.String(), revision: Type.Integer(), statement: Type.String(), bound: Any, strength: Type.String(), status: Type.String(),
+  requirement: Any, coverage: Coverage, checkStatus: Nullable(Type.String()), checkedBy: Nullable(Type.String({ description: 'Evidence key of the check' })),
+})
+export const ConceptCard = Type.Object(
+  {
+    concept: Type.Object({ id: Uuid, key: Type.String(), name: Type.String(), summary: Type.String(), revision: Type.Integer(), stage: Type.String(), maturity: Type.String(), verificationStatus: Type.String() }),
+    intent: Type.String(),
+    principle: Type.Array(Type.String()),
+    components: Type.Array(Any),
+    interfaces: Type.Array(Any),
+    parameters: Type.Array(Any),
+    benefits: Type.Array(Type.String()),
+    tradeOffs: Type.Array(Type.String()),
+    constraints: Type.Array(CardConstraint),
+    requirements: Type.Array(Type.Object({ relation: Type.String(), artifact: Any, coverage: Type.Literal('intended') })),
+    assumptions: Type.Array(Type.Object({ id: Uuid, key: Type.String(), statement: Type.String(), validationStatus: Type.String() })),
+    questions: Type.Array(Type.Object({ kind: Type.String(), text: Type.String(), state: Nullable(Type.String()) })),
+    validation: Type.Object({ verificationStatus: Type.String(), openQuestions: Type.Integer(), unconfirmedHypotheses: Type.Integer(), constraintsVerified: Type.Integer(), constraintsChecked: Type.Integer(), constraintsTotal: Type.Integer() }),
+    visuals: Type.Array(Visual),
+    primaryVisualId: Nullable(Uuid),
+    decisions: Type.Array(Type.Object({ id: Uuid, key: Type.String(), title: Type.String(), status: Type.String(), outcome: Type.String(), rationale: Type.String() })),
+    membership: Type.Array(Type.Object({ setId: Uuid, setKey: Type.String(), setName: Type.String(), status: Type.String() })),
+  },
+  { $id: 'ConceptCard', description: 'Everything a comparison card shows. Requirements and constraints are intended unless a recorded check exists (verified needs verified evidence).' },
+)
+export const SetCards = Type.Object({ setId: Uuid, key: Type.String(), name: Type.String(), question: Type.String(), parentId: Uuid, cards: Type.Array(ConceptCard) }, { $id: 'AlternativeSetCards' })
+export const Handoff = Type.Object(
+  {
+    id: Uuid,
+    key: Type.String({ examples: ['HND-001'] }),
+    projectId: Type.String(),
+    conceptId: Uuid,
+    conceptRevision: Type.Integer({ description: 'The exact Concept revision the package was built from' }),
+    target: Type.Literal('cad'),
+    package: Type.Record(Type.String(), Any, { description: 'conceptualize.cad-handoff/1: intent, components, relationships, interfaces, parameters, envelopes, constraints (with coverage), requirement and decision links, assumptions, visual references, unresolved items' }),
+    staleness: Staleness,
+    createdAt: Timestamp,
+    createdBy: Type.String(),
+    provenance: ProvenanceOut,
+  },
+  { $id: 'CadHandoff', description: 'Immutable, revision-pinned package for the CAD Modeler. Missing information is listed in unresolved, never invented.' },
+)
+export const HandoffCreate = Type.Object({ target: Type.Optional(Type.Literal('cad')), conceptRevision: Type.Optional(Type.Integer({ minimum: 1 })) }, { $id: 'CadHandoffCreate', additionalProperties: false })

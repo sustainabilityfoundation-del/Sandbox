@@ -11,7 +11,7 @@ import { formatQuantity, KIND_LABEL } from './domain'
  * library content mixed in.
  */
 
-export const STATEMENT_KINDS: StatementKind[] = ['function', 'behavior', 'principle', 'effect', 'input', 'output', 'constraint', 'interface', 'mechanism', 'problem', 'capability', 'performance', 'assumption', 'uncertainty', 'question', 'rationale', 'note']
+export const STATEMENT_KINDS: StatementKind[] = ['function', 'behavior', 'principle', 'effect', 'input', 'output', 'constraint', 'interface', 'mechanism', 'problem', 'capability', 'performance', 'assumption', 'uncertainty', 'question', 'rationale', 'note', 'benefit', 'trade-off']
 /** Bases the assistant may write (ADR-0043); default ai-hypothesis. */
 const MODEL_BASES = ['ai-hypothesis', 'assumption', 'estimate'] as const
 type ModelBasis = (typeof MODEL_BASES)[number]

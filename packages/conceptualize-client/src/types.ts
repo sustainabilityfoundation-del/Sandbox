@@ -26,6 +26,8 @@ export type StatementKind =
   | 'question'
   | 'rationale'
   | 'note'
+  | 'benefit'
+  | 'trade-off'
 export type SourceKind = 'user' | 'assistant' | 'import' | 'system'
 export type VerificationStatus = 'not-verified' | 'partially-verified' | 'verified' | 'failed'
 export type ImplementationStatus = 'candidate' | 'in-development' | 'implemented' | 'retired'

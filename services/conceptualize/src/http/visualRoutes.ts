@@ -1,6 +1,7 @@
 import { Type } from '@sinclair/typebox'
 import type { FastifyInstance } from 'fastify'
 import { addAnnotation, archiveVisual, conceptDependents, createVisual, listVisualRevisions, listVisuals, recordGeneration, requireVisual, reviseVisual, revisionStaleness } from '../store/visuals'
+import { conceptCard, createHandoff, listHandoffs, requireHandoff, setCards } from '../store/cards'
 import { registerRoute, type HostServices, type RequestContext, type RouteSpec } from './route'
 import * as S from './schemas'
 import * as V from './visualSchemas'
@@ -88,5 +89,30 @@ export function registerVisualRoutes(app: FastifyInstance, services: HostService
     query: Type.Object({ revision: Type.Integer({ minimum: 1 }), purpose: Type.Optional(Type.Union([Type.Literal('layout'), Type.Literal('illustration'), Type.Literal('handoff'), Type.Literal('downstream')])) }, { additionalProperties: false }),
     permission: 'read', crossModule: true, responses: { 200: { description: 'Staleness', schema: V.Staleness }, ...READ },
     handler: async (rc) => { const q = rc.query as { revision: number; purpose?: 'layout' | 'illustration' | 'handoff' | 'downstream' }; return { body: await rc.read((ctx) => revisionStaleness(ctx.db, rc.projectId, rc.params.conceptId, q.revision, q.purpose ?? 'downstream')) } },
+  })
+  route({
+    method: 'GET', path: '/projects/{projectId}/concepts/{conceptId}/card', operationId: 'getConceptCard', tag: 'Visuals', summary: 'Concept card: visual, principle, components and interfaces, benefits and trade-offs, requirements and constraints (intended vs verified), assumptions, questions, validation', params: PC,
+    permission: 'read', crossModule: true, responses: { 200: { description: 'Card', schema: V.ConceptCard }, ...READ },
+    handler: async (rc) => ({ body: await rc.read((ctx) => conceptCard(ctx.db, rc.projectId, rc.params.conceptId)) }),
+  })
+  route({
+    method: 'GET', path: '/projects/{projectId}/alternative-sets/{setId}/cards', operationId: 'getAlternativeSetCards', tag: 'Visuals', summary: 'Cards of the alternatives of a set, for side-by-side comparison', params: Type.Object({ projectId: Type.String(), setId: Type.String() }),
+    permission: 'read', crossModule: true, responses: { 200: { description: 'Cards', schema: V.SetCards }, ...READ },
+    handler: async (rc) => ({ body: await rc.read((ctx) => setCards(ctx.db, rc.projectId, rc.params.setId)) }),
+  })
+  route({
+    method: 'POST', path: '/projects/{projectId}/concepts/{conceptId}/handoffs', operationId: 'createCadHandoff', tag: 'Visuals', summary: 'Build the revision-pinned CAD handoff package of a Concept (missing information listed, never invented)', params: PC, body: V.HandoffCreate,
+    permission: 'author', idempotency: 'required', responses: { 201: { description: 'Created', schema: V.Handoff }, ...WRITE },
+    handler: async (rc) => rc.write(async (ctx) => { const h = await createHandoff(ctx, rc.params.conceptId, body(rc)); return { status: 201, body: h, headers: { Location: `${base(rc)}/handoffs/${h.id}` } } }),
+  })
+  route({
+    method: 'GET', path: '/projects/{projectId}/handoffs', operationId: 'listCadHandoffs', tag: 'Visuals', summary: 'CAD handoff packages, optionally of one Concept, with derived staleness', params: P,
+    query: Type.Object({ conceptId: Type.Optional(Type.String()) }, { additionalProperties: false }), permission: 'read', crossModule: true, responses: { 200: { description: 'Handoffs', schema: Type.Array(V.Handoff) }, ...READ },
+    handler: async (rc) => ({ body: await rc.read((ctx) => listHandoffs(ctx.db, rc.projectId, (rc.query as { conceptId?: string }).conceptId)) }),
+  })
+  route({
+    method: 'GET', path: '/projects/{projectId}/handoffs/{handoffId}', operationId: 'getCadHandoff', tag: 'Visuals', summary: 'Read a CAD handoff package (for the CAD Modeler)', params: Type.Object({ projectId: Type.String(), handoffId: Type.String() }),
+    permission: 'read', crossModule: true, responses: { 200: { description: 'Handoff', schema: V.Handoff }, ...READ },
+    handler: async (rc) => ({ body: await rc.read((ctx) => requireHandoff(ctx.db, rc.projectId, rc.params.handoffId)) }),
   })
 }

@@ -109,7 +109,9 @@ export type StatementKind =
   | 'question'
   | 'rationale'
   | 'note'
-export const STATEMENT_KINDS: StatementKind[] = ['function', 'behavior', 'principle', 'effect', 'input', 'output', 'constraint', 'interface', 'mechanism', 'problem', 'capability', 'performance', 'assumption', 'uncertainty', 'question', 'rationale', 'note']
+  | 'benefit'
+  | 'trade-off'
+export const STATEMENT_KINDS: StatementKind[] = ['function', 'behavior', 'principle', 'effect', 'input', 'output', 'constraint', 'interface', 'mechanism', 'problem', 'capability', 'performance', 'assumption', 'uncertainty', 'question', 'rationale', 'note', 'benefit', 'trade-off']
 export const STATEMENT_KIND_LABEL: Record<StatementKind, string> = {
   function: 'Function',
   behavior: 'Desired behavior',
@@ -128,6 +130,8 @@ export const STATEMENT_KIND_LABEL: Record<StatementKind, string> = {
   question: 'Open question',
   rationale: 'Engineering rationale',
   note: 'Note',
+  benefit: 'Benefit',
+  'trade-off': 'Trade-off',
 }
 /** Kinds that carry an open/resolved state. */
 export const STATEFUL_KINDS: StatementKind[] = ['question', 'uncertainty']

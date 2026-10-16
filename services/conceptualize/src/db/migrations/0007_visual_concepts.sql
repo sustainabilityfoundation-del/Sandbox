@@ -145,3 +145,8 @@ CREATE TABLE conceptualize.handoffs (
 );
 CREATE INDEX handoffs_concept ON conceptualize.handoffs (project_id, concept_id);
 CREATE TRIGGER handoffs_immutable BEFORE UPDATE OR DELETE ON conceptualize.handoffs FOR EACH ROW EXECUTE FUNCTION conceptualize.refuse_change();
+
+-- Concept cards show principal benefits and trade-offs: two statement kinds (existing rows all satisfy the check).
+ALTER TABLE conceptualize.concept_statements DROP CONSTRAINT concept_statements_kind_check;
+ALTER TABLE conceptualize.concept_statements ADD CONSTRAINT concept_statements_kind_check
+  CHECK (kind IN ('function', 'behavior', 'principle', 'effect', 'input', 'output', 'constraint', 'interface', 'mechanism', 'problem', 'capability', 'performance', 'assumption', 'uncertainty', 'question', 'rationale', 'note', 'benefit', 'trade-off'));

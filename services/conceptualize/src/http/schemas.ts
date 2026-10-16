@@ -17,7 +17,7 @@ export const Basis = Type.Union([L('user-assertion', 'ai-hypothesis', 'assumptio
   $id: 'Basis',
   description: 'How it is known (ADR-0043 ladder): user-assertion (stated by a person), ai-hypothesis (assistant, unverified), assumption, assessment (qualitative judgement), estimate (preliminary calculation), calculated (registered model with manifest), evidence (verified), decision (recorded decision)',
 })
-export const StatementKind = L('function', 'behavior', 'principle', 'effect', 'input', 'output', 'constraint', 'interface', 'mechanism', 'problem', 'capability', 'performance', 'assumption', 'uncertainty', 'question', 'rationale', 'note')
+export const StatementKind = L('function', 'behavior', 'principle', 'effect', 'input', 'output', 'constraint', 'interface', 'mechanism', 'problem', 'capability', 'performance', 'assumption', 'uncertainty', 'question', 'rationale', 'note', 'benefit', 'trade-off')
 export const VerificationStatus = L('not-verified', 'partially-verified', 'verified', 'failed')
 export const ImplementationStatus = L('candidate', 'in-development', 'implemented', 'retired')
 export const ConceptImplementationStatus = Type.Union([L('none', 'candidate', 'in-development', 'implemented', 'retired')], { description: 'Derived from the linked implementations (most advanced, retired only when all are retired)' })

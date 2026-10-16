@@ -204,3 +204,58 @@ describe('visuals, annotations and staleness', () => {
     ])
   })
 })
+
+describe('concept cards and CAD handoff', () => {
+  const ref = (type: string, id: string) => ({ module: 'conceptualize', type, id })
+  it('shows constraints as intended until checked, verified only with verified evidence; the handoff lists what is missing', async () => {
+    const c = await bracket('Card bracket')
+    await patch(`/concepts/${c.id}`, { expectedRevision: c.revision, statements: [{ kind: 'principle', text: 'Cantilever arm on a wall plate' }, { kind: 'benefit', text: 'Two parts only' }, { kind: 'trade-off', text: 'Bending at the root' }, { kind: 'question', text: 'Which wall anchors?' }] })
+    const cst = (await post('/constraints', { kind: 'dimensional', statement: 'Arm at most 130 mm', bound: { operator: '<=', quantity: { value: 130, unit: 'mm' } }, subjects: [ref('concept', c.id)] })).body
+    const cst2 = (await post('/constraints', { kind: 'dimensional', statement: 'Plate at most 100 mm', bound: { operator: '<=', quantity: { value: 100, unit: 'mm' } }, subjects: [ref('concept', c.id)] })).body
+    const layout = (await post('/visuals', { conceptId: c.id, kind: 'layout' })).body
+    let card = (await get(`/concepts/${c.id}/card`)).body
+    await expectConforms(env, 'getConceptCard', 200, card)
+    expect(card).toMatchObject({ principle: ['Cantilever arm on a wall plate'], benefits: ['Two parts only'], tradeOffs: ['Bending at the root'], questions: [{ kind: 'question', text: 'Which wall anchors?' }], primaryVisualId: layout.id })
+    expect(card.constraints.map((x: { coverage: string }) => x.coverage)).toEqual(['intended', 'intended'])
+    const est = await post('/evidence', { subjects: [ref('concept', c.id)], kind: 'analysis', title: 'Arm length estimate', basis: 'estimate', source: { module: 'external', id: 'sketch-check', revision: 1 }, tool: { name: 'hand check', version: '1' }, results: [{ name: 'arm', value: 120, unit: 'mm', qualification: { kind: 'point' }, constraint: { module: 'conceptualize', type: 'constraint', id: cst.id } }] })
+    expect(est.status, JSON.stringify(est.body)).toBe(201)
+    card = (await get(`/concepts/${c.id}/card`)).body
+    expect(card.constraints.find((x: { id: string }) => x.id === cst.id)).toMatchObject({ coverage: 'preliminary-check', checkStatus: est.body.results[0].status })
+    expect(card.validation).toMatchObject({ constraintsTotal: 2, constraintsChecked: 1, constraintsVerified: 0 })
+
+    const h = await post(`/concepts/${c.id}/handoffs`, {})
+    expect(h.status, JSON.stringify(h.body)).toBe(201)
+    await expectConforms(env, 'createCadHandoff', 201, h.body)
+    const pkg = h.body.package
+    expect(pkg.schema).toBe('conceptualize.cad-handoff/1')
+    expect(h.body.conceptRevision).toBe(pkg.concept.revision)
+    expect(pkg.components.map((x: { id: string }) => x.id)).toEqual(['C1', 'C2'])
+    expect(pkg.envelopes.find((e: { componentId: string }) => e.componentId === 'C2').width).toMatchObject({ value: 120, unit: 'mm', symbol: 'arm_l' })
+    expect(pkg.envelopes.find((e: { componentId: string }) => e.componentId === 'C2').height).toMatchObject({ value: 10, parameterId: null })
+    const kinds = pkg.unresolved.map((u: { kind: string }) => u.kind)
+    expect(kinds).toEqual(expect.arrayContaining(['open-question', 'unchecked-constraint', 'not-selected']))
+    expect(pkg.unresolved.find((u: { kind: string; ref: string }) => u.kind === 'unchecked-constraint').ref).toBe(cst2.id)
+    expect(pkg.visuals).toEqual([expect.objectContaining({ id: layout.id, kind: 'layout', illustrative: false })])
+    // The handoff becomes possibly outdated when a parameter changes.
+    const now = (await get(`/concepts/${c.id}`)).body
+    const params = now.definition.parameters.map((p: { symbol: string; value: number }) => (p.symbol === 'thk' ? { ...p, value: 5 } : p))
+    await patch(`/concepts/${c.id}`, { expectedRevision: now.revision, definition: { ...now.definition, idSeq: undefined, parameters: params } })
+    const read = await get(`/handoffs/${h.body.id}`)
+    expect(read.body.staleness).toMatchObject({ outdated: true, changes: [{ area: 'parameter', label: 'thk = 5 mm' }] })
+    expect((await get(`/handoffs?conceptId=${c.id}`)).body).toHaveLength(1)
+    const deps = (await get(`/concepts/${c.id}/dependents`)).body.dependents
+    expect(deps.find((d: { type: string }) => d.type === 'handoff')).toMatchObject({ key: h.body.key, staleness: { outdated: true } })
+  })
+
+  it('compares the alternatives of a set as cards', async () => {
+    const parent = (await post('/concepts', { name: 'Shelf support' })).body
+    const a = await bracket('Bracket A')
+    const b = await bracket('Bracket B')
+    const set = (await post('/alternative-sets', { parentId: parent.id, name: 'Shelf support options', memberIds: [a.id, b.id] })).body
+    const cards = await get(`/alternative-sets/${set.id}/cards`)
+    expect(cards.status, JSON.stringify(cards.body)).toBe(200)
+    await expectConforms(env, 'getAlternativeSetCards', 200, cards.body)
+    expect(cards.body.cards.map((x: { concept: { name: string } }) => x.concept.name)).toEqual(['Bracket A', 'Bracket B'])
+    expect(cards.body.cards[0].membership[0]).toMatchObject({ setId: set.id, status: 'candidate' })
+  })
+})
