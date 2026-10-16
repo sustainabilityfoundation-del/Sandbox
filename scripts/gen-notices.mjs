@@ -21,7 +21,7 @@ const outFile = path.join(repo, 'apps/workspace/public/THIRD_PARTY_NOTICES.txt')
 const baseFile = path.join(repo, 'scripts/notices/replicad-occt.txt')
 const WORKER_ROOTS = ['replicad'] // runs in packages/cad-kernel's worker
 const COVERED_BY_BASE = new Set(['replicad', 'replicad-opencascadejs']) // section kept as written
-const EOL = '\r\n'
+const EOL = '\n' // LF on every platform (.gitattributes keeps the committed file LF)
 
 const readPkg = (dir) => JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
 
@@ -240,12 +240,12 @@ if (declaredOnly.length) {
 }
 for (const f of Object.keys(groups.size ? Object.fromEntries(groups) : {})) if (!order.includes(f)) console.warn(`Note: licence family ${f} is not one of the usual set; review it.`)
 
-const base = fs.readFileSync(baseFile, 'utf8')
+const base = fs.readFileSync(baseFile, 'utf8').replace(/\r\n/g, '\n')
 const text = base.replace(/\s+$/, '') + EOL + out.join('\n').replace(/\r?\n/g, EOL) + EOL
 
 if (process.argv.includes('--check')) {
   const current = fs.existsSync(outFile) ? fs.readFileSync(outFile, 'utf8') : ''
-  if (current !== text) {
+  if (current.replace(/\r\n/g, '\n') !== text) {
     console.error('THIRD_PARTY_NOTICES.txt is out of date: run `npm run notices`.')
     process.exit(1)
   }
