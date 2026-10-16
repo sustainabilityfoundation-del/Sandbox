@@ -4,14 +4,18 @@ title: Sketching and constraints
 kind: guide
 summary: Create sketches on planes, add lines, circles, arcs, points and rectangles, constrain them and read the degrees of freedom.
 keywords: [sketch, constraint, dimension, dof, degrees of freedom, rectangle, circle, arc, line, fully constrained]
-related: [cad-modeler.constraints, cad-modeler.parameters, cad-modeler.features]
+related: [cad-modeler.sketch-draw, cad-modeler.constraints, cad-modeler.parameters, cad-modeler.features]
 ---
 
 **Create a sketch:** toolbar **Sketch**, choose the plane (XY, XZ or YZ) and an optional offset
 along its normal (a number or an expression). Every sketch has a fixed **origin**, **x-axis** and
 **y-axis** you can constrain to.
 
-**Add geometry** (Edit tab): Rectangle, Circle, Line, Arc (counter-clockwise from start to end) and
+**Draw by clicking.** Choose **Line**, **Rectangle**, **Circle** or **Polygon** in the bar above the sketch and click or
+tap two points (they snap to the grid and to existing points, and joined shapes get their constraints
+automatically). See [drawing in the sketch](help:cad-modeler.sketch-draw).
+
+**Add geometry** (Edit tab, for exact values; the same commands the clicks use): Rectangle, Circle, Line, Arc (counter-clockwise from start to end) and
 Point, by coordinates in millimetres. A rectangle comes with horizontal and vertical constraints and,
 optionally, width and height dimensions; at corner 0, 0 it is fixed to the origin.
 

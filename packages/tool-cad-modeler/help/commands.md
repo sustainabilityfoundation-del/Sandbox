@@ -17,6 +17,7 @@ operations: [cad-modeler.run_commands]
 | Constraints | `apply_constraint`, `set_dimension`, `set_dimension_driving`, `delete_constraint` |
 | Features | `extrude_profile`, `revolve_profile`, `fillet_edges`, `chamfer_edges`, `edit_feature`, `set_suppressed`, `delete_feature` |
 | Semantics, references | `add_semantic`, `remove_semantic`, `add_reference`, `remove_reference` |
+| Lost face or edge references | `repair_reference { featureId, from, to }` replaces one lost edge (fillet, chamfer) or face (sketch, datum plane) by the replacement you choose; the query `get_reference_repairs` lists the lost names and candidates ([details](help:cad-modeler.repair-reference)) |
 
 Each command has a JSON Schema for its input, documented preconditions and error codes
 (`invalid-input`, `not-found`, `precondition-failed`, `in-use`, `invalid-expression`, `cycle`,

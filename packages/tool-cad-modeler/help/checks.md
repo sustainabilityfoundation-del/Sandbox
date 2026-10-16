@@ -26,7 +26,7 @@ What is checked:
   - mass (needs a material);
   - a pattern's spacing and count;
   - a pattern's gap: the material left between neighbouring occurrences, measured by the kernel;
-  - a pattern's occurrence width: the width of one occurrence along the pattern direction (for a hexagonal pocket with flats facing the direction, its across-flats size), measured by the kernel.
+  - a pattern's occurrence width: the width of one occurrence along the pattern direction (for a hexagonal pocket with flats facing the direction, its across-flats size), measured by the kernel. It is valid only where two flat faces bound the occurrence along the direction. With corners or curved faces facing the direction the result says so (*not-checkable*, with the reason) instead of reporting a corner-to-corner extent as a pocket width; the bound parameter value is still checked. A pocket-width check normally lists both: the bound parameter (model value) and the kernel-measured width, so a parameter that disagrees with the geometry shows.
 
 Units are converted where they are compatible: mm, cm, m, in; g, kg, lb; mm³, cm³; deg and rad.
 

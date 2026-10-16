@@ -25,6 +25,7 @@ export const cadServerManifest: ServerModuleDescriptor = {
     'cad-modeler.query': 'read',
     'cad-modeler.run_commands': 'propose',
     'cad-modeler.undo': 'propose',
+    'cad-modeler.redo': 'propose',
     'cad-modeler.new_document': 'propose',
     'cad-modeler.open_document': 'propose',
     'cad-modeler.export': 'export',

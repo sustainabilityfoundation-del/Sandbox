@@ -1,6 +1,6 @@
 import './modeler.css'
 import type { SketchFeature } from '@ews/cad-core'
-import { Badge, Button, EmptyState, Notice, Spinner, StatusBadge, Tab, TabList, TabPanel, Tabs, useToasts } from '@ews/design-system'
+import { Badge, Button, EmptyState, Notice, Select, Spinner, StatusBadge, Tab, TabList, TabPanel, Tabs, useToasts } from '@ews/design-system'
 import { useSharedContext, useToolViewState, useUnsavedChanges, useSetting, usePlatformServices } from '@ews/platform-sdk/react'
 import { OpenDialog } from './ui/OpenDialog'
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react'
@@ -13,7 +13,7 @@ import { DiagnosticsPanel } from './ui/DiagnosticsPanel'
 import { EditPanel } from './ui/EditPanel'
 import { InspectPanel } from './ui/InspectPanel'
 import { ModelPanel } from './ui/ModelPanel'
-import { Sketcher } from './ui/Sketcher'
+import { SketchStage } from './ui/SketchStage'
 import { Viewport } from './ui/Viewport'
 import type { CadModelerViewState, PanelTab } from './viewState'
 
@@ -147,7 +147,7 @@ export default function CadModelerView() {
             <InspectPanel engine={open.engine} state={state} vs={vs} update={update} />
           </TabPanel>
           <TabPanel id="diagnostics" className="cadm-tabpanel">
-            <DiagnosticsPanel engine={open.engine} state={state} session={session} />
+            <DiagnosticsPanel engine={open.engine} state={state} session={session} update={update} />
           </TabPanel>
         </Tabs>
       </aside>
@@ -195,7 +195,18 @@ export default function CadModelerView() {
             </Badge>
           ) : null}
           {session.documents.length > 1 && (
-            <span className="cadm-muted">{session.documents.length} documents open</span>
+            <span className="cadm-doc-switch" data-help-id="cad-modeler.documents.switcher">
+              <Select
+                ariaLabel="Switch document"
+                size="sm"
+                value={open.id}
+                options={session.documents.map((d) => ({ id: d.id, label: `${d.title} (v${d.version})${d.dirty ? ' – unsaved' : ''}` }))}
+                onChange={(id) => {
+                  cadSession.setActive(id)
+                  update({ documentId: id, editing: null, selection: [], viewRequest: { kind: 'fit', seq: Date.now() } })
+                }}
+              />
+            </span>
           )}
           {sketch && (
             <Button size="sm" variant="text" icon="close" onPress={() => update({ editing: null })}>
@@ -219,17 +230,7 @@ export default function CadModelerView() {
           </div>
         )}
         {sketch ? (
-          <div className="cadm-sketch-stage">
-            <Sketcher
-              sketch={sketch}
-              result={sketchResult}
-              selected={vs.selection.filter((s) => s.kind === 'sketch-entity').map((s) => s.id)}
-              onToggle={(id) => {
-                const has = vs.selection.some((s) => s.kind === 'sketch-entity' && s.id === id)
-                update({ selection: has ? vs.selection.filter((s) => !(s.kind === 'sketch-entity' && s.id === id)) : [...vs.selection.filter((s) => s.kind === 'sketch-entity'), { kind: 'sketch-entity', id, sketchId: sketch.id }] })
-              }}
-            />
-          </div>
+          <SketchStage key={sketch.id} engine={open.engine} sketch={sketch} result={sketchResult} vs={vs} update={update} />
         ) : (
           <Viewport
             engine={open.engine}

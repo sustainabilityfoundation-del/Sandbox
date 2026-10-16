@@ -96,6 +96,13 @@ describe('C9: every cad-modeler operation with no view mounted', () => {
     const undo = await propose('cad-modeler.undo', { documentId: doc.documentId })
     expect((await undo.apply(provenance)).summary).toMatch(/saved revision 3$/)
     expect((await store.get(A, doc.documentId)).document.parts[0].parameters[0].expression).toBe('5')
+
+    // Redo (C1.5): refused before an undo, available right after one, saved as a new revision.
+    const redo = await propose('cad-modeler.redo', { documentId: doc.documentId })
+    expect(redo.title).toMatch(/^Redo “/)
+    expect((await redo.apply(provenance)).summary).toMatch(/saved revision 4$/)
+    expect((await store.get(A, doc.documentId)).document.parts[0].parameters[0].expression).toBe('8')
+    expect((await refused(action('cad-modeler.redo').run({ documentId: doc.documentId }, ctx(A)))).message).toMatch(/nothing to redo/i)
   })
 
   it('run_commands with no document creates and stores one; new_document stores one', async () => {
@@ -165,7 +172,7 @@ describe('C9: every cad-modeler operation with no view mounted', () => {
 
   it('defines the same operations as the tool registers (all covered here)', () => {
     expect(cadModelerTool.assistant!.actions.map((a) => a.name).sort()).toEqual(
-      ['cad-modeler.check', 'cad-modeler.check_bindings', 'cad-modeler.describe_model', 'cad-modeler.export', 'cad-modeler.list_documents', 'cad-modeler.new_document', 'cad-modeler.open_document', 'cad-modeler.query', 'cad-modeler.run_commands', 'cad-modeler.save_document', 'cad-modeler.start_from_handoff', 'cad-modeler.undo'].sort(),
+      ['cad-modeler.check', 'cad-modeler.check_bindings', 'cad-modeler.describe_model', 'cad-modeler.export', 'cad-modeler.list_documents', 'cad-modeler.new_document', 'cad-modeler.open_document', 'cad-modeler.query', 'cad-modeler.run_commands', 'cad-modeler.save_document', 'cad-modeler.redo', 'cad-modeler.start_from_handoff', 'cad-modeler.undo'].sort(),
     )
   })
 })

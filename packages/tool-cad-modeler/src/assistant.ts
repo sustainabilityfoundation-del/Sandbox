@@ -500,7 +500,7 @@ const actions: AssistantActionDefinition[] = [
   {
     name: 'cad-modeler.undo',
     label: 'Prepare CAD undo',
-    description: 'Propose undoing the last transaction of the CAD document (whoever made it). Undo creates a new version; Redo is available in the CAD Modeler.',
+    description: 'Propose undoing the last transaction of the CAD document (whoever made it). Undo creates a new version; cad-modeler.redo re-applies it.',
     parameters: { type: 'object', properties: { documentId }, additionalProperties: false },
     async run(args, ctx) {
       const d = (await resolveDocument(args, ctx))!
@@ -520,6 +520,33 @@ const actions: AssistantActionDefinition[] = [
           const r = await d.engine.undo('assistant', version)
           const saved = persistsOnApply() && d.stored ? await cadSession.saveToStore(ctx.captured.projectId, d.id, { message: `Assistant: undo “${state.undoLabel}”`, provenance: { sourceKind: 'assistant', ...provenance } }) : null
           return { summary: `Undid “${state.undoLabel}” (version ${r.version})${saved ? `; saved revision ${saved.revision}` : ''}` }
+        },
+      }
+    },
+  },
+  {
+    name: 'cad-modeler.redo',
+    label: 'Prepare CAD redo',
+    description: 'Propose redoing the last transaction that was undone in this CAD document (Undo and Redo apply to the session history of the open document, whoever made the change). Redo creates a new version. Refused when nothing was undone, or after a new change since the undo.',
+    parameters: { type: 'object', properties: { documentId }, additionalProperties: false },
+    async run(args, ctx) {
+      const d = (await resolveDocument(args, ctx))!
+      const state = d.engine.getState()
+      if (!state.canRedo) throw new ActionError('no-op', 'There is nothing to redo in this document (a redo is available only right after an undo, before any new change).')
+      const version = d.engine.document.version
+      return {
+        kind: 'service-proposal',
+        module: MODULE,
+        title: `Redo “${state.redoLabel}”`,
+        explanation: `Re-applies “${state.redoLabel}” to “${d.engine.document.metadata.title}” (from version ${version}).`,
+        preview: [
+          { targetId: d.id, label: 'Redo', current: `version ${version}`, proposed: `“${state.redoLabel}” applied again as version ${version + 1}` },
+          ...(persistsOnApply() && d.stored ? [{ targetId: d.id, label: 'Saved to the project', proposed: `revision ${d.stored.revision + 1} of ${d.id} in ${ctx.captured.projectId}` }] : []),
+        ],
+        async apply(provenance) {
+          const r = await d.engine.redo('assistant', version)
+          const saved = persistsOnApply() && d.stored ? await cadSession.saveToStore(ctx.captured.projectId, d.id, { message: `Assistant: redo “${state.redoLabel}”`, provenance: { sourceKind: 'assistant', ...provenance } }) : null
+          return { summary: `Redid “${state.redoLabel}” (version ${r.version})${saved ? `; saved revision ${saved.revision}` : ''}` }
         },
       }
     },

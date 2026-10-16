@@ -28,7 +28,7 @@ if (!found.items?.some((p) => p.key === 'HL-OPEN')) {
  * Operations that must be refused in this environment, with the reason expected (a refusal is their correct
  * headless behaviour): illustrations need the visualization service and the external-generation class.
  */
-const EXPECTED_REFUSALS = { 'conceptualize.request_illustration': 'off in Settings|not connected|not reachable' }
+const EXPECTED_REFUSALS = { 'conceptualize.request_illustration': 'off in Settings|not connected|not reachable', 'cad-modeler.redo': 'nothing to redo' }
 /** View controls (navigation, selection): measured as view-control coverage, not engineering operations. */
 const VIEW_CONTROLS = ['select_objects', 'open_tool']
 
@@ -198,6 +198,7 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, EXPECTED_REFUSALS, re
     'cad-modeler.query': { documentId: cadId, query: 'get_feature_tree' },
     'cad-modeler.run_commands': { documentId: cadId, label: 'Headless: wider pockets', commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'af', expression: '7.5' } }] },
     'cad-modeler.undo': { documentId: cadId },
+    'cad-modeler.redo': { documentId: cadId },
     'cad-modeler.new_document': { title: `Headless new ${stamp}`, partName: 'Part' },
     'cad-modeler.open_document': { documentId: cadId },
     'cad-modeler.save_document': { documentId: cadId, message: 'headless (preview only)' },

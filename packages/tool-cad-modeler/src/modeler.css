@@ -20,8 +20,24 @@
   .cadm-view-tools { position: absolute; top: var(--ws-space-2); right: var(--ws-space-2); display: flex; flex-wrap: wrap; gap: var(--ws-space-1); padding: var(--ws-space-1); border-radius: var(--ws-radius); background: var(--ws-overlay-surface); box-shadow: var(--ws-shadow-sm); }
   .cadm-viewport-status { position: absolute; left: var(--ws-space-3); bottom: var(--ws-space-2); display: flex; gap: var(--ws-space-2); align-items: center; color: var(--ws-text-2); font-size: var(--ws-font-size-sm); pointer-events: none; }
 
-  .cadm-sketch-stage { flex: 1; min-height: 240px; display: flex; padding: var(--ws-space-3); background: var(--ws-diagram-bg); }
-  .cadm-sketch { flex: 1; width: 100%; height: 100%; min-height: 220px; }
+  .cadm-sketch-stage { flex: 1; min-height: 240px; display: flex; flex-direction: column; gap: var(--ws-space-2); padding: var(--ws-space-3); background: var(--ws-diagram-bg); }
+  .cadm-sketch { flex: 1; width: 100%; height: 100%; min-height: 220px; touch-action: manipulation; }
+  .cadm-draw-bar { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: var(--ws-space-2); }
+  .cadm-draw-sides { width: 88px; }
+  .cadm-draw-hint { flex: none; min-height: 1.5em; font-size: var(--ws-font-size-sm); color: var(--ws-text-2); }
+  .cadm-sketch.is-drawing { cursor: crosshair; outline: none; }
+  .cadm-sketch.is-drawing:focus-visible { outline: 3px solid var(--ws-focus); outline-offset: -3px; }
+  .cadm-sketch.is-drawing .cadm-sk-entity, .cadm-sketch.is-drawing .cadm-sk-point { pointer-events: none; cursor: crosshair; }
+  .cadm-sk-grid { fill: none; stroke: var(--ws-diagram-grid); stroke-width: 1; stroke-opacity: 0.45; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .cadm-sk-preview { fill: none; stroke: var(--ws-accent); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .cadm-sk-pending { fill: var(--ws-accent); stroke: var(--ws-diagram-bg); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .cadm-sk-cursor circle { fill: none; stroke: var(--ws-diagram-detail); stroke-width: 2; vector-effect: non-scaling-stroke; }
+  .cadm-sk-cursor path { fill: none; stroke: var(--ws-diagram-detail); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .cadm-sk-cursor.is-point circle, .cadm-sk-cursor.is-origin circle { stroke: var(--ws-accent); stroke-width: 3; }
+  .cadm-sk-cursor.is-point path, .cadm-sk-cursor.is-origin path { stroke: var(--ws-accent); }
+  .cadm-repair { display: flex; flex-direction: column; gap: var(--ws-space-1); margin-top: var(--ws-space-2); padding-top: var(--ws-space-2); border-top: 1px solid var(--ws-border); }
+  .cadm-repair-lost { overflow-wrap: anywhere; color: var(--ws-danger); }
+  .cadm-doc-switch { min-width: 160px; max-width: 260px; }
   .cadm-sk-axis { stroke: var(--ws-diagram-grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
   .cadm-sk-origin { fill: var(--ws-diagram-leader); }
   .cadm-sk-entity, .cadm-sk-point { cursor: pointer; outline: none; }
