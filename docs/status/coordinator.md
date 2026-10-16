@@ -30,7 +30,8 @@ Coordinator session resumed 16 October 2026 (fresh session; hourly check-in recr
 | Item | Agent | Where | State |
 | --- | --- | --- | --- |
 | Baseline verification of main (586c635) | integration-runner role (Sonnet) | main checkout, no e2e on 5173/8787 | running |
-| Open item 1: registration manifests, design plan | architect role (Opus), read-only | — | running; plan to be recorded in [module-registration.md](../specifications/module-registration.md) |
+| Open item 1: registration manifests, design plan | architect role (Opus), read-only | — | done; plan and decisions in [module-registration.md](../specifications/module-registration.md); owner decisions (a)-(c) pending; implementation after SDK 1.9 |
+| Open item 3: SDK 1.9 (ConceptsService additions, FilesService) | task-worker role (Sonnet) | isolated worktree, branch feature/sdk-1.9 | running; not merged until verified and reviewed |
 | Open item 4: ai-fake-provider last step | task-worker role (Sonnet) | isolated worktree, branch fix/fake-provider-drill-constraints | running; not merged until verified |
 
 Note: `.claude/agents` definitions load only when the session starts in the repository folder; a session started elsewhere
