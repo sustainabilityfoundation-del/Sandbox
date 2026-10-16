@@ -200,3 +200,13 @@ Do not undertake unrelated refactoring or change the product's functional archit
   `7c17f988-…jsonl` and its `subagents/` folder) contain per-message usage; read them with scripts, never load them
   whole into context.
 - No product or functional architecture changes; no interruption of running module agents.
+
+## B. Owner decision (16 October 2026)
+
+The owner approved the coordinator's recommendations ("Yes please make whatever changes are necessary"): short-lived
+agents per sprint with lower auto-compact windows; at most 2-3 concurrent implementation agents; model routing (Opus for
+architecture, integration and reviews; Sonnet for routine implementation, tests and docs; Haiku for searches and log
+triage); an integration-runner agent that returns compact pass/fail tables; automated visual comparison instead of reading
+screenshots; report caps and short status files; a compact verify command; generated reference docs; a fresh coordinator
+session per milestone; and the architecture change to per-module registration manifests (scheduled after the Focused
+Canvas UI work is merged, to avoid conflicts).
