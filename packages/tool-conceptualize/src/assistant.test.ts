@@ -11,8 +11,13 @@ const ASSISTANT_BASES = ['ai-hypothesis', 'assumption', 'estimate']
 
 describe('demo planner (scripted, demo only)', () => {
   it('maps the owner’s example and similar prompts to conceptualize.* actions', () => {
-    expect(conceptsDemo(OWNER, { selectionIds: [] })?.calls).toEqual([{ name: 'conceptualize.develop_alternatives', arguments: { text: OWNER } }])
-    expect(conceptsDemo('Create a concept: a bracket that holds a camera', { selectionIds: [] })?.calls[0]).toEqual({ name: 'conceptualize.create', arguments: { text: 'a bracket that holds a camera' } })
+    // The demo planner (not the action) runs the scripted library and passes the result as model-style arguments.
+    const demoCall = conceptsDemo(OWNER, { selectionIds: [] })!.calls[0]
+    expect(demoCall.name).toBe('conceptualize.develop_alternatives')
+    expect((demoCall.arguments.alternatives as { name: string }[]).length).toBe(3)
+    const createCall = conceptsDemo('Create a concept: a bracket that holds a camera', { selectionIds: [] })!.calls[0]
+    expect(createCall).toMatchObject({ name: 'conceptualize.create', arguments: { text: 'a bracket that holds a camera' } })
+    expect(typeof createCall.arguments.name).toBe('string')
     expect(conceptsDemo('What are the next steps for CON-001?', { selectionIds: [] })?.calls[0].name).toBe('conceptualize.next_steps')
     expect(conceptsDemo('Link CON-019 to CAD-120', { selectionIds: [] })?.calls[0]).toEqual({ name: 'conceptualize.link_artifact', arguments: { conceptId: 'CON-019', artifactId: 'CAD-120' } })
     expect(conceptsDemo('Decompose CON-018 into drive, guide and housing', { selectionIds: [] })?.calls[0].arguments).toEqual({ conceptId: 'CON-018', children: ['drive', 'guide', 'housing'] })
@@ -70,7 +75,7 @@ describe('service proposals', () => {
       return new Response(JSON.stringify(body), { status: 201, headers: { 'Content-Type': 'application/json' } })
     }) as typeof globalThis.fetch
     const concepts = createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch })
-    const result = (await action('conceptualize.develop_alternatives').run({ text: OWNER }, context({ concepts }))) as ServiceProposal
+    const result = (await action('conceptualize.develop_alternatives').run(conceptsDemo(OWNER, { selectionIds: [] })!.calls[0].arguments, context({ concepts }))) as ServiceProposal
     expect(result.kind).toBe('service-proposal')
     expect(result.module).toBe('conceptualize')
     expect(calls).toEqual([])
@@ -86,8 +91,90 @@ describe('service proposals', () => {
   })
 
   it('refuses to propose changes in demo mode instead of pretending', async () => {
-    await expect(action('conceptualize.create').run({ text: 'A gripper' }, context({ concepts: createDemoConceptsService() }))).rejects.toThrow(/API mode/)
-    await expect(action('conceptualize.create').run({ text: 'A gripper' }, context({}))).rejects.toThrow(/not available/)
+    await expect(action('conceptualize.create').run({ text: 'A gripper', name: 'Gripper' }, context({ concepts: createDemoConceptsService() }))).rejects.toThrow(/API mode/)
+    await expect(action('conceptualize.create').run({ text: 'A gripper', name: 'Gripper' }, context({}))).rejects.toThrow(/not available/)
+  })
+})
+
+describe('model-supplied content (CR-AI-1)', () => {
+  const S24 = 'develop a concept of a protective cover for a Samsung Galaxy S24+'
+  const recording = () => {
+    const calls: { method: string; url: string; body: Record<string, unknown> }[] = []
+    const fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      calls.push({ method: init.method ?? 'GET', url: String(input), body: init.body ? JSON.parse(String(init.body)) : undefined })
+      const body = { id: 'e1', created: { concepts: [{ id: 'p', key: 'CON-200', name: 'Protective cover', role: 'parent' }, { id: 'a1', key: 'CON-201', name: 'TPU bumper', role: 'alternative' }, { id: 'a2', key: 'CON-202', name: 'Rugged two-layer case', role: 'alternative' }, { id: 'a3', key: 'CON-203', name: 'Folio case', role: 'alternative' }], relationships: [], evidence: [] } }
+      return new Response(JSON.stringify(body), { status: 201, headers: { 'Content-Type': 'application/json' } })
+    }) as typeof globalThis.fetch
+    return { calls, concepts: createHttpConceptsService({ baseUrl: 'http://api.test/api/concepts/v1', fetch }) }
+  }
+  const modelArgs = {
+    text: S24,
+    name: 'Protective cover for Samsung Galaxy S24+',
+    parentId: '',
+    statements: [{ kind: 'constraint', text: 'Adds at most 2 mm to each side', quantity: { max: 2, unit: 'mm' } }],
+    alternatives: [
+      { name: 'TPU bumper', summary: 'Slim one-piece thermoplastic polyurethane shell absorbing impact at the corners.', statements: [{ kind: 'principle', text: 'Elastic deformation absorbs drop energy' }, { kind: 'performance', text: 'Mass', quantity: { value: 0.03, unit: 'kg' }, basis: 'estimate' }] },
+      { name: 'Rugged two-layer case', summary: 'Polycarbonate outer shell over a silicone inner sleeve.', description: 'Raised lip around screen and camera.', parts: ['Outer shell', 'Inner sleeve'] },
+      { name: 'Folio case', summary: 'Book-style cover protecting the screen when closed.' },
+    ],
+    tradeStudy: {
+      criteria: [{ name: 'Drop protection', weight: 3 }, { name: 'Added mass', weight: 1, direction: 'minimize', unit: 'g' }],
+      scores: [
+        { alternative: 'TPU bumper', criterion: 'Drop protection', qualitative: 3, rationale: 'Corner cushioning only' },
+        { alternative: 'Rugged two-layer case', criterion: 'Drop protection', qualitative: 5, rationale: 'Two layers and raised lips' },
+        { alternative: 'Folio case', criterion: 'Drop protection', qualitative: 2, rationale: 'Thin shell' },
+        { alternative: 'TPU bumper', criterion: 'Added mass', value: 30, rationale: 'Typical TPU case', basis: 'estimate' },
+        { alternative: 2, criterion: 1, low: 50, high: 70, rationale: 'Cover adds mass' },
+      ],
+    },
+  }
+
+  it('records the model’s alternatives and trade study exactly as written, with no library content', async () => {
+    const { calls, concepts } = recording()
+    const result = (await action('conceptualize.develop_alternatives').run(modelArgs, context({ concepts }))) as ServiceProposal
+    expect(calls).toEqual([])
+    const text = JSON.stringify(result.preview)
+    for (const n of ['TPU bumper', 'Rugged two-layer case', 'Folio case', 'Corner cushioning only', 'Drop protection (weight 3']) expect(text).toContain(n)
+    // Nothing from the scripted principle library or its actuator questions.
+    expect(text).not.toMatch(/lead screw|ball screw|gear|belt|pneumatic|stroke|duty cycle|scripted/i)
+    expect(result.preview.filter((p) => p.label.startsWith('Alternative')).map((p) => p.basis)).toEqual(['ai-hypothesis', 'ai-hypothesis', 'ai-hypothesis'])
+    expect(result.preview.find((p) => p.label === 'Objective (your words)')).toMatchObject({ proposed: S24, basis: 'user-statement' })
+    expect(result.preview.find((p) => p.label === 'Score: TPU bumper / Added mass')).toMatchObject({ proposed: '30 g: Typical TPU case', basis: 'estimate' })
+    await result.apply({ conversationId: 'C-9', proposalId: 'CP-9', messageId: 'M9' })
+    const body = calls[0].body as Record<string, any>
+    expect(calls[0]).toMatchObject({ method: 'POST', url: 'http://api.test/api/concepts/v1/projects/PRJ-ACT100/explorations' })
+    expect(body.parentId).toBeUndefined()
+    expect(body.parent).toEqual({ name: 'Protective cover for Samsung Galaxy S24+', description: S24, statements: [{ kind: 'constraint', text: 'Adds at most 2 mm to each side', quantity: { max: 2, unit: 'mm' }, basis: 'ai-hypothesis' }] })
+    expect(body.alternatives.map((a: { name: string }) => a.name)).toEqual(['TPU bumper', 'Rugged two-layer case', 'Folio case'])
+    expect(body.alternatives[0].statements).toEqual([{ kind: 'principle', text: 'Elastic deformation absorbs drop energy', basis: 'ai-hypothesis' }, { kind: 'performance', text: 'Mass', quantity: { value: 0.03, unit: 'kg' }, basis: 'estimate' }])
+    expect(body.alternatives[1]).toMatchObject({ description: 'Raised lip around screen and camera.', children: [{ name: 'Outer shell' }, { name: 'Inner sleeve' }] })
+    expect(body.alternatives[0].evidence).toBeUndefined()
+    expect(body.tradeStudy.criteria).toEqual([
+      { name: 'Drop protection', category: 'custom', weight: 3, direction: 'maximize', scale: 'qualitative' },
+      { name: 'Added mass', category: 'custom', weight: 1, direction: 'minimize', scale: 'quantity', unit: 'g' },
+    ])
+    expect(body.tradeStudy.scores).toContainEqual({ alternative: 2, criterion: 1, low: 50, high: 70, unit: 'g', rationale: 'Cover adds mass', basis: 'ai-hypothesis' })
+    expect(body.tradeStudy.scores).toContainEqual({ alternative: 1, criterion: 0, qualitative: 5, rationale: 'Two layers and raised lips', basis: 'ai-hypothesis' })
+    expect(body.generator).not.toMatch(/scripted/)
+  })
+
+  it('refuses without alternatives instead of inventing any', async () => {
+    const { calls, concepts } = recording()
+    await expect(action('conceptualize.develop_alternatives').run({ text: S24 }, context({ concepts }))).rejects.toThrow(/give the alternatives you propose: name and summary each/i)
+    await expect(action('conceptualize.develop_alternatives').run({ text: S24, alternatives: [] }, context({ concepts }))).rejects.toThrow(/name and summary each/i)
+    await expect(action('conceptualize.develop_alternatives').run({ text: S24, alternatives: [{ name: 'TPU bumper' }] }, context({ concepts }))).rejects.toThrow(/summary/)
+    await expect(action('conceptualize.develop_alternatives').run({ ...modelArgs, alternatives: [{ name: 'A', summary: 'a', statements: [{ kind: 'principle', text: 'x', basis: 'user-assertion' }] }], tradeStudy: undefined }, context({ concepts }))).rejects.toThrow(/basis/)
+    await expect(action('conceptualize.develop_alternatives').run({ ...modelArgs, tradeStudy: { criteria: [{ name: 'Drop protection', weight: 1 }], scores: [{ alternative: 'Unknown', criterion: 0, qualitative: 3, rationale: 'x' }] } }, context({ concepts }))).rejects.toThrow(/must name one of/)
+    expect(calls).toEqual([])
+    expect(action('conceptualize.develop_alternatives').description).toMatch(/You must supply `alternatives`/)
+  })
+
+  it('create records the caller’s name and statements, and refuses without a name; blank optional strings mean absent', async () => {
+    const { calls, concepts } = recording()
+    await expect(action('conceptualize.create').run({ text: S24 }, context({ concepts }))).rejects.toThrow(/name/)
+    const result = (await action('conceptualize.create').run({ text: S24, name: 'S24+ cover', summary: '', parentId: '', statements: [{ kind: 'function', text: 'Protect the phone from drops' }] }, context({ concepts }))) as ServiceProposal
+    await result.apply({ conversationId: 'C-9', proposalId: 'CP-10', messageId: 'M10' })
+    expect(calls[0].body).toEqual({ name: 'S24+ cover', description: S24, statements: [{ kind: 'function', text: 'Protect the phone from drops', basis: 'ai-hypothesis' }], maturity: 'idea', reason: 'Assistant proposal CP-10' })
   })
 })
 

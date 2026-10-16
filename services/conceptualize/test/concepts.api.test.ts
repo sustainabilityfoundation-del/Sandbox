@@ -294,6 +294,41 @@ describe('alternatives, AI provenance, comparison and selection (vertical slice 
     expect(list.body.total).toBe(0)
     expect((await env.call('eli', 'POST', `${BASE}/explorations/${res.body.id}/undo`, {})).status).toBe(409)
   })
+
+  it('accepts model-written alternatives and trade study as the assistant action builds them (CR-AI-1)', async () => {
+    // Exactly the body conceptualize.develop_alternatives sends for model-supplied alternatives (see tool-conceptualize assistant.test.ts).
+    const body = {
+      objective: 'develop a concept of a protective cover for a Samsung Galaxy S24+',
+      parent: { name: 'Protective cover for Samsung Galaxy S24+', description: 'develop a concept of a protective cover for a Samsung Galaxy S24+', statements: [{ kind: 'constraint', text: 'Adds at most 2 mm to each side', quantity: { max: 2, unit: 'mm' }, basis: 'ai-hypothesis' }] },
+      setName: 'Alternatives for Protective cover for Samsung Galaxy S24+',
+      question: 'develop a concept of a protective cover for a Samsung Galaxy S24+',
+      alternatives: [
+        { name: 'TPU bumper', summary: 'Slim one-piece TPU shell.', statements: [{ kind: 'principle', text: 'Elastic deformation absorbs drop energy', basis: 'ai-hypothesis' }, { kind: 'performance', text: 'Mass', quantity: { value: 0.03, unit: 'kg' }, basis: 'estimate' }] },
+        { name: 'Rugged two-layer case', summary: 'PC shell over a silicone sleeve.', description: 'Raised lip around screen and camera.', statements: [], children: [{ name: 'Outer shell', abstraction: 'function' }, { name: 'Inner sleeve', abstraction: 'function' }] },
+        { name: 'Folio case', summary: 'Book-style cover.', statements: [] },
+      ],
+      tradeStudy: {
+        title: 'Comparison: Protective cover for Samsung Galaxy S24+',
+        criteria: [
+          { name: 'Drop protection', category: 'custom', weight: 3, direction: 'maximize', scale: 'qualitative' },
+          { name: 'Added mass', category: 'custom', weight: 1, direction: 'minimize', scale: 'quantity', unit: 'g' },
+        ],
+        scores: [
+          { alternative: 0, criterion: 0, qualitative: 3, rationale: 'Corner cushioning only', basis: 'ai-hypothesis' },
+          { alternative: 1, criterion: 0, qualitative: 5, rationale: 'Two layers', basis: 'ai-hypothesis' },
+          { alternative: 0, criterion: 1, value: 30, unit: 'g', rationale: 'Typical TPU case', basis: 'estimate' },
+          { alternative: 2, criterion: 1, low: 50, high: 70, unit: 'g', rationale: 'Cover adds mass', basis: 'ai-hypothesis' },
+        ],
+      },
+      generator: 'assistant proposal (alternatives as written in the conversation)',
+    }
+    const res = await env.call('eli', 'POST', `${BASE}/explorations`, body, idem(assistant('PRP-s24', 'CONV-S24')))
+    expect(res.status).toBe(201)
+    expect(res.body.created.concepts.filter((c: { role: string }) => c.role === 'alternative').map((c: { name: string }) => c.name)).toEqual(['TPU bumper', 'Rugged two-layer case', 'Folio case'])
+    const study = await env.call('rho', 'GET', `${BASE}/trade-studies/${res.body.tradeStudyId}`)
+    expect(study.status).toBe(200)
+    expect(study.body.criteria.map((c: { name: string }) => c.name)).toEqual(['Drop protection', 'Added mass'])
+  })
 })
 
 describe('implementations and identity preservation (vertical slice 6, 7)', () => {
