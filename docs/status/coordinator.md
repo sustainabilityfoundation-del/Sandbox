@@ -25,7 +25,18 @@ from the repository.
 | Project Management | I1 plus D1 items merged; I4 (baselines, export/import) waits for D1 acceptance | [progress](../specifications/project-management-progress.md) |
 
 ## Assigned work
-None running. Next work (start as new agents, at most 2-3 implementers at once):
+Coordinator session resumed 16 October 2026 (fresh session; hourly check-in recreated, :13 past each hour).
+
+| Item | Agent | Where | State |
+| --- | --- | --- | --- |
+| Baseline verification of main (586c635) | integration-runner role (Sonnet) | main checkout, no e2e on 5173/8787 | running |
+| Open item 1: registration manifests, design plan | architect role (Opus), read-only | — | running; plan to be recorded in [module-registration.md](../specifications/module-registration.md) |
+| Open item 4: ai-fake-provider last step | task-worker role (Sonnet) | isolated worktree, branch fix/fake-provider-drill-constraints | running; not merged until verified |
+
+Note: `.claude/agents` definitions load only when the session starts in the repository folder; a session started elsewhere
+uses built-in agent types with the same model and the definition file as instructions.
+
+Next work (start as new agents, at most 2-3 implementers at once):
 
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
