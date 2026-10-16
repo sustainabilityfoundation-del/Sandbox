@@ -6,7 +6,8 @@ import type { ProviderMessage, RespondOutput } from './types'
  * Replay of recorded tool-call scripts by the FAKE provider (tests and plumbing flows only; never a model).
  * A script is a list of turns; a turn whose `user` pattern matches the person's message is replayed step by step:
  * each step is either operation calls or a final answer. Arguments may refer to results of earlier calls of the same
- * turn with `${<operation>.<path>}`, e.g. `${conceptualize.search.data.concepts.0.key}`, and to capture groups of the
+ * turn with `${<operation>.<path>}`, e.g. `${conceptualize.search.data.concepts.0.key}` (a segment `[field=value]` or
+ * `[field^=value]` selects the first array item whose field equals or starts with the value), and to capture groups of the
  * turn pattern (values the person gave in the message) with `${user.1}`.
  *
  * Scripts are data in test fixtures (for example tests/e2e/fixtures/fake-scripts/*.json), loaded from the directory
@@ -33,7 +34,19 @@ export function loadReplayScripts(dir: string | undefined): ReplayScript[] {
     .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')) as ReplayScript)
 }
 
-const get = (value: unknown, path: string): unknown => path.split('.').filter(Boolean).reduce<unknown>((v, k) => (v && typeof v === 'object' ? (v as Record<string, unknown>)[k] : undefined), value)
+/** One path segment: a property or index, or `[field=value]` / `[field^=value]` selecting the first array item whose field equals / starts with the value. */
+function step(v: unknown, k: string): unknown {
+  if (!v || typeof v !== 'object') return undefined
+  const select = /^\[([^=^\]]+)(\^?=)([^\]]*)\]$/.exec(k)
+  if (!select) return (v as Record<string, unknown>)[k]
+  if (!Array.isArray(v)) return undefined
+  const [, field, op, wanted] = select
+  return v.find((item) => {
+    const f = item && typeof item === 'object' ? (item as Record<string, unknown>)[field] : undefined
+    return f !== undefined && (op === '=' ? String(f) === wanted : String(f).startsWith(wanted))
+  })
+}
+const get = (value: unknown, path: string): unknown => path.split('.').filter(Boolean).reduce<unknown>(step, value)
 
 /** Results of this turn's tool calls, newest first, parsed from the tool_result messages. */
 function turnResults(messages: ProviderMessage[]): { name: string; output: unknown }[] {

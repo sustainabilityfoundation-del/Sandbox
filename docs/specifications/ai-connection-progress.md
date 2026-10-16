@@ -103,6 +103,8 @@ model gateway, CR-A3) use `AssistantBackend.complete()`; `ApiServer.assistant()`
 | CR-AI-5 | Coordinator (root docs) | Update the root rule "do not claim real ChatGPT access" at integration: the product now offers "connect your own OpenAI account" (help and UI say exactly that) |
 | CR-AI-6 | Coordinator / Requirements | In API mode requirements are projected from the Requirements service, so `propose_changes` on a requirement's status cannot apply (existing coverage finding 1); a model will try it. The real-model path is `requirements.update` |
 | CR-AI-7 | Coordinator | `docs/roadmap.md` and `docs/architecture.md` §6: AI development-plan sprint 4 (backend provider integration) is delivered by this sprint |
+| CR-AI-9 | Conceptualize | No assistant operation returns a constraint's UUID and revision: `search_design` and `traverse` return keys, while `getConstraint`, the constraints route and the CAD `bind_parameter` / `check` references need `{id: UUID, revision}`. A real model therefore cannot bind a CAD parameter or check against a constraint. Proposal: return `id` and `revision` with each constraint in `search_design` / `traverse` (or add `conceptualize.get_constraint` accepting a key). The D1 plumbing script works around it by passing the UUID and revision in the person's message (`${user.N}`), labelled as such |
+| CR-AI-10 | Requirements | `services/requirements/src/events/hub.ts` `close()` is not idempotent: a second call runs `UNLISTEN` and `listener.release()` on an already released client ("Release called on client which has already been released"). Proposal: return early when `closed` is already true and clear `listener` after release. It is in the Requirements package, so I have not edited it |
 
 ## 5. Settings seen in module code (suggestions for module agents; not implemented)
 
@@ -212,8 +214,7 @@ Status vocabulary per [integration-milestone-1.md](integration-milestone-1.md): 
   their agents).
 - Declarative undo (compensating operations), multi-module atomicity (reported and resumable instead), and the
   SDK 1.7 `confirmation` prompt in the card (the server enforces it; the card has no input for the phrase yet).
-- Observation for the Requirements agent: its event hub `close()` is not idempotent (a second call releases the
-  same client twice).
+- Requirements event hub `close()` is not idempotent: filed as CR-AI-10.
 
 ### Verification (this sprint)
 

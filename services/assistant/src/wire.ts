@@ -155,9 +155,21 @@ export function redact(value: unknown, sharing: AiPolicy['sharing'], options: { 
   return out
 }
 
-function resultOutput(r: WireToolResult, sharing: AiPolicy['sharing']): string {
+const MAX_STRING_CHARS = 2000
+
+/** Shortens long strings (for example file content returned by an export) so the structure around them survives. */
+function clipStrings(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') return value.length > MAX_STRING_CHARS ? `${value.slice(0, MAX_STRING_CHARS)}… [${value.length - MAX_STRING_CHARS} more characters not sent]` : value
+  if (depth > 12 || value === null || typeof value !== 'object') return value
+  if (Array.isArray(value)) return value.map((v) => clipStrings(v, depth + 1))
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, clipStrings(v, depth + 1)]))
+}
+
+export function resultOutput(r: WireToolResult, sharing: AiPolicy['sharing']): string {
   const payload = r.ok ? { ok: true, data: redact(r.data, sharing, { help: r.name === 'read_help' }) } : { ok: false, error: r.error, errorCode: r.errorCode }
-  const text = JSON.stringify(payload)
+  let text = JSON.stringify(payload)
+  // Large results: first shorten long strings so the result stays valid JSON with all its fields, then cut.
+  if (text.length > MAX_RESULT_CHARS) text = JSON.stringify(clipStrings(payload))
   return text.length > MAX_RESULT_CHARS ? `${text.slice(0, MAX_RESULT_CHARS)}… [truncated: ask for a narrower read]` : text
 }
 

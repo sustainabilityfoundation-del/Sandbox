@@ -42,6 +42,12 @@ describe('fake provider: replay of recorded tool-call scripts', () => {
     expect(replay([s], 'use abc-1 rev 3', [user('use abc-1 rev 3')], 'fake')).toMatchObject({ calls: [{ arguments: { id: 'abc-1', label: 'rev 3' } }] })
   })
 
+  it('selects array items by field with [field=value] and [field^=value]', () => {
+    const s: ReplayScript = { id: 's', turns: [{ user: '^pick', steps: [{ calls: [{ name: 'm.read', arguments: {} }] }, { calls: [{ name: 'm.use', arguments: { id: '${m.read.data.items.[type=pattern].id}', value: '${m.read.data.items.[label^=gap].value}' } }] }] }] }
+    const msgs = [user('pick'), ...result('m.read', { data: { items: [{ type: 'sketch', id: 'a', label: 'x' }, { type: 'pattern', id: 'b', label: 'gap 1', value: 2.5 }] } }, 'r')]
+    expect(replay([s], 'pick', msgs, 'fake')).toMatchObject({ calls: [{ arguments: { id: 'b', value: 2.5 } }] })
+  })
+
   it('loads scripts from a directory and the fake provider uses them before its built-in script', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'replay-'))
     writeFileSync(join(dir, 'generic.json'), JSON.stringify(script))
