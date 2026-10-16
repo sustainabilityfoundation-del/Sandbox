@@ -46,6 +46,8 @@ or Space invokes or opens the popover, Escape closes it and returns focus to the
 commands move into a per-group menu; phone: tabs become a `Select`, each group a menu, primary commands stay visible. Non-command
 controls (`select`, `text`, `separator` entries) sit in the same groups.
 
+A bound entry without test evidence stays `partial`; `buildCommandModel` accepts an optional `evidenceGaps` set of entry IDs that words its limitation as "Implemented; test evidence not yet linked" and never changes the state.
+
 `CommandInfoPopover` (`command`, `triggerRef`, `isOpen`, `onOpenChange`, `onHelp`) is the non-modal explanation (description, status,
 backlog IDs, Help); `CommandBar` uses it, and a host may open it from a palette or menu.
 

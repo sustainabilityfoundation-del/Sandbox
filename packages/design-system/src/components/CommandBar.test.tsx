@@ -41,9 +41,22 @@ describe('CommandBar accessible names', () => {
   it('describes each command through aria-describedby', () => {
     const html = bar([command({ kind: 'ready', onInvoke: noop }, { id: 'save' })])
     const id = /aria-describedby="([^"]+)"/.exec(html)?.[1]
-    expect(id).toBe('cmd-desc-save')
-    expect(html).toContain('id="cmd-desc-save"')
+    expect(id).toMatch(/-desc-save$/)
+    expect(html).toContain(`id="${id}"`)
     expect(html).toContain('Saves the thing.')
+  })
+
+  it('gives the descriptions of two bars different ids', () => {
+    const tabs: CommandBarTab[] = [{ id: 't', label: 'T', groups: [{ id: 'g', label: 'G', commands: [command({ kind: 'ready', onInvoke: noop }, { id: 'save' })] }] }]
+    const html = renderToStaticMarkup(
+      <div>
+        <CommandBar ariaLabel="Bar 1" layout="desktop" tabs={tabs} />
+        <CommandBar ariaLabel="Bar 2" layout="desktop" tabs={tabs} />
+      </div>,
+    )
+    const ids = [...html.matchAll(/aria-describedby="([^"]+)"/g)].map((m) => m[1])
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
   })
 
   it('marks partial with a filled dot and planned with a ring, both hidden from assistive technology', () => {

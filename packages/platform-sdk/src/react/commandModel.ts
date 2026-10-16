@@ -21,9 +21,11 @@ export interface CommandModel {
 
 type ButtonItem = Extract<ToolbarItem, { type: 'button' }>
 
+/** Limitation shown for a bound entry on the known evidence-gap list that has no limitations of its own. */
+export const EVIDENCE_GAP_TEXT = 'Implemented; test evidence not yet linked'
 const NOT_AVAILABLE = 'Not available right now'
 
-function commandFor(entry: CapabilityEntry | undefined, item: ButtonItem | undefined, ctx: AvailabilityContext): CommandBarCommand {
+function commandFor(entry: CapabilityEntry | undefined, item: ButtonItem | undefined, ctx: AvailabilityContext, evidenceGaps?: ReadonlySet<string>): CommandBarCommand {
   const label = item?.label ?? entry?.label ?? item?.id ?? ''
   const base = {
     id: entry?.id ?? item!.id,
@@ -45,20 +47,20 @@ function commandFor(entry: CapabilityEntry | undefined, item: ButtonItem | undef
     return { ...base, state: { kind: 'unavailable', reason: 'Not offered in this view' } }
   }
   if (item.disabled) {
-    return { ...base, state: { kind: 'unavailable', reason: item.unavailableReason ?? item.title ?? NOT_AVAILABLE } }
+    return { ...base, state: { kind: 'unavailable', reason: item.unavailableReason ?? item.title ?? NOT_AVAILABLE, active: item.active } }
   }
   if (entry) {
     const a = availability(entry, ctx)
-    if (!a.available) return { ...base, state: { kind: 'unavailable', reason: a.reason ?? NOT_AVAILABLE } }
+    if (!a.available) return { ...base, state: { kind: 'unavailable', reason: a.reason ?? NOT_AVAILABLE, active: item.active } }
     if (implementationState(entry) === 'partial') {
-      const limitation = entry.limitations?.length ? entry.limitations.join('; ') : 'not yet verified by tests'
+      const limitation = entry.limitations?.length ? entry.limitations.join('; ') : evidenceGaps?.has(entry.id) ? EVIDENCE_GAP_TEXT : 'not yet verified by tests'
       return { ...base, state: { kind: 'partial', limitation, onInvoke: item.onClick, active: item.active, busy: item.busy } }
     }
   }
   return { ...base, state: { kind: 'ready', onInvoke: item.onClick, active: item.active, busy: item.busy } }
 }
 
-function entryFor(item: ToolbarItem, ctx: AvailabilityContext, entry: CapabilityEntry | undefined): CommandBarEntry {
+function entryFor(item: ToolbarItem, ctx: AvailabilityContext, entry: CapabilityEntry | undefined, evidenceGaps?: ReadonlySet<string>): CommandBarEntry {
   switch (item.type) {
     case 'separator':
       return { type: 'separator', id: item.id }
@@ -69,7 +71,7 @@ function entryFor(item: ToolbarItem, ctx: AvailabilityContext, entry: Capability
       return { type: 'select', id: item.id, label: item.label, value: item.value, options: item.options, onChange: item.onChange, isDisabled: item.disabled || !blocked.available }
     }
     case 'button':
-      return commandFor(entry, item, ctx)
+      return commandFor(entry, item, ctx, evidenceGaps)
   }
 }
 
@@ -84,6 +86,8 @@ export function buildCommandModel(
   entries: CapabilityEntry[],
   items: ToolbarItem[],
   availCtx: AvailabilityContext,
+  /** IDs of bound entries without test evidence (the known gap list): they stay partial, with a neutral limitation text. */
+  evidenceGaps?: ReadonlySet<string>,
 ): CommandModel {
   const byItem = new Map<string, CapabilityEntry>()
   for (const e of entries) if (e.toolbarItem) byItem.set(e.toolbarItem, e)
@@ -91,7 +95,7 @@ export function buildCommandModel(
   const placed = entries.filter((e) => e.placement && layout?.tabs.some((t) => t.id === e.placement!.tab && t.groups.some((g) => g.id === e.placement!.group)))
 
   if (!layout || placed.length === 0) {
-    const flat: CommandBarEntry[] = items.map((item) => entryFor(item, availCtx, byItem.get(item.id)))
+    const flat: CommandBarEntry[] = items.map((item) => entryFor(item, availCtx, byItem.get(item.id), evidenceGaps))
     return {
       registry: false,
       unregistered: [],
@@ -112,9 +116,9 @@ export function buildCommandModel(
       const members = placed.filter((e) => e.placement!.tab === tab.id && e.placement!.group === g.id).sort((a, b) => a.placement!.order - b.placement!.order)
       const commands = members.map((e) => {
         const item = e.toolbarItem ? itemById.get(e.toolbarItem) : undefined
-        if (!item) return commandFor(e, undefined, availCtx)
+        if (!item) return commandFor(e, undefined, availCtx, evidenceGaps)
         used.add(item.id)
-        return entryFor(item, availCtx, e)
+        return entryFor(item, availCtx, e, evidenceGaps)
       })
       return { id: g.id, label: g.label, icon: g.icon, commands }
     })
@@ -124,11 +128,11 @@ export function buildCommandModel(
   const leftovers = items.filter((i) => i.type !== 'separator' && !used.has(i.id))
   const unregistered = leftovers.filter((i) => i.type !== 'text' && !byItem.has(i.id)).map((i) => i.id)
   // Items whose entry exists but has no placement also land in the fallback group (they are registered, so not reported as unregistered).
-  if (leftovers.length > 0 && tabs.length > 0) {
-    tabs[0] = {
-      ...tabs[0],
-      groups: [...tabs[0].groups, { id: FALLBACK_GROUP_ID, label: 'Other', commands: leftovers.map((i) => entryFor(i, availCtx, byItem.get(i.id))) }],
-    }
+  if (leftovers.length > 0) {
+    const group: CommandBarGroup = { id: FALLBACK_GROUP_ID, label: 'Other', commands: leftovers.map((i) => entryFor(i, availCtx, byItem.get(i.id), evidenceGaps)) }
+    // Runtime items are never dropped: with no visible tab (all contextual and hidden) the fallback group gets a tab of its own.
+    if (tabs.length > 0) tabs[0] = { ...tabs[0], groups: [...tabs[0].groups, group] }
+    else tabs.push({ id: 'main', label: manifest?.name ?? 'Tools', groups: [group] })
   }
   return { registry: true, tabs, unregistered }
 }

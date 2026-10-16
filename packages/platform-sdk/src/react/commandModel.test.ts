@@ -129,4 +129,36 @@ describe('buildCommandModel', () => {
     const selected = { ...ctx, selection: [{ id: 'R', type: 'requirement', name: 'R', revision: 1 }] } as AvailabilityContext
     expect(buildCommandModel(manifest, entries, items, selected).tabs.map((t) => t.id)).toEqual(['home', 'sel'])
   })
+
+  it('never drops runtime items when every tab is contextual and hidden', () => {
+    const allContextual: typeof manifest = {
+      ...manifest,
+      commandLayout: { tabs: [{ id: 'sel', label: 'Selection', contextual: { kind: 'selection', min: 1 }, groups: [{ id: 'sel-g', label: 'Selected' }] }] },
+    }
+    const entries = [
+      entry({ id: 'demo.sel.s', toolbarItem: 's', verifiedBy: verified, placement: { tab: 'sel', group: 'sel-g', order: 1 } }),
+      entry({ id: 'demo.x', toolbarItem: 'x', verifiedBy: verified }),
+    ]
+    const m = buildCommandModel(allContextual, entries, [button('s'), button('x'), button('stray')], ctx)
+    expect(m.tabs).toHaveLength(1)
+    const ids = m.tabs[0].groups.flatMap((g) => g.commands.map((c) => c.id))
+    expect(ids).toEqual(expect.arrayContaining(['demo.x', 'stray']))
+    expect(ids).not.toContain('demo.sel.s')
+    expect(m.unregistered).toEqual(['stray'])
+  })
+
+  it('keeps active on a disabled toggle', () => {
+    const m = buildCommandModel(undefined, [], [button('t', { active: true, disabled: true })], ctx)
+    expect(m.tabs[0].groups[0].commands[0]).toMatchObject({ state: { kind: 'unavailable', active: true } })
+  })
+
+  it('keeps listed evidence gaps partial with a neutral limitation, and leaves own limitations alone', () => {
+    const entries = [
+      entry({ id: 'demo.edit.a', toolbarItem: 'a', placement: { tab: 'home', group: 'edit', order: 1 } }),
+      entry({ id: 'demo.edit.b', toolbarItem: 'b', limitations: ['geometry only'], placement: { tab: 'home', group: 'edit', order: 2 } }),
+    ]
+    const m = buildCommandModel(manifest, entries, [button('a'), button('b')], ctx, new Set(['demo.edit.a', 'demo.edit.b']))
+    expect(m.tabs[0].groups[0].commands[0]).toMatchObject({ state: { kind: 'partial', limitation: 'Implemented; test evidence not yet linked' } })
+    expect(m.tabs[0].groups[0].commands[1]).toMatchObject({ state: { kind: 'partial', limitation: 'geometry only' } })
+  })
 })

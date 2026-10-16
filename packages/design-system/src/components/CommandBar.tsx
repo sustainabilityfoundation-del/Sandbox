@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Dialog as AriaDialog, Heading, Popover as AriaPopover, TooltipTrigger } from 'react-aria-components'
 import { Icon } from '../icons/AppIcon'
 import type { IconName } from '../icons/names'
@@ -21,7 +21,7 @@ import { cx } from './cx'
 export type CommandState =
   | { kind: 'ready'; onInvoke: () => void; active?: boolean; busy?: boolean }
   | { kind: 'partial'; onInvoke: () => void; limitation: string; active?: boolean; busy?: boolean }
-  | { kind: 'unavailable'; reason: string; onInvoke?: never }
+  | { kind: 'unavailable'; reason: string; /** Kept so a disabled toggle still shows its pressed state. */ active?: boolean; onInvoke?: never }
   | { kind: 'planned'; info: { status: string; backlog: string[]; helpId?: string }; onInvoke?: never }
 
 export interface CommandBarCommand {
@@ -225,7 +225,7 @@ function CommandButton({ command, onHelp }: { command: CommandBarCommand; onHelp
   const { state } = command
   const ref = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
-  const descriptionId = `cmd-desc-${command.id}`
+  const descriptionId = `${useId()}-desc-${command.id}`
   const interactive = state.kind === 'ready' || state.kind === 'partial'
   const marked = state.kind === 'partial' || state.kind === 'planned'
   const name = state.kind === 'ready' ? undefined : commandAccessibleName(command)
@@ -283,6 +283,7 @@ function CommandButton({ command, onHelp }: { command: CommandBarCommand; onHelp
         size="sm"
         variant="quiet"
         aria-disabled="true"
+        aria-pressed={state.kind === 'unavailable' ? state.active : undefined}
         onPress={() => setOpen(true)}
         className={cx(command.icon && 'pl-1.5', state.kind === 'planned' ? 'text-fg-3! data-[hovered]:text-fg-2!' : 'opacity-40')}
         {...common}

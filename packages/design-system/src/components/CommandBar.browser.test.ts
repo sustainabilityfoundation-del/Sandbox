@@ -15,7 +15,14 @@ const here = dirname(fileURLToPath(import.meta.url))
 const chrome = process.env.CHROME_PATH ?? (process.platform === 'win32' ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : '/usr/bin/google-chrome')
 const shots = process.env.COMMAND_BAR_SHOTS
 
-describe.skipIf(!existsSync(chrome))('CommandBar in a browser', () => {
+const haveChrome = existsSync(chrome)
+if (!haveChrome) {
+  const message = `CommandBar browser tests need Chrome at ${chrome}; set CHROME_PATH`
+  if (process.env.CI) throw new Error(message)
+  console.warn(`SKIPPED: ${message}`)
+}
+
+describe.skipIf(!haveChrome)('CommandBar in a browser', () => {
   let server: ViteDevServer
   let browser: Browser
   let base = ''
@@ -78,7 +85,7 @@ describe.skipIf(!existsSync(chrome))('CommandBar in a browser', () => {
     await page.getByRole('dialog', { name: /Fillet/ }).waitFor()
     await page.keyboard.press('Escape')
     await page.getByRole('dialog').waitFor({ state: 'detached' })
-    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe('Fillet, planned')
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('aria-label')), { timeout: 5000 }).toBe('Fillet, planned')
     await page.close()
   })
 
