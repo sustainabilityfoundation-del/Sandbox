@@ -198,9 +198,22 @@ between classification schemes; evidence records the revisions, configuration, i
 supports; keep validation, implementation, verification, review and evidence currency as separate states; AI
 proposals, results and approved records stay distinguishable.
 
+## Agent context and handoffs (every agent)
+
+Rules and formats: [docs/agents](docs/agents/README.md); decision [ADR-0072](docs/decisions/0072-agent-context-management.md). Context size drives cost, so:
+
+1. **Read the minimum authoritative context**: your brief, contracts, progress file and package `AGENTS.md`; link to documents, never paste them. Read a file once per session; use Grep or the `scout` agent for lookups. Do not read screenshots into a coordinator's context; compare images by script and report numbers.
+2. **Respect module boundaries** (Ownership table). Another module's contract file, not its implementation, is your interface.
+3. **Do not duplicate assigned work**: check progress files, `git log` and the assignment table in `docs/status/coordinator.md`. At most 2-3 implementation agents run at once; helpers cannot start agents; three failed attempts at one step means stop and report.
+4. **Short-lived agents**: one agent per sprint, started from the brief and the status block of the progress file, ending in a handoff (do not resume one agent indefinitely). Keep a status block of at most one page at the top of the progress file and move history to an archive file ([template](docs/agents/handoff-template.md)).
+5. **Report in about 300 words plus links** (changes, files, tests and results, decisions, open issues, next actions). No pasted source, logs or transcripts. Run suites through `node scripts/verify.mjs` or the `integration-runner` agent and report its table.
+6. **Persist decisions in the repository** (ADR, progress file) at every checkpoint and before context passes 70%; at 85% stop new work and write the handoff. Never stop or compact an agent whose work is not committed.
+7. **Choose the cheapest adequate model** through `.claude/agents/`: Opus for architecture, integration and review; Sonnet for implementation, tests, docs and research; Haiku for searches and log triage. Do not escalate on your own.
+8. **Keep the coordinator informed with compact status reports**; the coordinator owns architecture, shared contracts and integration.
+
 ## Do not
 
-- Launch additional agents for routine work in this repository unless asked.
+- Launch additional agents for routine work in this repository unless asked (the definitions in `.claude/agents/` are for work the coordinator assigns).
 - Delete or rewrite user data in migrations.
 - Claim SysML v2 compliance or real ChatGPT access in UI or docs. The CAD Modeler uses a real kernel
   (Open CASCADE); describe it with its documented limits, and never present the mock CAD tool as a kernel.

@@ -1,5 +1,14 @@
 # Project Management: progress
 
+## Status (one page; initial block by the context-optimization agent, 16 Oct 2026, main d146f22; the module agent keeps it current)
+
+- **State:** increment I1 ready for coordinator review
+- **Branch:** feature/project-management @ 40c30a8, level with main
+- **Done:** phases A-B, SDK 1.7.0, milestone 1 increment I1
+- **Next actions:** I2-I5 (registration adapters, baselines, export/import, operation records, browser import, headless AI) and the brief section 9 workflow
+- **Blockers:** module owners' registration adapters
+- **Archive:** the sections below are the detailed record and are read on demand, not at session start. Format and the archive split: [handoff template](../agents/handoff-template.md#2-status-block-top-of-every-module-progress-file-kept-current-at-each-checkpoint).
+
 Brief: [project-management.md](project-management.md). Contracts: [project-management-contracts.md](project-management-contracts.md).
 Architecture set: [docs/modules/projects](../modules/projects/README.md). Maintained by the Project Management agent.
 

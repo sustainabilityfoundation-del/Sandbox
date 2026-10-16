@@ -1,5 +1,14 @@
 # Conceptualize: progress
 
+## Status (one page; initial block by the context-optimization agent, 16 Oct 2026, main d146f22; the module agent keeps it current)
+
+- **State:** milestones M0-M6 and visual concept exploration merged
+- **Branch:** feature/conceptualize @ cfe8c03, level with main
+- **Done:** visual exploration docs, migration 0007 test, visualization port exported
+- **Next actions:** SDK 1.9 ConceptsService proposal awaits the coordinator
+- **Blockers:** see "Change requests still open (SDK)"
+- **Archive:** the sections below are the detailed record and are read on demand, not at session start. Format and the archive split: [handoff template](../agents/handoff-template.md#2-status-block-top-of-every-module-progress-file-kept-current-at-each-checkpoint).
+
 Maintained by the Conceptualize agent. Brief: [conceptualize.md](conceptualize.md) (do not edit).
 Contracts: [conceptualize-contracts.md](conceptualize-contracts.md).
 

@@ -1,5 +1,14 @@
 # Design Reasoning Layer: progress
 
+## Status (one page; initial block by the context-optimization agent, 16 Oct 2026, main d146f22; the module agent keeps it current)
+
+- **State:** architecture Proposed; HTTP binding and two scenarios implemented and tested against the real Conceptualize service
+- **Branch:** feature/design-reasoning @ 90a4f7a, level with main
+- **Done:** real-service checkpoint documented
+- **Next actions:** owner questions and review status are in "Open questions for the owner" and "Review status"
+- **Blockers:** see those sections
+- **Archive:** the sections below are the detailed record and are read on demand, not at session start. Format and the archive split: [handoff template](../agents/handoff-template.md#2-status-block-top-of-every-module-progress-file-kept-current-at-each-checkpoint).
+
 Maintained by the Design Reasoning Architecture Agent. Brief: [design-reasoning.md](design-reasoning.md)
 (do not edit). Governance: [design-reasoning-governance.md](design-reasoning-governance.md).
 

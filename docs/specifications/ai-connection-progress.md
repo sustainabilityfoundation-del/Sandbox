@@ -1,5 +1,14 @@
 # AI connection: progress
 
+## Status (one page; initial block by the context-optimization agent, 16 Oct 2026, main d146f22; the module agent keeps it current)
+
+- **State:** ready for owner review (owner acceptance pending)
+- **Branch:** feature/ai-connection @ 24f6a83, level with main
+- **Done:** all checklist items below are done, checkpoint report in section 7
+- **Next actions:** owner tries the real ChatGPT sign-in and a live-model run (needs the owner's account)
+- **Blockers:** owner's account for the live run
+- **Archive:** the sections below are the detailed record and are read on demand, not at session start. Format and the archive split: [handoff template](../agents/handoff-template.md#2-status-block-top-of-every-module-progress-file-kept-current-at-each-checkpoint).
+
 Brief and contracts: [ai-connection.md](ai-connection.md). Maintained by the AI connection agent.
 Decisions: [ADR-0047](../decisions/0047-ai-provider-backend-and-account-connection.md) (provider backend,
 account connection, access policy), [ADR-0048](../decisions/0048-ai-settings-framework.md) (settings
