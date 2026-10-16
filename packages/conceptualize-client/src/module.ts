@@ -348,6 +348,40 @@ export class ConceptsModuleClient {
     return this.get<T.AuditEvent[]>('/entity-history', { entityId })
   }
 
+  // ---- visuals (concept-visualization-contracts.md) -------------------------------------------------------------
+  visuals(q: { conceptIds?: string[]; includeArchived?: boolean } = {}) {
+    return this.get<T.Visual[]>('/visuals', { ...(q.conceptIds?.length ? { conceptId: q.conceptIds.join(',') } : {}), ...(q.includeArchived ? { includeArchived: true } : {}) })
+  }
+  visual(id: string, revision?: number) {
+    return this.get<T.Visual>(`/visuals/${id}`, { revision })
+  }
+  visualRevisions(id: string) {
+    return this.get<T.Visual[]>(`/visuals/${id}/revisions`)
+  }
+  createVisual(input: T.VisualCreate, opts: WriteOpts = {}) {
+    return this.create<T.Visual>('/visuals', input, opts)
+  }
+  /** A new revision pinned to the given (default current) Concept revision; earlier revisions keep their annotations. */
+  reviseVisual(id: string, input: T.VisualRevise, opts: WriteOpts & { expectedRevision: number }) {
+    return this.send<T.Visual>('POST', `/visuals/${id}/revisions`, { ...input, expectedRevision: opts.expectedRevision }, opts)
+  }
+  archiveVisual(id: string, opts: WriteOpts & { expectedRevision: number; reason?: string }) {
+    return this.send<T.Visual>('POST', `/visuals/${id}/archive`, { expectedRevision: opts.expectedRevision, ...(opts.reason ? { reason: opts.reason } : {}) }, opts)
+  }
+  addAnnotation(visualId: string, revision: number, input: T.AnnotationCreate, opts: WriteOpts = {}) {
+    return this.send<T.VisualAnnotation>('POST', `/visuals/${visualId}/revisions/${revision}/annotations`, input, opts)
+  }
+  /** Mirrors the visualization job of an illustration revision (asset references only). */
+  recordGeneration(visualId: string, revision: number, record: T.GenerationRecord, opts: WriteOpts = {}) {
+    return this.send<T.Visual>('PUT', `/visuals/${visualId}/revisions/${revision}/generation`, record, opts)
+  }
+  dependents(conceptId: string) {
+    return this.get<T.ConceptDependents>(`/concepts/${conceptId}/dependents`)
+  }
+  revisionStaleness(conceptId: string, revision: number, purpose: 'layout' | 'illustration' | 'handoff' | 'downstream' = 'downstream') {
+    return this.get<T.Staleness>(`/concepts/${conceptId}/staleness`, { revision, purpose })
+  }
+
   // ---- calculation models (CR-C8) ---------------------------------------------------------------------------------
   calculationModels(q: { text?: string; status?: string } = {}) {
     return this.get<T.CalculationModel[]>('/calculation-models', q)

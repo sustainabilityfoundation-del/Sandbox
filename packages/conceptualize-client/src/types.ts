@@ -99,6 +99,10 @@ export interface Concept {
   classifications: string[]
   attributes: Record<string, Attribute>
   statements: Statement[]
+  /** Maturity stage of the engineering definition (absent from servers before migration 0007). */
+  stage?: Stage
+  /** The authoritative engineering definition of this revision. */
+  definition?: EngineeringDefinition
   maturity: ConceptMaturity
   verificationStatus: VerificationStatus
   implementationStatus: ImplementationStatus | 'none'
@@ -145,6 +149,8 @@ export interface ConceptCreate {
   classifications?: string[]
   attributes?: Record<string, Attribute>
   statements?: StatementInput[]
+  stage?: Stage
+  definition?: DefinitionInput
   maturity?: 'idea' | 'exploring' | 'defined'
   parentId?: string
   decompositionId?: string
@@ -162,6 +168,8 @@ export interface ConceptPatch {
   classifications?: string[]
   attributes?: Record<string, Attribute | null>
   statements?: StatementInput[]
+  stage?: Stage
+  definition?: DefinitionInput
   reason?: string
 }
 
@@ -666,3 +674,6 @@ export interface UnitCheck {
   message?: string
   common: string[]
 }
+
+import type { DefinitionInput, EngineeringDefinition, Stage } from './visualTypes'
+export type * from './visualTypes'
