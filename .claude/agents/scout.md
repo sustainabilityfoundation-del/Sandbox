@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Cheap lookup agent: find where something is defined or used, list files matching a pattern, count occurrences, check whether a path or string exists. Read-only; returns file paths and line numbers only.
+description: Searcher. Cheap lookup agent: find where something is defined or used, list files matching a pattern, count occurrences, check whether a path or string exists. Read-only; returns file paths and line numbers only.
 model: haiku
 maxTurns: 15
 tools: Read, Grep, Glob

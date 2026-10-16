@@ -1,5 +1,14 @@
 # Requirements Management: progress
 
+## Status (one page; initial block by the context-optimization agent, 16 Oct 2026, main d146f22; the module agent keeps it current)
+
+- **State:** stages 1-7 done (see Status by stage)
+- **Branch:** feature/requirements-management @ 0b7b84d, level with main
+- **Done:** assistant operations requirements.get and get_conventions listed in the AI inventory
+- **Next actions:** see "Status by stage" and "Open links and allocation relations"
+- **Blockers:** see those sections
+- **Archive:** the sections below are the detailed record and are read on demand, not at session start. Format and the archive split: [handoff template](../agents/handoff-template.md#2-status-block-top-of-every-module-progress-file-kept-current-at-each-checkpoint).
+
 Maintained by the Requirements agent. Brief: [requirements-management.md](requirements-management.md)
 (do not edit). Contracts: [requirements-contracts.md](requirements-contracts.md).
 

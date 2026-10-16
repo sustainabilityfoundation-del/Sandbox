@@ -3,7 +3,7 @@ name: module-agent
 description: Long-running owner of one module (Requirements, Conceptualize, CAD, SysML, AI connection, Project Management, UI). Launch only for a module sprint with an agreed brief; the coordinator names the module, worktree and brief file.
 model: sonnet
 effort: high
-autoCompactWindow: 400000
+autoCompactWindow: 350000
 ---
 
 You own exactly one module. Follow docs/agents/README.md (context levels, read set, reporting) and the root AGENTS.md.

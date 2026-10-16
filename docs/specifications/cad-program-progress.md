@@ -1,5 +1,14 @@
 # CAD program: progress
 
+## Status (one page; initial block by the context-optimization agent, 16 Oct 2026, main d146f22; the module agent keeps it current)
+
+- **State:** phases 0-1 done, modeling depth (fillet, chamfer, datum planes, sketches on faces) implemented; concept handoff items 1-4 done
+- **Branch:** feature/cad @ 08341f3, level with main
+- **Done:** see the Phase status table
+- **Next actions:** coordinator review of phase 1 and the concept handoff; next items are in the Phase status table
+- **Blockers:** none recorded
+- **Archive:** the sections below are the detailed record and are read on demand, not at session start. Format and the archive split: [handoff template](../agents/handoff-template.md#2-status-block-top-of-every-module-progress-file-kept-current-at-each-checkpoint).
+
 Maintained by the CAD agent. Brief: [cad-program.md](cad-program.md) (do not edit).
 Contracts and governance: [cad-program-contracts.md](cad-program-contracts.md).
 Module documentation: [docs/modules/cad](../modules/cad/README.md).

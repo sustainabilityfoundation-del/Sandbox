@@ -17,7 +17,7 @@ percentage shows the window only.
 | Pre-compaction snapshot | `.claude/hooks/pre-compact.mjs` on `PreCompact` (manual and auto) | Writes branch, HEAD, uncommitted files, recent commits and the context size to `.claude/handoffs/latest.md` (gitignored). Never blocks compaction | `PreCompact` event; exit code 2 would block, deliberately unused |
 | Session orientation | `.claude/hooks/session-start.mjs` on `SessionStart` | Prints branch, HEAD, uncommitted count, pointers to the rules and handoff template (about 600 characters), plus the snapshot path after compaction or resume | `SessionStart` stdout is added to context |
 | Limits | `.claude/settings.json` `env` | Sub-agent depth 2, 6 concurrent sub-agents | `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` |
-| Agent definitions | `.claude/agents/*.md` | Model routing, `maxTurns`, no nesting for helpers, `autoCompactWindow: 400000` for `module-agent` | Sub-agent frontmatter fields |
+| Agent definitions | `.claude/agents/*.md` | Model routing, `maxTurns`, no nesting for helpers, `autoCompactWindow: 350000` for `module-agent` | Sub-agent frontmatter fields |
 
 The percentage in the hooks is computed from the last API call in the transcript against 1,000,000 tokens (override with the
 environment variable `CTX_WINDOW_TOKENS`); the status line uses the window size Claude Code reports.
@@ -50,7 +50,7 @@ Compaction summaries: the root `CLAUDE.md` has a "Compact instructions" section 
 1. **Auto-compact window.** Claude Code compacts native-1M models near 967k tokens, and every agent in the baseline lived at that ceiling.
    Setting a lower window (documented: `autoCompactWindow` in settings, `/autocompact`, `--autocompact`, or
    `CLAUDE_CODE_AUTO_COMPACT_WINDOW`; range 100k to 1M) trades more frequent compaction for cheaper requests. Suggested trial for the
-   coordinator session: `/autocompact 500k`, with the coordinator handoff file kept current. `module-agent` already requests 400k in its definition.
+   coordinator session: `/autocompact 500k`, with the coordinator handoff file kept current. `module-agent` already requests 350k in its definition.
 2. **Coordinator model and handoff.** Keep Opus for the coordinator. Start a fresh coordinator session when it passes about 70% (the current one
    reached 90%), resuming from [docs/status/coordinator.md](../status/coordinator.md).
 3. **Subagent model default.** To force one model for every sub-agent regardless of definition, set `CLAUDE_CODE_SUBAGENT_MODEL` (precedence: invocation parameter, frontmatter, this variable, parent). Not recommended while definitions route models.

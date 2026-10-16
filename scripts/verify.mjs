@@ -1,7 +1,9 @@
 // Compact verification summary: runs steps one after another and prints a table plus the first failing lines.
-// Usage: node scripts/verify.mjs [typecheck] [test] [build] [e2e] [--cmd "name=command" ...] [--tail 15]
+// Usage: node scripts/verify.mjs [typecheck] [test] [db] [build] [e2e] [all] [--cmd "name=command" ...] [--tail 15]
+// `db` runs every `*:test:db` script of package.json (needs the embedded PostgreSQL), `all` = typecheck test db build; e2e only when named.
 // Default steps: typecheck test. Exit code is 1 when any step fails. Output of passing steps is discarded.
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 
 const args = process.argv.slice(2);
 const steps = [];
@@ -14,8 +16,11 @@ for (let i = 0; i < args.length; i++) {
 }
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const known = { typecheck: [npm, 'run', 'typecheck'], test: [npm, 'test'], build: [npm, 'run', 'build'], e2e: [npm, 'run', 'e2e'] };
+const dbScripts = Object.keys(JSON.parse(fs.readFileSync('package.json', 'utf8')).scripts ?? {}).filter((n) => /test:db$/.test(n));
+for (const n of dbScripts) known[`db:${n.split(':')[0]}`] = [npm, 'run', n];
+const expand = (list) => list.flatMap((s) => (s === 'all' ? ['typecheck', 'test', 'db', 'build'] : s === 'db' ? dbScripts.map((n) => `db:${n.split(':')[0]}`) : [s]));
 const plan = [];
-for (const s of steps.length || custom.length ? steps : ['typecheck', 'test']) {
+for (const s of expand(steps.length || custom.length ? steps : ['typecheck', 'test'])) {
   if (!known[s]) {
     console.error(`unknown step ${s}`);
     process.exit(2);

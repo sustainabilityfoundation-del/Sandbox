@@ -48,13 +48,17 @@ All 14 agents in the baseline ran on Opus. The policy below is the owner's, appl
 mid-tier model on this repository was **not measured** (see [limitations](../status/context-baseline.md)), so the first sprint on
 Sonnet is a trial that the coordinator reviews before the routing is widened.
 
-| Work | Model | Agent definition |
-| --- | --- | --- |
-| Architecture, contracts, ADRs, cross-module integration, critical review | Opus | coordinator session, `reviewer` |
-| Module implementation, debugging, test development, documentation | Sonnet | `module-agent`, `task-worker` |
-| Research and surveys that end in a note | Sonnet | `researcher` |
-| Running check, DB suites, builds and e2e; pass/fail tables | Sonnet | `integration-runner` (one at a time) |
-| File search, counting, formatting, mechanical edits | Haiku | `scout` |
+| Agent (`.claude/agents/`) | Model | Use when | Limits |
+| --- | --- | --- | --- |
+| coordinator session | Opus | Architecture, contracts, ADRs, integration decisions | Fresh session per milestone or at 70% context |
+| `architect` | Opus | A design question needs options and a recommendation (ADR drafts, SDK or contract changes, integration plans) | Read-only, 30 turns, no sub-agents |
+| `reviewer` | Opus | Critical review of a diff, contract or ADR before merge | Read-only, 25 turns |
+| `module-agent` | Sonnet | A module sprint with an agreed brief; one per module, one sprint each | `autoCompactWindow` 350k; max 3 at once |
+| `task-worker` | Sonnet | One bounded task with named files and checks (fix, tests, docs) | 40 turns, no sub-agents |
+| `researcher` | Sonnet | A survey or standards/tool question that ends in a note under `docs/research/` | 30 turns; Write only for the note |
+| `integration-runner` | Sonnet | Running check, DB suites, builds, e2e; the caller needs only a table | One suite at a time, 30 turns, cannot edit |
+| `scout` (searcher) | Haiku | Where is X defined or used; list or count files | Read-only, 15 turns, `path:line` answers |
+| `triage` | Haiku | A log or test output file must be reduced to failing tests and first errors | Read-only, 12 turns |
 
 Do not switch model inside a running task; choose when launching. A module agent that repeatedly fails on a hard design question
 reports it to the coordinator instead of retrying on a dearer model by itself. Escalation is the coordinator's decision.
@@ -83,3 +87,9 @@ Compact status report (about 300 words plus links), at checkpoints and when bloc
 | Interface contracts | `docs/specifications/*-contracts.md` and [docs/modules/](../modules/) (the project's existing homes; there is no separate `docs/interfaces/`) |
 | Module status and handoffs | `docs/specifications/*-progress.md` (module-owned), [docs/status/](../status/README.md) (coordinator and cross-module) |
 | Agent roles and rules | this directory |
+
+## 7. Verification and visual checks without loading output into context
+
+- **Verification table.** `npm run verify -- typecheck test db build e2e` (`scripts/verify.mjs`) runs the steps one after another, prints a pass/fail table by exit code with durations and the first failing lines, and exits 1 on failure. `db` runs every `*:test:db` script; `all` is typecheck, test, db and build. The `integration-runner` agent wraps it; use `triage` for an existing log file. Run suites sequentially: concurrent suites caused a load-induced timeout.
+- **Visual comparison (implemented as a helper, adoption proposed).** `tests/e2e/lib/visual.mjs` exports `compareToBaseline(page, name, { maxDiffRatio, perChannelTolerance })`. It screenshots the page, decodes the committed baseline `tests/e2e/baselines/<name>.png` and the new image in a blank browser page (no new dependency), and returns `{ status, diffRatio, diffPixels, width, height }`; on failure it saves the current and a red-highlight diff image to a scratch folder. Defaults: tolerance 8 per channel, 0.2% of pixels. The first run, or `UPDATE_BASELINES=1`, writes the baseline. Flows report the returned numbers; nobody reads the images unless a diff fails and the visual result is the question. Tested on a synthetic page (identical: ratio 0; 40x100 px change: 4000 pixels). Decisions for the owner or coordinator: commit baselines only after owner approval of the look (they change with the design system); fonts and antialiasing differ by machine, so baselines are valid only for the same Chrome build and OS, which suggests keeping them for one reference environment (CI or one machine); no existing flow uses it yet.
+- **Generated reference documentation (proposed).** Operation and API reference pages should be generated from the OpenAPI documents and the operation schemas (`services/*`, the operation inventories) into the modules' `help/` and `docs/modules/` references, with a test that fails when the generated output is stale, instead of agents writing and updating the same text twice. Not built: it needs an audit of which pages repeat schema content, and the owning agents' help manifests (`apps/workspace/src/help/help.test.ts`) define what the generator must emit. Smallest first step: one module (the AI operation inventory) as a pilot.

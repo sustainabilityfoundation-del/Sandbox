@@ -1,8 +1,11 @@
-# Coordinator: session handoff (16 October 2026, `feature/context-optimization` @ main d57c673)
+# Coordinator: session handoff (16 October 2026, `feature/context-optimization` based on main d146f22)
 
 Written by the context-optimization agent from `docs/specifications/*-progress.md` and `git log`; items marked **unconfirmed** were not
 determinable from the repository and need the coordinator's correction. The coordinator session that existed before this file was at
 898k tokens (90% of 1M) after 6 compactions.
+
+## First message to send in the fresh coordinator session (paste)
+> You are the coordinator of this repository. Read AGENTS.md, then docs/status/coordinator.md, then run `node scripts/status-digest.mjs` and `git log --oneline -15 main`. Do not read whole progress files, screenshots or module source; use the scout, integration-runner and reviewer agents (.claude/agents). Confirm the "Assigned work" table with me, then continue demonstration D1 per integration-milestone-1.md. Keep each report to about 300 words plus links, and write decisions to the repository before context passes 70%.
 
 ## Mission and priority
 AI engineering platform (monorepo). Primary objective: [demonstration D1](../specifications/demo-ai-engineering.md), the smallest
@@ -10,7 +13,7 @@ end-to-end AI-driven workflow (concept, requirements, system model, CAD, STEP) w
 [integration milestone 1](../specifications/integration-milestone-1.md). Milestone work D1 does not need waits. E-ASSURE is deferred
 ([ADR-0070](../decisions/0070-development-assurance-boundaries.md)). Rules: [AGENTS.md](../../AGENTS.md). Context rules: [docs/agents](../agents/README.md).
 
-## State (main d57c673; digest: `node scripts/status-digest.mjs`)
+## State (main d146f22; digest: `node scripts/status-digest.mjs`)
 | Area | Branch | State | Evidence |
 | --- | --- | --- | --- |
 | Requirements | feature/requirements-management | Stages 1-7 done; assistant operations `requirements.get`, `get_conventions` added | [progress](../specifications/requirements-management-progress.md) |
@@ -23,7 +26,7 @@ end-to-end AI-driven workflow (concept, requirements, system model, CAD, STEP) w
 | UI Focused Canvas | feature/ui-focused-canvas | Phases 1-4 done, phase 5 (assistant panel) docs committed; 3 commits ahead of main; agent running | [progress](../specifications/ui-focused-canvas-progress.md) |
 | Context optimization | feature/context-optimization | Phases 1-7 in progress (this work) | [progress](../specifications/context-optimization-progress.md) |
 
-All other module branches were level with main at d57c673 (merged). Which module agents are still running besides ui-ux-design-system: **unconfirmed**.
+Branch check at d146f22 (measured with `git rev-list` and `git status` in each worktree): the seven module branches have no commits that main lacks and no uncommitted files (they are 30-241 commits behind main, last commits 15-16 Oct); `feature/ui-focused-canvas` is 3 commits ahead of and 3 behind main with no uncommitted files. Which module agents are still running besides ui-ux-design-system: **unconfirmed**. Main also holds the owner approval of the recommendations (brief section B) and the per-module registration manifests specification (scheduled after the UI merge).
 
 ## Decisions in force
 [ADR index](../decisions/README.md) (55 ADR files; newest 0070 assurance boundaries, 0071 browser data import, 0072 agent context management, proposed).
@@ -41,7 +44,8 @@ Many module ADRs are still "Proposed" for coordinator review (list in the ADR in
 2. Decide the proposed ADRs and SDK 1.9 ConceptsService proposal.
 3. Owner acceptance of the AI connection (needs the owner's ChatGPT account); never record acceptance without the owner's words.
 4. Review [recommendations](../agents/recommendations.md) (items 5, 8, 9, 10 need decisions; item 7 needs a one-line `package.json` script).
-5. Merge `feature/context-optimization` when approved; module worktrees pick up `.claude/` hooks after the merge.
+5. Merge `feature/ui-focused-canvas` (3 commits), then schedule per-module registration manifests (owner-approved, not started).
+6. Merge `feature/context-optimization` when approved; module worktrees pick up `.claude/` agents and hooks after the merge (running sessions need a restart).
 
 ## Next actions
 1. Read this file, then `git log --oneline -15 main` and the digest. 2. Confirm the assigned-work table. 3. Continue D1 integration per the milestone plan.
