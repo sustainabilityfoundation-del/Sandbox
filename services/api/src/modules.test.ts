@@ -66,8 +66,18 @@ describe('AI policy from the installed manifests', () => {
     expect(rows(policy.settingDefinitions, 'ai.access.')).toEqual(base)
     expect(rows(policy.settingDefinitions, 'ai.ceiling.')).toEqual(base)
     // A new installed module follows the known ones and precedes the platform tail, in installed-list order.
-    const extra = collectPolicyContributions([fixture({ id: 'x1', aiModule: { id: 'x1', label: 'X1', description: 'X.', prefixes: ['x1.'] } }), fixture({ id: 'x2', aiModule: { id: 'x2', label: 'X2', description: 'X.', prefixes: ['x2.'] } })])
+    const extra = collectPolicyContributions([...ALL_SERVER_MODULES.filter((m) => m.id !== 'projects'), fixture({ id: 'x1', aiModule: { id: 'x1', label: 'X1', description: 'X.', prefixes: ['x1.'] } }), fixture({ id: 'x2', aiModule: { id: 'x2', label: 'X2', description: 'X.', prefixes: ['x2.'] } })])
     expect(createPolicy(extra.aiModules, extra.operations).modules.map((m) => m.id)).toEqual([...base.slice(0, 6), 'x1', 'x2', 'reasoning', 'help'])
+  })
+
+  it('takes Conceptualize from its manifest (no legacy entry): same module, prefix, entitlement and operation classes as before', () => {
+    expect(aiModules.filter((m) => m.id === 'conceptualize')).toEqual([{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] }])
+    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('conceptualize.'))).toHaveLength(34)
+    expect(policy.classify('conceptualize.compare')).toMatchObject({ operationClass: 'calculate', module: { id: 'conceptualize' } })
+    expect(policy.classify('conceptualize.request_illustration')?.operationClass).toBe('external-generation')
+    expect(policy.classify('conceptualize.read_visuals')?.operationClass).toBe('read')
+    expect(policy.classify('conceptualize.not_yet_catalogued')?.operationClass).toBe('propose')
+    expect(INSTALLED_SERVER_MODULES.find((m) => m.id === 'conceptualize')?.proposals).toEqual({ entitlement: 'tool:conceptualize', projectParam: 'projectId' })
   })
 
   it('takes Project Management from its manifest (no legacy entry): same module, prefix and default class as before', () => {

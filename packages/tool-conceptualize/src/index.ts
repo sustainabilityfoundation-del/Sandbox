@@ -1,4 +1,6 @@
-import { defineTool } from '@ews/platform-sdk/react'
+import type { ModuleManifest } from '@ews/platform-sdk'
+import { defineTool, type AnyToolDefinition } from '@ews/platform-sdk/react'
+import { CONCEPTUALIZE_CAPABILITIES } from './capabilities'
 import { lazy } from 'react'
 import { conceptsAssistant } from './assistant'
 import { conceptualizeHelp } from './help'
@@ -53,3 +55,27 @@ export const conceptualizeTool = defineTool<ConceptualizeViewState>({
   },
 })
 export { registerVisualizationPort, type VisualizationPort } from './visualization'
+
+/**
+ * Conceptualize's client module (docs/specifications/module-registration.md, M2): its manifest (capability entries,
+ * default-open tool) and the tool factory. It is structurally a `ClientModule` of `@ews/platform-sdk/react`; the
+ * workspace lists it in `INSTALLED_MODULES`. The AI module descriptor and operation classes are policy and live in
+ * the server manifest of `@ews/conceptualize-service`.
+ */
+export const CONCEPTUALIZE_MANIFEST: ModuleManifest = {
+  schemaVersion: 1,
+  id: 'conceptualize',
+  name: 'Conceptualize',
+  entitlement: 'tool:conceptualize',
+  capabilities: CONCEPTUALIZE_CAPABILITIES,
+  defaultOpen: true,
+}
+
+export interface ConceptualizeClientModule {
+  manifest: ModuleManifest
+  tool: () => AnyToolDefinition
+}
+
+export function conceptualizeModule(): ConceptualizeClientModule {
+  return { manifest: CONCEPTUALIZE_MANIFEST, tool: () => conceptualizeTool }
+}
