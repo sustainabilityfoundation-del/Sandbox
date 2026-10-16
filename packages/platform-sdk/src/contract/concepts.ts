@@ -98,6 +98,11 @@ export type ConceptsEventType =
   | 'concept.selected'
   | 'concept.superseded'
   | 'concept.decision-recorded'
+  | 'visual.created'
+  | 'visual.revised'
+  | 'visual.annotated'
+  | 'visual.generation-changed'
+  | 'handoff.created'
 
 /** Emitted only after commit (transactional outbox); dedupe by eventId. */
 export interface ConceptsEvent {
@@ -140,6 +145,42 @@ export interface ConceptsService {
    * hosts whose Conceptualize does not provide it yet.
    */
   getConstraint?: (id: string, scope: { projectId: string; revision?: number }) => Promise<ConstraintSummary | undefined>
+  /** The engineering definition of a Concept at a revision (SDK 1.9). */
+  getDefinition?: (id: ConceptId, scope: { projectId: string; revision?: number }) => Promise<ConceptDefinitionSummary | undefined>
+  /** A CAD handoff package (SDK 1.9). */
+  getHandoff?: (id: string, scope: { projectId: string }) => Promise<ConceptHandoffSummary | undefined>
+  listHandoffs?: (conceptId: ConceptId, scope: { projectId: string }) => Promise<ConceptHandoffSummary[]>
+  /** Staleness of an artifact made from a Concept revision, e.g. a CAD document (SDK 1.9). */
+  revisionStaleness?: (conceptId: ConceptId, revision: number, scope: { projectId: string; purpose?: 'downstream' | 'handoff' | 'layout' | 'illustration' }) => Promise<ConceptRevisionStaleness | undefined>
+}
+
+/** Engineering definition of a Concept revision (SDK 1.9). IDs are stable across revisions. */
+export interface ConceptDefinitionSummary {
+  intent: string
+  components: { id: string; name: string; kind: 'part' | 'assembly' | 'purchased' | 'envelope' | 'feature'; basis: string }[]
+  interfaces: { id: string; name: string; kind: string; between: string[]; parameterIds: string[] }[]
+  parameters: { id: string; symbol: string; name: string; value: number | null; min: number | null; max: number | null; unit: string; basis: string; componentId: string | null; constraintId: string | null }[]
+}
+
+/** Whether something made from a Concept revision is possibly outdated (derived, never stored). */
+export interface ConceptRevisionStaleness {
+  outdated: boolean
+  currentConceptRevision: number
+  changes: { area: 'intent' | 'component' | 'relationship' | 'interface' | 'parameter' | 'layout'; id: string; change: 'added' | 'removed' | 'changed'; label: string }[]
+}
+
+/** CAD handoff package (schema 'conceptualize.cad-handoff/1'), immutable and revision-pinned. */
+export interface ConceptHandoffSummary {
+  id: string
+  key: string
+  projectId: string
+  conceptId: ConceptId
+  conceptRevision: number
+  target: 'cad'
+  /** The package as stored: intent, components, relationships, interfaces, parameters, envelopes, constraints, requirements, decisions, assumptions, visuals, unresolved. */
+  package: Record<string, unknown> & { schema: 'conceptualize.cad-handoff/1'; unresolved: { kind: string; text: string; ref: string | null }[] }
+  staleness: ConceptRevisionStaleness
+  createdAt: string
 }
 
 /** Design constraint as other modules read it (SDK 1.8). Mirrors Conceptualize's record; display text is not identity. */

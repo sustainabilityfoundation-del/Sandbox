@@ -10,7 +10,7 @@
  * Any change to the contract needs a migration note in packages/platform-sdk/CHANGELOG.md
  * and validation of every tool package (npm run check).
  */
-export const SDK_VERSION = '1.8.0'
+export const SDK_VERSION = '1.9.0'
 
 function parse(version: string): [number, number, number] | null {
   const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version.trim())

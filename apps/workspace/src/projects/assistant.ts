@@ -39,17 +39,8 @@ function base64ToBytes(value: string): Uint8Array {
   return bytes
 }
 
-/**
- * Files produced in this window (for example a STEP export) can be handed to `projects.store_document` by handle,
- * so the bytes never pass through the model. Producers register them with `stageFile`; until the SDK offers a
- * file hand-off (change request CR-PM-SDK-4), only platform code can stage files.
- */
-const staged = new Map<string, { bytes: Uint8Array; fileName: string; mediaType: string; provenance?: FileProvenance }>()
-export function stageFile(file: { bytes: Uint8Array; fileName: string; mediaType: string; provenance?: FileProvenance }): string {
-  const handle = `file:${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`
-  staged.set(handle, file)
-  return handle
-}
+// Files produced in this window (for example a STEP export) are handed to `projects.store_document` by handle through
+// `services.files` (SDK 1.9, CR-PM-SDK-4), so the bytes never pass through the model.
 
 const actions: AssistantActionDefinition[] = [
   {
@@ -282,11 +273,14 @@ const actions: AssistantActionDefinition[] = [
       const projectId = ctx.captured.projectId
       const title = argString(args, 'title')
       const handle = argOptionalString(args, 'fileHandle')
-      const stagedFile = handle ? staged.get(handle) : undefined
-      if (handle && !stagedFile) throw new ActionError('not-found', `No staged file ${handle} in this window (files are kept until the window is closed).`)
+      const files = ctx.services?.files
+      if (handle && !files) throw new ActionError('not-found', 'This window has no file hand-off service.')
+      const stagedMeta = handle ? files!.describe(handle) : undefined
+      if (handle && !stagedMeta) throw new ActionError('not-found', `No staged file ${handle} in this window (files are kept until the window is closed).`)
       const contentBase64 = argOptionalString(args, 'contentBase64')
-      if (!stagedFile && !contentBase64) throw new ActionError('invalid-arguments', 'Give a fileHandle from the producing operation or contentBase64.')
-      const bytes = stagedFile?.bytes ?? base64ToBytes(contentBase64!)
+      if (!stagedMeta && !contentBase64) throw new ActionError('invalid-arguments', 'Give a fileHandle from the producing operation or contentBase64.')
+      const stagedFile = stagedMeta
+      const bytes = stagedMeta ? await files!.read(handle!) : base64ToBytes(contentBase64!)
       const fileName = stagedFile?.fileName ?? argString(args, 'fileName')
       const mediaType = stagedFile?.mediaType ?? argOptionalString(args, 'mediaType') ?? 'application/octet-stream'
       const source = (args.source as FileProvenance['source']) ?? stagedFile?.provenance?.source
@@ -307,7 +301,7 @@ const actions: AssistantActionDefinition[] = [
         async apply(p) {
           const doc = await client.createDocument(projectId, { title, documentKind }, { provenance: provenanceOf(p) })
           const stored = await client.uploadDocumentVersion(projectId, doc.id, doc.revision, { bytes, fileName, mediaType, provenance }, { provenance: provenanceOf(p) })
-          if (handle) staged.delete(handle)
+          if (handle) files?.discard(handle)
           return { summary: `Stored ${stored.key} “${stored.title}” version 1 (sha-256 ${stored.versions?.[0]?.sha256.slice(0, 12)}…)`, createdIds: [stored.id] }
         },
       }
