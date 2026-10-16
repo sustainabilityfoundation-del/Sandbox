@@ -79,6 +79,14 @@ Backlog (tracked here until done):
 - OSS-4 Shared integration interfaces (solver, geometry, simulation, visualization) documented, after OSS-1.
 - OSS-5 Upstream contribution workflow: nothing is published without explicit owner authorization.
 
+## Capability-complete toolbars directive (owner, 16 October 2026; standing requirement)
+Recorded in [CAPABILITY_TOOLBARS.md](../architecture/CAPABILITY_TOOLBARS.md); mandatory section in AGENTS.md; one line in every package AGENTS.md,
+the module-agent and reviewer definitions. Implemented by extending the manifest capability inventory (and ADR-0013), not a second registry.
+Backlog: CT-1 registry and toolbar architecture (architect, read-only; contract extension, evidence-based status, availability,
+toolbar component, search, AI access, migration plan). Running. CT-2 SDK contract and shared toolbar component (after CT-1 and the
+manifest steps M4-M6, which touch the same files). CT-3..n per-module inventories and toolbars (module agents, after CT-2;
+research feeds OSS-3). D1 keeps priority.
+
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
 2. **D1 owner acceptance** (16 October 2026: the owner has no time now and will review D1 later; keep working on the other items meanwhile, do not ask again until the owner returns): ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.

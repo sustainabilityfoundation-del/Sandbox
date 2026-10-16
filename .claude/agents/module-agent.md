@@ -17,3 +17,5 @@ You own exactly one module. Follow docs/agents/README.md (context levels, read s
 7. Read images (screenshots) only when the visual result is the thing being checked; prefer text assertions.
 
 8. Open-source first (mandatory, owner directive): Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation. See docs/architecture/OPEN_SOURCE_STRATEGY.md and docs/architecture/open-source-evaluation-template.md. Never publish code or open upstream pull requests without explicit owner authorization.
+
+9. Capability-complete toolbars (owner directive, docs/architecture/CAPABILITY_TOOLBARS.md): keep your module's full target capability inventory in its manifest; evidence-based status; planned commands visible, muted, explained and never executed.

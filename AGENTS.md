@@ -54,6 +54,14 @@ Every agent follows [the open-source strategy](docs/architecture/OPEN_SOURCE_STR
   explicit owner authorization.
 - Do not replace a working implementation only because an open-source alternative exists, and never let this work delay D1.
 
+## Capability-complete toolbars (mandatory, owner directive)
+
+Every module follows [the capability toolbar directive](docs/architecture/CAPABILITY_TOOLBARS.md). In short: each module keeps a
+complete target capability inventory (implemented, partial and planned) in its manifest, and its toolbar shows the full intended
+scope. Implementation status is evidence-based (implementation and tests), runtime availability is computed separately, planned
+commands are muted and explained but never execute or report success, and the AI reads the same registry as the user. No placeholder
+operations that simulate engineering results. This does not take priority over D1.
+
 ## Ownership
 
 | Area | Packages | Owns |
