@@ -30,6 +30,12 @@ describe('installed server modules', () => {
     expect(viz.settings ?? viz.provisioning).toBeUndefined()
   })
 
+  it('takes the visualization identity from its package manifest and declares no AI entries', () => {
+    const viz = ALL_SERVER_MODULES.find((m) => m.id === 'visualization')!
+    expect(viz).toMatchObject({ name: 'Visualization', basePath: '/api/visualization/v1', docs: 'Visualization API', phase: 'after-host' })
+    expect(viz.aiModule ?? viz.operations ?? viz.proposals).toBeUndefined()
+  })
+
   it('keep the module IDs, names and lazy-provisioning reasons the host used before', () => {
     const provisioning = INSTALLED_SERVER_MODULES.flatMap((m) => (m.provisioning ? [{ module: m.provisioning.module ?? m.id, name: m.name }] : []))
     expect(provisioning).toEqual([

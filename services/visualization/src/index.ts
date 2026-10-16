@@ -13,3 +13,4 @@ export { AdapterError, PROMPT_PREFACE, composePrompt, type ConnectionInfo, type 
 export { createVisualizationEventHub, type VisualizationEventHub } from './events'
 export { migrateVisualization, VISUALIZATION_MIGRATIONS } from './db/migrate'
 export { VisualizationError } from './errors'
+export { visualizationServerManifest } from './manifest'

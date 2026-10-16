@@ -6,7 +6,7 @@ import { CONCEPTS_BASE_PATH, conceptsPlugin, conceptualizeServerManifest, create
 import { SYSML_BASE_PATH, createSysmlArtifactSource, sysmlPlugin, sysmlServerManifest, type SysmlEventHub, type SysmlRepository } from '@ews/sysml-service'
 import { CAD_BASE_PATH, cadPlugin, cadServerManifest, createCadArtifactSource, type CadEventHub } from '@ews/cad-service'
 import { composeTwinDirectories, productTwinDirectory, projectsServerManifest, type BlobStore } from '@ews/projects-service'
-import { AdapterRegistry, VISUALIZATION_BASE_PATH, createFakeImageAdapter, createOpenAIImageAdapter, visualizationPlugin } from '@ews/visualization-service'
+import { AdapterRegistry, VISUALIZATION_BASE_PATH, createFakeImageAdapter, createOpenAIImageAdapter, visualizationPlugin, visualizationServerManifest } from '@ews/visualization-service'
 import type { AssistantBackend } from '@ews/assistant-service'
 import type { identity } from './platform/identity'
 import { sysmlElementDirectory } from './sysmlDirectory'
@@ -100,12 +100,7 @@ export const INSTALLED_SERVER_MODULES: ApiServerModule[] = [
     },
   },
   {
-    id: 'visualization',
-    name: 'Visualization',
-    basePath: VISUALIZATION_BASE_PATH,
-    docs: 'Visualization API',
-    // The plugin starts its job runner while registering; the assistant must already be running (image access) when jobs resume.
-    phase: 'after-host',
+    ...visualizationServerManifest,
     async register(host) {
       const { app, pool, auth, options, production } = host
       // Image generation jobs. Credentials stay in the assistant service: the port hands the adapter a credential for one
