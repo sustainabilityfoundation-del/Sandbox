@@ -26,7 +26,9 @@ still tied to a view are listed as known-failing), `ai-fake-provider` (needs the
 `npm run ai:dev:fake`; connect, ask, proposal reopened in a fresh session, access policy and refusals, audit,
 disconnect, drill bit holder demo), `projects` (Project Home, new project, switcher, reopen), `demo-d1` (plumbing test of demonstration D1: the fake
 provider replays the recorded script in `fixtures/fake-scripts/d1-plumbing.json`; start with `npm run ai:dev:fake`;
-not D1 acceptance). Several flows change the
+not D1 acceptance), `visualization` (image generation jobs with the fake test adapter only: idempotent repeats,
+a batch with one failing item, retry, cancel, SSE events, the labelled test asset in a browser; start with
+`npm run ai:dev:fake`; it never requests the real adapter). Several flows change the
 development database (the seeded `PRJ-ACT100` project); run them against a development database, not one
 holding real work.
 
