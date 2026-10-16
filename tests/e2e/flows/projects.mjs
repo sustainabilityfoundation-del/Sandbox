@@ -60,11 +60,39 @@ const treeText = await page.locator('.ws-app').textContent()
 check('empty', !/ACT-100|ROD-120|Actuator assembly/.test(treeText ?? ''), 'no example data anywhere in the new project')
 await page.screenshot({ path: `${shots}/3-new-project.png` })
 
+// 2b. Project explorer: artifacts created in the modules (here through their APIs, as the assistant would) appear
+//     in the left panel, grouped by module, without a reload; choosing a concept opens Conceptualize.
+const explorer = page.locator('[data-help-id="projects.explorer"]')
+check('explorer', await explorer.isVisible(), 'new projects show the project explorer instead of the example product tree')
+const api = async (path, body) => {
+  const res = await fetch(`${env.api}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-dev-user': 'eli', 'idempotency-key': `flow-${Date.now()}-${Math.random()}` }, body: JSON.stringify(body) })
+  if (!res.ok) throw new Error(`${path}: ${res.status} ${await res.text()}`)
+  return res.json()
+}
+await api(`/api/concepts/v1/projects/${projectId}/concepts`, { name: 'Explorer concept' })
+await api(`/api/concepts/v1/projects/${projectId}/functions`, { name: 'Explorer function' })
+await api(`/api/requirements/v1/projects/${projectId}/requirements`, { title: 'Explorer requirement', statement: 'The part shall be visible in the explorer.', type: 'functional' })
+let explorerText = ''
+for (let i = 0; i < 40; i++) {
+  explorerText = (await explorer.textContent()) ?? ''
+  if (/Explorer concept/.test(explorerText) && /Explorer function/.test(explorerText) && /Explorer requirement/.test(explorerText)) break
+  await page.waitForTimeout(500)
+}
+check('explorer', /Explorer concept/.test(explorerText) && /Explorer function/.test(explorerText), 'concepts and functions appear without a reload (registry events)')
+check('explorer', /Explorer requirement/.test(explorerText), 'requirements appear without a reload')
+check('explorer', /Concepts and design knowledge/.test(explorerText) && /Requirements/.test(explorerText), 'grouped by module')
+await page.screenshot({ path: `${shots}/3b-explorer.png` })
+await explorer.getByRole('row', { name: /Explorer concept/ }).click()
+await page.waitForTimeout(1500)
+const selectedTab = await page.locator('[role="tab"][aria-selected="true"]').first().textContent()
+check('explorer', /Conceptualize/.test(selectedTab ?? ''), `choosing a concept opens Conceptualize (${selectedTab?.trim()})`)
+
 // 3. Reopen after a reload (fresh page) and in a new browser session (fresh storage, same project URL).
 await page.reload()
 await page.waitForSelector('.ws-app')
 await page.waitForTimeout(2500)
 check('reopen', (await switcher.textContent())?.includes(uniqueKey), 'the remembered project reopens after reload')
+check('reopen', /Explorer concept/.test((await page.locator('[data-help-id="projects.explorer"]').textContent()) ?? ''), 'the explorer lists the artifacts again after the reload')
 const fresh = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage()
 watch(fresh)
 // No ?project= and no stored choice: the most recently opened project on the server reopens.
