@@ -6,8 +6,9 @@ import { prepareRequest, redact, resultOutput, screenCalls, signCall, type WireR
 // Conceptualize's AI module and operation classes now come from its server manifest (module-registration.md, M2); the assistant
 // service cannot import another service, so these tests use the same module with the operations they exercise.
 const conceptualizePolicy = createPolicy(
-  [{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] }],
-  { 'conceptualize.read': 'read', 'conceptualize.create': 'propose', 'conceptualize.request_realization': 'external-generation' },
+  [{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] },
+  { id: 'requirements', label: 'Requirements', description: 'Requirements Management.', entitlement: 'tool:requirements', prefixes: ['requirements.'] }],
+  { 'requirements.search': 'search', 'requirements.update': 'propose', 'conceptualize.read': 'read', 'conceptualize.create': 'propose', 'conceptualize.request_realization': 'external-generation' },
 )
 const { policyFromSettings } = conceptualizePolicy
 
@@ -36,7 +37,7 @@ describe('request preparation (server-side policy)', () => {
   })
 
   it('removes change operations of read-only modules and modules outside the subscription', () => {
-    const p = prepareRequest(request(), policyFromSettings({ 'ai.access.workspace': 'read' }), ['tool:requirements'], vault, 'eli')
+    const p = prepareRequest(request(), policyFromSettings({ 'ai.access.workspace': 'read' }), ['tool:requirements'], vault, 'eli', conceptualizePolicy)
     expect(p.tools.map((t) => t.name)).toEqual(['read_object', 'requirements.search', 'requirements.update'])
   })
 

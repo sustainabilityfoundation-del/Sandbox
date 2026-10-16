@@ -3,12 +3,13 @@ import { validateSettingDefinitions } from '@ews/platform-sdk'
 import { AI_MODULES, AI_SETTING_DEFINITIONS, createPolicy } from './policy'
 import { INSTRUCTIONS } from './wire'
 
-// Conceptualize's AI module and operation classes now come from its server manifest (module-registration.md, M2; the CAD Modeler, M4); the assistant
+// Conceptualize's, the CAD Modeler's and Requirements' AI modules and operation classes now come from their server manifests (module-registration.md, M2, M4, M6); the assistant
 // service cannot import another service, so these tests use the same module with the operations they exercise.
 const conceptualizePolicy = createPolicy(
   [{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] },
-  { id: 'cad-modeler', label: 'CAD Modeler', description: 'Parametric CAD documents and exports.', entitlement: 'tool:cad', prefixes: ['cad-modeler.'] }],
-  { 'cad-modeler.query': 'read', 'conceptualize.read': 'read', 'conceptualize.create': 'propose', 'conceptualize.request_realization': 'external-generation' },
+  { id: 'cad-modeler', label: 'CAD Modeler', description: 'Parametric CAD documents and exports.', entitlement: 'tool:cad', prefixes: ['cad-modeler.'] },
+  { id: 'requirements', label: 'Requirements', description: 'Requirements Management.', entitlement: 'tool:requirements', prefixes: ['requirements.'] }],
+  { 'cad-modeler.query': 'read', 'requirements.search': 'search', 'conceptualize.read': 'read', 'conceptualize.create': 'propose', 'conceptualize.request_realization': 'external-generation' },
 )
 const { classify, decide, policyFromSettings } = conceptualizePolicy
 
@@ -66,7 +67,7 @@ describe('AI access policy', () => {
     expect(p.decide('demo.read', values, [])).toMatchObject({ ok: false, code: 'not-entitled' })
     // The module-level default policy (`classify`) does not know the demo module; only `p` built from it does.
     expect(classify('demo.read')).toBeNull()
-    expect(() => createPolicy([{ ...demo, id: 'requirements' }])).toThrow(/defined twice/)
-    expect(() => createPolicy([], { 'requirements.search': 'search' })).toThrow(/defined twice/)
+    expect(() => createPolicy([{ ...demo, id: 'help' }])).toThrow(/defined twice/)
+    expect(() => createPolicy([], { read_help: 'read' })).toThrow(/defined twice/)
   })
 })

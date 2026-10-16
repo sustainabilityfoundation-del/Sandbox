@@ -15,7 +15,7 @@ import type { CapabilityEntry, PlatformModuleContribution } from '@ews/platform-
 import { cadTool } from '@ews/tool-cad'
 import { cadModelerModule } from '@ews/tool-cad-modeler'
 import { conceptualizeModule } from '@ews/tool-conceptualize'
-import { requirementsTool } from '@ews/tool-requirements'
+import { requirementsModule } from '@ews/tool-requirements'
 import { sysmlTool } from '@ews/tool-sysml'
 import { sysmlModelerModule } from '@ews/tool-sysml-modeler'
 import type { HelpModuleSource } from '../help/helpService'
@@ -24,7 +24,6 @@ import { switchProject } from '../projects/currentProject'
 import { platformModuleHelpSource, toolHelpSource } from './helpSources'
 import {
   CAD_CAPABILITIES,
-  REQUIREMENTS_CAPABILITIES,
   SYSML_CAPABILITIES,
 } from './installedCapabilities'
 import { serviceSettings } from './services'
@@ -42,7 +41,7 @@ const manifest = (id: string, name: string, capabilities: CapabilityEntry[], ext
  * subscriptions during development (cad-program-contracts.md §1, sysml-program-contracts.md §1).
  */
 export const INSTALLED_MODULES: ClientModule[] = [
-  { manifest: manifest('requirements', 'Requirements', REQUIREMENTS_CAPABILITIES, { entitlement: 'tool:requirements', defaultOpen: true }), tool: () => requirementsTool },
+  requirementsModule(),
   { manifest: manifest('sysml', 'SysML', SYSML_CAPABILITIES, { entitlement: 'tool:sysml', defaultOpen: true }), tool: () => sysmlTool },
   { manifest: manifest('cad', 'CAD', CAD_CAPABILITIES, { entitlement: 'tool:cad', defaultOpen: true }), tool: () => cadTool },
   conceptualizeModule(),
