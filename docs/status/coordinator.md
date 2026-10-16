@@ -113,7 +113,9 @@ Owner: "focus on getting the cad working better woth more functionality". CAD Mo
   (https://docs.nomagic.com/spaces/MD2021xR2/pages/82747994/Understanding+the+user+interface). Interpreted as structure and
   completeness (main menu, main toolbar, contextual diagram palettes, browser, specification panel) in our design system;
   confirmed by the owner ("yes please do that"). Feeds CT-2b (CommandBar may need a menu bar and a vertical palette) and the per-module
-  inventories. Research for System Model and CAD running (docs/research/*/capability-research.md).
+  inventories. Research merged (System Model 155 commands, CAD 206). CT-2c amendment accepted in
+  capability-registry.md (menu bar, palettes, context sets, edit sessions, split buttons, panels; SDK 1.14, design system 1.3).
+  Order: F, CT-2b, CT-2c1-3, then CT-3 System Model and CAD. CT-2c1 (design system components) started.
 - Module migration M1-M6 complete; next step F (cleanup), then CT-2b.
 
 ## Open items (priority order)
