@@ -1,5 +1,5 @@
 // Acceptance flow for the modular platform. Usage: node platform-flow.mjs [baseUrl]
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -59,7 +59,7 @@ async function closePalette() {
 // ---- Upgrade of data saved by version 0.1 (non-destructive) ----------------------------
 {
   const tag = 'upgrade'
-  await page.goto(base)
+  await page.goto(exampleUrl())
   await page.waitForSelector('.ws-app')
   await page.evaluate(async (repoFs) => {
     localStorage.clear()
@@ -70,7 +70,7 @@ async function closePalette() {
     )
   }, env.repoFs)
   const legacyRaw = await page.evaluate(() => localStorage.getItem('ews.demo-repository.v2'))
-  await page.goto(base)
+  await page.goto(exampleUrl())
   await page.waitForSelector('.ws-app')
   await page.waitForTimeout(500)
   check(tag, (await revision()) === 7, `legacy data loads and gains one upgrade revision (rev ${await revision()})`)
@@ -85,7 +85,7 @@ async function closePalette() {
   await shot('0-upgraded')
   // Start the remaining checks from the fresh sample.
   await page.evaluate(() => localStorage.clear())
-  await page.goto(base)
+  await page.goto(exampleUrl())
   await page.waitForSelector('.ws-app')
   await page.waitForTimeout(400)
 }
@@ -131,7 +131,7 @@ async function closePalette() {
   check(tag, (await page.locator('[role="tab"][data-tool-id][aria-selected="true"]').getAttribute('data-tool-id')) === 'requirements', 'search does not open SysML')
   check(tag, (await toast().count()) > 0, 'a notification explains why')
   // Direct route.
-  await page.goto(`${base}?tool=cad`)
+  await page.goto(exampleUrl(`tool=cad`))
   await page.waitForSelector('.ws-app')
   await page.waitForTimeout(600)
   check(tag, (await page.locator('[role="tab"][data-tool-id][aria-selected="true"]').getAttribute('data-tool-id')) !== 'cad', 'direct route ?tool=cad does not open CAD')
@@ -139,7 +139,7 @@ async function closePalette() {
   // Detached window for a locked tool.
   const detached = await context.newPage()
   watch(detached)
-  await detached.goto(`${base}?window=wtest1&kind=tool&tool=sysml`)
+  await detached.goto(exampleUrl(`window=wtest1&kind=tool&tool=sysml`))
   await detached.waitForSelector('.ws-detached')
   await detached.waitForTimeout(400)
   check(tag, (await detached.locator('[data-locked-tool="sysml"]').count()) === 1 && (await detached.locator('.sysml-canvas').count()) === 0, 'a detached SysML window shows the locked explanation')

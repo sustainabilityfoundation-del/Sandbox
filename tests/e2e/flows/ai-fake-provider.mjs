@@ -7,7 +7,7 @@
 //   npm run ai:dev:fake            (workspace :5173 + API :8787, EWS_ASSISTANT_FAKE_PROVIDER=1)
 // Run: npm run e2e -- ai-fake-provider   (E2E_BASE / E2E_API for other ports, see tests/e2e/README.md)
 // The flow resets the AI connection and AI settings of development user eli first.
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -72,9 +72,9 @@ async function choose(label, option) {
   await wait(600)
 }
 
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.evaluate(() => localStorage.clear())
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.waitForSelector('[data-testid="model-revision"]')
 
 // --- Settings centre beside Help --------------------------------------------------------------------------
@@ -154,7 +154,7 @@ const conversationTag = await page.evaluate(async () => (await import('/workspac
 const fresh = await browser.newContext({ viewport: { width: 1500, height: 1000 } })
 await fresh.addInitScript(() => localStorage.setItem('ews.services.v1', JSON.stringify({ requirementsMode: 'api', devUser: 'eli' })))
 const page2 = await fresh.newPage()
-await page2.goto(base)
+await page2.goto(exampleUrl())
 await page2.waitForSelector('[data-testid="model-revision"]', { timeout: 60000 })
 await page2.click('[data-dock-tab="assistant"]')
 await page2.waitForSelector('[data-testid="reopened-proposals"]', { timeout: 15000 })
@@ -221,7 +221,7 @@ else {
   const fresh2 = await browser.newContext({ viewport: { width: 1500, height: 1000 } })
   await fresh2.addInitScript(() => localStorage.setItem('ews.services.v1', JSON.stringify({ requirementsMode: 'api', devUser: 'eli' })))
   const page3 = await fresh2.newPage()
-  await page3.goto(base)
+  await page3.goto(exampleUrl())
   await page3.waitForSelector('[data-testid="model-revision"]', { timeout: 60000 })
   await page3.click('[data-dock-tab="assistant"]')
   const card3 = page3.locator(`[data-testid="reopened-proposals"] [data-proposal-id="${declId}·${tag}"]`)
@@ -302,14 +302,14 @@ const lastEvent = await page.locator('.as-event').last().textContent()
 check(/draft requirement/i.test(lastEvent), 'applying creates draft requirements linked to the Concept (' + lastEvent.trim().slice(0, 120) + ')')
 await shot('07-drill-demo')
 await page.evaluate(() => localStorage.setItem('ews.preferences.v1', JSON.stringify({ theme: 'dark', density: 'comfortable' })))
-await page.goto(base + '?settings=ai')
+await page.goto(exampleUrl('settings=ai'))
 await page.waitForSelector('[data-testid="settings-ai"]')
 await wait(1500)
 await shot('09-ai-dark')
 
 // --- Phone layout -----------------------------------------------------------------------------------------
 const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
-await phone.goto(`${base}?settings=ai`)
+await phone.goto(exampleUrl(`settings=ai`))
 await phone.waitForSelector('[data-testid="settings-ai"]', { timeout: 15000 })
 const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
 check(overflow <= 1, `phone: AI settings page opens from the deep link without horizontal overflow (${overflow}px)`)

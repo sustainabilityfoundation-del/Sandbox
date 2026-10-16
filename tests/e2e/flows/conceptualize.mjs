@@ -1,5 +1,5 @@
 // Conceptualize vertical slice in the real workspace on the real API and PostgreSQL.
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const API = `${env.api}/api/concepts/v1/projects/PRJ-ACT100`
@@ -23,7 +23,7 @@ async function open(user, viewport = { width: 1600, height: 1000 }, extra = {}) 
   const page = await ctx.newPage()
   page.on('pageerror', (e) => problems.push(`${user}: ${e.message}`))
   page.on('console', (m) => m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text()) && problems.push(`${user}: ${m.text().slice(0, 300)}`))
-  await page.goto(`${base}?tool=conceptualize`)
+  await page.goto(exampleUrl(`tool=conceptualize`))
   await page.waitForSelector('.con-shell', { timeout: 30000 })
   await page.waitForSelector('.con-tree', { timeout: 20000 })
   return page

@@ -1,5 +1,5 @@
 // Architecture vision Phase 1 flow: baseline, verification, stale evidence, compare, impact, about.
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -19,10 +19,10 @@ const tree = (id) => page.locator(`.ws-tree-item[data-object-id="${id}"]`).first
 const reqRow = (key) => page.locator(`.req-table [data-req-key="${key}"]`)
 const REQ001 = '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001'
 
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.waitForSelector('.ws-app')
 await page.evaluate(() => localStorage.clear())
-await page.goto(`${base}?tool=requirements`)
+await page.goto(exampleUrl(`tool=requirements`))
 await page.waitForSelector('.req-table')
 await page.waitForTimeout(300)
 

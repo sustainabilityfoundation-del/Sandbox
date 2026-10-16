@@ -8,7 +8,7 @@
 // - the measurement-units setting.
 // Run against `npm run dev` (workspace in API mode). It writes CAD documents to PRJ-ACT100 of the
 // development database, and sets and then resets one user setting of the dev user.
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const api = `${env.api}/api/cad/v1/projects/PRJ-ACT100/documents`
@@ -50,9 +50,9 @@ async function ask(text) {
 }
 
 const before = new Set((await (await fetch(api, { headers: { 'X-Dev-User': devUser } })).json()).map((d) => d.id))
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.evaluate(() => localStorage.clear())
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.waitForSelector('.ws-app')
 await page.waitForTimeout(1500)
 await page.keyboard.press('Control+k')
@@ -181,7 +181,7 @@ await page.getByText('30869 mm³').first().waitFor({ timeout: 60000 }).then(() =
 await shot('4-open-rev1')
 
 // Deep link into revision 1 in a fresh page load (C5 navigable artifacts).
-await page.goto(`${base}?tool=cad-modeler&document=${docId}&revision=1`)
+await page.goto(exampleUrl(`tool=cad-modeler&document=${docId}&revision=1`))
 await page.waitForSelector('.ws-app')
 await page.getByText('30869 mm³').first().waitFor({ timeout: 90000 }).then(() => check(true, 'deep link ?tool=cad-modeler&document=…&revision=1 opens revision 1'), () => check(false, 'deep link opens revision 1'))
 check(!/document=/.test(page.url()), 'the deep link parameters are removed from the address bar')
@@ -194,7 +194,7 @@ async function setUnits(value) {
   return r.status
 }
 check((await setUnits('cm')) === 200, 'the settings service accepts the CAD units setting')
-await page.goto(`${base}?tool=cad-modeler&document=${docId}&revision=1`)
+await page.goto(exampleUrl(`tool=cad-modeler&document=${docId}&revision=1`))
 await page.waitForSelector('.ws-app')
 await page.getByText('30.9 cm³').first().waitFor({ timeout: 90000 }).then(() => check(true, 'measured volume shown in cm³ (30869 mm³ = 30.9 cm³)'), () => check(false, 'volume shown in cm³'))
 await shot('5-units-cm')

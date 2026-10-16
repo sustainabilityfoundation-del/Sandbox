@@ -1,7 +1,7 @@
 // CAD Modeler D1 building blocks in the workspace UI: a regular polygon (fully constrained) on a face, a
 // pocket cut, and a linear pattern of it; the volume matches the analytic value. Fixture: the built-in
 // example plate (no product data). Run against `npm run dev` in API or demo mode.
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const shots = shotsDir('cad-d1')
@@ -33,9 +33,9 @@ async function volume() {
 }
 const fill = (label, value) => page.getByRole('textbox', { name: label, exact: true }).fill(value)
 
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.evaluate(() => localStorage.clear())
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.waitForSelector('.ws-app')
 await page.keyboard.press('Control+k')
 await page.waitForSelector('.ws-launcher')
