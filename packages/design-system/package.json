@@ -1,9 +1,9 @@
 {
   "name": "@ews/design-system",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "Shared React Aria components, design tokens, Tailwind theme and Phosphor icon registry.",
+  "description": "Shared React Aria components, design tokens (Focused Canvas), Tailwind theme, IBM Plex fonts and the Lucide icon registry.",
   "exports": {
     ".": "./src/index.ts",
     "./icon-names": "./src/icons/names.ts",
@@ -14,7 +14,9 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@phosphor-icons/react": "^2.1.10",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "lucide-react": "1.49.0",
     "react-aria-components": "^1.22.1",
     "zustand": "^5.0.8"
   },

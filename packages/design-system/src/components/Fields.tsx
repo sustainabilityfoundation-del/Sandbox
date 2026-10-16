@@ -38,7 +38,7 @@ const label = 'text-ui-xs font-medium text-fg-2'
 const description = 'text-ui-xs text-fg-3'
 const error = 'text-ui-xs text-error'
 const fieldBox =
-  'w-full min-h-touch rounded-field border border-line-strong bg-surface px-3 text-ui text-fg outline-none placeholder:text-fg-3 ' +
+  'w-full min-h-touch rounded-field border border-line-strong bg-surface px-2.5 text-ui-sm text-fg outline-none placeholder:text-fg-3 ' +
   'transition-[border-color,box-shadow] duration-[var(--ws-motion-short)] ease-standard ' +
   'data-[hovered]:border-fg-2 data-[focused]:border-accent data-[focused]:shadow-[inset_0_0_0_1px_var(--ws-accent)] ' +
   'data-[invalid]:border-error data-[disabled]:opacity-50 pointer-coarse:text-[16px]'
@@ -82,8 +82,8 @@ export const TextField = forwardRef<HTMLInputElement & HTMLTextAreaElement, Text
 export function SearchField({ label: text, placeholder, className, ...props }: Omit<SearchFieldProps, 'className'> & { label: string; placeholder?: string; className?: string }) {
   return (
     <AriaSearchField aria-label={text} {...props} className={cx('relative flex items-center', className)}>
-      <Icon name="search" size={18} className="pointer-events-none absolute left-3 text-fg-3" />
-      <Input placeholder={placeholder} className={cx(fieldBox, 'h-ctl pl-9 [&::-webkit-search-cancel-button]:hidden')} />
+      <Icon name="search" size={16} className="pointer-events-none absolute left-2.5 text-fg-3" />
+      <Input placeholder={placeholder} className={cx(fieldBox, 'h-ctl pl-8 [&::-webkit-search-cancel-button]:hidden')} />
       <AriaButton aria-label="Clear search" className="absolute right-1 grid size-ctl-sm cursor-pointer place-items-center rounded-full text-fg-3 outline-none data-[hovered]:bg-hover data-[focus-visible]:outline-2 data-[focus-visible]:outline-focus [[data-empty]_&]:hidden">
         <Icon name="close" size={16} />
       </AriaButton>
@@ -209,7 +209,7 @@ function Option({ children, ...props }: Omit<ListBoxItemProps, 'className' | 'ch
     >
       {({ isSelected }) => (
         <>
-          <Icon name="check" size={18} className={isSelected ? '' : 'invisible'} />
+          <Icon name="check" size={16} className={isSelected ? '' : 'invisible'} />
           <span className="min-w-0 flex-1">{children}</span>
         </>
       )}
@@ -267,8 +267,8 @@ export function ComboBox({
     >
       {text && <Label className={label}>{text}</Label>}
       <div className="relative flex items-center">
-        <Icon name="search" size={18} className="pointer-events-none absolute left-3 text-fg-3" />
-        <Input autoFocus={autoFocus} placeholder={placeholder} className={cx(fieldBox, 'h-ctl pl-9', inputClassName)} />
+        <Icon name="search" size={16} className="pointer-events-none absolute left-2.5 text-fg-3" />
+        <Input autoFocus={autoFocus} placeholder={placeholder} className={cx(fieldBox, 'h-ctl pl-8', inputClassName)} />
       </div>
       <Popover className="w-[max(var(--trigger-width),320px)] max-w-[calc(100vw-16px)] overflow-auto p-1">
         <ListBox<ComboOption>
@@ -284,7 +284,7 @@ export function ComboBox({
                 'data-[hovered]:bg-hover data-[focused]:bg-hover data-[focus-visible]:outline-2 data-[focus-visible]:-outline-offset-2 data-[focus-visible]:outline-focus',
               )}
             >
-              {o.icon && <Icon name={o.icon} size={18} className="text-fg-2" />}
+              {o.icon && <Icon name={o.icon} size={16} className="text-fg-2" />}
               <span className="min-w-0 flex-1 truncate">{o.label}</span>
               {o.description && <span className="truncate text-ui-xs text-fg-3">{o.description}</span>}
             </ListBoxItem>

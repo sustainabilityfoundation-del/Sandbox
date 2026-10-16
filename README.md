@@ -89,7 +89,7 @@ packages/
   model-service/       @ews/model-service  Shared twin: typed entities, relationships, artifacts,
                                            repository contract + demo repository (no React)
   design-system/       @ews/design-system  React Aria components, Tailwind tokens, themes,
-                                           Phosphor icon registry (AppIcon)
+                                           Lucide icon registry (AppIcon), IBM Plex fonts
   platform-sdk/        @ews/platform-sdk   Versioned tool contract + SDK; React hooks; standalone
                                            harness with a mock host
   tool-requirements/   @ews/tool-requirements

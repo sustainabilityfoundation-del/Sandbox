@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import {
   Cell as AriaCell,
+  Group,
   Column as AriaColumn,
   Row as AriaRow,
   Separator,
@@ -26,7 +27,7 @@ import { cx } from './cx'
 
 // ---- Tabs ----------------------------------------------------------------------------------
 
-/** Tabs: arrow keys move between tabs; the selected tab shows an indicator line (M3 primary tabs). */
+/** Tabs: arrow keys move between tabs; the selected tab shows a 2 px accent indicator. */
 export function Tabs({ className, ...props }: Omit<TabsProps, 'className'> & { className?: string }) {
   return <AriaTabs {...props} className={cx('flex min-h-0 min-w-0 flex-col', className)} />
 }
@@ -40,10 +41,10 @@ export function Tab({ className, children, ...props }: Omit<TabProps, 'className
     <AriaTab
       {...props}
       className={cx(
-        'relative flex min-h-touch cursor-pointer items-center gap-2 whitespace-nowrap px-3 text-ui-sm font-medium text-fg-2 outline-none',
+        'relative flex min-h-touch cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 text-ui-sm font-medium text-fg-2 outline-none',
         'transition-colors duration-[var(--ws-motion-short)] ease-standard',
         'data-[hovered]:bg-hover data-[hovered]:text-fg data-[pressed]:bg-pressed',
-        'data-[selected]:text-accent after:absolute after:inset-x-2 after:bottom-0 after:h-[3px] after:rounded-t-full after:bg-transparent data-[selected]:after:bg-accent',
+        'data-[selected]:text-fg after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:bg-transparent data-[selected]:after:bg-accent',
         'after:transition-colors after:duration-[var(--ws-motion-medium)]',
         'data-[focus-visible]:outline-2 data-[focus-visible]:-outline-offset-2 data-[focus-visible]:outline-focus',
         'data-[disabled]:opacity-40',
@@ -68,6 +69,15 @@ export function Toolbar({ className, ...props }: Omit<ToolbarProps, 'className'>
 
 export function ToolbarSeparator() {
   return <Separator orientation="vertical" className="mx-1 h-5 w-px flex-none self-center bg-line" />
+}
+
+/** A labelled group of related toolbar controls (selection tools, zoom, view modes). */
+export function ToolbarGroup({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+  return (
+    <Group aria-label={label} className={cx('ws-toolbar-group flex flex-none items-center gap-0.5', className)}>
+      {children}
+    </Group>
+  )
 }
 
 // ---- Data table --------------------------------------------------------------------------------

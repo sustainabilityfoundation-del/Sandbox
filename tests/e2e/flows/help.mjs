@@ -94,6 +94,8 @@ await closeHelp()
 await page.getByRole('button', { name: /^Subscription:/ }).click()
 await page.getByRole('button', { name: /Subscription \(demo\)/ }).click()
 await page.getByRole('option', { name: /^Requirements only/ }).click()
+// Escape must reach the subscription popover, not the option list while it is still closing.
+await page.waitForSelector('[role="listbox"]', { state: 'detached', timeout: 3000 }).catch(() => {})
 await page.waitForTimeout(150)
 await page.keyboard.press('Escape')
 await page.waitForSelector('.ws-overlay', { state: 'detached', timeout: 3000 }).catch(() => {})

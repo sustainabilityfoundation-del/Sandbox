@@ -192,7 +192,7 @@ export function Header({ repository, mode, onOpenPalette }: { repository: DemoRe
   const phone = mode === 'phone'
 
   return (
-    <header className="ws-header" data-mode={mode}>
+    <header className="ws-header ws-shell-scope" data-mode={mode}>
       <div className="ws-brand">
         <span className="ws-brand-mark" aria-hidden="true">
           <Icon name="workspace" size={20} />

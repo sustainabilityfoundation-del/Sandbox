@@ -1,133 +1,179 @@
 /*
- * Workspace design tokens: a restrained Material Design 3 direction.
+ * Workspace design tokens: Focused Canvas, "Precision Industrial".
  *
- * Everything in the workspace (shell, tools, ChatGPT, diagrams, charts, the 3D
- * viewer) is styled from these semantic variables, either through Tailwind
- * utilities (bg-surface, text-fg, border-line, rounded-control, shadow-1,
- * duration-medium, …) or directly in component CSS. Switching
- * <html data-theme> / <html data-density> restyles the whole workspace.
+ * A dark slate shell (header, navigation rail) frames light working panels and a
+ * bright engineering canvas. Everything in the workspace (shell, tools, the
+ * assistant, diagrams, charts, the 3D viewer) is styled from these semantic
+ * variables, either through Tailwind utilities (bg-surface, text-fg,
+ * border-line, rounded-control, shadow-1, …) or directly in component CSS.
+ * Switching <html data-theme> / <html data-density> restyles the whole
+ * workspace.
  *
- * Colour roles follow M3 (surface containers, on-surface, outline, primary,
- * primary container, error); "warning" and "success" are added in the same
- * tonal style. The accent is a muted slate blue so engineering data, not
- * chrome, carries the visual weight.
+ * Layers:
+ *   1. Palette  (--ws-palette-*): the approved brand values. Components never use these directly.
+ *   2. Semantic (--ws-*): roles such as surface, text, accent, success. Components use only these.
+ *   3. Shell    (--ws-shell-*): the dark frame; `.ws-shell-scope` (see shared.css) remaps the
+ *      semantic roles inside it, so ordinary components render correctly on the dark shell.
+ *
+ * Status colours have a "solid" variant (the palette value, for marks, dots and icons, 3:1 against
+ * the surface) and a text variant (4.5:1). Status is never shown by colour alone.
  */
 
 :root,
 :root[data-theme='light'] {
   color-scheme: light;
 
-  /* Surfaces (M3 neutral tonal palette) */
-  --ws-bg: #eceef4;                 /* app background behind panels */
-  --ws-surface: #fbfcff;            /* panels, tool views */
-  --ws-surface-2: #f3f4f9;          /* surface-container-low: raised rows, inputs */
-  --ws-surface-3: #e7e9ef;          /* surface-container-high: hover, tab bars */
-  --ws-surface-4: #e1e3e9;          /* surface-container-highest: pressed */
-  --ws-border: #d8dbe3;             /* outline-variant */
-  --ws-border-strong: #737782;      /* outline (control borders) */
-  --ws-scrim: rgba(18, 22, 30, 0.42);
-  --ws-overlay-surface: rgba(251, 252, 255, 0.92);
-  --ws-tab-hover: rgba(25, 28, 32, 0.06);
-  --ws-state-hover: rgba(25, 28, 32, 0.07);
-  --ws-state-pressed: rgba(25, 28, 32, 0.12);
-  --ws-inverse-surface: #2e3137;   /* tooltips, snackbars */
-  --ws-inverse-text: #eff0f7;
+  /* 1. Palette (owner-approved, 16 October 2026) */
+  --ws-palette-shell: #202c3d;
+  --ws-palette-shell-hover: #304158;
+  --ws-palette-panel: #e8edf3;
+  --ws-palette-canvas: #ffffff;
+  --ws-palette-secondary: #f8fafc;
+  --ws-palette-accent: #2563eb;
+  --ws-palette-success: #0d9488;
+  --ws-palette-warning: #d97706;
+  --ws-palette-error: #dc2626;
+
+  /* 2. Surfaces */
+  --ws-bg: var(--ws-palette-panel);           /* working-panel background behind panels and gutters */
+  --ws-surface: var(--ws-palette-canvas);     /* panels, tool views, the engineering canvas */
+  --ws-surface-2: var(--ws-palette-secondary);/* secondary surfaces: headers, inputs, raised rows */
+  --ws-surface-3: #eef2f7;                    /* hover, tab strips */
+  --ws-surface-4: #e2e8f0;                    /* pressed */
+  --ws-border: #d5dde7;
+  --ws-border-strong: #7b8798;                /* control borders (3:1 on surfaces) */
+  --ws-scrim: rgba(15, 23, 42, 0.45);
+  --ws-overlay-surface: rgba(255, 255, 255, 0.94);
+  --ws-tab-hover: rgba(15, 23, 42, 0.05);
+  --ws-state-hover: rgba(15, 23, 42, 0.06);
+  --ws-state-pressed: rgba(15, 23, 42, 0.11);
+  --ws-inverse-surface: #1e293b;              /* tooltips, snackbars */
+  --ws-inverse-text: #f1f5f9;
 
   /* Text */
-  --ws-text: #191c21;               /* on-surface */
-  --ws-text-2: #42464f;             /* on-surface-variant */
-  --ws-text-3: #5d616b;
-  --ws-strike: rgba(66, 70, 79, 0.5);
+  --ws-text: #172133;
+  --ws-text-2: #44516a;
+  --ws-text-3: #5b677a;
+  --ws-strike: rgba(68, 81, 106, 0.5);
 
   /* Accent and selection */
-  --ws-accent: #3d5c8f;             /* primary */
-  --ws-accent-strong: #2b4a7b;
-  --ws-accent-soft: #d8e3fb;        /* secondary container: selection, toggles */
-  --ws-accent-border: #a7bce4;
-  --ws-accent-surface: #f6f8fe;
+  --ws-accent: var(--ws-palette-accent);
+  --ws-accent-strong: #1d4ed8;
+  --ws-accent-soft: #dbe7fd;                  /* selection, toggles */
+  --ws-accent-border: #93b4f5;
+  --ws-accent-surface: #f3f7ff;
   --ws-on-accent: #ffffff;
   --ws-selected: var(--ws-accent-soft);
-  --ws-selected-text: #12305c;      /* on-secondary-container */
-  --ws-focus: #3d5c8f;
+  --ws-selected-text: #173a8a;
+  --ws-focus: var(--ws-palette-accent);
   --ws-favorite: #8a5d00;
 
-  /* Status (tonal containers; always paired with an icon and text) */
-  --ws-success: #22693a;
-  --ws-success-soft: #d7f0dc;
-  --ws-success-border: #9fd3ab;
-  --ws-success-surface: #f5fbf6;
-  --ws-warning: #7b5500;
-  --ws-warning-soft: #ffe7bd;
-  --ws-warning-border: #e8c27a;
-  --ws-warning-surface: #fff8ee;
-  --ws-warning-marker: #c88a00;
-  --ws-danger: #ab2219;             /* error */
-  --ws-danger-soft: #ffdad5;        /* error container */
-  --ws-danger-border: #f2b2aa;
-  --ws-info: #2f5c9b;
-  --ws-info-soft: #dde8fb;
-  --ws-info-border: #b4c8ea;
-  --ws-info-overlay: rgba(221, 232, 251, 0.96);
+  /* Status: text variants (AA) and solid marks (palette) */
+  --ws-success: #0b7468;
+  --ws-success-solid: var(--ws-palette-success);
+  --ws-success-soft: #d5f2ee;
+  --ws-success-border: #8fd3c9;
+  --ws-success-surface: #f2fbf9;
+  --ws-warning: #9a4a05;
+  --ws-warning-solid: var(--ws-palette-warning);
+  --ws-warning-soft: #fdecd2;
+  --ws-warning-border: #f0c28a;
+  --ws-warning-surface: #fff8ef;
+  --ws-warning-marker: var(--ws-palette-warning);
+  --ws-danger: #b91c1c;
+  --ws-danger-solid: var(--ws-palette-error);
+  --ws-danger-soft: #fde2e2;
+  --ws-danger-border: #f3aaaa;
+  --ws-info: #1d4ed8;
+  --ws-info-soft: #dfe9fd;
+  --ws-info-border: #a9c2f4;
+  --ws-info-overlay: rgba(223, 233, 253, 0.96);
 
-  /* Top app bar (M3 uses a surface container, not a dark bar) */
-  --ws-header-bg: #f0f2f7;
-  --ws-header-raised: #e3e6ed;
-  --ws-header-input: #e7e9ef;
-  --ws-header-line: #cfd3dc;
-  --ws-header-text: #191c21;
-  --ws-header-text-2: #4e535d;
-  --ws-header-accent: #3d5c8f;
-  --ws-header-focus: #3d5c8f;
-  --ws-status-ok: #2e8a4b;
-  --ws-status-busy: #c88a00;
-  --ws-status-error: #c4322a;
+  /* 3. Shell: dark slate header, navigation rail */
+  --ws-shell-bg: var(--ws-palette-shell);
+  --ws-shell-hover: var(--ws-palette-shell-hover);
+  --ws-shell-raised: #2a394f;                 /* inputs and selectors on the shell */
+  --ws-shell-active: #34496a;                 /* active rail item */
+  --ws-shell-line: #3a4b63;
+  --ws-shell-text: #eef2f8;
+  --ws-shell-text-2: #aab7c9;
+  --ws-shell-accent: #5b93f7;                 /* active indicator on the shell */
+  --ws-shell-focus: #8fb5fa;
 
-  /* Diagrams (Geometry SVG) */
-  --ws-diagram-bg: #f8f9fc;
-  --ws-diagram-grid: #e6e8ee;
-  --ws-diagram-stroke: #5a5f6a;
-  --ws-diagram-stroke-strong: #22262d;
-  --ws-diagram-detail: #6b7586;
-  --ws-diagram-leader: #8a909c;
-  --ws-diagram-hatch: #9aa1ad;
-  --ws-diagram-part-1: #c9ced8;
-  --ws-diagram-part-2: #8e9bb0;
-  --ws-diagram-part-3: #e4e6eb;
-  --ws-diagram-selected: #b9cbef;
+  /* Header tokens (kept for existing components; now the dark shell) */
+  --ws-header-bg: var(--ws-shell-bg);
+  --ws-header-raised: var(--ws-shell-raised);
+  --ws-header-input: var(--ws-shell-raised);
+  --ws-header-line: var(--ws-shell-line);
+  --ws-header-text: var(--ws-shell-text);
+  --ws-header-text-2: var(--ws-shell-text-2);
+  --ws-header-accent: var(--ws-shell-accent);
+  --ws-header-focus: var(--ws-shell-focus);
+  --ws-status-ok: var(--ws-palette-success);
+  --ws-status-busy: var(--ws-palette-warning);
+  --ws-status-error: var(--ws-palette-error);
+
+  /* Status bar and panel chrome */
+  --ws-statusbar-bg: var(--ws-palette-secondary);
+  --ws-panel-header-bg: var(--ws-palette-canvas);
+
+  /* Engineering canvas and diagrams */
+  --ws-canvas-bg: var(--ws-palette-canvas);
+  --ws-canvas-grid: #dfe5ee;
+  --ws-diagram-bg: var(--ws-palette-canvas);
+  --ws-diagram-grid: #e3e8ef;
+  --ws-diagram-stroke: #55627a;
+  --ws-diagram-stroke-strong: #1b2536;
+  --ws-diagram-detail: #63708a;
+  --ws-diagram-leader: #8a94a6;
+  --ws-diagram-hatch: #9aa4b5;
+  --ws-diagram-part-1: #cbd3df;
+  --ws-diagram-part-2: #8ea0bd;
+  --ws-diagram-part-3: #e5e9f0;
+  --ws-diagram-selected: #bcd0fa;
 
   /* Charts */
-  --ws-chart-track: #eef0f4;
-  --ws-chart-band: #d5ecda;
+  --ws-chart-track: #edf1f6;
+  --ws-chart-band: #d5f2ee;
   --ws-chart-value: var(--ws-accent);
   --ws-chart-over: var(--ws-danger);
   --ws-chart-limit: var(--ws-success);
   --ws-chart-reference: var(--ws-text-3);
 
   /* 3D viewport background */
-  --ws-viewport-top: #eef0f4;
-  --ws-viewport-bottom: #d7dae1;
+  --ws-viewport-top: #f3f6fa;
+  --ws-viewport-bottom: #dbe2eb;
 
-  /* Shape (M3 corner scale) */
-  --ws-radius-xs: 4px;
-  --ws-radius-sm: 6px;
-  --ws-radius: 8px;                 /* inputs, small containers */
-  --ws-radius-lg: 12px;             /* cards, menus, panels */
-  --ws-radius-xl: 20px;             /* sheets, dialogs */
-  --ws-radius-full: 999px;          /* buttons, chips */
+  /* Shape: precise, small radii; full radius only for avatars, counters and the composer */
+  --ws-radius-xs: 2px;
+  --ws-radius-sm: 3px;
+  --ws-radius: 4px;                 /* controls, inputs */
+  --ws-radius-lg: 6px;              /* cards, menus, popovers */
+  --ws-radius-xl: 8px;              /* dialogs, sheets */
+  --ws-radius-control: 4px;         /* buttons */
+  --ws-radius-full: 999px;
 
-  /* Elevation (M3 levels 1–3; subtle) */
-  --ws-shadow-sm: 0 1px 2px rgba(18, 22, 30, 0.12), 0 1px 3px 1px rgba(18, 22, 30, 0.06);
-  --ws-shadow: 0 2px 6px 2px rgba(18, 22, 30, 0.1), 0 1px 2px rgba(18, 22, 30, 0.16);
-  --ws-shadow-lg: 0 4px 8px 3px rgba(18, 22, 30, 0.1), 0 1px 3px rgba(18, 22, 30, 0.18);
+  /* Elevation (restrained) */
+  --ws-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --ws-shadow: 0 4px 12px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.08);
+  --ws-shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.1);
 
-  /* Typography */
-  --ws-font-sans: 'Roboto Flex', Roboto, 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-  --ws-mono: 'Roboto Mono', ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  /* Typography: IBM Plex Sans (interface), IBM Plex Mono (IDs, values, parameters, code) */
+  --ws-font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ws-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   --ws-weight-regular: 400;
   --ws-weight-medium: 500;
   --ws-weight-strong: 600;
-  --ws-font-title: 16px;            /* title medium */
-  --ws-font-headline: 20px;         /* headline small, used sparingly */
+  /* Type scale (fixed steps; density chooses the body sizes below) */
+  --ws-text-12: 12px;               /* dense technical labels, metadata */
+  --ws-text-13: 13px;               /* toolbars, trees, property fields */
+  --ws-text-14: 14px;               /* general interface text */
+  --ws-text-15: 15px;               /* section and panel headings */
+  --ws-text-16: 16px;
+  --ws-text-18: 18px;               /* document and project headings */
+  --ws-text-20: 20px;
+  --ws-font-title: var(--ws-text-15);
+  --ws-font-headline: var(--ws-text-18);
 
   /* Spacing (4 px grid) */
   --ws-space-1: 4px;
@@ -137,10 +183,10 @@
   --ws-space-5: 20px;
   --ws-space-6: 24px;
 
-  /* Motion (M3 durations and easing) */
-  --ws-motion-short: 100ms;
-  --ws-motion-medium: 200ms;
-  --ws-motion-long: 300ms;
+  /* Motion */
+  --ws-motion-short: 90ms;
+  --ws-motion-medium: 160ms;
+  --ws-motion-long: 240ms;
   --ws-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ws-ease-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
   --ws-ease-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
@@ -149,111 +195,133 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --ws-bg: #0f1115;
-  --ws-surface: #16191e;
-  --ws-surface-2: #1c1f25;
-  --ws-surface-3: #262a31;
-  --ws-surface-4: #30343c;
-  --ws-border: #383c45;
-  --ws-border-strong: #8b909b;
+  --ws-bg: #0d131c;
+  --ws-surface: #151c27;
+  --ws-surface-2: #1a2230;
+  --ws-surface-3: #222c3c;
+  --ws-surface-4: #2b3648;
+  --ws-border: #2c374a;
+  --ws-border-strong: #6e7d94;
   --ws-scrim: rgba(0, 0, 0, 0.6);
-  --ws-overlay-surface: rgba(22, 25, 30, 0.92);
-  --ws-tab-hover: rgba(226, 228, 236, 0.07);
-  --ws-state-hover: rgba(226, 228, 236, 0.08);
-  --ws-state-pressed: rgba(226, 228, 236, 0.13);
-  --ws-inverse-surface: #e2e3ea;
-  --ws-inverse-text: #2e3137;
+  --ws-overlay-surface: rgba(21, 28, 39, 0.94);
+  --ws-tab-hover: rgba(226, 232, 240, 0.06);
+  --ws-state-hover: rgba(226, 232, 240, 0.07);
+  --ws-state-pressed: rgba(226, 232, 240, 0.12);
+  --ws-inverse-surface: #e2e8f0;
+  --ws-inverse-text: #1b2433;
 
-  --ws-text: #e2e3ea;
-  --ws-text-2: #c3c6d0;
-  --ws-text-3: #a2a6b1;
-  --ws-strike: rgba(195, 198, 208, 0.55);
+  --ws-text: #e4e9f1;
+  --ws-text-2: #bac4d2;
+  --ws-text-3: #96a3b6;
+  --ws-strike: rgba(186, 196, 210, 0.55);
 
-  --ws-accent: #a8c4f5;
-  --ws-accent-strong: #c2d6fb;
-  --ws-accent-soft: #2c3f60;
-  --ws-accent-border: #4a6391;
-  --ws-accent-surface: #1b2232;
-  --ws-on-accent: #0a2a54;
-  --ws-selected-text: #d8e3fb;
-  --ws-focus: #a8c4f5;
+  --ws-accent: #6aa3fb;
+  --ws-accent-strong: #9cc2fd;
+  --ws-accent-soft: #1d3459;
+  --ws-accent-border: #3b5f99;
+  --ws-accent-surface: #16233a;
+  --ws-on-accent: #0a1730;
+  --ws-selected-text: #dbe7fd;
+  --ws-focus: #6aa3fb;
   --ws-favorite: #f2c25c;
 
-  --ws-success: #8fd5a0;
-  --ws-success-soft: #173b23;
-  --ws-success-border: #2e6a3e;
-  --ws-success-surface: #142019;
-  --ws-warning: #f2c25c;
-  --ws-warning-soft: #3d2f0b;
-  --ws-warning-border: #6e5317;
-  --ws-warning-surface: #221c10;
-  --ws-warning-marker: #e0a93a;
-  --ws-danger: #ffb4a9;
-  --ws-danger-soft: #5a1610;
-  --ws-danger-border: #8c2b22;
-  --ws-info: #a8c4f5;
-  --ws-info-soft: #1f2d45;
+  --ws-success: #4fd1c0;
+  --ws-success-solid: #2bb3a3;
+  --ws-success-soft: #0f3532;
+  --ws-success-border: #1f6b62;
+  --ws-success-surface: #0f2423;
+  --ws-warning: #f6b453;
+  --ws-warning-solid: #e9952b;
+  --ws-warning-soft: #3a2709;
+  --ws-warning-border: #74501a;
+  --ws-warning-surface: #231a0d;
+  --ws-warning-marker: #e9952b;
+  --ws-danger: #fb8f8f;
+  --ws-danger-solid: #ef5252;
+  --ws-danger-soft: #451616;
+  --ws-danger-border: #8a2a2a;
+  --ws-info: #8db8fc;
+  --ws-info-soft: #1a2c4a;
   --ws-info-border: #34507e;
-  --ws-info-overlay: rgba(31, 45, 69, 0.96);
+  --ws-info-overlay: rgba(26, 44, 74, 0.96);
 
-  --ws-header-bg: #1a1d22;
-  --ws-header-raised: #262a31;
-  --ws-header-input: #22262c;
-  --ws-header-line: #343842;
-  --ws-header-text: #e2e3ea;
-  --ws-header-text-2: #b0b4be;
-  --ws-header-accent: #a8c4f5;
-  --ws-header-focus: #a8c4f5;
-  --ws-status-ok: #6fcf8b;
-  --ws-status-busy: #f2c25c;
-  --ws-status-error: #ff8a7d;
+  --ws-shell-bg: #111824;
+  --ws-shell-hover: #1f2b3d;
+  --ws-shell-raised: #1b2535;
+  --ws-shell-active: #24344d;
+  --ws-shell-line: #283447;
+  --ws-shell-text: #e4e9f1;
+  --ws-shell-text-2: #a1aec1;
+  --ws-shell-accent: #6aa3fb;
+  --ws-shell-focus: #9cc2fd;
+  --ws-status-ok: #2bb3a3;
+  --ws-status-busy: #e9952b;
+  --ws-status-error: #ef5252;
 
-  --ws-diagram-bg: #14171b;
-  --ws-diagram-grid: #22262d;
-  --ws-diagram-stroke: #9ca2ad;
-  --ws-diagram-stroke-strong: #dadde4;
-  --ws-diagram-detail: #8592a6;
-  --ws-diagram-leader: #6f7683;
-  --ws-diagram-hatch: #5e6572;
-  --ws-diagram-part-1: #4a505b;
-  --ws-diagram-part-2: #3e4f68;
-  --ws-diagram-part-3: #6b717d;
-  --ws-diagram-selected: #34507e;
+  --ws-statusbar-bg: #111824;
+  --ws-panel-header-bg: #151c27;
 
-  --ws-chart-track: #23272e;
-  --ws-chart-band: #1e3a28;
+  --ws-canvas-bg: #121923;
+  --ws-canvas-grid: #222c3b;
+  --ws-diagram-bg: #121923;
+  --ws-diagram-grid: #222c3b;
+  --ws-diagram-stroke: #9ba7b9;
+  --ws-diagram-stroke-strong: #dce3ec;
+  --ws-diagram-detail: #8392aa;
+  --ws-diagram-leader: #6c788b;
+  --ws-diagram-hatch: #5d6879;
+  --ws-diagram-part-1: #465163;
+  --ws-diagram-part-2: #3b4f6e;
+  --ws-diagram-part-3: #69768a;
+  --ws-diagram-selected: #29497a;
 
-  --ws-viewport-top: #23272e;
-  --ws-viewport-bottom: #111317;
+  --ws-chart-track: #212a38;
+  --ws-chart-band: #123a35;
 
-  --ws-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px 1px rgba(0, 0, 0, 0.2);
-  --ws-shadow: 0 2px 6px 2px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.4);
-  --ws-shadow-lg: 0 4px 8px 3px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.45);
+  --ws-viewport-top: #1f2836;
+  --ws-viewport-bottom: #0f141c;
+
+  --ws-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ws-shadow: 0 4px 12px rgba(0, 0, 0, 0.36), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --ws-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-/* Density: control heights, row heights, spacing and type size. */
+/*
+ * Density: control heights, row heights, spacing and body type sizes. Comfortable is the
+ * default; compact fits more rows on laptop screens. Neither goes below 12 px text.
+ */
 :root,
 :root[data-density='comfortable'] {
   --ws-font-size: 14px;
   --ws-font-size-sm: 13px;
-  --ws-font-size-xs: 11.5px;
-  --ws-control-h: 36px;
-  --ws-control-h-sm: 30px;
-  --ws-row-h: 32px;
-  --ws-header-h: 56px;
-  --ws-pad: 16px;
+  --ws-font-size-xs: 12px;
+  --ws-control-h: 32px;
+  --ws-control-h-sm: 28px;
+  --ws-row-h: 28px;
+  --ws-header-h: 48px;
+  --ws-toolbar-h: 36px;
+  --ws-tabs-h: 34px;
+  --ws-statusbar-h: 26px;
+  --ws-rail-w: 64px;
+  --ws-panel-header-h: 36px;
+  --ws-pad: 12px;
   --ws-gap: 8px;
 }
 
 :root[data-density='compact'] {
   --ws-font-size: 13px;
   --ws-font-size-sm: 12px;
-  --ws-font-size-xs: 11px;
-  --ws-control-h: 30px;
-  --ws-control-h-sm: 26px;
-  --ws-row-h: 26px;
+  --ws-font-size-xs: 12px;
+  --ws-control-h: 28px;
+  --ws-control-h-sm: 24px;
+  --ws-row-h: 24px;
   --ws-header-h: 48px;
-  --ws-pad: 10px;
+  --ws-toolbar-h: 32px;
+  --ws-tabs-h: 30px;
+  --ws-statusbar-h: 24px;
+  --ws-rail-w: 56px;
+  --ws-panel-header-h: 32px;
+  --ws-pad: 8px;
   --ws-gap: 6px;
 }
 

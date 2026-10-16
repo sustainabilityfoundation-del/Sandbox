@@ -286,10 +286,10 @@ The whole platform (shell, every tool and the ChatGPT panel) uses one component 
 - **Behaviour** comes from [React Aria Components](https://react-spectrum.adobe.com/react-aria/):
   keyboard navigation, focus management, overlays, collections, and mouse, touch and pen input.
 - **Appearance** comes from Tailwind CSS utilities and component classes that read semantic design
-  tokens (CSS variables). The look is neutral tonal surfaces, one restrained accent and subtle
-  elevation.
-- **Icons** are [Phosphor](https://phosphoricons.com/) icons behind semantic names (`AppIcon`,
-  `packages/design-system/src/icons`). Only the registered icons are bundled.
+  tokens (CSS variables): the Focused Canvas direction, a dark slate shell around light working panels
+  and a bright canvas ([design system](../../docs/modules/design-system/README.md)). Fonts: IBM Plex Sans and Mono.
+- **Icons** are [Lucide](https://lucide.dev/) icons and custom engineering glyphs behind semantic names
+  (`AppIcon`, `packages/design-system/src/icons`). Only the registered icons are bundled.
 
 No other component library or icon set is used; `packages/design-system/src/theme/designSystem.test.ts` checks this.
 

@@ -111,11 +111,16 @@ On Windows PowerShell use `npm.cmd` if script execution is disabled.
 
 - Use `@ews/design-system` components (React Aria behaviour, Tailwind on design tokens). No raw
   `<button>`, `<select>`, `<textarea>` or `<input>` (a hidden file picker is the one exception).
+  The visual direction is Focused Canvas ([design system](docs/modules/design-system/README.md),
+  [components](docs/modules/design-system/components.md), [shell](docs/modules/design-system/shell.md)):
+  modules consume the shared components and do not develop competing styles. Package rules:
+  `packages/design-system/AGENTS.md`.
 - Icons: `AppIcon` with semantic names only. New names go in
-  `packages/design-system/src/icons/names.ts` and are mapped in `registry.tsx` (Phosphor, or a
-  custom SVG with the same interface). Duotone for tools and object categories, regular for actions,
-  `filled` for selected states. Icon-only buttons need an accessible label; keep text labels on
-  important actions.
+  `packages/design-system/src/icons/names.ts` and are mapped in `registry.tsx` (Lucide, or a
+  custom engineering glyph made with `createLucideIcon`, same interface). 16 px in toolbars, trees
+  and menus, 18–20 px in primary navigation; `filled` for selected states. Icon-only buttons need an
+  accessible label (shown as the tooltip, with any shortcut); keep text labels on important actions.
+- Typography: IBM Plex Sans; IBM Plex Mono (`font-mono`) for IDs, values, parameters and code.
 - Colours, spacing, radii and motion come from tokens (`var(--ws-…)` or semantic Tailwind classes).
   No hard-coded colours or inline styles. Tool CSS lives in `@layer components { … }` and lays out
   against the `tool` container (`@container tool (…)`).

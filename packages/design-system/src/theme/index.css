@@ -13,6 +13,14 @@
  */
 @layer theme, base, components, utilities;
 
+/* IBM Plex Sans and Mono (SIL Open Font License 1.1), self-hosted from npm; no font CDN. */
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/400-italic.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 @import './tokens.css';
@@ -69,6 +77,19 @@
   --color-header-line: var(--ws-header-line);
   --color-header-fg: var(--ws-header-text);
   --color-header-fg-2: var(--ws-header-text-2);
+  --color-shell: var(--ws-shell-bg);
+  --color-shell-hover: var(--ws-shell-hover);
+  --color-shell-raised: var(--ws-shell-raised);
+  --color-shell-active: var(--ws-shell-active);
+  --color-shell-line: var(--ws-shell-line);
+  --color-shell-fg: var(--ws-shell-text);
+  --color-shell-fg-2: var(--ws-shell-text-2);
+  --color-shell-accent: var(--ws-shell-accent);
+  --color-board: var(--ws-canvas-bg);
+  --color-success-solid: var(--ws-success-solid);
+  --color-warning-solid: var(--ws-warning-solid);
+  --color-error-solid: var(--ws-danger-solid);
+  --color-success-line: var(--ws-success-border);
   --color-transparent: transparent;
   --color-current: currentColor;
 
@@ -83,7 +104,8 @@
   --radius-field: var(--ws-radius);
   --radius-card: var(--ws-radius-lg);
   --radius-sheet: var(--ws-radius-xl);
-  --radius-control: var(--ws-radius-full);
+  --radius-control: var(--ws-radius-control);
+  --radius-full: var(--ws-radius-full);
   --shadow-1: var(--ws-shadow-sm);
   --shadow-2: var(--ws-shadow);
   --shadow-3: var(--ws-shadow-lg);
@@ -91,6 +113,13 @@
   --ease-emphasized: var(--ws-ease-emphasized-decelerate);
   --text-title: var(--ws-font-title);
   --text-headline: var(--ws-font-headline);
+  --text-12: var(--ws-text-12);
+  --text-13: var(--ws-text-13);
+  --text-14: var(--ws-text-14);
+  --text-15: var(--ws-text-15);
+  --text-16: var(--ws-text-16);
+  --text-18: var(--ws-text-18);
+  --text-20: var(--ws-text-20);
   --font-weight-medium: var(--ws-weight-medium);
   --font-weight-strong: var(--ws-weight-strong);
 
@@ -100,6 +129,11 @@
   --spacing-touch: var(--ws-touch-target);
   --spacing-pad: var(--ws-pad);
   --spacing-gap: var(--ws-gap);
+  --spacing-toolbar: var(--ws-toolbar-h);
+  --spacing-tabs: var(--ws-tabs-h);
+  --spacing-statusbar: var(--ws-statusbar-h);
+  --spacing-rail: var(--ws-rail-w);
+  --spacing-panel-header: var(--ws-panel-header-h);
 }
 
 @layer base {
@@ -116,6 +150,9 @@
     font-family: var(--ws-font-sans);
     font-size: var(--ws-font-size);
     line-height: 1.45;
+    font-feature-settings: 'kern';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     overflow: hidden;
     -webkit-text-size-adjust: 100%;
   }

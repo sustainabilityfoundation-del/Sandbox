@@ -21,8 +21,8 @@ export default defineConfig({
           if (id.startsWith('\0')) return 'react'
           if (!id.includes('node_modules')) return undefined
           if (/node_modules[\\/](react|react-dom|scheduler|zustand|use-sync-external-store)[\\/]/.test(id)) return 'react'
-          // Phosphor ships every weight per icon; only the registered icons are included, in their own chunk.
-          if (/node_modules[\\/]@phosphor-icons[\\/]/.test(id)) return 'icons'
+          // Lucide: only the icons named in the registry are included (tree-shaken), in their own chunk.
+          if (/node_modules[\\/]lucide-react[\\/]/.test(id)) return 'icons'
           if (/node_modules[\\/](react-aria-components|react-aria|react-stately|@react-aria|@react-stately|@react-types|@internationalized)[\\/]/.test(id)) return 'react-aria'
           return undefined
         },
