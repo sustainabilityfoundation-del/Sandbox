@@ -106,6 +106,9 @@ async function readStream(response: Response, method: string): Promise<{ output:
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  // Some backends (the ChatGPT plan route) send the finished items only as `response.output_item.done` events and
+  // leave `response.completed.response.output` empty; collect them so text and tool calls are not lost.
+  const streamed: OutputItem[] = []
   for (;;) {
     const { value, done } = await reader.read()
     if (value) buffer += decoder.decode(value, { stream: true })
@@ -119,15 +122,20 @@ async function readStream(response: Response, method: string): Promise<{ output:
         .map((l) => l.slice(5).trimStart())
         .join('\n')
       if (!data || data === '[DONE]') continue
-      let event: { type?: string; response?: { output?: OutputItem[]; usage?: { input_tokens?: number; output_tokens?: number }; model?: string; error?: { code?: string; message?: string } }; error?: { code?: string; message?: string }; code?: string; message?: string }
+      let event: { type?: string; item?: OutputItem; response?: { output?: OutputItem[]; usage?: { input_tokens?: number; output_tokens?: number }; model?: string; error?: { code?: string; message?: string } }; error?: { code?: string; message?: string }; code?: string; message?: string }
       try {
         event = JSON.parse(data)
       } catch {
         continue
       }
+      if (event.type === 'response.output_item.done' && event.item) {
+        streamed.push(event.item)
+        continue
+      }
       if (event.type === 'response.completed') {
         await reader.cancel().catch(() => undefined)
-        return { output: event.response?.output ?? [], usage: event.response?.usage, model: event.response?.model }
+        const completed = event.response?.output ?? []
+        return { output: completed.length ? completed : streamed, usage: event.response?.usage, model: event.response?.model }
       }
       if (event.type === 'response.failed' || event.type === 'response.incomplete' || event.type === 'error') {
         await reader.cancel().catch(() => undefined)

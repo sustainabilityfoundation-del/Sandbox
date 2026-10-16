@@ -71,6 +71,20 @@ describe('OpenAI adapter', () => {
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer at-123')
   })
 
+  it('reads text and tool calls from output_item.done events when response.completed carries no output (ChatGPT plan route)', async () => {
+    const { f } = mockFetch(() =>
+      sse([
+        { type: 'response.created' },
+        { type: 'response.output_item.done', item: { type: 'reasoning' } },
+        { type: 'response.output_item.done', item: { type: 'message', content: [{ type: 'output_text', text: 'I will create the project.' }] } },
+        { type: 'response.output_item.done', item: { type: 'function_call', call_id: 'call_9', name: 'requirements__update', arguments: '{"requirementId":"REQ-001"}' } },
+        { type: 'response.completed', response: { output: [], usage: { input_tokens: 9000, output_tokens: 77 } } },
+      ]),
+    )
+    const out = await createOpenAIProvider({ fetch: f, chatgptSignIn: true }).respond(input('chatgpt'))
+    expect(out).toMatchObject({ type: 'tool_calls', text: 'I will create the project.', calls: [{ callId: 'call_9', name: 'requirements.update', arguments: { requirementId: 'REQ-001' } }] })
+  })
+
   it('maps provider errors to clear messages without echoing the credential', async () => {
     const cases: [number, unknown, ProviderError['kind']][] = [
       [401, { error: { code: 'invalid_api_key', message: `Incorrect API key provided: ${KEY}` } }, 'invalid-credential'],
