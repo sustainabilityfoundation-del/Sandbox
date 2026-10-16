@@ -4,6 +4,8 @@ import { createDemoConceptsService, createHttpConceptsService, getConceptsModule
 import { createDemoRequirementsService, createHttpRequirementsService } from '@ews/requirements-client'
 import { createHttpSysmlClient, createSysmlModelService } from '@ews/sysml-client'
 import { configureConceptHandoffs, createWorkspaceCadService } from '@ews/tool-cad-modeler'
+import { registerVisualizationPort } from '@ews/tool-conceptualize'
+import { createVisualizationClient } from '@ews/visualization-client'
 import { create } from 'zustand'
 import { workspaceHelp } from '../help/workspaceHelp'
 
@@ -116,6 +118,13 @@ export const workspaceServices: PlatformServices = {
       revisionStaleness: async (conceptId, revision, { projectId, purpose }) => (client(projectId) ? client(projectId)!.revisionStaleness(conceptId, revision, purpose ?? 'downstream').then((x) => x as never, notFound) : undefined),
     })
   }
+}
+
+// Concept illustrations go through the visualization service (API mode). The service refuses with a reason when no
+// image provider is usable (images are off by default; Sign in with ChatGPT cannot generate images); structured
+// layouts never need it.
+if (serviceSettings.requirementsMode === 'api') {
+  registerVisualizationPort(createVisualizationClient({ baseUrl: '/api/visualization/v1', devUser: serviceSettings.devUser }))
 }
 
 /** Saves new settings and reloads; other windows follow through the storage event below. */
