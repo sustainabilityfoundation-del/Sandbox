@@ -165,7 +165,7 @@ describe('C9: every cad-modeler operation with no view mounted', () => {
 
   it('defines the same operations as the tool registers (all covered here)', () => {
     expect(cadModelerTool.assistant!.actions.map((a) => a.name).sort()).toEqual(
-      ['cad-modeler.check', 'cad-modeler.check_bindings', 'cad-modeler.describe_model', 'cad-modeler.export', 'cad-modeler.list_documents', 'cad-modeler.new_document', 'cad-modeler.open_document', 'cad-modeler.query', 'cad-modeler.run_commands', 'cad-modeler.save_document', 'cad-modeler.undo'].sort(),
+      ['cad-modeler.check', 'cad-modeler.check_bindings', 'cad-modeler.describe_model', 'cad-modeler.export', 'cad-modeler.list_documents', 'cad-modeler.new_document', 'cad-modeler.open_document', 'cad-modeler.query', 'cad-modeler.run_commands', 'cad-modeler.save_document', 'cad-modeler.start_from_handoff', 'cad-modeler.undo'].sort(),
     )
   })
 })
