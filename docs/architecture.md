@@ -20,12 +20,14 @@ does not exist yet), **Not implemented**.
 
 ```
 apps/workspace          Common shell: navigation, tool registry, subscriptions, windows, inspector,
-                        baselines UI, assistant panel, capability labels
+                        baselines UI, assistant panel, capability labels; Focused Canvas shell
+                        (rail, dock layout, presets, status bar: modules/design-system/shell.md)
 apps/glb-viewer         Standalone GLB viewer (not part of the platform)
 packages/model-service  Domain model, ownership and relationship rules, revision history,
                         baselines, change impact, DemoRepository (no React)
 packages/platform-sdk   Versioned tool contract (1.8.0), PlatformHost, React hooks, harness, testing
-packages/design-system  React Aria + Tailwind components, tokens, semantic icons
+packages/design-system  React Aria + Tailwind components, Focused Canvas tokens, IBM Plex fonts,
+                        Lucide semantic icons (modules/design-system/README.md)
 packages/tool-requirements | tool-sysml | tool-cad   The three Phase 1 modules
 ```
 
