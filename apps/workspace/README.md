@@ -40,7 +40,7 @@ To start again from the sample data, open the **Demo repository** menu in the he
    and the saved snapshot OUT-0001 becomes *Potentially stale*. **Save snapshot** saves a new
    representation artifact against the rod.
 6. Open the **subscription** menu in the header (key icon) and choose **Requirements only**. SysML
-   and CAD tabs stay but show why they are locked; the palette, search, direct links (`?tool=cad`),
+   and CAD rail entries stay (with a lock) and show why they are locked; the palette, search, direct links (`?tool=cad`),
    detached windows and ChatGPT all refuse to open them. The SysML and CAD data stays in the tree and
    inspector. Choose **All tools** to restore access; nothing was lost.
 7. Reload the browser. Model changes, artifacts, selection, open tools and each view's private
@@ -379,8 +379,8 @@ keep what the user typed.
 
 ### Workspace controls
 
-- **Command palette.** Open it with the **Commands** button in the header (or **Tools** in the tab
-  bar and the phone navigation bar), or press `Ctrl/Cmd+K`. It lists favourites, recent tools and
+- **Command palette.** Open it with the **Commands** button in the header (or **Tools** in the
+  phone navigation bar), or press `Ctrl/Cmd+K`. It lists favourites, recent tools and
   every registered tool by category, read from the tool registry; tools outside the subscription
   are listed locked with the reason. It also lists the active tool's toolbar actions and the
   commands its view registered (`useToolCommand`), workspace commands, the demo subscription plans

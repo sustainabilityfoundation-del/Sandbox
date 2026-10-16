@@ -100,7 +100,7 @@ export function PanelToggles({ mode, layout }: { mode: ViewportMode; layout: Lay
   const max = layout.canvasMaximized
   const right = assistantOnRight(layout, desktop)
   return (
-    <div className="ws-pane-tabs-actions" role="group" aria-label="Panels" data-help-id="platform.panels">
+    <div className="ws-pane-bar-actions" role="group" aria-label="Panels" data-help-id="platform.panels">
       <ToggleIconButton
         className="ws-panel-toggle"
         label="Explorer"

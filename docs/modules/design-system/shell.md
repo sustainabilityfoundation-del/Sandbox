@@ -10,7 +10,7 @@ Status: implemented (Focused Canvas phase 3 and 4). Owner: ui-ux-design-system a
 ┌──────────────────────────────── header (48 px, dark slate) ────────────────────────────────┐
 │ brand · project · configuration · scenario · baselines · modules · search · ⌘K · 🔔 · …    │
 ├──────┬──────────┬─┬──────────────────────────────────┬─┬───────────┬─┬────────────────────┤
-│ rail │ explorer │▏│ document tabs · location trail    │▏│ inspector │▏│ AI Assistant        │
+│ rail │ explorer │▏│ location trail · panel toggles    │▏│ inspector │▏│ AI Assistant        │
 │ 84/52│ (resize) │▏│ contextual toolbar (36 px)        │▏│ (resize)  │▏│ (right dock,        │
 │ px   │          │▏│ engineering canvas (.ws-work)     │▏│           │▏│  resize, collapse)  │
 │      │          │▏├──────────────────────────────────┤▏│           │▏│                     │
@@ -38,7 +38,7 @@ in the working-panel colour (`--ws-bg`), keyboard operable.
 | Header | `Header` (brand, `ContextFields`, `BaselinesMenu`, `ModuleNav`, `GlobalSearch`, palette, `Notifications`, `SubscriptionMenu`, `ServicesMenu`, `WindowsMenu`, `DisplaySettings`, `SettingsButton`, `HelpMenu`, `Account`); `.ws-shell-scope` | `shell/Header.tsx` |
 | Navigation rail | `NavigationRail` (`RailItem`), explorer toggle, modules from the registry, assistant, layout menu | `shell/Rail.tsx` |
 | Explorer frame | `SidePanel` + `PanelHeader` + `ExplorerFilter`; `ProductTree` (filter, virtualized above 400 objects) or `ProjectExplorer` | `shell/ShellParts.tsx`, `shell/ProductTree.tsx`, `projects/ProjectExplorer.tsx` |
-| Canvas container | `PaneArea` (document tabs, `ContextBreadcrumbs`, `PanelToggles`, split view), `ToolToolbar`, `ToolViewHost` (`.ws-tool-host`, the `tool` container) | `shell/PaneArea.tsx`, `shell/ToolToolbar.tsx`, `shell/WorkArea.tsx` |
+| Canvas container | `PaneArea` (location bar: `ContextBreadcrumbs`, `PanelToggles`, split view), `ToolToolbar`, `ToolViewHost` (`.ws-tool-host`, the `tool` container) | `shell/PaneArea.tsx`, `shell/ToolToolbar.tsx`, `shell/WorkArea.tsx` |
 | Inspector frame | `Inspector` | `shell/Inspector.tsx` |
 | Assistant | `AssistantDockPanel` (right) or the bottom panel's tab; presentation in `shell/assistant/**`, logic in `assistant/**` | `shell/ShellParts.tsx`, `shell/BottomDock.tsx` |
 | Bottom panel | `BottomDock` (Activity, Validation, assistant) | `shell/BottomDock.tsx`, `shell/ValidationPanel.tsx` |
@@ -62,7 +62,7 @@ Entry points: rail layout menu, Display and layout, command palette, tab-bar tog
 ## 4. Extension points for modules
 
 - **Navigation:** a tool registered with `registerTool` (and allowed by the subscription) appears in the rail, the
-  header module navigation, the command palette, the document tabs and the Help menu, with its semantic icon and
+  header module navigation, the command palette and the Help menu (there are no document tabs; see section 6), with its semantic icon and
   name. Platform modules without a view (`registerPlatformModule`) contribute assistant operations, help and
   settings. No shell edits.
 - **Canvas:** the tool's `view` renders inside `.ws-tool-host` (`container: tool / inline-size`); it chooses its own
@@ -80,3 +80,21 @@ Entry points: rail layout menu, Display and layout, command palette, tab-bar tog
 - Keep committed browser-flow hooks stable (`docs/specifications/ui-focused-canvas-progress.md` §1.3) and keep help
   IDs when markup changes.
 - Every icon button has a label (tooltip) and, when it has one, its shortcut.
+
+## 6. Owner decisions
+
+**16 October 2026: one set of tool tabs.** The owner said: "The user interface has duplication of tabs on the left of
+the screen and the top of the workspace. have the UI agent Remove the top of the workspace tabs and have the ones on
+the left."
+
+- The two sets were the navigation rail's module entries (left; one per registered tool, active one highlighted, lock
+  and Demo markers) and the tab strip above the canvas (open tools, lock and Demo markers, an "Open tools" menu with
+  Close per tool, and an add button that opened the palette). Both switched the active tool.
+- The top strip is removed. The rail is the only way to switch tools (`[data-rail-tool]`, `aria-current="page"`).
+  The bar above the canvas remains as a location bar: breadcrumbs, split view button and panel toggles.
+- Moved, not lost: closing a tool is the palette command "Close <tool>" (one per open tool, Ctrl+K); opening is the rail or
+  the palette; locked and Demo states are on the rail entries and in the breadcrumbs. Tools never showed unsaved
+  markers on the tabs, so none moved. Tool views that keep their state still stay mounted while hidden.
+- Phone has no rail: tools switch through **Tools** (the palette) in the bottom navigation.
+- AGENTS.md says a module appears in "navigation, document tabs, the command palette and help"; "document tabs" no longer
+  exists and the wording needs changing (the coordinator owns that file).

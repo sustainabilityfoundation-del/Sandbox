@@ -116,7 +116,7 @@ check('ai-trace', aiEvents.length > 10 && aiEvents.every((h) => h.provenance.pro
 await page.screenshot({ path: `${shots}/05-ai-applied.png` })
 
 // 5, 9. Alternative Explorer: compare and decide; then a reviewer records.
-await page.click('.ws-tab-main[data-tool-id="conceptualize"]').catch(() => undefined)
+await page.click('[data-rail-tool="conceptualize"]').catch(() => undefined)
 await toolbar(page, 'alternatives').click()
 await page.waitForSelector('.con-compare', { timeout: 15000 })
 const sets = await api('GET', '/alternative-sets')

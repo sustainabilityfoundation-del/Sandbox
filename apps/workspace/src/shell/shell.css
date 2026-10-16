@@ -399,7 +399,7 @@
 .ws-pane > .ws-work,
 .ws-pane > div > .ws-work { flex: 1; min-height: 0; }
 
-.ws-pane-tabs {
+.ws-pane-bar {
   display: flex;
   align-items: stretch;
   gap: 0;
@@ -411,31 +411,10 @@
   min-width: 0;
 }
 
-.ws-pane-tabs > * { align-self: center; }
-.ws-pane-tabs > .ws-tool-tabs { align-self: stretch; }
+.ws-pane-bar > * { align-self: center; }
 .ws-pane-split-header { align-items: center; gap: var(--ws-space-1); padding: 0 var(--ws-space-2); }
 
-.ws-tool-tabs {
-  display: flex;
-  align-self: stretch;
-  gap: 0;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.ws-tool-tab.ws-tool-tab {
-  flex: none;
-  min-height: 0;
-  height: 100%;
-  padding: 0 var(--ws-space-3);
-  border-right: 1px solid var(--ws-border);
-}
-
-.ws-tool-tab[data-selected] { background: var(--ws-surface); }
-.ws-tool-tab[data-selected] .ws-icon { color: var(--ws-accent); }
-
-.ws-pane-tabs-actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.ws-pane-bar-actions { display: flex; flex: none; align-items: center; gap: 2px; }
 .ws-crumbs { flex: 1 1 0; min-width: 0; padding: 0 var(--ws-space-3); overflow: hidden; }
 .ws-crumbs .ws-breadcrumbs { flex-wrap: nowrap; font-size: var(--ws-font-size-xs); }
 
@@ -449,7 +428,7 @@
 }
 
 .ws-tabpanel { display: flex; flex: 1; flex-direction: column; min-height: 0; outline: none; }
-.ws-tabpanel[data-inert] { display: none; }
+.ws-tabpanel[hidden] { display: none; }
 
 .ws-unsupported { flex: none; padding: var(--ws-space-2) var(--ws-space-3) 0; }
 

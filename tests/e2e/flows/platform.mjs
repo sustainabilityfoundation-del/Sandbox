@@ -26,7 +26,9 @@ const watch = (p) => {
 watch(page)
 
 const shot = (name, p = page) => p.screenshot({ path: `${shots}/pf-${name}.png` })
-const tab = (id) => page.locator(`[role="tab"][data-tool-id="${id}"]`)
+// Tools are switched from the navigation rail (the top document tabs were removed, 16 October 2026).
+const tab = (id) => page.locator(`[data-rail-tool="${id}"]`)
+const LOCKED_RAIL = '[data-rail-tool][aria-label*="not in your subscription"]'
 const tree = (id) => page.locator(`.ws-tree-item[data-object-id="${id}"]`).first()
 // Requirements are identified by UUID (Requirements service); people see their key.
 const REQ = { 'REQ-001': '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001', 'REQ-003': '5b1c7e2a-0003-4e6a-9c1d-6f0a3d2b1003' }
@@ -93,8 +95,9 @@ async function closePalette() {
 // ---- 9. Catalogue: Analysis and Verification are gone ----------------------------------
 {
   const tag = 'catalogue'
-  const tabs = await page.locator('[role="tab"][data-tool-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-tool-id')))
-  check(tag, JSON.stringify(tabs) === JSON.stringify(['requirements', 'sysml', 'cad', 'conceptualize']), `tabs: ${tabs.join(', ')}`)
+  const tabs = await page.locator('[data-rail-tool]').evaluateAll((els) => els.map((e) => e.getAttribute('data-rail-tool')))
+  check(tag, ['requirements', 'sysml', 'cad', 'conceptualize'].every((id) => tabs.includes(id)) && tabs.every((id) => !/analysis|verification/.test(id)), `rail entries: ${tabs.join(', ')}`)
+  check(tag, (await page.locator('[role="tab"][data-tool-id]').count()) === 0, 'there is no second (top) tab strip')
   await palette()
   const text = await page.locator('.ws-launcher').textContent()
   check(tag, !/\bAnalysis\b/.test(text) && !/\bVerification\b/.test(text), 'palette lists no Analysis or Verification tool')
@@ -109,10 +112,11 @@ async function closePalette() {
   // Navigation: tabs stay but explain.
   await tab('cad').click()
   await page.waitForTimeout(250)
-  check(tag, (await page.locator('[data-locked-tool="cad"]').count()) === 1, 'CAD tab shows a locked explanation instead of the tool')
+  check(tag, (await toast().count()) > 0, 'choosing CAD in the rail explains why it is locked instead of opening it')
   check(tag, (await page.locator('.cad-canvas').count()) === 0, 'the CAD view is not rendered')
-  const locks = await page.locator('[role="tab"][data-tool-id] [aria-label="Not in your subscription"]').count()
-  check(tag, locks === 3, `SysML, CAD and Conceptualize tabs show a lock (${locks})`)
+  for (const id of ['sysml', 'cad', 'conceptualize']) {
+    check(tag, (await page.locator(`[data-rail-tool="${id}"][aria-label*="not in your subscription"]`).count()) === 1, `the ${id} rail entry says it is not in the subscription`)
+  }
   await shot('1-locked-tab')
   await tab('requirements').click()
   // Palette: locked items are listed, disabled and explained.
@@ -128,13 +132,13 @@ async function closePalette() {
   await page.waitForTimeout(250)
   await page.getByRole('option', { name: /SysML/ }).first().click()
   await page.waitForTimeout(300)
-  check(tag, (await page.locator('[role="tab"][data-tool-id][aria-selected="true"]').getAttribute('data-tool-id')) === 'requirements', 'search does not open SysML')
+  check(tag, (await page.locator('[data-rail-tool][aria-current="page"]').getAttribute('data-rail-tool')) === 'requirements', 'search does not open SysML')
   check(tag, (await toast().count()) > 0, 'a notification explains why')
   // Direct route.
   await page.goto(exampleUrl(`tool=cad`))
   await page.waitForSelector('.ws-app')
   await page.waitForTimeout(600)
-  check(tag, (await page.locator('[role="tab"][data-tool-id][aria-selected="true"]').getAttribute('data-tool-id')) !== 'cad', 'direct route ?tool=cad does not open CAD')
+  check(tag, (await page.locator('[data-rail-tool][aria-current="page"]').getAttribute('data-rail-tool')) !== 'cad', 'direct route ?tool=cad does not open CAD')
   check(tag, (await toast().count()) > 0, 'the direct route explains why')
   // Detached window for a locked tool.
   const detached = await context.newPage()
@@ -167,7 +171,7 @@ async function closePalette() {
     const ok = await page.locator(`.ws-tool-host[data-tool="${id}"]`).count()
     check(tag, ok === 1 && (await page.locator(`[data-locked-tool="${id}"]`).count()) === 0, `${id} opens`)
   }
-  check(tag, (await page.locator('[role="tab"][data-tool-id] [aria-label="Not in your subscription"]').count()) === 0, 'no tab shows a lock')
+  check(tag, (await page.locator(LOCKED_RAIL).count()) === 0, 'no tab shows a lock')
 }
 
 // ---- 3. Selecting the rod in CAD and switching tools ---------------------------------------
@@ -307,7 +311,7 @@ async function closePalette() {
 {
   const tag = 'icons'
   const stray = await page.evaluate(() =>
-    [...document.querySelectorAll('.ws-header svg, .ws-pane-tabs svg, .ws-toolbar svg, .ws-tree svg, .ws-inspector svg, .ws-dock svg, .ws-mobile-nav svg')]
+    [...document.querySelectorAll('.ws-header svg, .ws-pane-bar svg, .ws-rail svg, .ws-toolbar svg, .ws-tree svg, .ws-inspector svg, .ws-dock svg, .ws-mobile-nav svg')]
       // AppIcon marks every registry icon (Lucide or custom glyph) with data-icon="<semantic name>".
       .filter((s) => !s.hasAttribute('data-icon')).length,
   )

@@ -102,7 +102,11 @@ export function CommandPalette({ isOpen, onOpenChange }: { isOpen: boolean; onOp
         isDisabled: !active,
         run: () => active && state.toggleFavorite(active.id),
       },
-      { key: 'ws:close', label: `Close ${active?.name ?? 'tool'}`, icon: 'close', isDisabled: !active, run: () => active && state.closeTool(active.id) },
+      // Closing a tool used to live on the top tab strip; it is a command now, for every open tool (not only the active one).
+      ...state.openToolIds.flatMap((id): Command[] => {
+        const t = byId(id)
+        return t ? [{ key: `ws:close:${t.id}`, label: `Close ${t.name}`, icon: 'close', keywords: 'close tool tab', run: () => state.closeTool(t.id) }] : []
+      }),
       {
         key: 'ws:win-tool',
         label: `Open ${active?.name ?? 'tool'} in separate window`,
