@@ -2,6 +2,10 @@
 
 Status: Proposed (2026-10-14)
 
+Note (16 October 2026, factual, no status change): mathjs 15.2.0 (Apache-2.0) is already adopted as a runtime dependency of
+`@ews/engineering-calc` for expression parsing only, and is recorded with its transitive dependencies in
+[docs/dependencies.md](../dependencies.md); `services/conceptualize` consumes the engine (CR-C8).
+
 ## Context
 
 The brief (§6) requires typed quantities, units and dimensions, symbolic expressions, algebraic constraints,
