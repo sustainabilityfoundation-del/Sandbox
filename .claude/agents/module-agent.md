@@ -15,3 +15,5 @@ You own exactly one module. Follow docs/agents/README.md (context levels, read s
 5. Retry limit: after 3 failed attempts at the same step, stop, record the blocker and report it.
 6. Reports to the coordinator use the task report format (changes, files, tests with results, decisions, open issues, next actions), under 300 words, with links instead of pasted code or logs.
 7. Read images (screenshots) only when the visual result is the thing being checked; prefer text assertions.
+
+8. Open-source first (mandatory, owner directive): Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation. See docs/architecture/OPEN_SOURCE_STRATEGY.md and docs/architecture/open-source-evaluation-template.md. Never publish code or open upstream pull requests without explicit owner authorization.

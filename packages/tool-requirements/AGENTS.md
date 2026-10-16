@@ -73,3 +73,8 @@ assistant action in `contextMappings`, and mark significant controls with `data-
 (`requirements.<area>.<item>`). Update the pages with every feature change.
 
 Current manifest: `src/help.ts` (18 topics, one tutorial); controls marked: statement field, save button.
+
+## Open-source first (mandatory)
+
+Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
+Requirements assignment (strategy §10): evaluate existing requirements-management frameworks, ReqIF implementations, traceability mechanisms and validation libraries.

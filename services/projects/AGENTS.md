@@ -31,3 +31,8 @@ npm run typecheck -w @ews/projects-service
 
 `src/manifest.ts` exports `projectsServerManifest` (docs title, base path, AI module descriptor). The API host composes the plugin itself
 (it consumes the other modules' artifact sources) and reads the manifest for its docs page and the AI policy; `register` is not used.
+
+## Open-source first (mandatory)
+
+Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
+Platform and infrastructure assignment (strategy §10): dependency scanning, license compliance, SBOM generation, secure package management and reproducible builds.

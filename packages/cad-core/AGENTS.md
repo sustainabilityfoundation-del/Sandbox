@@ -28,3 +28,8 @@ npx vitest run packages/cad-core
 npm run typecheck -w @ews/cad-core
 npm run cad:commands
 ```
+
+## Open-source first (mandatory)
+
+Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
+CAD assignment (strategy §10): evaluate Open CASCADE, FreeCAD, geometric constraint solvers, meshing libraries and interoperability components; avoid custom geometric kernels or solvers where established alternatives meet requirements.

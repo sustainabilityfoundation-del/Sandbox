@@ -41,3 +41,8 @@ npx tsc -p packages/design-reasoning-core/tsconfig.json
 npx tsx packages/design-reasoning-core/scripts/demo.ts     # R1 walkthrough
 npm run reasoning:test:db                                   # scenarios + probes on the real APIs (disposable PostgreSQL) and the adapter
 ```
+
+## Open-source first (mandatory)
+
+Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
+Mathematics and simulation assignment (strategy §10): prefer mature numerical, symbolic, optimization and simulation engines; implement solver-neutral interfaces with explicit unit handling and result provenance.

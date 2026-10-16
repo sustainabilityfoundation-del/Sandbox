@@ -37,6 +37,23 @@ Deliver the smallest credible end-to-end AI engineering workflow before broadeni
 [integration milestone 1](docs/specifications/integration-milestone-1.md). Implement the smallest reusable increment
 that completes the workflow; do not substitute disconnected module demonstrations.
 
+## Open-source first (mandatory, owner directive)
+
+Every agent follows [the open-source strategy](docs/architecture/OPEN_SOURCE_STRATEGY.md). In short:
+
+- **Before designing or coding a new engineering capability, search for established open-source implementations. Prefer
+  integration and contribution over recreation. Document the alternatives considered (at least three where available), license
+  implications, integration strategy, and rationale for any custom implementation** in an ADR, using
+  [the evaluation template](docs/architecture/open-source-evaluation-template.md).
+- Licences: MIT/BSD/Apache 2.0 preferred; LGPL/MPL/EPL after compliance review; GPL/AGPL only with explicit architecture and
+  licensing approval; unlicensed or unverifiable code never. A separate process, container or API does not by itself remove
+  copyleft obligations. Record every new dependency with its licence in [docs/dependencies.md](docs/dependencies.md).
+- Access external engines (solvers, kernels, simulation, visualization) through replaceable, versioned interfaces with units and
+  provenance; the platform's information model stays the source of truth.
+- Never publish code, create public repositories, open upstream pull requests or disclose proprietary architecture without
+  explicit owner authorization.
+- Do not replace a working implementation only because an open-source alternative exists, and never let this work delay D1.
+
 ## Ownership
 
 | Area | Packages | Owns |

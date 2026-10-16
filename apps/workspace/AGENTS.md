@@ -46,3 +46,8 @@ Design-system, model identity and revision rules: see the root `AGENTS.md`.
 (`contextual.ts`), tours (`tours.ts`, Driver.js), Markdown renderer. Platform and AI Interface help pages
 are in `help/platform/` and `help/ai/`. The toolbar sets `data-help-id` from each tool's manifest. Keep
 `read_help` (assistant) on the same service. Spec: docs/modules/help.md.
+
+## Open-source first (mandatory)
+
+Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
+UI assignment (strategy §10): prefer established open-source UI components, editors, visualization frameworks, icon libraries and accessibility tooling; avoid unnecessary custom controls.

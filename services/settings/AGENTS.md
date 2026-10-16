@@ -17,3 +17,8 @@ Owner: the AI connection agent (docs/specifications/ai-connection.md §5a). Cont
 ## Tests
 
 `npm run req:test:db` (services/settings/test on a disposable PostgreSQL).
+
+## Open-source first (mandatory)
+
+Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
+Platform and infrastructure assignment (strategy §10): dependency scanning, license compliance, SBOM generation, secure package management and reproducible builds.

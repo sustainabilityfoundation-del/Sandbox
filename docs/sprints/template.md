@@ -45,3 +45,8 @@ Use the documentation-only exception only when the change meets that scope.
 - Follow-up checkpoint: <if needed>
 - Next increment: <recommended usable outcome>
 - Handoff/blockers: <what another session needs to resume>
+
+## Open-source check (mandatory)
+
+- [ ] New engineering capability in scope? If yes: build-versus-integrate ADR (link) using [the template](../architecture/open-source-evaluation-template.md); if no, say so.
+- [ ] New dependencies recorded with licence in [docs/dependencies.md](../dependencies.md); none GPL/AGPL/unknown without approval.

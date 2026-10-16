@@ -12,3 +12,8 @@ Browser client of the Project Management API. Owner: the Project Management modu
 - Module registration (module-registration.md, M1): `src/module.ts` exports `projectsModule({ switchProject })`, the workspace's
   `ClientModule` (manifest with `src/capabilities.ts`, and a platform module with `src/assistant.ts` and `src/help.ts`; user help
   pages in `help/*.md`). The window passes `switchProject` because reloading into a project is workspace behaviour.
+
+## Open-source first (mandatory)
+
+Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
+Platform and infrastructure assignment (strategy §10): dependency scanning, license compliance, SBOM generation, secure package management and reproducible builds.

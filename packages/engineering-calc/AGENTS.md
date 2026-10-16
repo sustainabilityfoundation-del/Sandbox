@@ -42,3 +42,8 @@ npx vitest run packages/engineering-calc
 npx tsc -p packages/engineering-calc/tsconfig.json
 npx vitest run packages/engineering-calc/src/perf.test.ts --reporter=verbose   # prints measured timings
 ```
+
+## Open-source first (mandatory)
+
+Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
+Mathematics and simulation assignment (strategy §10): prefer mature numerical, symbolic, optimization and simulation engines; implement solver-neutral interfaces with explicit unit handling and result provenance.

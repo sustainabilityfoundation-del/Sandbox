@@ -37,3 +37,8 @@ Owner: the ui-ux-design-system agent (Platform area). Reference: [docs/modules/d
 ## Checks
 
 `npx vitest run packages/design-system` (styling contract, icon registry, contrast, palette), `npm run check`.
+
+## Open-source first (mandatory)
+
+Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
+UI assignment (strategy §10): prefer established open-source UI components, editors, visualization frameworks, icon libraries and accessibility tooling; avoid unnecessary custom controls.

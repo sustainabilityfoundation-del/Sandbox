@@ -34,3 +34,8 @@ npm run concept:test:db                          # service and adapter tests on 
 
 `help/*.md` (22 topics) and `src/help.ts`: every toolbar item, assistant operation and marked control
 (`data-help-id="conceptualize.…"`) is mapped. Update the pages with every feature change.
+
+## Open-source first (mandatory)
+
+Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
+Conceptualize and AI assignment (strategy §10): investigate reusable open-source reasoning, search, graph, visualization and orchestration infrastructure while preserving the proprietary design reasoning and cross-module intelligence.

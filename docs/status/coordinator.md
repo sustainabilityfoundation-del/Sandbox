@@ -66,6 +66,19 @@ Coordinator decisions after two full reviews against main 186db1c (16 October 20
 ACT-100/ROD-120; SysML-to-product links by metadata instead of represents) need an architecture decision. AGENTS.md is out of date on
 tools importing their own module packages: recorded as an exception pending owner decision (a).
 
+## Open-source-first directive (owner, 16 October 2026; standing requirement)
+Recorded in [OPEN_SOURCE_STRATEGY.md](../architecture/OPEN_SOURCE_STRATEGY.md); mandatory section in AGENTS.md; propagated to every package AGENTS.md
+(with its section 10 domain assignment), the .claude/agents definitions, docs/agents/README.md and the sprint template;
+[evaluation template](../architecture/open-source-evaluation-template.md) published. D1 and the manifest migration keep priority.
+Backlog (tracked here until done):
+- OSS-1 Section 12 assessment report (architect, read-only): what already uses open source, what is built from scratch
+  unnecessarily, biggest immediate advantages, licence/IP risks, target architecture and priorities. Running.
+- OSS-2 Machine-readable dependency register (section 8 fields) generated from the lockfile, plus SBOM and licence check in CI
+  (flags GPL/AGPL/unknown before merge); tool choice by the evaluation template. Running.
+- OSS-3 Module assessments (Phase 2), one per module agent, in priority order set by OSS-1; each ends in an ADR and backlog entries.
+- OSS-4 Shared integration interfaces (solver, geometry, simulation, visualization) documented, after OSS-1.
+- OSS-5 Upstream contribution workflow: nothing is published without explicit owner authorization.
+
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
 2. **D1 owner acceptance** (16 October 2026: the owner has no time now and will review D1 later; keep working on the other items meanwhile, do not ask again until the owner returns): ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.
