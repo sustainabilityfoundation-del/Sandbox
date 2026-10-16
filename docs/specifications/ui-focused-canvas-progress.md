@@ -17,6 +17,8 @@ tools. Closing a tool moved to the command palette ("Close <tool>" for every ope
 as a location bar (breadcrumbs, split view, panel toggles; class `.ws-pane-bar`). Phone has no rail, so tools switch
 through **Tools** in the bottom navigation (the palette).
 
+Status (16 October 2026, same branch, second commit). Owner decision, verbatim: "Also, the Inspector panel and the AI assistant panel both expand into their own space on the right. They should be tabbed in the same space so they don't take up so much room" Done: `RightPanel` (shell/ShellParts.tsx) is one right-hand column with Inspector and AI Assistant tabs and one resize gutter; `Layout.rightTab` remembers the tab; both panels stay mounted. Details: docs/modules/design-system/shell.md section 6.
+
 ## 1. Audit (16 October 2026, baseline 314f79f)
 
 ### 1.1 Frontend architecture

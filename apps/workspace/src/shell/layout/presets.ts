@@ -7,23 +7,26 @@ import { DEFAULT_LAYOUTS, useWorkspaceStore, type Layout } from '../../platform/
  */
 export type PresetId = 'engineering' | 'ai-assisted' | 'review'
 
-export const PRESETS: Record<PresetId, { label: string; description: string; icon: IconName; layout: Partial<Layout> }> = {
+export const PRESETS: Record<PresetId, { label: string; description: string; icon: IconName; layout: Partial<Layout>; /** The right-hand tab the preset shows (not part of preset recognition: switching tabs keeps the preset). */ rightTab?: Layout['rightTab'] }> = {
   engineering: {
     label: 'Engineering',
     description: 'Explorer, large canvas and inspector; assistant collapsed',
     icon: 'layout',
+    rightTab: 'inspector',
     layout: { treeOpen: true, inspectorOpen: true, assistantOpen: false, activityOpen: false, dockTab: 'activity' },
   },
   'ai-assisted': {
     label: 'AI-assisted',
     description: 'Explorer, canvas and the assistant expanded on the right',
     icon: 'assistant',
+    rightTab: 'assistant',
     layout: { treeOpen: true, inspectorOpen: false, assistantOpen: true, assistantDock: 'right', activityOpen: false, dockTab: 'activity' },
   },
   review: {
     label: 'Review',
     description: 'Large canvas with traceability (inspector) and validation panels',
     icon: 'validate',
+    rightTab: 'inspector',
     layout: { treeOpen: false, inspectorOpen: true, assistantOpen: false, activityOpen: true, dockTab: 'validation' },
   },
 }
@@ -37,7 +40,8 @@ export function currentPreset(layout: Layout): PresetId | null {
 
 /** Applies a preset to the current layout class (sizes keep the person's own values). */
 export function applyPreset(id: PresetId): void {
-  useWorkspaceStore.getState().setLayout({ ...PRESETS[id].layout, canvasMaximized: false })
+  const { layout, rightTab } = PRESETS[id]
+  useWorkspaceStore.getState().setLayout({ ...layout, ...(rightTab ? { rightTab } : {}), canvasMaximized: false })
 }
 
 /** Restores the default layout for the current layout class (sizes included). */
@@ -52,17 +56,45 @@ export function assistantOnRight(layout: Layout, desktop: boolean): boolean {
 }
 
 /**
- * Shows the assistant wherever it is docked (right column, or the bottom panel's Assistant tab). Opening is
- * idempotent: it never closes an open assistant (the panel's own collapse button does that).
+ * The right-hand area holds the Inspector and, when the assistant is docked on the right, the AI Assistant as tabs of
+ * one panel (owner decision 16 October 2026). It is open when either panel's flag is set; closing it clears both.
+ */
+export function rightAreaOpen(layout: Layout, desktop: boolean): boolean {
+  return assistantOnRight(layout, desktop) ? layout.inspectorOpen || layout.assistantOpen : layout.inspectorOpen
+}
+
+/** The tab the right-hand area shows (the Inspector is the only content unless the assistant is docked there). */
+export function rightTabShown(layout: Layout, desktop: boolean): Layout['rightTab'] {
+  return assistantOnRight(layout, desktop) ? layout.rightTab : 'inspector'
+}
+
+/** Whether the Inspector is on screen now (drawer open, or the right-hand area open on its tab). */
+export function inspectorVisible(layout: Layout, desktop: boolean): boolean {
+  return rightAreaOpen(layout, desktop) && rightTabShown(layout, desktop) === 'inspector' && !(desktop && layout.canvasMaximized)
+}
+
+/** Whether the assistant is on screen now in the right-hand area. */
+export function assistantVisibleRight(layout: Layout, desktop: boolean): boolean {
+  return assistantOnRight(layout, desktop) && rightAreaOpen(layout, desktop) && layout.rightTab === 'assistant' && !layout.canvasMaximized
+}
+
+/** Shows the Inspector (selecting its tab when it shares the right-hand panel with the assistant). Idempotent. */
+export function showInspector(): void {
+  useWorkspaceStore.getState().setLayout({ inspectorOpen: true, rightTab: 'inspector', canvasMaximized: false })
+}
+
+/** Closes the right-hand area (both tabs). */
+export function hideRightArea(): void {
+  useWorkspaceStore.getState().setLayout({ inspectorOpen: false, assistantOpen: false })
+}
+
+/**
+ * Shows the assistant wherever it is docked (its tab in the right-hand panel, or the bottom panel's Assistant tab).
+ * Opening is idempotent: it never closes an open assistant (the panel's own hide button does that).
  */
 export function showAssistant(): void {
   const { layout, layoutClass, setLayout } = useWorkspaceStore.getState()
-  if (layoutClass === 'spacious' && layout.assistantDock === 'right') {
-    // Below 1700 px, three side panels would crush the canvas: the assistant takes the inspector's place (the
-    // AI-assisted arrangement). Reopen the inspector at any time; nothing else changes.
-    const narrow = typeof window !== 'undefined' && window.innerWidth < 1700
-    setLayout({ assistantOpen: true, canvasMaximized: false, ...(narrow && !layout.assistantOpen && layout.treeOpen ? { inspectorOpen: false } : {}) })
-  }
+  if (layoutClass === 'spacious' && layout.assistantDock === 'right') setLayout({ assistantOpen: true, rightTab: 'assistant', canvasMaximized: false })
   else setLayout({ activityOpen: true, dockTab: 'assistant', assistantOpen: true, canvasMaximized: false })
 }
 
@@ -74,6 +106,6 @@ export function showDockTab(tab: Exclude<Layout['dockTab'], 'assistant'>): void 
 /** Moves the assistant between the right column and the bottom panel, keeping it open. */
 export function dockAssistant(dock: Layout['assistantDock']): void {
   const { setLayout } = useWorkspaceStore.getState()
-  if (dock === 'right') setLayout({ assistantDock: 'right', assistantOpen: true, dockTab: 'activity' })
+  if (dock === 'right') setLayout({ assistantDock: 'right', assistantOpen: true, rightTab: 'assistant', dockTab: 'activity' })
   else setLayout({ assistantDock: 'bottom', assistantOpen: true, activityOpen: true, dockTab: 'assistant' })
 }

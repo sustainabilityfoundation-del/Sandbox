@@ -11,10 +11,10 @@ import { Inspector } from './shell/Inspector'
 import { PANEL_LIMITS, clampLayout, useViewportMode, useViewportSize, useVisualViewportHeight, type ViewportMode } from './shell/layout/viewport'
 import { PaneArea } from './shell/PaneArea'
 import { ProductTree } from './shell/ProductTree'
-import { AssistantDockPanel, ExplorerFilter, MobileNav, PanelToggles, SidePanel } from './shell/ShellParts'
+import { ExplorerFilter, MobileNav, PanelToggles, RightPanel, SidePanel } from './shell/ShellParts'
 import { NavigationRail } from './shell/Rail'
 import { StatusBar } from './shell/StatusBar'
-import { assistantOnRight } from './shell/layout/presets'
+import { assistantOnRight, rightAreaOpen } from './shell/layout/presets'
 import { CommandPalette } from './shell/CommandPalette'
 import { ToolToolbar } from './shell/ToolToolbar'
 import { ToolViewHost, UnsupportedSelectionNotice, ViewControls } from './shell/WorkArea'
@@ -105,9 +105,10 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
   const phone = mode === 'phone'
   const maximized = layout.canvasMaximized && !phone
   const treeShown = layout.treeOpen && !maximized
-  const inspectorShown = layout.inspectorOpen && !maximized
   const right = assistantOnRight(layout, desktop)
-  const assistantShown = right && layout.assistantOpen && !maximized
+  // One right-hand column: the Inspector and (when docked there) the AI Assistant are its tabs and share one width.
+  const rightShown = rightAreaOpen(layout, desktop) && !maximized
+  const rightWidth = right ? Math.max(layout.inspectorWidth, PANEL_LIMITS.assistant.min) : layout.inspectorWidth
 
   // Ctrl/Cmd+K works everywhere, including while typing, because it has a modifier.
   // Drawers, sheets and dialogs handle Escape themselves.
@@ -144,15 +145,13 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
         treeShown ? `${layout.treeWidth}px` : '0px',
         treeShown ? 'auto' : '0px',
         'minmax(0, 1fr)',
-        inspectorShown ? 'auto' : '0px',
-        inspectorShown ? `${layout.inspectorWidth}px` : '0px',
-        assistantShown ? 'auto' : '0px',
-        assistantShown ? `${layout.assistantWidth}px` : '0px',
+        rightShown ? 'auto' : '0px',
+        rightShown ? `${rightWidth}px` : '0px',
       ].join(' ')
     : `${rail} minmax(0, 1fr)`
   const maxTree = Math.min(PANEL_LIMITS.tree.max, size.width * PANEL_LIMITS.tree.share)
-  const maxInspector = Math.min(PANEL_LIMITS.inspector.max, size.width * PANEL_LIMITS.inspector.share)
-  const maxAssistant = Math.min(PANEL_LIMITS.assistant.max, size.width * PANEL_LIMITS.assistant.share)
+  const maxRight = Math.min(right ? PANEL_LIMITS.assistant.max : PANEL_LIMITS.inspector.max, size.width * PANEL_LIMITS.assistant.share)
+  const minRight = right ? PANEL_LIMITS.assistant.min : PANEL_LIMITS.inspector.min
   const explorerTitle = explorerProject ? 'Project Explorer' : 'Product tree'
 
   return (
@@ -192,36 +191,26 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
           />
           {!maximized && <BottomDock mode={mode} assistantInDock={!right} />}
         </div>
-        {desktop && inspectorShown && (
+        {desktop && rightShown && (
           <ResizeHandle
             orientation="vertical"
-            label="Resize inspector"
-            value={layout.inspectorWidth}
-            min={PANEL_LIMITS.inspector.min}
-            max={maxInspector}
+            label="Resize right-hand panel"
+            value={rightWidth}
+            min={minRight}
+            max={maxRight}
             invert
             onChange={(inspectorWidth) => setLayout({ inspectorWidth })}
             onReset={() => setLayout({ inspectorWidth: DEFAULT_LAYOUTS[layoutClass].inspectorWidth })}
             className="ws-area-inspector-handle"
           />
         )}
-        <SidePanel side="right" title="Inspector" icon="tune" open={desktop ? inspectorShown : layout.inspectorOpen} mode={mode} onClose={() => setLayout({ inspectorOpen: false })}>
-          <Inspector />
-        </SidePanel>
-        {assistantShown && (
-          <ResizeHandle
-            orientation="vertical"
-            label="Resize assistant"
-            value={layout.assistantWidth}
-            min={PANEL_LIMITS.assistant.min}
-            max={maxAssistant}
-            invert
-            onChange={(assistantWidth) => setLayout({ assistantWidth })}
-            onReset={() => setLayout({ assistantWidth: DEFAULT_LAYOUTS[layoutClass].assistantWidth })}
-            className="ws-area-assistant-handle"
-          />
+        {desktop && right ? (
+          <RightPanel open={rightShown} />
+        ) : (
+          <SidePanel side="right" title="Inspector" icon="tune" open={desktop ? rightShown : layout.inspectorOpen} mode={mode} onClose={() => setLayout({ inspectorOpen: false })}>
+            <Inspector />
+          </SidePanel>
         )}
-        {right && <AssistantDockPanel open={assistantShown} />}
       </div>
       {phone ? <MobileNav onOpenLauncher={() => setLauncherOpen(true)} /> : <StatusBar repository={repository} />}
       <CommandPalette isOpen={launcherOpen} onOpenChange={setLauncherOpen} />

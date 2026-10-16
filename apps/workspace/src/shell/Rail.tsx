@@ -7,7 +7,7 @@ import { canOpenTool, useEntitlements } from '../platform/entitlements'
 import { isDemoTool } from '../platform/demoTools'
 import { getTools } from '../platform/registry'
 import { useWorkspaceStore } from '../platform/store'
-import { PRESETS, PRESET_IDS, applyPreset, assistantOnRight, currentPreset, dockAssistant, restoreDefaultLayout, showAssistant } from './layout/presets'
+import { PRESETS, PRESET_IDS, applyPreset, assistantOnRight, assistantVisibleRight, currentPreset, dockAssistant, restoreDefaultLayout, showAssistant } from './layout/presets'
 
 /** One rail entry: icon over a short label, active background and accent indicator, tooltip when collapsed. */
 function RailItem({
@@ -72,7 +72,7 @@ export function NavigationRail({ desktop, expanded }: { desktop: boolean; /** La
   const demoAssistant = useConversation((s) => s.service?.info.kind !== 'remote')
 
   const right = assistantOnRight(layout, desktop)
-  const assistantShown = right ? layout.assistantOpen && !layout.canvasMaximized : layout.activityOpen && layout.dockTab === 'assistant'
+  const assistantShown = right ? assistantVisibleRight(layout, desktop) : layout.activityOpen && layout.dockTab === 'assistant'
   const preset = currentPreset(layout)
 
   return (

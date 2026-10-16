@@ -32,7 +32,14 @@ await page.waitForTimeout(2000)
 // 1. The example project opens as before; the header shows the project switcher.
 const switcher = page.locator('[data-help-id="projects.switcher"]')
 check('legacy', (await switcher.textContent())?.includes('ACT100'), `switcher shows the example project (${(await switcher.textContent())?.trim()})`)
-const legacyTabs = await page.getByRole('tab').allTextContents()
+// The open tools are no longer shown as top tabs (16 October 2026); read them from the store, and the active one from the rail.
+const openToolNames = () =>
+  page.evaluate(async () => {
+    const { useWorkspaceStore } = await import('/workspace/src/platform/store.ts')
+    const { getTool } = await import('/workspace/src/platform/registry.ts')
+    return useWorkspaceStore.getState().openToolIds.map((id) => getTool(id)?.name ?? id)
+  })
+const legacyTabs = await openToolNames()
 check('legacy', legacyTabs.some((t) => /Requirements/.test(t)), `example project tabs: ${legacyTabs.join(' | ')}`)
 
 // 2. Project Home → New project wizard.
@@ -53,7 +60,7 @@ await page.waitForTimeout(3000)
 const projectId = new URL(page.url()).searchParams.get('project')
 check('open', /^[0-9a-f-]{36}$/.test(projectId ?? ''), `opened the new project ${projectId}`)
 check('open', (await switcher.textContent())?.includes(uniqueKey), `switcher shows ${uniqueKey} (${(await switcher.textContent())?.trim()})`)
-const tabs = await page.getByRole('tab').allTextContents()
+const tabs = await openToolNames()
 check('C12', ['Requirements', 'Conceptualize', 'SysML Modeler', 'CAD Modeler'].every((n) => tabs.some((t) => t.includes(n))), `real modules open by default: ${tabs.join(' | ')}`)
 check('C12', !tabs.some((t) => /^SysML$|^CAD$/.test(t.trim())), 'illustrative SysML and mock CAD are not opened by default')
 const treeText = await page.locator('.ws-app').textContent()
@@ -84,7 +91,7 @@ check('explorer', /Concepts and design knowledge/.test(explorerText) && /Require
 await page.screenshot({ path: `${shots}/3b-explorer.png` })
 await explorer.getByRole('row', { name: /Explorer concept/ }).click()
 await page.waitForTimeout(1500)
-const selectedTab = await page.locator('[role="tab"][aria-selected="true"]').first().textContent()
+const selectedTab = await page.locator('[data-rail-tool][aria-current="page"]').first().getAttribute('aria-label')
 check('explorer', /Conceptualize/.test(selectedTab ?? ''), `choosing a concept opens Conceptualize (${selectedTab?.trim()})`)
 
 // 3. Reopen after a reload (fresh page) and in a new browser session (fresh storage, same project URL).

@@ -8,6 +8,7 @@ import { usePreferences, type DensityPreference, type ThemePreference } from '@e
 import { getTool, getTools } from '../platform/registry'
 import {
   Button,
+  AppIcon,
   Dialog,
   Drawer,
   Icon,
@@ -21,6 +22,10 @@ import {
   SegmentedControl,
   Select,
   StatusBadge,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
   ToggleIconButton,
   cx,
   useToasts,
@@ -28,8 +33,22 @@ import {
 } from '@ews/design-system'
 import type { ViewportMode } from './layout/viewport'
 import { useExplorerFilter } from './layout/explorerFilter'
-import { PRESETS as LAYOUT_PRESETS, PRESET_IDS, applyPreset, assistantOnRight, currentPreset, dockAssistant, showAssistant } from './layout/presets'
+import {
+  PRESETS as LAYOUT_PRESETS,
+  PRESET_IDS,
+  applyPreset,
+  assistantOnRight,
+  assistantVisibleRight,
+  currentPreset,
+  dockAssistant,
+  hideRightArea,
+  inspectorVisible,
+  rightTabShown,
+  showAssistant,
+  showInspector,
+} from './layout/presets'
 import { AssistantPanel } from './assistant/AssistantPanel'
+import { Inspector } from './Inspector'
 
 // ---- Side panel ----------------------------------------------------------------------------
 
@@ -93,7 +112,7 @@ export function ExplorerFilter({ label }: { label: string }) {
   return <SearchField label={label} placeholder="Search project…" value={query} onChange={setQuery} className="ws-explorer-filter" />
 }
 
-/** Panel toggles at the end of the document tab bar: explorer, inspector, assistant and canvas maximize. */
+/** Panel toggles at the end of the location bar: explorer, inspector, assistant and canvas maximize. */
 export function PanelToggles({ mode, layout }: { mode: ViewportMode; layout: Layout }) {
   const setLayout = useWorkspaceStore((s) => s.setLayout)
   const desktop = mode === 'desktop'
@@ -109,15 +128,18 @@ export function PanelToggles({ mode, layout }: { mode: ViewportMode; layout: Lay
         isSelected={layout.treeOpen && !max}
         onChange={() => setLayout(desktop ? { treeOpen: !(layout.treeOpen && !max), canvasMaximized: false } : { treeOpen: !layout.treeOpen, inspectorOpen: false })}
       />
+      {/* The inspector and the assistant are two tabs of one right-hand panel: each button shows its tab, and pressing the one that is showing closes the panel. */}
       <ToggleIconButton
         className="ws-panel-toggle"
         label="Inspector"
         icon="panel-right"
         size="sm"
-        isSelected={layout.inspectorOpen && !max}
-        onChange={() =>
-          setLayout(desktop ? { inspectorOpen: !(layout.inspectorOpen && !max), canvasMaximized: false } : { inspectorOpen: !layout.inspectorOpen, treeOpen: false })
-        }
+        isSelected={inspectorVisible(layout, desktop)}
+        onChange={() => {
+          if (inspectorVisible(layout, desktop)) hideRightArea()
+          else if (desktop) showInspector()
+          else setLayout({ inspectorOpen: !layout.inspectorOpen, treeOpen: false })
+        }}
       />
       {right && (
         <ToggleIconButton
@@ -125,8 +147,8 @@ export function PanelToggles({ mode, layout }: { mode: ViewportMode; layout: Lay
           label="AI Assistant"
           icon="assistant"
           size="sm"
-          isSelected={layout.assistantOpen && !max}
-          onChange={(on) => (on ? showAssistant() : setLayout({ assistantOpen: false }))}
+          isSelected={assistantVisibleRight(layout, desktop)}
+          onChange={() => (assistantVisibleRight(layout, desktop) ? hideRightArea() : showAssistant())}
         />
       )}
       {desktop && (
@@ -143,40 +165,65 @@ export function PanelToggles({ mode, layout }: { mode: ViewportMode; layout: Lay
   )
 }
 
-/** The assistant docked as a right-hand column (desktop). The bottom-dock variant lives in BottomDock. */
-export function AssistantDockPanel({ open }: { open: boolean }) {
+/**
+ * The right-hand column (desktop, assistant docked right): Inspector and AI Assistant as two tabs sharing one width.
+ * Both panels stay mounted, so the conversation, a previewed proposal, scroll positions and the inspector's pinned view
+ * survive switching tabs; the inactive one is hidden (CSS), not unmounted. The tab is remembered with the window's
+ * layout preferences (`Layout.rightTab`).
+ */
+export function RightPanel({ open }: { open: boolean }) {
+  const layout = useWorkspaceStore((s) => s.layout)
   const setLayout = useWorkspaceStore((s) => s.setLayout)
   const info = useConversation((s) => s.service?.info)
+  const pending = useConversation((s) => Object.values(s.proposals).filter((p) => p.status === 'pending' || p.status === 'conflict').length)
+  const tab = rightTabShown(layout, true)
   return (
-    <aside className={cx('ws-side ws-side-assistant', open && 'is-open')} aria-label="AI Assistant" aria-hidden={!open} inert={!open} data-help-id="ai.panel">
-      <PanelHeader
-        title={
-          <span className="flex items-center gap-2">
-            AI Assistant
-            {info?.kind === 'remote' ? (
-              <span className="ws-assistant-provider" title="Connected provider and model, as reported by the assistant service">
-                {info.name}
-                {info.model ? ` · ${info.model}` : ''}
-              </span>
-            ) : (
-              <span className="ws-dock-demo" title={`${info?.name ?? 'Assistant'} (not connected to an AI model; connect in Settings → AI and reasoning)`}>
-                Demo
-              </span>
+    <aside className={cx('ws-side ws-side-right ws-side-tabbed', open && 'is-open')} aria-label="Inspector and AI Assistant" aria-hidden={!open} inert={!open}>
+      <Tabs selectedKey={tab} onSelectionChange={(key) => setLayout({ rightTab: key as Layout['rightTab'] })} className="ws-right-tabs-root">
+        <div className="ws-panel-header ws-right-header">
+          <TabList aria-label="Right-hand panel" className="ws-right-tablist">
+            <Tab id="inspector" data-right-tab="inspector" className="ws-right-tab">
+              <AppIcon name="tune" size={16} />
+              Inspector
+            </Tab>
+            <Tab id="assistant" data-right-tab="assistant" className="ws-right-tab">
+              <AppIcon name="assistant" size={16} />
+              AI Assistant
+              {info?.kind !== 'remote' && (
+                <span className="ws-dock-demo" title={`${info?.name ?? 'Assistant'} (not connected to an AI model; connect in Settings → AI and reasoning)`}>
+                  Demo
+                </span>
+              )}
+              {pending > 0 && (
+                <span className="ws-dock-count" title={`${pending} change preview(s) awaiting review`} aria-label={`${pending} awaiting review`}>
+                  {pending}
+                </span>
+              )}
+            </Tab>
+          </TabList>
+          <div className="ws-right-actions">
+            {tab === 'assistant' && (
+              <>
+                <IconButton label="Dock the assistant at the bottom" icon="dock-bottom" size="sm" onPress={() => dockAssistant('bottom')} />
+                <IconButton label="Open the assistant in a separate window" icon="open-window" size="sm" onPress={() => openInSeparateWindow('assistant')} />
+              </>
             )}
-          </span>
-        }
-        icon="assistant"
-        actions={
-          <>
-            <IconButton label="Dock the assistant at the bottom" icon="dock-bottom" size="sm" onPress={() => dockAssistant('bottom')} />
-            <IconButton label="Open the assistant in a separate window" icon="open-window" size="sm" onPress={() => openInSeparateWindow('assistant')} />
-            <IconButton label="Collapse the assistant" icon="close" size="sm" onPress={() => setLayout({ assistantOpen: false })} />
-          </>
-        }
-      />
-      <div className="ws-assistant-body">
-        <AssistantPanel />
-      </div>
+            <IconButton label="Hide the inspector and assistant panel" icon="panel-right" size="sm" onPress={hideRightArea} />
+          </div>
+        </div>
+        <TabPanel id="inspector" shouldForceMount className="ws-right-panel ws-side-body">
+          <Inspector />
+        </TabPanel>
+        <TabPanel id="assistant" shouldForceMount className="ws-right-panel ws-assistant-body" data-help-id="ai.panel">
+          {info?.kind === 'remote' && (
+            <div className="ws-assistant-provider ws-assistant-provider-row" title="Connected provider and model, as reported by the assistant service">
+              {info.name}
+              {info.model ? ` · ${info.model}` : ''}
+            </div>
+          )}
+          <AssistantPanel />
+        </TabPanel>
+      </Tabs>
     </aside>
   )
 }
@@ -241,7 +288,7 @@ export function MobileNav({ onOpenLauncher }: { onOpenLauncher: () => void }) {
 
 const PRESETS = {
   tree: { Narrow: 210, Medium: 248, Wide: 340 },
-  inspector: { Narrow: 260, Medium: 320, Wide: 440 },
+  inspector: { Narrow: 300, Medium: 320, Wide: 440 },
   dock: { Small: 180, Medium: 280, Large: 420 },
 } as const
 
@@ -331,7 +378,7 @@ export function DisplaySettings({ mode }: { mode: ViewportMode }) {
           {mode === 'desktop' && (
             <>
               <PresetRow label="Explorer" preset="tree" value={layout.treeWidth} onChange={(treeWidth) => setLayout({ treeOpen: true, treeWidth })} />
-              <PresetRow label="Inspector" preset="inspector" value={layout.inspectorWidth} onChange={(inspectorWidth) => setLayout({ inspectorOpen: true, inspectorWidth })} />
+              <PresetRow label="Right panel" preset="inspector" value={layout.inspectorWidth} onChange={(inspectorWidth) => setLayout({ inspectorOpen: true, inspectorWidth })} />
             </>
           )}
           {mode !== 'phone' && (

@@ -26,7 +26,7 @@
 }
 
 /* Explicit placement keeps the columns aligned whichever panels are shown:
-   rail | explorer | handle | canvas | handle | inspector | handle | assistant */
+   rail | explorer | handle | canvas | handle | right-hand panel (Inspector and AI Assistant tabs) */
 .ws-body > * { grid-row: 1; min-width: 0; }
 .ws-body > .ws-rail { grid-column: 1; }
 .ws-body > .ws-side-left { grid-column: 2; }
@@ -34,8 +34,6 @@
 .ws-body > .ws-center { grid-column: 4; }
 .ws-body > .ws-area-inspector-handle { grid-column: 5; }
 .ws-body > .ws-side-right { grid-column: 6; }
-.ws-body > .ws-area-assistant-handle { grid-column: 7; }
-.ws-body > .ws-side-assistant { grid-column: 8; }
 .ws-app[data-mode='tablet'] .ws-body > .ws-center { grid-column: 2; }
 .ws-app[data-mode='phone'] .ws-body > .ws-center { grid-column: 1 / -1; }
 
@@ -257,9 +255,27 @@
 }
 
 .ws-side-left { border-right: 1px solid var(--ws-border); }
-.ws-side-right,
-.ws-side-assistant { border-left: 1px solid var(--ws-border); }
-.ws-side-assistant { background: var(--ws-surface); }
+.ws-side-right { border-left: 1px solid var(--ws-border); }
+
+/* The shared right-hand panel: Inspector and AI Assistant tabs. The inactive panel stays mounted and is hidden with
+   visibility (not display), so scroll positions and in-progress state survive switching tabs. */
+.ws-side-tabbed { background: var(--ws-surface); }
+.ws-right-tabs-root { position: relative; flex: 1; min-height: 0; }
+.ws-right-header {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  min-width: 0;
+  border-bottom: 1px solid var(--ws-border);
+  background: var(--ws-panel-header-bg);
+}
+.ws-right-tablist { flex: 1; min-width: 0; }
+.ws-right-tab.ws-right-tab { flex: none; padding: 0 var(--ws-space-3); }
+.ws-right-actions { display: flex; flex: none; align-items: center; gap: 2px; padding: 0 var(--ws-space-1); }
+.ws-right-panel { flex: 1; min-height: 0; background: var(--ws-surface); }
+.ws-right-panel[data-inert] { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
+.ws-assistant-provider-row { flex: none; padding: var(--ws-space-1) var(--ws-space-3); border-bottom: 1px solid var(--ws-border); }
+.ws-assistant-body.ws-right-panel > .ws-assistant-provider-row { flex: none; min-height: auto; }
 .ws-assistant-provider { color: var(--ws-text-2); font-size: var(--ws-font-size-xs); font-weight: var(--ws-weight-regular); }
 
 .ws-side-body {

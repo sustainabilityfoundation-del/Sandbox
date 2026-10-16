@@ -8,7 +8,7 @@ conversation store, executor, proposals, Apply, policy, connection). User help: 
 
 | Part | Component | Notes |
 | --- | --- | --- |
-| Placement | `AssistantDockPanel` (right column, `shell/ShellParts.tsx`) or the bottom panel's **AI Assistant** tab (`shell/BottomDock.tsx`), detached window (`App.tsx`) | One instance at a time; `showAssistant()` opens it wherever it is docked. The right header shows the connected provider and model as the service reports them (`service.info`), or **Demo** |
+| Placement | the **AI Assistant** tab of `RightPanel` (right column, shared with the Inspector, `shell/ShellParts.tsx`) or the bottom panel's **AI Assistant** tab (`shell/BottomDock.tsx`), detached window (`App.tsx`) | One instance at a time; `showAssistant()` opens it wherever it is docked. The right header shows the connected provider and model as the service reports them (`service.info`), or **Demo** |
 | Tabs | `AssistantPanel` (`Chat`, `Context`, `Tools`) | Panels stay mounted; the conversation scroll and draft survive tab and dock changes (draft in the conversation store) |
 | Conversation | `Message`, `StepList`, `Inspected`, `ChangeCard`, `MessageText`, `ReopenedProposals` | User bubbles right (account initials), assistant replies left (assistant mark), events and change cards aligned with replies. References are chips that select the object (`ObjectRef`) |
 | Banner | `ConnectionLine` | Demo or connected account, "Model changes are only made when you choose Apply", capability coverage; New conversation and Export transcript |
@@ -24,7 +24,7 @@ pending, applying, applied, conflict, failed, rejected (change cards).
 Hooks kept for committed flows: `.as-root`, `.as-assistant`, `.as-text`, `.as-note`, `.as-thinking`, `.as-event`,
 `.as-card[data-proposal-id]`, `.as-input textarea`, `[data-testid="assistant-connection"]`,
 `[data-testid="reopened-proposals"]`, `[data-testid="export-transcript"]`, buttons Apply, New conversation and
-What can the assistant do?, `[data-dock-tab="assistant"]` (the bottom tab, or the rail entry when docked right).
+What can the assistant do?, `[data-dock-tab="assistant"]` (the bottom tab, or the rail entry when docked right; the rail entry selects the AI Assistant tab of the right-hand panel).
 
 ## 2. Boundaries
 
@@ -46,3 +46,10 @@ All flags are off. Disabled controls stay visible with the reason; nothing simul
 
 When a flag is turned on, replace its explanation with the working control in the same place, add help topics, and
 add the capability to `platform/capabilities.ts` and `docs/roadmap.md` with an honest status.
+
+## Owner decision, 16 October 2026: one right-hand panel
+
+"Also, the Inspector panel and the AI assistant panel both expand into their own space on the right. They should be tabbed in the same space so they don't take up so much room"
+
+The assistant is the second tab of the right-hand panel (Inspector first); both stay mounted, so the conversation, previews, drafts and scroll
+positions are kept when switching. Details and entry points: [shell.md](shell.md) section 6.
