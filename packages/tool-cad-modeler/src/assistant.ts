@@ -223,7 +223,7 @@ const actions: AssistantActionDefinition[] = [
         data: {
           documents: snap.documents,
           kernel: snap.kernel.info ?? null,
-          document: { id: doc.documentId, title: doc.metadata.title, version: doc.version, regeneratedVersion: regen?.documentVersion ?? null, dirty: snap.documents.find((d) => d.id === doc.documentId)?.dirty ?? false, stored: open.stored ?? null },
+          document: { id: doc.documentId, title: doc.metadata.title, version: doc.version, regeneratedVersion: regen?.documentVersion ?? null, dirty: snap.documents.find((d) => d.id === doc.documentId)?.dirty ?? false, stored: open.stored ?? null, source: doc.metadata.source ?? null },
           regeneration: { location: regen?.location ?? null },
           tree: featureTree(doc, regen),
           parameters: Object.fromEntries(doc.parts.map((p) => [p.id, parameterTable(doc, p.id)])),

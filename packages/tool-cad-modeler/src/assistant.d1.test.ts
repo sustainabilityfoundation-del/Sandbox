@@ -227,3 +227,12 @@ describe('D1-CAD: workspace PlatformServices.cad helper', () => {
     expect(mass.value.derivedFrom).toBe('regeneration')
   })
 })
+
+describe('document source concept', () => {
+  it('set_document_source through run_commands; describe_model shows it', async () => {
+    await model()
+    await apply('cad-modeler.run_commands', { commands: [{ command: 'set_document_source', input: { conceptId: 'c-holder', revision: 2, label: 'CON-002 Holder' } }] })
+    const d = (await action('cad-modeler.describe_model').run({}, ctx())) as { data: { document: { source: unknown } } }
+    expect(d.data.document.source).toMatchObject({ concept: { module: 'conceptualize', kind: 'concept', id: 'c-holder', revision: 2 } })
+  })
+})

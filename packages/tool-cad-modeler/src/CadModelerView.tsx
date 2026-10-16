@@ -137,6 +137,11 @@ export default function CadModelerView() {
         <header className="cadm-stage-header">
           <strong className="cadm-doc-title">{state.doc.metadata.title}</strong>
           <span className="cadm-muted">v{state.doc.version}</span>
+          {state.doc.metadata.source && (
+            <Badge tone="neutral" icon="link" title={`Started from Conceptualize concept ${state.doc.metadata.source.concept.id} at revision ${state.doc.metadata.source.concept.revision}${state.doc.metadata.source.handoff ? `, handoff ${state.doc.metadata.source.handoff.id} revision ${state.doc.metadata.source.handoff.revision}` : ''}`}>
+              From {state.doc.metadata.source.concept.label ?? 'concept'} r{state.doc.metadata.source.concept.revision}
+            </Badge>
+          )}
           {entry?.stored && (
             <Badge tone="info" icon="repository" title={`Stored in the ${session.store?.mode === 'local' ? 'local store of this browser tab' : 'CAD service'}, project ${entry.stored.projectId}`}>
               Revision {entry.stored.revision}

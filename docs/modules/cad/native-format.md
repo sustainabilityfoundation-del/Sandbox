@@ -1,4 +1,4 @@
-# ews-cad native format specification (format 1.2.0)
+# ews-cad native format specification (format 1.3.0)
 
 Status: Proposed with ADR-0022. Machine-readable schema:
 [`packages/cad-core/schema/ews-cad.schema.json`](../../../packages/cad-core/schema/ews-cad.schema.json)
@@ -146,6 +146,10 @@ from their seed positions with the constraint values evaluated at regeneration t
 
 - Minor versions add optional fields or new feature/entity/constraint types; older 1.x readers
   reject unknown feature types with a clear message.
+- 1.3.0 (2026-10-15) adds `metadata.source`:
+  `{ concept: { module: "conceptualize", kind: "concept", id, revision, label? }, handoff?: { id, revision } }`.
+  It records the concept, and optionally the CAD handoff package, the document was started from.
+  Provenance only: nothing is copied, and a newer concept revision never changes the model by itself.
 - 1.2.0 (2026-10-15) adds the `pattern-linear` feature and the optional `binding` of a parameter:
   `{ ref: { module, kind, id, revision? }, quantity?, note? }`. A binding records what the parameter
   implements; it never copies values from the target. It is additive, so 1.0 and 1.1 documents are

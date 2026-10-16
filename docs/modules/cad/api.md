@@ -35,11 +35,11 @@ interface Transaction {
 - Determinism: IDs come from `nextId` (`sk-5`, `ext-21`); no clock or random input affects the model.
 - Engine: `CadEngine.execute(tx)` also regenerates and returns `regeneration`.
 
-## 3. Commands (37)
+## 3. Commands (39)
 
 | Category | Command | Effect (summary) |
 | --- | --- | --- |
-| document | `set_document_metadata` | title, description |
+| document | `set_document_metadata`, `set_document_source`, `clear_document_source` | title, description; source concept and handoff (revision-pinned provenance) |
 | part | `create_part`, `rename`, `set_material` | parts, display names, material |
 | parameter | `create_parameter`, `set_parameter`, `delete_parameter`, `bind_parameter`, `unbind_parameter` | expressions with cycle checks; revision-pinned bindings to other modules' artifacts |
 | datum | `create_datum_plane` | reference plane offset from a standard plane, a datum or a planar face |
@@ -82,5 +82,6 @@ the available names), `face-not-planar`, `blend-failed`).
 
 The catalogue has `catalogVersion` (1.1.0: adds `create_datum_plane`, `fillet_edges`, `chamfer_edges`
 and the plane options of `create_sketch` / `set_sketch_plane`; 1.2.0: adds `add_regular_polygon`,
-`pattern_linear`, `bind_parameter`, `unbind_parameter` and the pattern fields of `edit_feature`). Adding commands or optional inputs is a minor change;
+`pattern_linear`, `bind_parameter`, `unbind_parameter` and the pattern fields of `edit_feature`; 1.3.0: adds
+`set_document_source` and `clear_document_source`). Adding commands or optional inputs is a minor change;
 removing or changing semantics is major and needs a deprecation period with both versions served.

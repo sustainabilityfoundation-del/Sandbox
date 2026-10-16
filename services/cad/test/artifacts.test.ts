@@ -165,6 +165,13 @@ describe('CAD artifact source (CR-PM-REG-4)', () => {
     ])
   })
 
+  it('reports the source concept of a document as a revision-pinned derived-from relation', async () => {
+    const doc = edit(twoParts('From a concept'), [{ command: 'set_document_source', input: { conceptId: 'c-src-1', revision: 3, label: 'CON-003' } }])
+    await env.call('eli', 'POST', P, { document: doc }, idem())
+    const [d] = await source.describe(PROJECT, [{ module: 'cad', kind: 'cad-document', id: doc.documentId }])
+    expect(d.relations).toContainEqual({ type: 'derived-from', to: { module: 'conceptualize', kind: 'concept', id: 'c-src-1' }, toRevision: 3 })
+  })
+
   it('reports archived documents as retired when listing', async () => {
     const doc = twoParts('Archived one')
     await env.call('eli', 'POST', P, { document: doc }, idem())

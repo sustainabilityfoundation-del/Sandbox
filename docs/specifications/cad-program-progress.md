@@ -51,6 +51,14 @@ For Project Management, a STEP export in a project document should keep `documen
 `documentRevision`, `modelVersion` and the read-back next to the file. The export result carries
 all of them.
 
+### Visual concept exploration (docs/specifications/concept-visualization-contracts.md)
+
+| Item | Status |
+| --- | --- |
+| 1. CAD documents record their source concept and revision | **Done.** Format 1.3 `metadata.source { concept: { module: 'conceptualize', kind: 'concept', id, revision, label? }, handoff?: { id, revision } }`. Set with `set_document_source`, removed with `clear_document_source`. Shown in the header badge and in `describe_model`. The artifact source reports `derived-from` → concept with `toRevision`. Tests: core, artifacts (DB), assistant |
+| 2. Start a part from a CAD handoff (map parameters to bound CAD parameters, report gaps) | **Waiting** for the Conceptualize handoff package and its SDK read |
+| 3. Possibly outdated when the source concept revises (no automatic regeneration) | **Waiting** for the handoff contract. The pinned `source.concept.revision` is the basis: compare it with the concept's latest revision, as `check_bindings` does for constraints |
+
 ### D1 follow-up (after main 5565018)
 
 | Item | Status | Evidence |
