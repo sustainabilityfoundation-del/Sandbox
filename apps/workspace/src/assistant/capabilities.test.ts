@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest'
 import { getTools } from '../platform/registry'
 import { assistantContributions } from './contributions'
 import '../platform/tools'
-import { CAPABILITIES, PLATFORM_OPERATION_ENTRIES, kindOf, summarize } from './capabilities'
+import { collect } from '../platform/installedModules'
+import { PLATFORM_CAPABILITIES, PLATFORM_OPERATION_ENTRIES, kindOf, mergeCapabilities, summarize } from './capabilities'
 import { PLATFORM_TOOLS } from './toolSpecs'
 
 /** A tool API stand-in: toolbars only read from it while building their items. */
@@ -23,6 +24,8 @@ function files(dir: string): string[] {
   })
 }
 
+/** The inventory is derived from the installed modules' manifests plus the platform-owned entries (module-registration.md). */
+const CAPABILITIES = mergeCapabilities(PLATFORM_CAPABILITIES, collect().capabilities)
 const aiOperations = new Set(CAPABILITIES.flatMap((c) => c.aiOperations ?? []))
 
 describe('AI capability inventory', () => {

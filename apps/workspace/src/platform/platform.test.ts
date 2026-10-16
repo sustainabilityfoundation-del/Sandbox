@@ -8,6 +8,7 @@ import { getToolApi } from './api'
 import { PLANS, canOpenTool, toolAccess, useEntitlements } from './entitlements'
 import { getRejectedTools, getTool, getTools, registerTool, toolName } from './registry'
 import { restoreViewState, useWorkspaceStore } from './store'
+import { collect } from './installedModules'
 import './tools'
 
 function memoryStorage(): StorageLike {
@@ -31,8 +32,11 @@ beforeAll(async () => {
 beforeEach(() => setPlan('all'))
 
 describe('tool catalogue', () => {
-  it('contains exactly Requirements, SysML, CAD, Conceptualize, CAD Modeler and SysML Modeler; Analysis and Verification are retired', () => {
-    expect(getTools().map((t) => t.id)).toEqual(['requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler', 'sysml-modeler'])
+  it('contains every installed tool (at least Requirements, SysML, CAD, Conceptualize, CAD Modeler and SysML Modeler); Analysis and Verification are retired', () => {
+    // Derived from the installed list (module-registration.md), with a floor so an empty list cannot pass.
+    expect(getTools().map((t) => t.id)).toEqual(collect().tools.map((t) => t.id))
+    expect(getTools().length).toBeGreaterThanOrEqual(6)
+    expect(getTools().map((t) => t.id)).toEqual(expect.arrayContaining(['requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler', 'sysml-modeler']))
     expect(getTool('analysis')).toBeUndefined()
     expect(getTool('verification')).toBeUndefined()
     // Their saved data keeps a readable source name.
