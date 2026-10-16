@@ -40,8 +40,8 @@ checks, determinism and approval.
 
 ## Consequences
 
-- Human and AI coverage is equal by construction; the capability inventory lists about 13
-  `cad-modeler.*` operations (12 actions in `assistant.ts` at 186db1c, among them `run_commands`,
+- Human and AI coverage is equal by construction; the capability inventory lists 12
+  `cad-modeler.*` operations (actions in `assistant.ts` at 186db1c, among them `run_commands`,
   `query`, `describe_model`, `new_document`, `open_document`, `save_document`, `export`, `undo`,
   `check`), not one shared operation plus queries.
 - Snapshot undo is simple and exact for Phase 1 documents; very large documents will need
