@@ -1,11 +1,13 @@
 import { Fragment, type ReactNode } from 'react'
 import type { OutputRecord } from '@ews/model-service'
 import { useWorkspaceStore } from '../../platform/store'
+import { useInspectorTab } from '../Inspector'
 import { ObjectRef, RefChip } from '@ews/platform-sdk/react'
 import { Icon } from '@ews/design-system'
 
 /** Selects an output's component and reveals the output in the inspector. */
 export function showOutput(output: OutputRecord) {
+  useInspectorTab.getState().setTab('properties')
   const ws = useWorkspaceStore.getState()
   const target = output.objectIds.find((id) => ws.model?.get(id)?.type !== 'procedure') ?? output.objectIds[0]
   ws.select(target ? [target] : [])
