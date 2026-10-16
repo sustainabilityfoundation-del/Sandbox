@@ -31,19 +31,22 @@ Coordinator session resumed 16 October 2026 (fresh session; hourly check-in recr
 | --- | --- | --- | --- |
 | Baseline verification of main (586c635; same code as 595b376) | integration-runner role (Sonnet) | main checkout | done: typecheck, unit (1244), db:req (458, after one load-related rerun), db:concept (86), db:reasoning (15), db:cad (39), db:projects (31), db:ai (64), build all pass; e2e not run (verify.mjs targets 5173/8787) |
 | Open item 1: registration manifests, design plan | architect role (Opus), read-only | — | done; plan and decisions in [module-registration.md](../specifications/module-registration.md); owner decisions (a)-(c) pending; implementation after SDK 1.9 |
-| Open item 3: SDK 1.9 (ConceptsService additions, FilesService) | task-worker role (Sonnet) | branch feature/sdk-1.9, commit 274663a | implemented, check and build pass; DB suites and fake-provider D1 flow running | Review (Opus): merge; optional follow-ups: services.ts:1 `type` imports, services.ts:136 listHandoffs swallows errors, `as never` casts (services.ts:132-140, tool-cad-modeler handoff.ts:62-63), project-management-progress.md:349-353,420 still describes stageFile (PM owner). |
+| Open item 3: SDK 1.9 (ConceptsService additions, FilesService) | task-worker role (Sonnet) | merged to main via integrate/codex | done: review (Opus) merge; integration run green (see below). Interim handoff port removed. Optional follow-ups: services.ts:1 `type` imports, services.ts:136 listHandoffs swallows errors, `as never` casts (services.ts:132-140, tool-cad-modeler handoff.ts:62-63); project-management-progress.md:349-353,420 still describes stageFile (PM owner) |
 | Open item 4: ai-fake-provider last step | task-worker role (Sonnet) | worktree branch | done, merged 75c9919: fixture now writes quantified concept statements; flow passed on fake ports 18787/15173/54399 |
-| Open item 5: Codex PRs #4-#7 (CX-001..004) | reviewer role (Opus) | PR refs pr/4..pr/7 | reviewed: #4 merge; #6 merge after nits (SysML capitalisation in tool-sysml help.ts:9,26 and shortcuts.md:3; shortcuts.md:15 zoom controls that do not exist); #5 merge after committing the generated docs/reference pages (generator reproducible; non-root note = embedded-postgres refuses root); #7 close, CX-004 rewritten (send only, metamodel allowed). Order #4, #6, #5. Awaiting owner agreement to merge |
+| Open item 5: Codex PRs #4-#7 (CX-001..004) | reviewer role (Opus) | merged to main via integrate/codex | done with owner agreement (16 October 2026): #4, #6 (+ wording fixes), #5 (+ generated docs/reference pages) merged; #7 to be closed on GitHub by the owner (no gh CLI here); CX-004 rewritten to send-only |
 
 Note: `.claude/agents` definitions load only when the session starts in the repository folder; a session started elsewhere
 uses built-in agent types with the same model and the definition file as instructions.
 
 Next work (start as new agents, at most 2-3 implementers at once):
 
+| Integration run on integrate/codex (4e3239f) | integration-runner role (Sonnet) | main checkout | green: typecheck, unit 1255, all six DB suites, build, e2e demo-d1 and ai-fake-provider on fake ports 18787/15173/54399 |
+| Owner request: remove top workspace tabs (keep left), tab Inspector and AI Assistant in one right panel | module-agent role (Sonnet), UI | worktree branch ui/remove-top-tabs | running; owner words recorded in shell.md by the agent |
+
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
 2. **D1 owner acceptance**: ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.
-3. **SDK 1.9**: Conceptualize's ConceptsService additions (definition, getHandoff, listHandoffs, revisionStaleness; exact TypeScript in conceptualize-progress.md, "Visual concept exploration") and CR-PM-SDK-4 FilesService (exact TypeScript in project-management-progress.md). Then remove the interim handoff port block in apps/workspace/src/platform/services.ts.
+3. ~~SDK 1.9~~ merged 16 October 2026. Was: **SDK 1.9**: Conceptualize's ConceptsService additions (definition, getHandoff, listHandoffs, revisionStaleness; exact TypeScript in conceptualize-progress.md, "Visual concept exploration") and CR-PM-SDK-4 FilesService (exact TypeScript in project-management-progress.md). Then remove the interim handoff port block in apps/workspace/src/platform/services.ts.
 4. ~~Fix ai-fake-provider last step~~: done (75c9919).
 5. **Codex tasks** CX-001..004 in [docs/codex](../codex/README.md): review and merge the owner's Codex pull requests; add new isolated tasks there.
 6. Proposed ADRs awaiting review (ADR index), incl. mock CAD replacement ADR-0027 and the SysML illustrative-tool retirement.
