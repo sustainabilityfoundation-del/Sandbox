@@ -1,12 +1,12 @@
 // CAD Modeler inside the workspace (port 5199): open the tool, AI workflow through the demo assistant
 // (proposal card with kernel-predicted result → Apply → the view shows the body), then a human edit
 // and an assistant follow-up that respects the version, help (F1 content), capability inventory.
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const shots = shotsDir('cad-modeler')
 const browser = await chromium.launch({ ...launchOptions, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
-const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
+const page = await (await demoAssistantContext(browser, { viewport: { width: 1600, height: 1000 } })).newPage()
 const problems = []
 page.on('console', (m) => m.type() === 'error' && !/favicon|404|ERR_CONNECTION_REFUSED|\/api\/|Failed to fetch|503|502|500/.test(m.text()) && problems.push(m.text()))
 page.on('pageerror', (e) => problems.push(e.message))

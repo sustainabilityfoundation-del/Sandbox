@@ -1,6 +1,6 @@
 // SysML Modeler in the real workspace on the real API + PostgreSQL: human workflow and AI workflow
 // (demo assistant → service proposal → Apply → commit with provenance → explain → undo).
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const API = `${env.api}/api/sysml/v1`
@@ -14,7 +14,7 @@ const head = async () => (await get('/commits?limit=1'))[0]
 const text = async () => (await get(`/commits/${(await head())['@id']}/text`)).text
 const problems = []
 
-const ctx = await browser.newContext({ viewport: { width: 1600, height: 1000 } })
+const ctx = await demoAssistantContext(browser, { viewport: { width: 1600, height: 1000 } })
 await ctx.addInitScript(() => localStorage.setItem('ews.services.v1', JSON.stringify({ requirementsMode: 'api', devUser: 'eli' })))
 const page = await ctx.newPage()
 page.on('pageerror', (e) => problems.push(e.message))

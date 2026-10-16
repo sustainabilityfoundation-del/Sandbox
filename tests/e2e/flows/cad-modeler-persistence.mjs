@@ -8,14 +8,14 @@
 // - the measurement-units setting.
 // Run against `npm run dev` (workspace in API mode). It writes CAD documents to PRJ-ACT100 of the
 // development database, and sets and then resets one user setting of the dev user.
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const api = `${env.api}/api/cad/v1/projects/PRJ-ACT100/documents`
 const devUser = process.env.E2E_DEV_USER ?? 'eli'
 const shots = shotsDir('cad-modeler-persistence')
 const browser = await chromium.launch({ ...launchOptions, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
-const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
+const page = await (await demoAssistantContext(browser, { viewport: { width: 1600, height: 1000 } })).newPage()
 const problems = []
 page.on('console', (m) => m.type() === 'error' && !/favicon|404|status of 409|ERR_CONNECTION_REFUSED|Failed to fetch/.test(m.text()) && problems.push(m.text()))
 page.on('pageerror', (e) => problems.push(e.message))

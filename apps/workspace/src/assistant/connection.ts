@@ -148,12 +148,24 @@ export async function previewRequest(request: unknown) {
 // ---- the conversation's service -------------------------------------------------------------------
 
 const demo = new DemoAssistantService()
+
+/**
+ * Development only: automated browser flows pin the demo assistant (localStorage 'ews.assistant.forceDemo' = '1'),
+ * so a test run never sends messages to a person's connected AI account.
+ */
+const forceDemo = import.meta.env.DEV && (() => {
+  try {
+    return localStorage.getItem('ews.assistant.forceDemo') === '1'
+  } catch {
+    return false
+  }
+})()
 let connected: RemoteAssistantService | undefined
 let connectedKey = ''
 
 function applyService(connection: ConnectionStatus | null) {
   const conversation = useConversation.getState()
-  if (connection?.status === 'active') {
+  if (connection?.status === 'active' && !forceDemo) {
     const provider = useAiConnection.getState().providers.find((p) => p.id === connection.provider)
     const key = `${connection.id}|${connection.model}`
     if (!connected || connectedKey !== key) {

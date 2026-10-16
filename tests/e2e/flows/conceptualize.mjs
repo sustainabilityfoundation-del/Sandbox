@@ -1,5 +1,5 @@
 // Conceptualize vertical slice in the real workspace on the real API and PostgreSQL.
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const API = `${env.api}/api/concepts/v1/projects/PRJ-ACT100`
@@ -12,7 +12,7 @@ const api = (method, path, body, user = 'eli') =>
 const problems = []
 
 async function open(user, viewport = { width: 1600, height: 1000 }, extra = {}) {
-  const ctx = await browser.newContext({ viewport, ...extra })
+  const ctx = await demoAssistantContext(browser, { viewport, ...extra })
   await ctx.addInitScript((u) => {
     if (!sessionStorage.getItem('pw-init')) {
       localStorage.clear()

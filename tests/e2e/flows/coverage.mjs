@@ -1,4 +1,4 @@
-import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const shots = shotsDir('coverage')
@@ -6,7 +6,7 @@ const b = await chromium.launch({ ...launchOptions })
 let failures = 0
 const check = (tag, cond, msg) => { console.log(`[${tag}] ${cond ? 'PASS' : 'FAIL'} ${msg}`); if (!cond) failures++ }
 const problems = []
-const page = await (await b.newContext({ viewport: { width: 1600, height: 1000 } })).newPage()
+const page = await (await demoAssistantContext(b, { viewport: { width: 1600, height: 1000 } })).newPage()
 page.on('pageerror', (e) => problems.push(e.message))
 page.on('console', (m) => m.type() === 'error' && !/favicon|DevTools/.test(m.text()) && problems.push(m.text().slice(0, 200)))
 await page.goto(exampleUrl()); await page.waitForSelector('.ws-app'); await page.evaluate(() => localStorage.clear()); await page.goto(exampleUrl()); await page.waitForSelector('.ws-app'); await page.waitForTimeout(1500)
@@ -32,7 +32,7 @@ await page.getByRole('button', { name: 'What can the assistant do?' }).click()
 check('panel', (await page.locator('[data-testid="ai-coverage"]').count()) === 1, 'opens from the assistant panel')
 await page.keyboard.press('Escape')
 // Phone width
-const phone = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage()
+const phone = await (await demoAssistantContext(b, { viewport: { width: 390, height: 844 } })).newPage()
 await phone.goto(exampleUrl()); await phone.waitForSelector('.ws-app'); await phone.waitForTimeout(1500)
 await phone.locator('.ws-mobile-nav').getByText('ChatGPT').click().catch((e) => console.log('phone nav', e.message))
 await phone.waitForTimeout(400)

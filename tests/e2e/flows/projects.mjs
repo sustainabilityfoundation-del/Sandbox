@@ -2,7 +2,7 @@
 // module with the real modules as default tabs, reopening after reload and in a fresh session, the overview with
 // module provisioning states, and switching back to the example project with its data intact.
 // Creates one new project per run (unique key); the example project is not changed.
-import { env, exampleUrl, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, exampleUrl, launchOptions, shotsDir, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -19,7 +19,7 @@ const watch = (p) => {
   p.on('pageerror', (e) => problems.push(e.message))
   p.on('console', (m) => m.type() === 'error' && !/favicon|DevTools|404|status of 4/.test(m.text()) && problems.push(m.text().slice(0, 300)))
 }
-const ctx = await b.newContext({ viewport: { width: 1600, height: 1000 } })
+const ctx = await demoAssistantContext(b, { viewport: { width: 1600, height: 1000 } })
 const page = await ctx.newPage()
 watch(page)
 await page.goto(exampleUrl())
@@ -93,7 +93,7 @@ await page.waitForSelector('.ws-app')
 await page.waitForTimeout(2500)
 check('reopen', (await switcher.textContent())?.includes(uniqueKey), 'the remembered project reopens after reload')
 check('reopen', /Explorer concept/.test((await page.locator('[data-help-id="projects.explorer"]').textContent()) ?? ''), 'the explorer lists the artifacts again after the reload')
-const fresh = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage()
+const fresh = await (await demoAssistantContext(b, { viewport: { width: 1280, height: 900 } })).newPage()
 watch(fresh)
 // No ?project= and no stored choice: the most recently opened project on the server reopens.
 await fresh.goto(base)
