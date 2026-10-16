@@ -51,3 +51,11 @@ separately and only after the owner agrees to the usage.
 Conceptualize: 5196, 5197, 8798, 54340. AI connection: 5202, 5203, 8801, 54343. Coordinator-owned files only in
 `COORDINATOR REVIEW:` commits. Do not push. Never use the owner's connected account in automated tests (flows pin the
 demo assistant; see `tests/e2e/lib/env.mjs` `demoAssistantContext`).
+
+## 6. Owner decisions
+
+- 16 October 2026: **structured layouts only for now.** No AI image generation in use: OpenAI does not support images
+  with Sign in with ChatGPT, and the owner chose not to add an image-only API key yet. The image service and its
+  adapters are still built (with the fake test adapter), but no live generation runs; the illustration action shows a
+  clear "unavailable" explanation. Structured, dimensioned 2D layouts are the primary visuals. Revisit on the
+  owner's request.
