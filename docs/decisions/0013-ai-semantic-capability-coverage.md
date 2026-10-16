@@ -2,6 +2,8 @@
 
 Status: Proposed (2026-10-14)
 
+Amended by [ADR-0074](0074-capability-registry-and-toolbars.md) (16 October 2026): the registry clause is implemented as data in the module manifests; unifying UI and AI handlers and scoped autonomy remain held.
+
 Review note (16 October 2026): not accepted. The core decision (a typed registry running UI and AI through the same handlers) is not built; only the coverage inventory exists.
 
 ## Context

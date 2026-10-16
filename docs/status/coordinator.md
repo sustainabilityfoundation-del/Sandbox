@@ -82,9 +82,9 @@ Backlog (tracked here until done):
 ## Capability-complete toolbars directive (owner, 16 October 2026; standing requirement)
 Recorded in [CAPABILITY_TOOLBARS.md](../architecture/CAPABILITY_TOOLBARS.md); mandatory section in AGENTS.md; one line in every package AGENTS.md,
 the module-agent and reviewer definitions. Implemented by extending the manifest capability inventory (and ADR-0013), not a second registry.
-Backlog: CT-1 registry and toolbar architecture (architect, read-only; contract extension, evidence-based status, availability,
-toolbar component, search, AI access, migration plan). Running. CT-2 SDK contract and shared toolbar component (after CT-1 and the
-manifest steps M4-M6, which touch the same files). CT-3..n per-module inventories and toolbars (module agents, after CT-2;
+Backlog: CT-1 done: [capability-registry.md](../specifications/capability-registry.md), ADR-0074 accepted (amends ADR-0013). CT-2a (SDK 1.13.0 contract,
+CommandBar component) next when an implementer slot frees; CT-2b (checks, shell, palette, AI list_capabilities, strict policy, Requirements
+pilot) after M6 and F. Owner decisions: how much planned scope to show; inventories for the mock and illustrative tools. CT-3..n per-module inventories and toolbars (module agents, after CT-2;
 research feeds OSS-3). D1 keeps priority.
 
 ## Open items (priority order)
