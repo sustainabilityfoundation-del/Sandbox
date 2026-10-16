@@ -53,7 +53,8 @@
     "ai:test:db": "vitest run --config services/api/vitest.db.config.ts services/assistant services/settings",
     "ai:dev:fake": "node services/assistant/scripts/dev-fake.mjs",
     "e2e": "node tests/e2e/run.mjs",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "notices": "node scripts/gen-notices.mjs"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
