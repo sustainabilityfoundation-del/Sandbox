@@ -116,3 +116,23 @@ describe('declarative proposals in the conversation', () => {
     expect(seen!.history.some((h) => h.role === 'event' && h.event === 'refused')).toBe(true)
   })
 })
+
+describe('leftover proposals from earlier sessions', () => {
+  it('reopens open proposals of the project and dismisses them all (rejected in the assistant service)', async () => {
+    const outcomes: string[] = []
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      if (url.includes('/proposals?') && (init.method ?? 'GET') === 'GET')
+        return new Response(JSON.stringify({ proposals: [1, 2].map((n) => ({ id: `00000000-0000-4000-8000-00000000000${n}`, version: 1, key: `CP-${n}`, projectId: PROJECT_ID, conversationId: 'C-OLD1', messageId: 'M1', kind: 'declarative', module: 'conceptualize', title: `Old ${n}`, explanation: '', preview: [], assumptions: [], status: 'pending', message: null, createdIds: [], createdAt: '', updatedAt: '' })) }), { status: 200 })
+      if (url.endsWith('/outcome')) outcomes.push(`${url.split('/').at(-2)}:${JSON.parse(String(init.body)).status}`)
+      return new Response('{}', { status: 200 })
+    })
+    const chat = useConversation.getState()
+    chat.clear()
+    await chat.reopen()
+    expect(useConversation.getState().reopenedIds).toHaveLength(2)
+    useConversation.getState().dismissReopened()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(useConversation.getState().reopenedIds).toEqual([])
+    expect(outcomes.sort()).toEqual(['00000000-0000-4000-8000-000000000001:rejected', '00000000-0000-4000-8000-000000000002:rejected'])
+  })
+})
