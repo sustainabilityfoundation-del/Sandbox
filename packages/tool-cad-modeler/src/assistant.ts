@@ -1,5 +1,5 @@
-import { CadEngine, COMMANDS, MEDIA_TYPE, QUERIES, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, serializeDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
-import { ActionError, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
+import { CadEngine, COMMANDS, MEDIA_TYPE, QUERIES, applyTransaction, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, serializeDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
+import { ActionError, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DeclarativeProposal, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { cadSession, type OpenDocument } from './session'
 import { runChecks, type CheckRequest, type MeasureSpec } from './checks'
 import pkg from '../package.json'
@@ -291,6 +291,40 @@ const actions: AssistantActionDefinition[] = [
       const label = (typeof args.label === 'string' && args.label.trim()) || (commands.length === 1 ? commands[0].command.replace(/_/g, ' ') : `${commands.length} CAD commands`)
       const newTitle = typeof args.title === 'string' && args.title.trim() ? args.title.trim().slice(0, 200) : undefined
       const title = open ? `${label} in “${open.engine.document.metadata.title}”` : `${label} (new CAD document${newTitle ? ` “${newTitle}”` : ''})`
+      // Declarative (SDK 1.8): with no view mounted and the CAD service as the platform API, the change is
+      // a new stored revision. The resulting document is computed here (same commands, same validation)
+      // and the platform applies it through the CAD API, with If-Match and the expected revision. Documents
+      // with local unsaved changes, local stores and file-only sessions keep the closure (labelled fallback).
+      if (persist && cadSession.storeClient?.mode === 'api' && (!open || (open.stored && !cadSession.isDirty(open)))) {
+        const baseDoc = open ? open.engine.document : createDocument({ title: newTitle ?? 'Untitled' })
+        const out = applyTransaction(baseDoc, { commands, expectedVersion: baseDoc.version, label: `Assistant: ${label}`, source: 'assistant' })
+        if (!out.ok) throw new ActionError('invalid-arguments', out.error.message)
+        const document = cadSession.stampForStore(out.doc)
+        const message = `Assistant: ${label}`
+        const docsPath = `/projects/${encodeURIComponent(projectId)}/documents`
+        const result: DeclarativeProposal = {
+          kind: 'declarative-proposal',
+          module: MODULE,
+          title,
+          explanation: `${commands.length} command${commands.length === 1 ? '' : 's'} in one transaction${open ? ` against revision ${open.stored!.revision} (model version ${version})` : ' in a new document'}. The preview shows the regenerated result predicted by the kernel; Apply stores the result as ${open ? `revision ${open.stored!.revision + 1}` : 'revision 1'} in ${projectId}.`,
+          preview: [
+            ...(open ? [] : [{ label: 'New document', proposed: newTitle ?? 'Untitled CAD Modeler document' }]),
+            ...commands.map((c, i) => ({ label: `${i + 1}. ${c.command}`, proposed: describeInput(c) })),
+            ...predictionItems(dry),
+            { targetId: open?.id ?? document.documentId, label: 'Saved to the project', proposed: open ? `revision ${open.stored!.revision + 1} of ${open.id} in ${projectId}` : `new document ${document.documentId} (revision 1) in ${projectId}` },
+          ],
+          assumptions: dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : undefined,
+          inspected: open ? [{ id: open.id, detail: `CAD document revision ${open.stored!.revision}, model version ${version}` }] : [],
+          operations: open
+            ? [{ module: MODULE, operationId: 'saveRevision', method: 'PUT', path: `${docsPath}/${open.id}`, body: { document, message }, ifMatch: `"${open.stored!.revision}"` }]
+            : [{ module: MODULE, operationId: 'createDocument', method: 'POST', path: docsPath, body: { document, message } }],
+          ...(open
+            ? { expected: [{ module: MODULE, kind: 'cad-document', id: open.id, label: open.engine.document.metadata.title, revision: open.stored!.revision, read: { operationId: 'getDocument', path: `${docsPath}/${open.id}`, field: 'summary.revision' } }] }
+            : {}),
+          projectId,
+        }
+        return result
+      }
       let before: CadDocument | undefined
       let appliedVersion: number | undefined
       let target = open?.id
@@ -472,6 +506,25 @@ const actions: AssistantActionDefinition[] = [
       const projectId = ctx.captured.projectId
       const message = typeof args.message === 'string' ? args.message : ''
       const base = d.stored?.revision
+      if (store.mode === 'api' && (!d.stored || d.stored.projectId === projectId)) {
+        if (d.stored && !cadSession.isDirty(d)) throw new ActionError('no-op', `Already saved: revision ${d.stored.revision} in ${projectId} is current (nothing to save).`)
+        const document = cadSession.stampForStore(d.engine.document)
+        const docsPath = `/projects/${encodeURIComponent(projectId)}/documents`
+        cadSession.expectDeclarativeSave(d.id, base ?? 0, projectId)
+        const result: DeclarativeProposal = {
+          kind: 'declarative-proposal',
+          module: MODULE,
+          title: `Save “${d.engine.document.metadata.title}” to ${projectId}`,
+          explanation: base ? `Creates revision ${base + 1} (based on revision ${base}).` : 'Stores the document in the project as revision 1.',
+          preview: [{ targetId: d.id, label: 'Revision', current: base ? `revision ${base}` : 'not stored', proposed: `${base ? `revision ${base + 1}` : 'revision 1'}${message ? `: ${message}` : ''} (model version ${d.engine.document.version})` }],
+          operations: base
+            ? [{ module: MODULE, operationId: 'saveRevision', method: 'PUT', path: `${docsPath}/${d.id}`, body: { document, message }, ifMatch: `"${base}"` }]
+            : [{ module: MODULE, operationId: 'createDocument', method: 'POST', path: docsPath, body: { document, message } }],
+          ...(base ? { expected: [{ module: MODULE, kind: 'cad-document', id: d.id, label: d.engine.document.metadata.title, revision: base, read: { operationId: 'getDocument', path: `${docsPath}/${d.id}`, field: 'summary.revision' } }] } : {}),
+          projectId,
+        }
+        return result
+      }
       return {
         kind: 'service-proposal',
         module: MODULE,
