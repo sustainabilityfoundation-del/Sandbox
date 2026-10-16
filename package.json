@@ -57,7 +57,8 @@
     "deps:register": "node scripts/deps-register.mjs",
     "deps:check": "node scripts/deps-check.mjs",
     "deps:sbom": "node scripts/deps-sbom.mjs",
-    "deps:audit": "node scripts/deps-sbom.mjs --audit"
+    "deps:audit": "node scripts/deps-sbom.mjs --audit",
+    "notices": "node scripts/gen-notices.mjs"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

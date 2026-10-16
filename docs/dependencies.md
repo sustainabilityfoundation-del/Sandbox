@@ -148,3 +148,37 @@ library (`packages/sysml-core/src/library/text.ts`) is written for this module a
 | Package | Version | Licence | Used by | Source |
 | --- | --- | --- | --- | --- |
 | playwright-core | 1.55.0 | Apache-2.0 | tests/e2e (dev only; drives the installed Chrome, downloads no browser) | github.com/microsoft/playwright |
+
+## Third-party notices (OSS-6, 16 October 2026)
+
+`apps/workspace/public/THIRD_PARTY_NOTICES.txt` (copied to `dist/workspace/` by the build) is now generated: `npm run notices`
+(`scripts/gen-notices.mjs`; `npm run notices -- --check` fails when it is stale). The hand-written replicad / Open CASCADE section is kept
+unchanged in `scripts/notices/replicad-occt.txt` and emitted first. The script decides what ships by running the production build of
+`@ews/workspace` (nothing written) and taking every `node_modules` package in an output chunk or asset, plus the dependency closure of
+replicad (it runs in the separately built kernel worker). Licence and NOTICE texts are copied from the installed package files. Result for
+this build: EPL-2.0 1 (elkjs, with the source locations), Apache-2.0 6 (react-aria, react-aria-components, react-stately,
+@internationalized/date, number, string; none ships a NOTICE file), OFL-1.1 2 (IBM Plex Sans and Mono), ISC 3 (lucide-react, flatbush,
+flatqueue), MIT 21 (plus client-only, MIT declared in its package.json without a licence file). mathjs (Apache-2.0, has a NOTICE file) is
+**not** in the workspace build today; the script adds its NOTICE automatically if it ever is. Re-run `npm run notices` after changing
+dependencies.
+
+## Security advisories (16 October 2026)
+
+`npm audit` reported 14 advisories (1 high, 9 moderate, 4 low). All 14 come from one direct dependency, `@scalar/api-reference` 1.72.3
+(exact pin in `services/api`, used by `apiDocs.ts` for the interactive API reference). None of the packages is in the workspace browser
+bundle (checked against the production build). The Node-side packages (`undici`, `ai`, `@ai-sdk/*`) are installed but never loaded: the API
+serves only the prebuilt `dist/browser/standalone.js`, which contains no undici code.
+
+| Package (all under `@ews/api` > `@scalar/api-reference`) | Severity | Where it runs | Non-breaking fix |
+| --- | --- | --- | --- |
+| undici 7.29.0 (via agent-chat > json-magic); 10 advisories, e.g. WebSocket and retry-handler denial of service, TLS bypass in BalancedPool | **high** | Installed only, never executed: not in the browser bundle, not imported by our code, absent from the standalone docs bundle | Yes: @scalar/api-reference 1.75.0 (minor), not via `npm audit fix` (see below) |
+| @ai-sdk/provider-utils 4.0.x (resource consumption) | low | Vercel AI SDK code sits in the standalone docs bundle (browser, docs page only); the agent is disabled in our config and the CSP allows same-origin connections only | same |
+| @ai-sdk/gateway, @ai-sdk/vue, ai (3 packages, vulnerable through provider-utils) | low | same | same |
+| @scalar/agent-chat, api-client, blocks, json-magic, oas-utils, openapi-to-markdown, sidebar, workspace-store (8 packages, vulnerable through the entries above) | moderate | Docs page bundle (browser) and installed Node files; agent and MCP features disabled in our config | same |
+| @scalar/api-reference 1.72.3 (direct; range 1.44.0 to 1.74.0) | moderate | API host serves its browser bundle at the docs path; a public documentation page | same |
+
+Triage: `npm audit fix` without `--force` makes no change, because the fix is a bump of an exact pin in `services/api/package.json`
+(outside the declared range), a package outside this task's scope. It is a minor update, 1.72.3 to 1.75.0, not a major one. Cautions:
+1.75.0 was published on 16 October 2026, so it fails the project's "at least two weeks old" rule until about 30 October; 1.74.0 is still in
+the vulnerable range. Follow-up for the owner of `services/api`: bump the pin to the first fixed release that is two weeks old, run
+`npm run check` and `npm run build`, and open the docs page once. Applied now: none.
