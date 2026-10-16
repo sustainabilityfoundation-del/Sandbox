@@ -347,3 +347,65 @@ Test-suite notes: `npm run req:test:db` is at the limit of the shared test Postg
 (`services/api/test/infrastructure.test.ts` "seeds reproducibly" timed out once; `services/sysml/test/scoping.test.ts`
 "events are delivered per project" saw a late event once; both pass in isolation). A higher `max_connections` for the
 test server or fewer parallel DB files would make the run stable.
+
+## D1-PM follow-up checkpoint (after main 5565018), 15 October 2026
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| A fresh browser reopens the person's most recently opened server project (coordinator answer); flows that need the example pass `?project=PRJ-ACT100` (`exampleUrl()` in `tests/e2e/lib/env.mjs`) | implemented, browser-tested | `tests/e2e/flows/projects.mjs` (fresh context without `?project=` lands in the new project) |
+| Help: overview, Project Home, New project wizard, overview panel and lifecycle, product structure, assistant operations, troubleshooting; tutorial "Create your first project"; every `projects.*` operation and the project controls mapped | implemented, tested | `apps/workspace/src/projects/help/*.md`, `help.ts`; `apps/workspace/src/help/help.test.ts` |
+| C12 "Demo" labels for the illustrative SysML and mock CAD tools (tabs, open-tools and second-view menus, palette) | implemented, browser-checked | all 14 committed flows pass |
+| Test PostgreSQL `max_connections=400` | done | `npm run req:test:db`: 47 files, 377 passed, 1 skipped |
+
+Browser flows at 388735a (API 8802 with `EWS_ASSISTANT_FAKE_PROVIDER=1` and `EWS_ASSISTANT_FAKE_SCRIPTS=tests/e2e/fixtures/fake-scripts`,
+workspace 5206): projects, platform, integration, help, coverage, vision, conceptualize, sysml-modeler, cad-modeler,
+cad-modeler-persistence, cad-d1, ai-headless, ai-fake-provider and demo-d1 all pass. `npm run check`: 1107 passed, 1 skipped.
+
+### CR-PM-SDK-4 (approved in principle for SDK 1.9): exact TypeScript
+
+```ts
+// packages/platform-sdk/src/contract/files.ts (new, framework-free)
+export const FILES_CONTRACT_VERSION = '1.0.0'
+
+/** Where a file came from: the source artifact at an exact revision and the producing tool (recorded, never inferred). */
+export interface FileProvenance {
+  source?: { module: string; kind: string; id: string; revision?: number | string }
+  tool?: { name: string; version: string }
+  kernel?: { name: string; version: string }
+  generatedAt?: string
+  notes?: string
+  /** Module-specific details, e.g. a STEP read-back report. */
+  details?: Record<string, unknown>
+}
+
+export interface StagedFile {
+  handle: string
+  fileName: string
+  mediaType: string
+  byteSize: number
+  sha256: string
+  provenance?: FileProvenance
+  stagedAt: string
+}
+
+/** Files produced in this window, handed between modules without passing their bytes through the assistant. */
+export interface FilesService {
+  readonly contractVersion: string
+  /** Stages a file; returns its handle (valid until the window closes). */
+  stage(file: { bytes: Uint8Array; fileName: string; mediaType: string; provenance?: FileProvenance }): Promise<StagedFile>
+  /** Metadata of a staged file, or undefined. */
+  describe(handle: string): StagedFile | undefined
+  /** The bytes of a staged file; throws if the handle is unknown. */
+  read(handle: string): Promise<Uint8Array>
+  /** Removes a staged file. */
+  discard(handle: string): void
+}
+
+// contract/requirements.ts, PlatformServices (additive)
+//   files?: FilesService
+```
+
+Producers (for example `cad-modeler.export`) stage the exported file with its provenance and return the handle in
+their result summary; `projects.store_document` accepts `fileHandle` and reads the bytes through `services.files`.
+The workspace implements `FilesService` in memory (per window); `apps/workspace/src/projects/assistant.ts`'s local
+`stageFile` is then replaced by it.
