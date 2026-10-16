@@ -176,6 +176,20 @@ const viaAi = await assistant('conceptualize.create_cad_handoff', { conceptId: A
 check(viaAi.ok && /HND-\d+ built from/.test(viaAi.summary ?? ''), `the assistant builds the same handoff (${viaAi.summary ?? viaAi.error})`)
 
 // Illustrations: refused with the service's reason (not connected, images off, Sign in with ChatGPT, no provider); then the FAKE TEST port.
+// The fake-provider API also offers its test-only image adapter (labelled TEST ASSET, never a provider), so the
+// refusal is checked through the real visualization client with test-only adapters hidden: what remains is the
+// production state (OpenAI Images adapter off or without a key), and its reason must reach the user.
+await page.evaluate(async (repoFs) => {
+  const { registerVisualizationPort, visualizationPort } = await import(`/workspace/@fs/${repoFs}/packages/tool-conceptualize/src/visualization.ts`)
+  const real = visualizationPort()
+  registerVisualizationPort({
+    ...real,
+    adapters: async (projectId) => {
+      const r = await real.adapters(projectId)
+      return { adapters: r.adapters.filter((a) => !a.testOnly), defaultAdapter: r.adapters.find((a) => a.id === r.defaultAdapter && !a.testOnly)?.id ?? null }
+    },
+  })
+}, env.repoFs)
 const refused = await assistant('conceptualize.request_illustration', { conceptId: A.concept.key }, false)
 check(!refused.ok && /not connected|off in Settings|image generation|API key|no image provider/i.test(refused.error ?? ''), `an illustration is refused with the reason and no placeholder (${refused.error})`)
 await page.evaluate(async (repoFs) => {
