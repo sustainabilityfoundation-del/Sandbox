@@ -5,8 +5,8 @@ Maintained by the ui-ux-design-system agent (worktree `Sandbox-ui`, branch `feat
 
 - [x] Phase 1 audit, regression checklist and plan (this file)
 - [x] Phase 2 design system (design-system 1.1.0)
-- [ ] Phase 3 application shell
-- [ ] Phase 4 engineering workspace
+- [x] Phase 3 application shell
+- [x] Phase 4 engineering workspace
 - [ ] Phase 5 AI assistant panel
 - [ ] Phase 6 validation and screenshots
 
@@ -109,3 +109,15 @@ Each item is checked in the running application and, where marked, by a committe
   (tool-sysml-modeler CodeMirror completion, 5 s under full-suite load; passes alone, 16/16); npm run build and
   npm run build:harnesses pass. The platform flow's icon check now identifies registry icons by data-icon instead of
   Phosphor's viewBox (the library changed; the check is as strict).
+- 16 Oct 2026, phases 3 and 4 (merged main 162d2ae): header, navigation rail, explorer frame with filter and
+  virtualization above 400 objects, eight-column dock layout with keyboard gutters, AI Assistant right or bottom,
+  canvas maximize, presets Engineering (default), AI-assisted, Review, Validation panel, status bar, location
+  trail, inspector identity, evidence status and contextual tabs with collapsible sections. Below 1700 px, opening the
+  right-docked assistant hides the inspector (the AI-assisted arrangement) so the canvas keeps its space; below
+  1440 px the rail shows icons. Help: platform.layout topic, getting-started updated, context mappings for the rail,
+  panel toggles and status bar. Checks: npm run check 1219 passed, 1 skipped; npm run build and build:harnesses
+  pass; browser flows pass except concept-visual (1 check: the module's refusal now reads "No AI account is
+  connected" while the flow expects /not connected/) and ai-headless (requirements.get and
+  requirements.get_conventions have no example arguments in the flow): both module/test drift from main, not UI.
+  Lesson: vite serves an HMR-edited module (store.ts) under a new URL, so flows that import /workspace/src/... see a
+  second instance until the dev server restarts; restart before e2e after editing such modules.
