@@ -278,16 +278,16 @@ interface Content {
 async function validateContent(ctx: Ctx, c: Content): Promise<Content> {
   const errors: Record<string, string> = {}
   const title = c.title.trim()
-  if (!title) errors.title = 'required'
+  if (!title) errors.title = 'is required'
   const conventions = (await getConventions(ctx.db, ctx.projectId)).settings
-  if (!conventions.requirementTypes.includes(c.type)) errors.type = `must be one of ${conventions.requirementTypes.join(', ')}`
-  if (c.priority !== null && !(PRIORITIES as readonly string[]).includes(c.priority)) errors.priority = PRIORITIES.join(', ')
+  if (!conventions.requirementTypes.includes(c.type)) errors.type = `“${c.type}” is not a requirement type in this project; use one of ${conventions.requirementTypes.join(', ')}`
+  if (c.priority !== null && !(PRIORITIES as readonly string[]).includes(c.priority)) errors.priority = `must be one of ${PRIORITIES.join(', ')}`
   const methods = [...new Set(c.verificationMethods)]
-  if (methods.some((m) => !(VERIFICATION_METHODS as readonly string[]).includes(m))) errors.verificationMethods = `allowed: ${VERIFICATION_METHODS.join(', ')}`
+  if (methods.some((m) => !(VERIFICATION_METHODS as readonly string[]).includes(m))) errors.verificationMethods = `must be among ${VERIFICATION_METHODS.join(', ')}`
   const applicability = [...new Set(c.applicability.map((a) => a.trim()).filter(Boolean))]
-  if (applicability.some((a) => !/^[A-Za-z0-9_.:-]{1,100}$/.test(a))) errors.applicability = 'configuration IDs only'
-  if (c.origin !== null && !(ORIGINS as readonly string[]).includes(c.origin)) errors.origin = ORIGINS.join(', ')
-  if (Object.keys(errors).length) throw invalid('The requirement is not valid.', errors)
+  if (applicability.some((a) => !/^[A-Za-z0-9_.:-]{1,100}$/.test(a))) errors.applicability = 'must be configuration IDs'
+  if (c.origin !== null && !(ORIGINS as readonly string[]).includes(c.origin)) errors.origin = `must be one of ${ORIGINS.join(', ')}`
+  if (Object.keys(errors).length) throw invalid(`The requirement is not valid: ${Object.entries(errors).map(([field, why]) => `${field} ${why}`).join('; ')}.`, errors)
   const defs = await listAttributeDefinitions(ctx.db, ctx.projectId)
   const attributes = validateAttributeValues(defs, c.attributes)
   return { ...c, title, statement: c.statement.trim(), rationale: c.rationale.trim(), source: c.source.trim(), acceptanceCriteria: c.acceptanceCriteria.trim(), verificationMethods: methods, applicability, attributes }

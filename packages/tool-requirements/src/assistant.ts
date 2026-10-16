@@ -117,7 +117,7 @@ export const requirementsAssistant: AssistantContribution = {
       name: 'requirements.search',
       label: 'Search requirements',
       description:
-        'Search the canonical requirements in the Requirements service (API mode) by words in key, title, statement or rationale. Returns keys, titles, statements, lifecycle status and revisions.',
+        'Search the managed requirements in the Requirements service by words in key, title, statement or rationale (an empty-ish word such as "shall" lists many). Returns keys (REQ-001 …), IDs, titles, statements, lifecycle status and revisions. Use this and requirements.get, not read_object, for requirements: they live in the Requirements service, not in the model.',
       parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },
       async run(args, ctx) {
         const conn = requireConnection(ctx)
@@ -152,19 +152,78 @@ export const requirementsAssistant: AssistantContribution = {
       },
     },
     {
+      name: 'requirements.get',
+      label: 'Read requirement',
+      effect: 'read',
+      description:
+        'Read one managed requirement from the Requirements service by key (REQ-001) or ID: title, statement, rationale, type, origin, status, revision, verification methods, acceptance criteria, and its relationships and allocations. Use this, not read_object, for requirements.',
+      parameters: { type: 'object', properties: { requirementId: { type: 'string', description: 'Key such as REQ-001, or the requirement ID' } }, required: ['requirementId'], additionalProperties: false },
+      async run(args, ctx) {
+        const conn = requireConnection(ctx)
+        const r = await resolveApi(conn, argString(args, 'requirementId'))
+        const full = conn.client ? await conn.client.getRequirement(r.id) : undefined
+        const rels = conn.client ? await conn.client.relationshipsOf(r.id) : []
+        const data = {
+          id: r.id,
+          key: r.key,
+          title: r.title,
+          statement: r.statement,
+          revision: r.revision,
+          ...(full
+            ? {
+                rationale: full.rationale,
+                type: full.type,
+                origin: full.origin,
+                status: full.status,
+                archived: full.archived,
+                verificationMethods: full.verificationMethods,
+                acceptanceCriteria: full.acceptanceCriteria,
+                source: full.source,
+              }
+            : {}),
+          relationships: rels
+            .filter((x) => !x.deleted)
+            .map((x) => ({ type: x.type, direction: x.fromId === r.id ? 'out' : 'in', other: x.fromId === r.id ? (x.toRequirementId ?? x.toTwinId) : x.fromId, ...(x.toTwinId ? { targetKind: x.targetKind } : {}) })),
+        }
+        return { kind: 'data', data, summary: `Read ${r.key} rev ${r.revision}`, inspected: [{ id: r.key, detail: `rev ${r.revision}` }] }
+      },
+    },
+    {
+      name: 'requirements.get_conventions',
+      label: 'Read requirement conventions',
+      effect: 'read',
+      description: "The project's requirement types, allowed verification methods and field limits, so a requirements.create proposal uses valid values.",
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      async run(_args, ctx) {
+        const conn = requireApi(ctx, 'Reading conventions')
+        const c = await conn.client.conventions()
+        const data = {
+          requirementTypes: c.settings.requirementTypes,
+          verificationMethods: ['analysis', 'test', 'inspection', 'demonstration'],
+          origins: ['stakeholder', 'ai-proposed', 'derived'],
+          limits: { title: '1–300 characters', statement: 'at most 20 000 characters', rationale: 'at most 20 000 characters', acceptanceCriteria: 'at most 20 000 characters' },
+        }
+        return { kind: 'data', data, summary: `Requirement conventions of ${conn.projectId}` }
+      },
+    },
+    {
       name: 'requirements.create',
       label: 'Prepare new requirement',
       description:
-        'Propose a new requirement in the Requirements service: title, statement, optional rationale, type, verification methods and acceptance criteria, and its origin: "stakeholder" (a user constraint stated by the person), "ai-proposed" (a choice you propose; the person decides) or "derived" (derived from another requirement, given in derivesFrom by key or ID; a derives-from link is created). Nothing is created until the person applies the preview.',
+        'Propose a new requirement in the Requirements service: title, statement, optional rationale, type, verification methods and acceptance criteria, and its origin: "stakeholder" (a user constraint stated by the person), "ai-proposed" (a choice you propose; the person decides) or "derived" (derived from another requirement, given in derivesFrom by key or ID; a derives-from link is created). The proposal is checked with the Requirements service’s own rules before it is shown; a refusal names the field and the allowed values. Nothing is created until the person applies the preview.',
       parameters: {
         type: 'object',
         properties: {
-          title: { type: 'string' },
-          statement: { type: 'string' },
-          rationale: { type: 'string' },
-          type: { type: 'string', description: "Requirement type from the project's conventions, e.g. functional, performance" },
+          title: { type: 'string', description: 'Short name, 1–300 characters' },
+          statement: { type: 'string', description: 'Normative text only (one verifiable obligation, with units), at most 20 000 characters' },
+          rationale: { type: 'string', description: 'Why it exists, sources and assumptions; at most 20 000 characters' },
+          type: {
+            type: 'string',
+            description:
+              "One of the project's requirement types. Default types: functional, performance, interface, environmental, physical, design-constraint, safety, other (a project may change them; requirements.get_conventions lists the project's). Dimensions, mass and size limits are usually 'physical' or 'design-constraint'. Omit to use 'functional'.",
+          },
           verificationMethods: { type: 'array', items: { type: 'string', enum: ['inspection', 'analysis', 'demonstration', 'test'] } },
-          acceptanceCriteria: { type: 'string' },
+          acceptanceCriteria: { type: 'string', description: 'How verification shows the requirement is met; at most 20 000 characters' },
           origin: { type: 'string', enum: ['stakeholder', 'ai-proposed', 'derived'] },
           derivesFrom: { type: 'string', description: 'Key or ID of the parent requirement (origin "derived")' },
         },
@@ -433,6 +492,7 @@ async function proposeCreate(conn: Connection & { client: RequirementsModuleClie
     ...(acceptanceCriteria !== undefined ? { acceptanceCriteria } : {}),
     ...(parent ? { derivesFrom: parent.id } : {}),
   }
+  await checked(conn, 'createRequirement', () => conn.client.validateCreate(input))
   const basis = basisOf(origin)
   return {
     kind: 'declarative-proposal',
@@ -476,6 +536,7 @@ async function proposeAllocate(conn: Connection & { client: RequirementsModuleCl
   })
   const additions = add.filter((t) => !current.some((x) => x.toTwinId === t.id.trim()))
   if (!additions.length && !removals.length) throw new ActionError('no-op', `${r.key} already has these allocations.`)
+  for (const t of additions) await checked(conn, 'createRelationship', () => conn.client.validateRelationship(allocationRequest(r, t, { rationale })))
   const label = (t: AllocationTarget) => (t.kind === 'sysml-model-element' ? `SysML ${t.id}` : t.kind === 'product-element' ? `product element ${t.id}` : `component ${t.id}`)
   return {
     kind: 'declarative-proposal',
@@ -488,7 +549,26 @@ async function proposeAllocate(conn: Connection & { client: RequirementsModuleCl
       ...additions.map((t) => ({ targetId: r.id, label: `${r.key} allocated to`, proposed: label(t) })),
     ],
     inspected: [{ id: r.key, detail: `rev ${r.revision}, ${current.length} allocation(s)` }],
-    operations: [...removals.map((rel) => deallocateOperation(conn.projectId, rel)), ...additions.map((t) => allocateOperation(conn.projectId, r, t, { rationale }))],
+    operations: [
+      ...removals.map((rel) => deallocateOperation(conn.projectId, rel)),
+      ...additions.map((t) => allocateOperation(conn.projectId, r, t, { rationale })),
+    ],
     expected: [requirementExpected(conn.projectId, r)],
+  }
+}
+
+/**
+ * Checks a proposed write with the Requirements service's own rules (validate endpoints: the same code as the
+ * write, rolled back) before the proposal is shown, so an invalid proposal is never offered for Apply. The
+ * refusal carries the service's message, which names the field and the allowed values.
+ */
+async function checked(conn: Connection, operation: string, validate: () => Promise<unknown>): Promise<void> {
+  try {
+    await validate()
+  } catch (e) {
+    const err = e as { code?: string; message?: string }
+    const code = err.code === 'forbidden' || err.code === 'unauthenticated' ? 'not-allowed' : err.code === 'conflict' ? 'conflict' : err.code === 'not-found' ? 'not-found' : err.code === 'invalid' ? 'invalid-arguments' : undefined
+    if (!code) throw e
+    throw new ActionError(code, `Not proposed (${operation} in ${conn.projectId} would be refused): ${err.message ?? 'refused'}`)
   }
 }

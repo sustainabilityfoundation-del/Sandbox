@@ -215,7 +215,7 @@ export function errorBody(error: unknown, errorId: string = randomUUID()): { sta
       const extra = v.params?.additionalProperty ? ` (${v.params.additionalProperty})` : v.params?.missingProperty ? ` (${v.params.missingProperty})` : ''
       fields[path] = `${v.message ?? 'invalid'}${extra}`
     }
-    return { status: 400, body: { error: { code: 'invalid', message: `The ${e.validationContext ?? 'request'} is not valid.`, details: { fields } } } }
+    return { status: 400, body: { error: { code: 'invalid', message: `The ${e.validationContext ?? 'request'} is not valid: ${Object.entries(fields).map(([f, why]) => `${f} ${why}`).join('; ')}.`, details: { fields } } } }
   }
   if (e.statusCode === 415 || e.code === 'FST_ERR_CTP_INVALID_MEDIA_TYPE') return { status: 415, body: { error: { code: 'invalid', message: e.message ?? 'Unsupported content type.' } } }
   if (e.statusCode === 413 || e.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return { status: 413, body: { error: { code: 'invalid', message: 'The request body is too large.' } } }

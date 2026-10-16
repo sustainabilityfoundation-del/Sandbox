@@ -98,6 +98,14 @@ export class RequirementsModuleClient {
   listRelationships(q: { type?: T.RelationshipType; toTwinId?: string; baselineId?: string; limit?: number } = {}) {
     return this.get<T.Relationship[]>('/relationships', q)
   }
+  /** Checks a new requirement with the server's create rules without creating it (POST /requirements/validate). */
+  validateCreate(input: T.RequirementCreate) {
+    return this.send<{ valid: true }>('POST', '/requirements/validate', input)
+  }
+  /** Checks a relationship with the server's create rules without creating it (POST /relationships/validate). */
+  validateRelationship(input: { type: T.RelationshipType; fromId: string; toRequirementId?: string; toTwinId?: string; toSysmlElement?: string; expectedFromRevision?: number; rationale?: string; reason?: string }) {
+    return this.send<{ valid: true }>('POST', '/relationships/validate', input)
+  }
   createRelationship(
     input: { type: T.RelationshipType; fromId: string; toRequirementId?: string; toTwinId?: string; toSysmlElement?: string; expectedFromRevision?: number; rationale?: string; reason?: string },
     idempotencyKey = newIdempotencyKey(),
