@@ -83,8 +83,10 @@ Backlog (tracked here until done):
   docs/dependencies.md: all 14 advisories from @scalar/api-reference (services/api), high one (undici) not reachable in the shipped
   product. OSS-19: raise that pin once a fixed release (1.75.0, 16 Oct) is two weeks old (about 30 October). Line-ending fix: the
   register test ignores CRLF; .gitattributes keeps generated files LF.
-- CT-2a done on branch feature/ct-2a-registry-contract (8337ce3): SDK 1.13.0, design system 1.2.0 CommandBar; Opus review running.
-  Coordinator rule for CT-2b: entries in KNOWN_EVIDENCE_GAPS render ready (no partial dot); list_capabilities reports them as implemented with unverified evidence.
+- CT-2a (feature/ct-2a-registry-contract): Opus review "merge after changes" (fallback tab so runtime items are never dropped; declare
+  browser-test devDependencies and regenerate the register; fail in CI when Chrome is missing; flaky focus wait; useId; disabled toggle
+  keeps active). Fixes running. Coordinator decision (revised after review): state stays strictly evidence-based; bound entries without
+  verifiedBy remain partial (subtle dot) everywhere; buildCommandModel takes evidenceGaps and labels them "test evidence not yet linked".
 - OSS-3 Module assessments (Phase 2), one per module agent, in priority order set by OSS-1; each ends in an ADR and backlog entries.
 - OSS-4 Shared integration interfaces (solver, geometry, simulation, visualization) documented, after OSS-1.
 - OSS-5 Upstream contribution workflow: nothing is published without explicit owner authorization.
