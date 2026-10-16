@@ -78,3 +78,15 @@ adds a fixture client and server module and passes every check without shared-fi
   how "Permitted dependencies" is governed. (b) the `package.json` `"ews"` block convention (`allowedImports`, `e2eFlows`).
   (c) Requirements' server wiring stays composed in the host (architect recommendation) rather than in its manifest.
 - Unchanged by this work: entitlement plans (`apps/workspace/src/platform/entitlements.ts`).
+
+### I1 result and notes for I2/I3 (16 October 2026)
+I1 (SDK 1.10.0, branch feature/manifests-i1, 5372578): types in `packages/platform-sdk/src/contract/modules.ts` and
+`src/react/modules.ts`, contract tests in `modules.test.ts`. Notes for the next increments:
+1. The status union is exported as `CapabilityStatus` (the plan's `ImplementationStatus` collides with a type in
+   `contract/concepts.ts`); I2 switches `apps/workspace/src/assistant/capabilities.ts` to it (same members).
+2. Existing inventory entries are not yet proven assignable (boundaries forbid importing the workspace and service arrays
+   in SDK tests); I2/I3 prove it by typing the existing arrays with the SDK types.
+3. `ServerModuleHost` is minimal (`app: unknown`, `context?`); `settings`, `provisioning` and `artifactSource` are `unknown`.
+   I3 defines what the host exposes and tightens these shapes additively (SDK minor bump if exported shapes change).
+4. `ModuleHostEnv` is `{ requirementsMode: 'demo' | 'api'; devUser }`; the CAD ('files' | 'api') and SysML ('local' | 'api')
+   factories map the env to their own option shapes inside their `tool(env)` factory.
