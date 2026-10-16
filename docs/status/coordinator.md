@@ -105,7 +105,7 @@ Owner: "focus on getting the cad working better woth more functionality". CAD Mo
 
 ## Model routing override (owner, 16 October 2026)
 Owner: "Can you switch to fable for a sprint to maximize usage for this week?" All newly started agents use Fable
-(`model: fable`) until the end of Sunday 19 October 2026, instead of the AGENTS.md routing (Opus review and architecture, Sonnet
+(`model: fable`) until 21:45 EDT on 16 October 2026 (owner: "It resets in 3 hours so only run fable until then"), instead of the AGENTS.md routing (Opus review and architecture, Sonnet
 implementation and runs). Agents already running keep their model. Reviews and integration runs still gate every merge. The
 coordinator's own model is switched by the owner with /model.
 
