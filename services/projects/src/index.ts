@@ -36,3 +36,4 @@ export { importLegacyProduct, LEGACY_COMPONENTS, LEGACY_ELEMENT_IDS } from './st
 export { runProvisioning, type ProvisioningModule } from './provisioning'
 export { NEW_PROJECT_TOOLS, LEGACY_PROJECT_TOOLS, workspaceDefaults } from './domain/workspace'
 export { reconcileProject, describeAndRegister, startRegistryConsumer, upsertDescriptor, type ReconcileReport } from './registry'
+export { projectsServerManifest } from './manifest'

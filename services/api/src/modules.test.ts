@@ -3,7 +3,8 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createPolicy } from '@ews/assistant-service'
 import type { ServerModuleManifest } from '@ews/platform-sdk'
-import { INSTALLED_SERVER_MODULES, assertUniqueManifests, collectPolicyContributions } from './modules'
+import { projectsServerManifest } from '@ews/projects-service'
+import { ALL_SERVER_MODULES, INSTALLED_SERVER_MODULES, assertUniqueManifests, collectPolicyContributions } from './modules'
 
 const repo = resolve(__dirname, '../../..')
 
@@ -19,7 +20,7 @@ const fixture = (over: Partial<ServerModuleManifest> & { id: string }): ServerMo
 
 describe('installed server modules', () => {
   it('have unique IDs and base paths, and keep the plugin registration order', () => {
-    expect(() => assertUniqueManifests(INSTALLED_SERVER_MODULES)).not.toThrow()
+    expect(() => assertUniqueManifests(ALL_SERVER_MODULES)).not.toThrow()
     expect(INSTALLED_SERVER_MODULES.map((m) => m.id)).toEqual(['requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'visualization'])
   })
 
@@ -46,7 +47,7 @@ describe('installed server modules', () => {
 })
 
 describe('AI policy from the installed manifests', () => {
-  const { aiModules, operations } = collectPolicyContributions(INSTALLED_SERVER_MODULES)
+  const { aiModules, operations } = collectPolicyContributions(ALL_SERVER_MODULES)
   const policy = createPolicy(aiModules, operations)
 
   it('lists every assistant action the tool packages register in the merged operation catalogue', () => {
@@ -56,6 +57,26 @@ describe('AI policy from the installed manifests', () => {
     expect(names.size).toBeGreaterThan(20)
     expect([...names].filter((n) => !(n in policy.catalogue))).toEqual([])
     expect([...names].filter((n) => !policy.classify(n))).toEqual([])
+  })
+
+  it('keeps the AI module order and the order of the AI settings rows exactly as before the manifests (b845b0d)', () => {
+    const base = ['workspace', 'requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'illustrative', 'projects', 'reasoning', 'help']
+    expect(policy.modules.map((m) => m.id)).toEqual(base)
+    const rows = (defs: { id: string }[], prefix: string) => defs.filter((d) => d.id.startsWith(prefix)).map((d) => d.id.slice(prefix.length))
+    expect(rows(policy.settingDefinitions, 'ai.access.')).toEqual(base)
+    expect(rows(policy.settingDefinitions, 'ai.ceiling.')).toEqual(base)
+    // A new installed module follows the known ones and precedes the platform tail, in installed-list order.
+    const extra = collectPolicyContributions([fixture({ id: 'x1', aiModule: { id: 'x1', label: 'X1', description: 'X.', prefixes: ['x1.'] } }), fixture({ id: 'x2', aiModule: { id: 'x2', label: 'X2', description: 'X.', prefixes: ['x2.'] } })])
+    expect(createPolicy(extra.aiModules, extra.operations).modules.map((m) => m.id)).toEqual([...base.slice(0, 6), 'x1', 'x2', 'reasoning', 'help'])
+  })
+
+  it('takes Project Management from its manifest (no legacy entry): same module, prefix and default class as before', () => {
+    expect(aiModules.filter((m) => m.id === 'projects')).toHaveLength(1)
+    expect(policy.classify('projects.create')).toMatchObject({ operationClass: 'propose', module: { id: 'projects', label: 'Project Management', prefixes: ['projects.'] } })
+    expect(policy.settingDefinitions.some((d) => d.id === 'ai.access.projects')).toBe(true)
+    // A second definition of the same module (legacy or manifest) is refused.
+    const again = collectPolicyContributions([...ALL_SERVER_MODULES, fixture({ id: 'projects-again', aiModule: projectsServerManifest.aiModule })])
+    expect(() => createPolicy(again.aiModules, again.operations)).toThrow(/defined twice/)
   })
 
   it('merges a manifest contribution, and fails when a legacy entry and a manifest define the same ID or operation', () => {

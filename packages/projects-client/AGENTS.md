@@ -9,3 +9,6 @@ Browser client of the Project Management API. Owner: the Project Management modu
 - `contract-tests`: run `defineProjectsServiceContract` for every adapter (memory in `src/memory.test.ts`, HTTP in
   `services/projects/test/http.contract.test.ts`).
 - Types in `src/types.ts` mirror `services/projects/src/http/schemas.ts` and `productRoutes.ts`; change both together.
+- Module registration (module-registration.md, M1): `src/module.ts` exports `projectsModule({ switchProject })`, the workspace's
+  `ClientModule` (manifest with `src/capabilities.ts`, and a platform module with `src/assistant.ts` and `src/help.ts`; user help
+  pages in `help/*.md`). The window passes `switchProject` because reloading into a project is workspace behaviour.

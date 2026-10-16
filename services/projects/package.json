@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@ews/platform-sdk": "^1.5.0",
+    "@ews/platform-sdk": "^1.12.0",
     "@sinclair/typebox": "0.34.52",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",

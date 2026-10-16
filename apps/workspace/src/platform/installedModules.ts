@@ -19,19 +19,17 @@ import { requirementsTool } from '@ews/tool-requirements'
 import { sysmlTool } from '@ews/tool-sysml'
 import { createSysmlModelerTool } from '@ews/tool-sysml-modeler'
 import type { HelpModuleSource } from '../help/helpService'
-import { projectsAssistant } from '../projects/assistant'
-import { projectsHelp } from '../projects/help'
-import { canOpenTool } from './entitlements'
+import { projectsModule } from '@ews/projects-client'
+import { switchProject } from '../projects/currentProject'
+import { platformModuleHelpSource, toolHelpSource } from './helpSources'
 import {
   CAD_CAPABILITIES,
   CAD_MODELER_CAPABILITIES,
   CONCEPTUALIZE_CAPABILITIES,
-  PROJECTS_CAPABILITIES,
   REQUIREMENTS_CAPABILITIES,
   SYSML_CAPABILITIES,
   SYSML_MODELER_CAPABILITIES,
 } from './installedCapabilities'
-import { platformModuleIncluded } from './platformModules'
 import { serviceSettings } from './services'
 
 const manifest = (id: string, name: string, capabilities: CapabilityEntry[], extra: { entitlement?: string; defaultOpen?: boolean } = {}) => ({
@@ -63,11 +61,9 @@ export const INSTALLED_MODULES: ClientModule[] = [
     manifest: manifest('sysml-modeler', 'SysML Modeler', SYSML_MODELER_CAPABILITIES, { entitlement: 'tool:sysml' }),
     tool: (env) => createSysmlModelerTool(env.requirementsMode === 'demo' ? { mode: 'local' } : { mode: 'api', baseUrl: '/api/sysml/v1', devUser: env.devUser }),
   },
-  {
-    // Project Management is a platform module, not a tool: its assistant operations work headless (milestone C9).
-    manifest: manifest('projects', 'Project Management', PROJECTS_CAPABILITIES),
-    platformModule: () => ({ id: 'projects', name: 'Project Management', assistant: projectsAssistant(), help: projectsHelp }),
-  },
+  // Project Management is a platform module, not a tool: its assistant operations work headless (milestone C9). It lives in
+  // @ews/projects-client (M1); the window supplies how to switch project.
+  projectsModule({ switchProject }),
 ]
 
 /** What the workspace passes to module factories. */
@@ -117,14 +113,14 @@ export function collect(modules: readonly ClientModule[] = INSTALLED_MODULES, en
       const tool = m.tool(env)
       if (tool.id !== id) throw new Error(`Module "${id}" provides a tool with ID "${tool.id}".`)
       out.tools.push(tool)
-      out.help.push({ moduleId: tool.id, displayName: tool.name, moduleVersion: tool.version, manifest: tool.help, available: () => canOpenTool(tool.id) })
+      out.help.push(toolHelpSource(tool))
       if (m.manifest.defaultOpen) out.defaultOpen.push(tool.id)
     }
     if (m.platformModule) {
       const pm = m.platformModule()
       if (pm.id !== id) throw new Error(`Module "${id}" provides a platform module with ID "${pm.id}".`)
       out.platformModules.push(pm)
-      if (pm.help) out.help.push({ moduleId: pm.id, displayName: pm.name, moduleVersion: pm.help.moduleVersion, manifest: pm.help, available: () => platformModuleIncluded(pm) })
+      if (pm.help) out.help.push(platformModuleHelpSource(pm))
     }
   }
   return out

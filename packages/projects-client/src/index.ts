@@ -13,3 +13,7 @@ export { createHttpProjectsService, createMemoryProjectsService, getProjectsClie
 export { ProjectsClient, type WriteOpts } from './client'
 export { HttpTransport, ProjectsApiError, newIdempotencyKey, openEventStream, type HttpConfig, type Provenance, type RequestOptions, type StreamHandle } from './transport'
 export type * from './types'
+export { projectsModule, PROJECTS_MANIFEST, type ProjectsClientModule } from './module'
+export { projectsAssistant, type ProjectsModuleHost } from './assistant'
+export { projectsHelp } from './help'
+export { PROJECTS_CAPABILITIES } from './capabilities'
