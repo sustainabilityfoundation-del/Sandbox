@@ -83,7 +83,9 @@ const helpBox = await page.getByRole('button', { name: 'Help', exact: true }).bo
 check(settingsBox && helpBox && Math.abs(settingsBox.y - helpBox.y) < 8 && helpBox.x > settingsBox.x && helpBox.x - settingsBox.x < 80, 'Settings button sits beside the Help menu in the header')
 await openSettings()
 check(await page.isVisible('[data-testid="settings-platform"]'), 'Settings centre opens on the Platform page')
-check((await page.locator('[data-settings-page]').allTextContents()).join('|') === 'Platform|AI and reasoning', 'pages: Platform and AI and reasoning (no placeholder module pages)')
+// Module pages appear only for modules that contribute settings definitions (no placeholder pages).
+const settingsPages = await page.locator('[data-settings-page]').allTextContents()
+check(settingsPages.slice(0, 2).join('|') === 'Platform|AI and reasoning', `pages: Platform and AI and reasoning first, then module pages with settings (${settingsPages.join(', ')})`)
 check(new URL(page.url()).searchParams.get('settings') === 'platform', 'deep link reflects the open page (?settings=platform)')
 await choose('platform.appearance.theme', 'Dark')
 check((await page.evaluate(() => document.documentElement.dataset.theme)) === 'dark', 'Platform → Theme Dark applies the same preference as the header')

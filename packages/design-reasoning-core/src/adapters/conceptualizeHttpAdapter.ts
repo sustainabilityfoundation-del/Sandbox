@@ -166,7 +166,20 @@ export function createConceptualizeHttpAdapter(options: { transport: HttpTranspo
     list,
 
     async batch(request: BatchRequest, ctx: RequestContext): Promise<BatchResponse> {
-      const res = await call<{ results: { op: string; id: string; key: string | null; revision: number | null }[]; ids: Record<string, string> }>(ctx, 'POST', '/batch', { items: request.items }, { 'idempotency-key': request.idempotencyKey || `${prefix}-${++seq}` })
+      // The service refuses basis `calculated` until it can re-verify calculations (D6, CR-C8). Engine results are
+      // then stored as `estimate`, and the summary says why: a declared downgrade, never a silent relabel.
+      const items = CONCEPTUALIZE_API_CAPABILITIES.calculatedEvidenceVerification
+        ? request.items
+        : request.items.map((item) => {
+            const body = item.body as Dto
+            if (item.op === 'putScores' && Array.isArray(body?.scores) && body.scores.some((s: Dto) => s.basis === 'calculated')) {
+              return { ...item, body: { ...body, scores: body.scores.map((s: Dto) => (s.basis === 'calculated' ? { ...s, basis: 'estimate', rationale: [s.rationale, 'Calculated by the engine; stored as estimate (CR-C8).'].filter(Boolean).join(' ') } : s)) } }
+            }
+            if (item.op !== 'createEvidence' || body?.basis !== 'calculated') return item
+            const note = 'Calculated by the engine; stored as estimate because the service cannot re-verify calculations yet (CR-C8).'
+            return { ...item, body: { ...body, basis: 'estimate', summary: body.summary ? `${body.summary} ${note}` : note } }
+          })
+      const res = await call<{ results: { op: string; id: string; key: string | null; revision: number | null }[]; ids: Record<string, string> }>(ctx, 'POST', '/batch', { items }, { 'idempotency-key': request.idempotencyKey || `${prefix}-${++seq}` })
       return { ids: res.ids, results: res.results.map((r) => ({ op: r.op as BatchResponse['results'][number]['op'], id: r.id, ...(r.key ? { key: r.key } : {}), ...(r.revision != null ? { revision: r.revision } : {}) })) }
     },
 
