@@ -28,18 +28,23 @@ say why. The model chooses the operations; the prompts state the engineering int
 
 | D1 step | Message to send (adapt freely) |
 | --- | --- |
+| 1 Project | "Create a new empty project for a drill bit holder, then open it." (Apply both; the window reloads into the new project; open the panel again: the conversation of the new project is empty.) |
 | 2 Concept | "Conceptual design of a drill bit holder: a small block holding six 1/4-inch hex-shank bits, mounting to the accessory interface of a Milwaukee-compatible cordless drill (compatibility description only). Treat the drill's interface dimensions as assumptions unless I give values. Capture the need as a Concept with its function, constraints, interfaces, assumptions and open questions; ask me only what changes the design." |
 | 2 Constraints | "Add the constraints with bounds: number of pockets, hex width across flats with clearance, wall thickness between pockets, mounting-hole spacing, overall size and mass. Label each as user constraint, AI-proposed or derived." |
 | 3 Requirements | "Draft a few measurable requirements from these constraints and link them to the Concept." |
-| 4 Architecture | "Propose a proportionate functional and physical decomposition and allocate the requirements." |
+| 4 Architecture | "Propose a proportionate functional and physical decomposition: product elements, a SysML model whose parts represent them, and allocate the requirements." |
 | 5 Alternatives | "Develop two or three layout alternatives, compare them with weighted criteria and propose a decision with its rationale." |
-| 6 CAD | (Open the **CAD Modeler** tab first.) "Model the selected design as an editable part with named parameters for the pocket size, spacing, wall thickness and mounting holes." |
+| 6 CAD | (The CAD view may stay closed: the CAD operations work headless.) "Model the selected design as an editable part with named parameters for the pocket size, spacing, wall thickness and mounting holes." |
 | 7 Check | "Check the model against the constraints: report measured or computed values, the CAD document revision, and which assumptions remain open." |
 | 8 Change | "Change: the holder must take eight bits. Show what is affected, update it, and rerun the affected checks." |
 | 9 Save, export | "Save the CAD document to the project and export a STEP file." Then restart (`Ctrl+C`, `npm run dev`), open a private browser window, and check that the Concept, requirements, decisions and CAD document reopen. |
 
-Steps whose operations do not exist yet are listed by the `demo-d1` flow (PENDING lines) and in the D1 increments
-table; the model should say so when it cannot do a step. Record what it did instead.
+Steps the operations cannot do yet are listed by the `demo-d1` flow (PENDING lines) and in the D1 increments
+table; the model should say so when it cannot do a step. Record what it did instead. Known gap: binding a CAD
+parameter to a constraint and checking against it need the constraint's UUID and revision, and no assistant operation
+returns them yet (CR-AI-9). Until that lands, the model may not be able to complete steps 6 and 7 on its own. If it
+asks for the IDs, take them from `GET /api/concepts/v1/projects/<project>/constraints`. Report this as
+adapter-backed.
 
 ## 3. Capture the evidence
 
@@ -51,9 +56,12 @@ table; the model should say so when it cannot do a step. Record what it did inst
    refused, tokens, outcome). The full records, including stored prompts, come from
    `GET /api/assistant/v1/audit?limit=200` with header `X-Dev-User: eli`. Prompts are stored only while the setting
    is on; turn it off afterwards.
-3. **Artifacts**: the module APIs show what was committed, for example
-   `GET /api/concepts/v1/projects/PRJ-ACT100/concepts?text=holder`,
-   `GET /api/cad/v1/projects/PRJ-ACT100/documents`, and the downloaded STEP file.
+3. **Artifacts**: the module APIs show what was committed in the new project. Its ID is in the window URL
+   (`?project=<id>`). For example:
+   - `GET /api/projects/v1/projects/<id>/artifacts`: every registered artifact across the modules;
+   - `GET /api/concepts/v1/projects/<id>/concepts?text=holder` and `…/constraints`;
+   - `GET /api/cad/v1/projects/<id>/documents`;
+   - the downloaded STEP file.
 4. Report, for each step, whether it ran with the **live AI provider** against the **real service**, or was
    adapter-backed, scripted or not available.
 
@@ -61,4 +69,6 @@ table; the model should say so when it cannot do a step. Record what it did inst
 
 Copy `replayScript` from the transcript into `tests/e2e/fixtures/fake-scripts/<name>.json` after reviewing it for
 personal data. With `npm run ai:dev:fake` the fake provider then replays exactly those operations, so a flow like
-`demo-d1.mjs` can repeat the run without a model.
+`demo-d1.mjs` can repeat the run without a model. Values typed in a message can be read with `${user.N}` (capture
+groups of the turn pattern). An array item can be selected with `[field=value]` or `[field^=value]` in a path, for
+example `${cad-modeler.check.data.results.[quantity=parameter af].measured.value}`.

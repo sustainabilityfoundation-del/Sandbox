@@ -230,5 +230,25 @@ Brief: [demo-ai-engineering.md](demo-ai-engineering.md) §3 D1-AI. Boundaries: A
 | 2 | Generic engineering-workflow instructions; multi-step budget | implemented, tested | `services/assistant/src/wire.ts` `INSTRUCTIONS` (material questions only, explicit assumptions, origin labels user constraint / AI-proposed / derived, read before proposing, previewed proposals, checks as measured or computed, never compliance or adequacy); defaults 24 operations per answer (max 60), 4000 output tokens, 90 s, 12 history items, all with project limits; `policy.test.ts` checks the rules and that no example content is in the instructions |
 | 3 | Persisted declarative proposals, revalidation at Apply; survive reload and restart | implemented, tested | §8; `proposals.api.test.ts` (server restart), `ai-fake-provider` flow (fresh browser session) |
 | 4 | Drill example isolated | implemented, tested | `apps/workspace/fixtures/demo-plans/drill-bit-holder.json` read by the generic `scriptedPlans.ts`; `exampleIsolation.test.ts` scans product source (workspace, assistant and settings services) for the example's vocabulary |
-| 5 | `tests/e2e/flows/demo-d1.mjs` (fake provider replaying a recorded tool-call script; plumbing only, not D1 acceptance) | implemented, tested | Script `tests/e2e/fixtures/fake-scripts/d1-plumbing.json` (fake provider `replay.ts`, `replay.test.ts`). Real services: concept, function, constraints, assumption, draft requirements, alternatives, native CAD commands, CAD document saved to the CAD service, STEP export (1 solid), transcript, fresh-session read-back. Pending steps printed with owners |
-| 6 | Live-run guide with transcript and tool-call evidence capture | implemented | [d1-live-run.md](../modules/ai-interface/d1-live-run.md); panel **Export transcript** (operations with arguments and rounds, proposals, connection, replayable script; `transcript.test.ts`); audit with stored prompts. The live run itself needs the owner's account and is **not done** |
+| 5 | `tests/e2e/flows/demo-d1.mjs` (fake provider replaying a recorded tool-call script; plumbing only, not D1 acceptance) | implemented, tested (passes against main f68369c services) | Script `tests/e2e/fixtures/fake-scripts/d1-plumbing.json` (fake provider `replay.ts`: `${user.N}`, `[field=value]` selectors; `replay.test.ts`). It applies 26 previews against the real services: `projects.create` and `open` (the window reloads into the new project); Concept, function, two constraints and an assumption; `requirements.create` (stakeholder, ai-proposed) and `allocate` to a product element; `projects.create_product_element`; `sysml-modeler.create_project` and `link_product_element`; alternatives; CAD `run_commands` with a regular polygon, pocket cut, linear pattern and `bind_parameter`, with the CAD view closed; `cad-modeler.check` (measured 6.6 mm and 2.4 mm, satisfied) and `conceptualize.record_evidence`; `revise_constraint`, then `check_bindings` (revision 1 superseded by 2), update and re-bind, check again (6.8 mm against revision 2); STEP export with read-back (1 solid, valid, 0 differences) and download; the transcript; read-back from the services in a fresh browser session. PENDING lines: CR-AI-9 (constraint UUIDs typed by the person), CR-AI-1, CR-PM-SDK-4 |
+| 6 | Live-run guide with transcript and tool-call evidence capture; D1 spec §5 How to run | implemented | [d1-live-run.md](../modules/ai-interface/d1-live-run.md) (updated for the new project, headless CAD and the CR-AI-9 gap); [demo-ai-engineering.md](demo-ai-engineering.md) §5 (plumbing test and live run); panel **Export transcript**; audit with stored prompts. The live run itself needs the owner's account and is **not done** |
+
+### D1-AI fixes and findings (checkpoint after main f68369c)
+
+- (a) A refusal caused by the AI access policy names the access settings and the policy reason, not the subscription
+  (`DemoAssistantService.notInSubscription`, `scriptedPlans.ts`; test in `connection.test.ts`).
+- (b) Requirements event hub `close()` is in the Requirements package: filed as CR-AI-10 instead of editing it.
+- (c) Leftover open proposals from earlier sessions: **Dismiss all** in the panel's earlier-proposals section. Each
+  one is recorded as rejected on the server (`proposalSync.test.ts`).
+- Large operation results: strings longer than 2000 characters are shortened before the 24000-character cut, so a
+  STEP export returned to the model keeps its read-back report as valid JSON. It also sends less data
+  (`wire.test.ts`).
+- Findings from the plumbing run:
+  - `conceptualize.record_evidence` accepts a CAD source only as `cad-modeler-entity` (`<document>/<part>`), not as
+    the registered `cad-document` kind. The script uses the part.
+  - `run_commands` saves the document revision on Apply when the document is stored, so a following
+    `save_document` reports "No changes".
+  - Documents created by `run_commands` are titled "Untitled 1".
+  - In the dev server, the first CAD use makes Vite optimise `replicad` and reload the page, which interrupts the
+    running reply. Proposal to the coordinator: add `replicad` and `replicad-opencascadejs` to
+    `optimizeDeps.include` of the workspace Vite config.
