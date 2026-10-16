@@ -26,7 +26,8 @@ import { CapabilitiesDialog } from './shell/CapabilitiesDialog'
 import { CoverageDialog } from './shell/CoverageDialog'
 import { HelpCentre } from './help/HelpCentre'
 import { openContextualHelp } from './help/contextual'
-import { openCurrentProject } from './projects/bootstrap'
+import { openCurrentProject, useCurrentProject } from './projects/bootstrap'
+import { ProjectExplorer } from './projects/ProjectExplorer'
 import { ProjectHome, openProjectHome } from './projects/ProjectHome'
 import { switchProject } from './projects/currentProject'
 
@@ -84,6 +85,8 @@ function useToolDeepLink() {
 
 function MainWorkspace({ repository }: { repository: DemoRepository }) {
   useToolDeepLink()
+  const opened = useCurrentProject((s) => s.opened)
+  const explorerProject = opened && !opened.legacy && opened.context ? opened.current.projectId : null
   const mode = useViewportMode()
   const size = useViewportSize()
   useVisualViewportHeight()
@@ -139,8 +142,9 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
     <div className="ws-app" data-mode={mode}>
       <Header repository={repository} mode={mode} onOpenPalette={() => setLauncherOpen(true)} />
       <div className="ws-body" style={{ gridTemplateColumns }}>
-        <SidePanel side="left" title="Product tree" open={layout.treeOpen} mode={mode} onClose={() => setLayout({ treeOpen: false })}>
-          <ProductTree />
+        {/* New projects show their registered artifacts by module; the example project keeps its product tree (C12). */}
+        <SidePanel side="left" title={explorerProject ? 'Project explorer' : 'Product tree'} open={layout.treeOpen} mode={mode} onClose={() => setLayout({ treeOpen: false })}>
+          {explorerProject ? <ProjectExplorer projectId={explorerProject} /> : <ProductTree />}
         </SidePanel>
         {desktop && layout.treeOpen && (
           <ResizeHandle
