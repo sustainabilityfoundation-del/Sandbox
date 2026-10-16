@@ -1,3 +1,5 @@
+import { CompletionContext } from '@codemirror/autocomplete'
+import { EditorState } from '@codemirror/state'
 import { validateHelpManifest, type AssistantActionContext, type ServiceProposal } from '@ews/platform-sdk'
 import { createLocalSysmlClient, LOCAL_SEED_PROJECT_ID } from '@ews/sysml-client'
 import { ACTUATOR_EXAMPLE, applyTransaction, loadText, resolveRef, serialize } from '@ews/sysml-core'
@@ -7,6 +9,7 @@ import { sysmlModelerDemo } from './assistant'
 import { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from './projection/behavior'
 import { connectableEnds, generalView, interconnectionView } from './projection/graph'
 import { getClient } from './session'
+import { sysmlCompletions } from './view/CodeEditor'
 
 const model = () => loadText(ACTUATOR_EXAMPLE).model
 const id = (m: ReturnType<typeof model>, qn: string) => resolveRef(m, qn)['@id']
@@ -225,10 +228,7 @@ describe('managed requirement link (Requirements stays authoritative)', () => {
 })
 
 describe('text editor completion (CodeMirror source)', () => {
-  it('completes keywords, model names and qualified members after ::', async () => {
-    const { CompletionContext } = await import('@codemirror/autocomplete')
-    const { EditorState } = await import('@codemirror/state')
-    const { sysmlCompletions } = await import('./view/CodeEditor')
+  it('completes keywords, model names and qualified members after ::', () => {
     const m = model()
     const at = (doc: string, explicit = false) => {
       const state = EditorState.create({ doc })
