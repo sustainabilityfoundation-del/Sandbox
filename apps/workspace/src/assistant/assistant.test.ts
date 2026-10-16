@@ -103,7 +103,7 @@ describe('assistant demo flow across the three tools', () => {
     expect(ws().context.selectedIds).toEqual(['ROD-120'])
   })
 
-  it('no longer offers or understands the retired illustrative tools (ADR-0076)', async () => {
+  it('no longer offers or understands the retired illustrative tools (ADR-0077)', async () => {
     const before = ws().model!.revision
     for (const prompt of ['Change the rod diameter to 28 mm.', 'Add a SysML requirement reference for REQ-003.', 'Connect the housing to the motor in SysML.']) {
       const reply = await ask(prompt)
@@ -151,7 +151,7 @@ describe('assistant and subscriptions', () => {
   it('refuses tool actions and tool opening for tools outside the subscription, even if requested directly', async () => {
     setPlan('requirements')
     const ctx = validationContext()
-    // The retired illustrative operations are not accepted in any subscription (ADR-0076).
+    // The retired illustrative operations are not accepted in any subscription (ADR-0077).
     expect(await executeToolCall({ id: 'x', name: 'cad.set_dimension', arguments: { objectId: 'ROD-120', parameter: 'diameter', value: 30, unit: 'mm' } }, ctx)).toMatchObject({
       ok: false,
       errorCode: 'not-allowed',

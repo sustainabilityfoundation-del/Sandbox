@@ -1,4 +1,4 @@
-# ADR-0076: Retire the illustrative tools from the interface; name the SysML tool "System Model"
+# ADR-0077: Retire the illustrative tools from the interface; name the SysML tool "System Model"
 
 Status: Accepted (16 October 2026, owner decision in the conversation; implemented by the `ui/retire-illustrative-rename-system-model`
 branch). Amends [ADR-0027](0027-cad-mock-tool-replacement.md) (phase 4, hide) and

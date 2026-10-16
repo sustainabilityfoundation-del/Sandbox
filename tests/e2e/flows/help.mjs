@@ -30,7 +30,7 @@ const items = await page.getByRole('menuitem').allTextContents()
 for (const label of ['Help Centre', 'Contextual help', 'Getting started', 'Keyboard shortcuts', 'Requirements', 'System Model', 'CAD Modeler', 'AI Interface', 'API documentation', 'About and versions']) {
   check('menu', items.some((t) => t.includes(label)), `menu has “${label}”`)
 }
-// ADR-0076: no help entry for the retired illustrative SysML and mock CAD tools.
+// ADR-0077: no help entry for the retired illustrative SysML and mock CAD tools.
 check('menu', !items.some((t) => /^(SysML|CAD)(?!\s*Modeler)/.test(t.trim())), `menu has no entry for the retired illustrative tools (${items.join(' | ')})`)
 await page.getByRole('menuitem', { name: /^Requirements/ }).hover()
 await page.waitForTimeout(400)

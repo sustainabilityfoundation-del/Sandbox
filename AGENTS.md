@@ -68,8 +68,8 @@ operations that simulate engineering results. This does not take priority over D
 | --- | --- | --- |
 | Platform | `apps/workspace`, `packages/platform-sdk`, `packages/model-service`, `packages/design-system` | Shell, navigation, tool registry, subscriptions and entitlements, shared context, windows, assistant execution, the SDK contract, the shared twin and repository, the component library and icons |
 | Requirements tool | `packages/tool-requirements` | Requirements views, toolbar, commands, private view state, requirement domain logic, assistant actions |
-| SysML tool (retired from the interface, ADR-0076) | `packages/tool-sysml` | Diagram, property panel, text notation, SysML domain logic, assistant actions |
-| CAD tool (retired from the interface, ADR-0076) | `packages/tool-cad` | Mock geometry, dimensions, visibility, CAD domain logic, assistant actions |
+| SysML tool (retired from the interface, ADR-0077) | `packages/tool-sysml` | Diagram, property panel, text notation, SysML domain logic, assistant actions |
+| CAD tool (retired from the interface, ADR-0077) | `packages/tool-cad` | Mock geometry, dimensions, visibility, CAD domain logic, assistant actions |
 | Conceptualize | `packages/tool-conceptualize`, `packages/conceptualize-client`, `services/conceptualize` | Concepts, alternatives, trade studies, decisions, evidence, implementations ([contracts](docs/specifications/conceptualize-contracts.md)) |
 | CAD Modeler | `packages/cad-core`, `packages/cad-kernel`, `packages/cad-client`, `services/cad`, `packages/tool-cad-modeler` | Native parametric model, commands, OCCT kernel adapter, modeler UI ([contracts](docs/specifications/cad-program-contracts.md)) |
 | System Model (SysML v2) | `packages/sysml-core`, `services/sysml`, `packages/sysml-client`, `packages/tool-sysml-modeler` | SysML v2 semantic core, repository and API, modeler UI ([contracts](docs/specifications/sysml-program-contracts.md)) |

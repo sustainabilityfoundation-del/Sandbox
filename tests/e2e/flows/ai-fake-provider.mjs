@@ -133,15 +133,22 @@ await page.click('[data-dock-tab="assistant"]')
 await page.waitForSelector('[data-testid="assistant-connection"][data-assistant-kind="remote"]', { timeout: 10000 })
 check(true, 'assistant panel shows the connected provider (no longer the demo)')
 check(!(await page.locator('[data-dock-tab="assistant"] .ws-dock-demo').count()), 'dock tab no longer says Demo')
-const revBefore = Number(await page.textContent('[data-testid="model-revision"]'))
-const reply = await ask('Set ROD-120 diameter to 28 mm')
+// ADR-0077: the twin has no AI-editable field left (the illustrative tools are retired), so the model's tool call is a Requirements
+// operation (a service write): the evidence is the requirement's rationale and revision in the Requirements service.
+const stamp = Date.now() % 100000 // the development database keeps earlier runs; every value is new
+const REQ3 = '5b1c7e2a-0003-4e6a-9c1d-6f0a3d2b1003'
+const REQ4 = '5b1c7e2a-0004-4e6a-9c1d-6f0a3d2b1004'
+const reqApi = (p, id, patch) => p.evaluate(async ({ id, patch }) => { const r = await fetch('/api/requirements/v1/projects/PRJ-ACT100/requirements/' + id, patch ? { method: 'PATCH', headers: { 'X-Dev-User': 'eli', 'content-type': 'application/json' }, body: JSON.stringify(patch) } : { headers: { 'X-Dev-User': 'eli' } }); return r.json() }, { id, patch })
+const req3Before = await reqApi(page, REQ3)
+const reply = await ask(`Revise REQ-003 rationale to "Fake provider check one ${stamp}"`)
 check((await reply.textContent()).includes('Fake provider'), 'answer came from the connected (fake) provider via the backend')
 const apply = reply.getByRole('button', { name: 'Apply' })
 check(await apply.isVisible(), 'the model tool call produced a preview that needs Apply')
-check(Number(await page.textContent('[data-testid="model-revision"]')) === revBefore, 'nothing changed before Apply')
+check((await reqApi(page, REQ3)).revision === req3Before.revision, 'nothing changed before Apply')
 await apply.click()
 await page.waitForSelector('.as-event.is-success', { timeout: 10000 })
-check(Number(await page.textContent('[data-testid="model-revision"]')) === revBefore + 1, 'Apply committed one new model revision')
+const req3After = await reqApi(page, REQ3)
+check(req3After.revision === req3Before.revision + 1 && req3After.rationale === `Fake provider check one ${stamp}`, `Apply committed one new requirement revision (rev ${req3Before.revision} → ${req3After.revision})`)
 await shot('05-applied')
 const respondCalls = requests.filter((r) => r.url.includes('/api/assistant/v1/respond'))
 check(respondCalls.length >= 2, `the browser called our backend's respond endpoint (${respondCalls.length} calls), not the provider`)
@@ -149,7 +156,7 @@ check(!requests.some((r) => /openai\.com/.test(r.url)), 'the browser never conta
 check(!requests.some((r) => r.body.includes(KEY) && !r.url.includes('/connection/api-key')), 'the key was sent only once, to /connection/api-key')
 
 // --- A proposal saved in the assistant service reopens in a fresh browser session (C9) ---------------------
-const pending = await ask('Set ROD-120 diameter to 27 mm')
+const pending = await ask(`Revise REQ-004 rationale to "Fake provider check two ${stamp}"`)
 const pendingId = await pending.locator('[data-proposal-id]').first().getAttribute('data-proposal-id')
 await wait(800) // saved asynchronously
 const conversationTag = await page.evaluate(async () => (await import('/workspace/src/assistant/conversation.ts')).useConversation.getState().conversationId.slice(-4))
@@ -163,19 +170,30 @@ await page2.waitForSelector('[data-testid="reopened-proposals"]', { timeout: 150
 const reopenedCard = page2.locator(`[data-testid="reopened-proposals"] [data-proposal-id="${pendingId}·${conversationTag}"]`)
 check(await reopenedCard.isVisible(), `${pendingId} reopens in a fresh browser session (no local conversation) from the assistant service`)
 check((await reopenedCard.textContent()).includes('From an earlier session'), 'the reopened proposal is labelled as coming from an earlier session')
-const rev2 = Number(await page2.textContent('[data-testid="model-revision"]'))
-// The workspace twin lives in each browser's storage (R1): in this fresh session ROD-120 has another revision, so the
-// revision check refuses the reopened proposal and explains it; nothing is overwritten.
+// Another person edits REQ-004 meanwhile (service write), so the reopened preview is stale: the revision check refuses it, explains
+// and writes nothing; the person reviews the refreshed preview and applies it deliberately.
+const req4Before = await reqApi(page2, REQ4)
+await reqApi(page2, REQ4, { rationale: `Edited elsewhere meanwhile ${stamp}`, expectedRevision: req4Before.revision, reason: 'e2e: concurrent edit' })
+const req4Edited = await reqApi(page2, REQ4)
 await reopenedCard.getByRole('button', { name: 'Apply', exact: true }).click()
-await page2.waitForTimeout(1000)
+await page2.waitForTimeout(1500)
 const refusedText = await reopenedCard.textContent()
-check(/changed from rev [0-9]+ to rev [0-9]+/.test(refusedText) && Number(await page2.textContent('[data-testid="model-revision"]')) === rev2, 'a stale reopened proposal is refused with an explanation ("changed from rev … to rev …") and nothing is written')
-// The person reviews the refreshed preview and applies it deliberately.
-await reopenedCard.getByRole('button', { name: 'Apply refreshed preview' }).click()
-await page2.waitForFunction((n) => Number(document.querySelector('[data-testid="model-revision"]')?.textContent) === n + 1, rev2, { timeout: 15000 })
-check(true, 'after reviewing the refreshed preview, Apply commits one new model revision')
+const req4Refused = await reqApi(page2, REQ4)
+check(req4Refused.revision === req4Edited.revision && req4Refused.rationale === `Edited elsewhere meanwhile ${stamp}`, 'a stale reopened proposal writes nothing')
+check(/changed since/i.test(refusedText) && /Preview refreshed/.test(refusedText), 'a stale reopened proposal is refused with an explanation ("changed since …") and its preview is refreshed')
+check(/prepare the proposal again/i.test(refusedText), 'the refusal tells the person to ask for a current preview')
 await shot('05b-reopened', page2)
+// Leave nothing pending for the next flow: the refused proposal is dismissed (it is a failed record, not a pending one).
+await reopenedCard.getByRole('button', { name: 'Dismiss' }).click().catch(() => undefined)
+await page2.waitForTimeout(500)
 await fresh.close()
+// The person asks again in the live conversation, reviews the current preview and applies it deliberately.
+const again = await ask(`Revise REQ-004 rationale to "Fake provider check three ${stamp}"`)
+await again.getByRole('button', { name: 'Apply' }).click()
+await page.waitForSelector('.as-event.is-success >> nth=1', { timeout: 10000 }).catch(() => undefined)
+await wait(1500)
+const req4Final = await reqApi(page, REQ4)
+check(req4Final.revision === req4Edited.revision + 1 && req4Final.rationale === `Fake provider check three ${stamp}`, 'after asking again, Apply commits one new requirement revision from the current state')
 await page.reload()
 await page.waitForSelector('[data-testid="model-revision"]')
 await page.click('[data-dock-tab="assistant"]').catch(() => {})
@@ -244,7 +262,7 @@ const saved = await page.evaluate(async () => (await (await fetch('/api/settings
 check(saved === 'off', 'the server stored AI off for Shared model (' + saved + ')')
 await page.keyboard.press('Escape')
 await wait(800)
-const refused = await ask('Set ROD-120 diameter to 30 mm')
+const refused = await ask('Set REQ-005 status to approved')
 check((await refused.textContent()).includes('may not propose'), 'with Shared model off, propose_changes is not offered to the model')
 // A model that asks for an operation of a module that is off: refused by the server, shown, told to the model.
 await openSettings('ai')
@@ -267,7 +285,7 @@ await choose('ai.access.workspace', 'Read and propose changes')
 // Audit
 await page.getByRole('button', { name: 'Refresh' }).click()
 await wait(600)
-check((await page.textContent('[data-testid="ai-audit"]')).includes('propose_changes'), 'audit lists the operations of recent calls')
+check((await page.textContent('[data-testid="ai-audit"]')).includes('requirements.update'), 'audit lists the operations of recent calls')
 await shot('06-ai-policy-audit')
 
 // --- Disconnect ---------------------------------------------------------------------------------------------

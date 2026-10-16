@@ -18,7 +18,7 @@ npm run e2e -- platform help    # selected flows
 | `E2E_HEADED` | unset | Show the browser |
 
 Flows (`flows/*.mjs`, one process each, exit code 0 = pass): `platform` (subscriptions, shared context, upgrade
-of version 0.1 data, CAD dimension mapping, detached windows, failure isolation, icons), `help`, `coverage`,
+of version 0.1 data, retired illustrative tools absent and their data kept, detached windows, failure isolation, icons), `help`, `coverage`,
 `integration`, `vision`, `conceptualize`, `sysml-modeler`, `cad-modeler`, `cad-modeler-persistence` (CAD service revisions,
 concurrency, edge features, deep link, units setting), `cad-d1` (regular polygon, pocket and linear pattern in the
 UI, volumes checked analytically), `ai-headless` (every engineering operation with all tool tabs closed; modules

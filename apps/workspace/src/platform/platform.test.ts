@@ -37,7 +37,7 @@ describe('tool catalogue', () => {
     expect(getTools().map((t) => t.id)).toEqual(collect().tools.map((t) => t.id))
     expect(getTools().length).toBeGreaterThanOrEqual(4)
     expect(getTools().map((t) => t.id)).toEqual(expect.arrayContaining(['requirements', 'conceptualize', 'cad-modeler', 'sysml-modeler']))
-    // ADR-0076: the illustrative tools are not in the catalogue (their data and IDs are kept).
+    // ADR-0077: the illustrative tools are not in the catalogue (their data and IDs are kept).
     expect(getTool('sysml')).toBeUndefined()
     expect(getTool('cad')).toBeUndefined()
     expect(getTools().map((t) => t.id)).not.toEqual(expect.arrayContaining(['sysml']))
@@ -197,7 +197,7 @@ describe('shared context across tools', () => {
 })
 
 // Ownership is data-side: the stable module IDs 'cad' and 'sysml' own the twin's CAD and SysML objects whether or not
-// the illustrative tools are in the interface (ADR-0076), so these checks keep using those IDs.
+// the illustrative tools are in the interface (ADR-0077), so these checks keep using those IDs.
 describe('module ownership through the tool API', () => {
   it('refuses a Requirements tool edit to CAD-owned dimensions; the CAD tool may make it', async () => {
     const rod = ws().model!.get('ROD-120')!

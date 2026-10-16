@@ -127,6 +127,6 @@ These notes connect the directive to the repository. They are not part of the di
   explained, never executed.
 - **Open-source first.** Each module's research (responsibility 1) also feeds its build-versus-integrate decisions
   ([OPEN_SOURCE_STRATEGY.md](OPEN_SOURCE_STRATEGY.md)).
-- **Retired illustrative tools.** The illustrative SysML and mock CAD tools no longer have inventory entries: they are not installed (`INSTALLED_MODULES`), so the manifest-carried inventory, the coverage dialog and the AI list only the installed modules ([ADR-0076](../decisions/0076-retire-illustrative-tools-system-model.md)). The SysML Modeler is displayed as "System Model"; its module ID `sysml-modeler` is unchanged.
+- **Retired illustrative tools.** The illustrative SysML and mock CAD tools no longer have inventory entries: they are not installed (`INSTALLED_MODULES`), so the manifest-carried inventory, the coverage dialog and the AI list only the installed modules ([ADR-0077](../decisions/0077-retire-illustrative-tools-system-model.md)). The SysML Modeler is displayed as "System Model"; its module ID `sysml-modeler` is unchanged.
 - **Status** of the registry design, the toolbar component and each module's inventory is tracked in
   [docs/status/coordinator.md](../status/coordinator.md).

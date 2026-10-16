@@ -11,7 +11,7 @@ the [repository README](../../README.md). Rules for working on this package are 
 
 > **Prototype scope.** There is no real backend, no authentication and no CAD kernel. The cloud
 > repository is simulated in this browser ("Demo repository"), subscriptions are a client-side
-> mock. The illustrative SysML and mock CAD tools are retired from the interface (ADR-0076); their data is kept.
+> mock. The illustrative SysML and mock CAD tools are retired from the interface (ADR-0077); their data is kept.
 
 ## Run it
 
@@ -151,7 +151,7 @@ Example prompts the demo understands:
 5. Undo the last model change.
 
 The earlier prompts that changed a CAD dimension or edited SysML elements worked through the illustrative tools and are no longer
-understood (ADR-0076).
+understood (ADR-0077).
 
 Close variants also work, such as naming a requirement by its key.
 

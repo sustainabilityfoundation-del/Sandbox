@@ -26,7 +26,7 @@ import { serviceSettings } from './services'
  * Installed modules in registry, rail and help order. The CAD Modeler and System Model share the CAD and SysML
  * subscriptions during development (cad-program-contracts.md §1, sysml-program-contracts.md §1).
  *
- * The illustrative SysML (`sysml`) and mock CAD (`cad`) tools are retired from the interface (ADR-0076): they are not
+ * The illustrative SysML (`sysml`) and mock CAD (`cad`) tools are retired from the interface (ADR-0077): they are not
  * installed, so no rail entry, tab, command, help, coverage row or AI operation exists for them. Their packages
  * (`@ews/tool-sysml`, `@ews/tool-cad`) stay in the repository; stored data and the stable IDs are untouched.
  */

@@ -51,7 +51,7 @@ describe('help manifests of installed modules', () => {
     for (const m of manifests()) expect({ module: m.moduleId, issues: validateHelpManifest(m) }).toEqual({ module: m.moduleId, issues: [] })
   })
 
-  it('has no help for the retired illustrative tools (ADR-0076): not listed, not searchable, no topics', () => {
+  it('has no help for the retired illustrative tools (ADR-0077): not listed, not searchable, no topics', () => {
     expect(installedIds()).not.toContain('sysml')
     expect(installedIds()).not.toContain('cad')
     expect(workspaceHelp.modules().map((m) => m.moduleId)).not.toEqual(expect.arrayContaining(['sysml']))

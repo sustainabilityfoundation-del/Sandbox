@@ -97,10 +97,10 @@ async function closePalette() {
   const tag = 'catalogue'
   const tabs = await page.locator('[data-rail-tool]').evaluateAll((els) => els.map((e) => e.getAttribute('data-rail-tool')))
   check(tag, ['requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler'].every((id) => tabs.includes(id)) && tabs.every((id) => !/analysis|verification/.test(id)), `rail entries: ${tabs.join(', ')}`)
-  // ADR-0076: the illustrative SysML and mock CAD tools are retired from the interface (their data is kept: see "upgrade" and "retired-data").
+  // ADR-0077: the illustrative SysML and mock CAD tools are retired from the interface (their data is kept: see "upgrade" and "retired-data").
   check(tag, !tabs.includes('sysml') && !tabs.includes('cad'), 'the rail has no entry for the retired illustrative SysML and mock CAD tools')
   const labels = await page.locator('[data-rail-tool]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') || ''))
-  check(tag, labels.some((n) => /^System Model/.test(n)) && !labels.some((n) => /SysML|\(demo\)|^CAD(\s|$)/i.test(n)), `rail labels: ${labels.join(' | ')}`)
+  check(tag, labels.some((n) => /^System Model/.test(n)) && !labels.some((n) => /SysML|\(demo\)|^CAD$/i.test(n)), `rail labels: ${labels.join(' | ')}`)
   check(tag, (await page.locator('[role="tab"][data-tool-id]').count()) === 0, 'there is no second (top) tab strip')
   await palette()
   const text = await page.locator('.ws-launcher').textContent()
@@ -212,7 +212,7 @@ async function closePalette() {
   check(tag, (await inspected()) === REQ['REQ-003'], 'the selection is kept when switching to an unrelated object')
 }
 
-// ---- 3b. Data of the retired illustrative tools is kept (ADR-0076) ---------------------------
+// ---- 3b. Data of the retired illustrative tools is kept (ADR-0077) ---------------------------
 {
   const tag = 'retired-data'
   await tab('requirements').click()

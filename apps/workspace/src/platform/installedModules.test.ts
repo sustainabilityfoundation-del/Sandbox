@@ -74,7 +74,7 @@ describe('collect()', () => {
     expect(c.platformModules.map((m) => m.id)).toEqual(['projects'])
     expect(c.help.map((s) => s.moduleId)).toEqual(['requirements', 'conceptualize', 'cad-modeler', 'sysml-modeler', 'projects'])
     expect(c.defaultOpen).toEqual(['requirements', 'conceptualize'])
-    // ADR-0076: the illustrative SysML and mock CAD tools are not installed, so no tool, help source, capability, AI operation or default tab exists for them.
+    // ADR-0077: the illustrative SysML and mock CAD tools are not installed, so no tool, help source, capability, AI operation or default tab exists for them.
     for (const retired of ['sysml', 'cad']) {
       expect(c.tools.map((t) => t.id)).not.toContain(retired)
       expect(c.help.map((h) => h.moduleId)).not.toContain(retired)

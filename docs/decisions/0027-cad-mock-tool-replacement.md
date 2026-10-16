@@ -5,7 +5,7 @@ coordinator approval. Nothing in this ADR is implemented. The mock tool stays re
 unchanged until the coordinator accepts this ADR and each phase's gate is met. The coordinator
 answered the open questions on 2026-10-15 (see *Coordinator answers*); the ADR stays Proposed.
 
-> **Amended by [ADR-0076](0076-retire-illustrative-tools-system-model.md) (16 October 2026):** phase 4 "hide the mock tool" is done:
+> **Amended by [ADR-0077](0077-retire-illustrative-tools-system-model.md) (16 October 2026):** phase 4 "hide the mock tool" is done:
 > the mock CAD tool is no longer registered in the interface or offered to the AI (owner: "Yes remove the two old ones"); its package,
 > twin data and the ID `cad` are kept. The conversion command (phase 2), the mapping question (phase 3) and the migration-test gate stay open.
 

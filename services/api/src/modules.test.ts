@@ -57,7 +57,7 @@ describe('AI policy from the installed manifests', () => {
   const policy = createPolicy(aiModules, operations)
 
   it('lists every assistant action the tool packages register in the merged operation catalogue', () => {
-    // The retired illustrative tools (tool-sysml, tool-cad; ADR-0076) are no longer installed, so their operations are neither offered nor classified.
+    // The retired illustrative tools (tool-sysml, tool-cad; ADR-0077) are no longer installed, so their operations are neither offered nor classified.
     const tools = readdirSync(join(repo, 'packages')).filter((d) => d.startsWith('tool-') && !['tool-sysml', 'tool-cad'].includes(d))
     const names = new Set<string>()
     for (const t of tools) for (const f of sources(join(repo, 'packages', t, 'src'))) for (const m of readFileSync(f, 'utf8').matchAll(/name: '([a-z-]+\.[a-z_]+)'/g)) names.add(m[1])
@@ -66,7 +66,7 @@ describe('AI policy from the installed manifests', () => {
     expect([...names].filter((n) => !policy.classify(n))).toEqual([])
   })
 
-  it('has no illustrative AI module and refuses the retired sysml.* and cad.* operations (ADR-0076)', () => {
+  it('has no illustrative AI module and refuses the retired sysml.* and cad.* operations (ADR-0077)', () => {
     expect(policy.modules.map((m) => m.id)).not.toContain('illustrative')
     for (const op of ['sysml.read_model', 'sysml.create_part', 'sysml.connect', 'sysml.add_requirement_reference', 'cad.read_representation', 'cad.set_dimension']) {
       expect(op in policy.catalogue).toBe(false)

@@ -10,7 +10,7 @@ are developed as independent packages:
 | CAD Modeler | `@ews/tool-cad-modeler` | Parametric part modelling on an Open CASCADE kernel: constrained sketches, extrude, revolve, parameters, STEP export |
 
 The earlier illustrative SysML tool (`@ews/tool-sysml`) and mock CAD tool (`@ews/tool-cad`) are retired from the interface and the
-AI ([ADR-0076](docs/decisions/0076-retire-illustrative-tools-system-model.md)); their packages, the twin data they wrote and their
+AI ([ADR-0077](docs/decisions/0077-retire-illustrative-tools-system-model.md)); their packages, the twin data they wrote and their
 IDs (`sysml`, `cad`, `SYS-…`, `CAD-…`) are kept.
 
 All three work on the same actuator example (ACT-100 with housing HSG-110, rod ROD-120 and motor
