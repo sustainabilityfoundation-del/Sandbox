@@ -22,7 +22,7 @@ keyboard and focus behaviour. Conventions: props named after React Aria (`onPres
 | --- | --- | --- |
 | `PanelHeader` | Header of a docked panel (36 px comfortable) | `title`, `icon`, `actions`, `children` (tabs or a search field under the title row) |
 | `CollapsibleSection` | Collapsible group (inspector sections, explorer groups); React Aria Disclosure | `title`, `count`, `actions`, `defaultExpanded` or `isExpanded` + `onExpandedChange` |
-| `Breadcrumbs` | Location trail; the last item is the current location | `items: { id, label, icon?, onPress? }[]`, `label` |
+| `Breadcrumbs` | Location trail (nav landmark, ordered list); the last item is the current location | `items: { id, label, icon?, onPress? }[]`, `label` |
 | `Toolbar`, `ToolbarGroup`, `ToolbarSeparator` | Arrow-key toolbar; labelled groups; separators | `aria-label`; `ToolbarGroup label` |
 | `Tabs`, `TabList`, `Tab`, `TabPanel` | Tabs with a 2 px accent indicator | React Aria props |
 | `ResizeHandle` | Splitter: drag, arrow keys, Home/End, Enter or double-click resets | `orientation`, `label`, `value`, `min`, `max`, `onChange`, `onReset`, `invert`, `step` |

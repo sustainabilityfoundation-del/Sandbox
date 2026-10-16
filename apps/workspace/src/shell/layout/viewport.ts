@@ -59,6 +59,7 @@ export const PANEL_LIMITS = {
   tree: { min: 200, max: 520, share: 0.4 },
   inspector: { min: 240, max: 560, share: 0.45 },
   dock: { min: 140, share: 0.7 },
+  assistant: { min: 300, max: 640, share: 0.4 },
   split: { min: 0.25, max: 0.75 },
 }
 
@@ -72,6 +73,9 @@ export function clampLayout(layout: Layout, width: number, height: number): Layo
       clamp(layout.inspectorWidth, PANEL_LIMITS.inspector.min, Math.min(PANEL_LIMITS.inspector.max, width * PANEL_LIMITS.inspector.share)),
     ),
     dockHeight: Math.floor(clamp(layout.dockHeight, PANEL_LIMITS.dock.min, height * PANEL_LIMITS.dock.share)),
+    assistantWidth: Math.floor(
+      clamp(layout.assistantWidth, PANEL_LIMITS.assistant.min, Math.min(PANEL_LIMITS.assistant.max, width * PANEL_LIMITS.assistant.share)),
+    ),
     split: layout.split
       ? { ...layout.split, ratio: clamp(layout.split.ratio, PANEL_LIMITS.split.min, PANEL_LIMITS.split.max) }
       : null,

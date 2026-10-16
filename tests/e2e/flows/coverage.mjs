@@ -34,7 +34,7 @@ await page.keyboard.press('Escape')
 // Phone width
 const phone = await (await demoAssistantContext(b, { viewport: { width: 390, height: 844 } })).newPage()
 await phone.goto(exampleUrl()); await phone.waitForSelector('.ws-app'); await phone.waitForTimeout(1500)
-await phone.locator('.ws-mobile-nav').getByText('ChatGPT').click().catch((e) => console.log('phone nav', e.message))
+await phone.locator('.ws-mobile-nav').getByText('Assistant').click().catch((e) => console.log('phone nav', e.message))
 await phone.waitForTimeout(400)
 await phone.getByRole('button', { name: 'What can the assistant do?' }).click().catch((e) => console.log('phone open', e.message))
 await phone.waitForSelector('[data-testid="ai-coverage"]', { timeout: 5000 }).catch(() => {})

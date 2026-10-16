@@ -5,6 +5,7 @@ import { useWorkspaceStore } from '../platform/store'
 import { formatTime } from '@ews/platform-sdk/react'
 import { toolName } from '../platform/registry'
 import { Button, SegmentedControl } from '@ews/design-system'
+import { showAssistant } from './layout/presets'
 
 const KIND_LABEL: Record<ActivityKind, string> = {
   change: 'Change',
@@ -38,7 +39,6 @@ export function ActivityView() {
   const activity = useWorkspaceStore((s) => s.activity)
   const model = useWorkspaceStore((s) => s.model)!
   const select = useWorkspaceStore((s) => s.select)
-  const setLayout = useWorkspaceStore((s) => s.setLayout)
   const focusMessage = useConversation((s) => s.focusMessage)
   const conversationId = useConversation((s) => s.conversationId)
   const [filter, setFilter] = useState<'all' | ActivityKind>('all')
@@ -74,7 +74,7 @@ export function ActivityView() {
                   }
                   isDisabled={a.source.conversationId !== conversationId}
                   onPress={() => {
-                    setLayout({ activityOpen: true, dockTab: 'assistant' })
+                    showAssistant()
                     focusMessage(a.source!.messageId)
                   }}
                 >

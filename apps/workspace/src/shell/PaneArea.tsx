@@ -3,12 +3,50 @@ import { DEFAULT_LAYOUTS, useWorkspaceStore } from '../platform/store'
 import { splitViewId } from '../platform/views'
 import { openToolOrExplain } from '../platform/api'
 import { getTool, getTools } from '../platform/registry'
-import { AppIcon, Button, Icon, IconButton, MenuButton, MenuItem, ResizeHandle, Select, Tab, TabList, TabPanel, Tabs } from '@ews/design-system'
+import { AppIcon, Breadcrumbs, Button, Icon, IconButton, MenuButton, MenuItem, ResizeHandle, Select, Tab, TabList, TabPanel, Tabs, type BreadcrumbItem } from '@ews/design-system'
+import { displayId } from '@ews/model-service'
+import { iconForType } from '@ews/platform-sdk/react'
+import { useCurrentProject } from '../projects/bootstrap'
+import { openProjectHome } from '../projects/ProjectHome'
+import { workspaceServices } from '../platform/services'
 import { PANEL_LIMITS, type ViewportMode } from './layout/viewport'
 import { ToolToolbar } from './ToolToolbar'
 import { ToolViewHost, UnsupportedSelectionNotice, ViewControls } from './WorkArea'
 import { canOpenTool, useEntitlements } from '../platform/entitlements'
 import { DEMO_TOOL_EXPLANATION, isDemoTool } from '../platform/demoTools'
+
+/**
+ * Where the canvas is: project › configuration › module › selection. Built from the shared context only;
+ * modules show their own internal location (package, diagram) inside their view.
+ */
+function ContextBreadcrumbs() {
+  const model = useWorkspaceStore((s) => s.model)!
+  const context = useWorkspaceStore((s) => s.context)
+  const activeToolId = useWorkspaceStore((s) => s.activeToolId)
+  const opened = useCurrentProject((s) => s.opened)
+  const tool = getTool(activeToolId)
+  const selected = context.selectedIds.map((id) => model.get(id)).filter((o) => !!o)
+  const items: BreadcrumbItem[] = [
+    {
+      id: 'project',
+      label: opened ? opened.current.key : model.snapshot.project.id,
+      icon: 'project',
+      onPress: opened ? () => openProjectHome(workspaceServices.projects ? 'projects' : 'overview') : undefined,
+    },
+    { id: 'configuration', label: context.configurationId, icon: 'branch' },
+    ...(tool ? [{ id: 'tool', label: tool.name, icon: tool.icon }] : []),
+    ...(selected.length === 1
+      ? [{ id: 'selection', label: `${displayId(selected[0]!)} ${selected[0]!.name}`, icon: iconForType(selected[0]!.type) }]
+      : selected.length > 1
+        ? [{ id: 'selection', label: `${selected.length} objects` }]
+        : []),
+  ]
+  return (
+    <div className="ws-crumbs">
+      <Breadcrumbs items={items} label="Workspace location" />
+    </div>
+  )
+}
 
 /**
  * Main tool pane: tool tabs (React Aria Tabs, arrow-key navigation), the active
@@ -60,7 +98,7 @@ function MainPane({
           <TabList aria-label="Open tools" className="ws-tool-tabs">
             {openTools.map((tool) => (
               <Tab key={tool.id} id={tool.id} data-tool-id={tool.id} className="ws-tool-tab">
-                <AppIcon name={tool.icon} size={18} />
+                <AppIcon name={tool.icon} size={16} />
                 <span>{tool.name}</span>
                 {isDemoTool(tool.id) && (
                   <span className="ws-dock-demo" title={DEMO_TOOL_EXPLANATION}>
@@ -89,10 +127,8 @@ function MainPane({
               </MenuItem>
             ))}
           </MenuButton>
-          <Button variant="quiet" size="sm" icon="tools" onPress={onOpenLauncher} className="ws-tools-button" aria-label="Tools (Ctrl+K)">
-            <span className="ws-tb-label">Tools</span>
-          </Button>
-          <span className="flex-1" />
+          <IconButton label="Open a tool or command" shortcut="Control+K" icon="add" size="sm" onPress={onOpenLauncher} className="ws-tools-button" />
+          <ContextBreadcrumbs />
           {mode === 'desktop' && !split && (
             <IconButton label="Split view: show a second tool beside this one" icon="split" size="sm" onPress={openSplit} className="ws-panel-toggle" />
           )}

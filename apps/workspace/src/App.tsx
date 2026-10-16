@@ -11,13 +11,16 @@ import { Inspector } from './shell/Inspector'
 import { PANEL_LIMITS, clampLayout, useViewportMode, useViewportSize, useVisualViewportHeight, type ViewportMode } from './shell/layout/viewport'
 import { PaneArea } from './shell/PaneArea'
 import { ProductTree } from './shell/ProductTree'
-import { MobileNav, SidePanel } from './shell/ShellParts'
+import { AssistantDockPanel, ExplorerFilter, MobileNav, PanelToggles, SidePanel } from './shell/ShellParts'
+import { NavigationRail } from './shell/Rail'
+import { StatusBar } from './shell/StatusBar'
+import { assistantOnRight } from './shell/layout/presets'
 import { CommandPalette } from './shell/CommandPalette'
 import { ToolToolbar } from './shell/ToolToolbar'
 import { ToolViewHost, UnsupportedSelectionNotice, ViewControls } from './shell/WorkArea'
 import { DEFAULT_OPEN_TOOLS } from './platform/tools'
 import { getTool, getTools } from './platform/registry'
-import { Button, Icon, ResizeHandle, Spinner, Toaster, ToggleIconButton, useToasts } from '@ews/design-system'
+import { Button, Icon, ResizeHandle, Spinner, Toaster, useToasts } from '@ews/design-system'
 import { useEntitlements } from './platform/entitlements'
 import { workspaceServices } from './platform/services'
 import { LockedToolNotice } from './shell/WorkArea'
@@ -99,6 +102,12 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
   // Restored or dragged sizes are clamped to the current viewport so panels stay reachable.
   const layout = clampLayout(stored, size.width, size.height)
   const desktop = mode === 'desktop'
+  const phone = mode === 'phone'
+  const maximized = layout.canvasMaximized && !phone
+  const treeShown = layout.treeOpen && !maximized
+  const inspectorShown = layout.inspectorOpen && !maximized
+  const right = assistantOnRight(layout, desktop)
+  const assistantShown = right && layout.assistantOpen && !maximized
 
   // Ctrl/Cmd+K works everywhere, including while typing, because it has a modifier.
   // Drawers, sheets and dialogs handle Escape themselves.
@@ -126,30 +135,47 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
     if (mode === 'phone' && useWorkspaceStore.getState().layout.treeOpen) setLayout({ treeOpen: false })
   }, [selectedIds, mode, setLayout])
 
+  // Laptop widths keep the rail to icons (with tooltips) so the canvas keeps its space.
+  const railExpanded = layout.railExpanded && size.width >= 1440
+  const rail = phone ? '0px' : railExpanded ? 'var(--ws-rail-w)' : 'var(--ws-rail-w-collapsed)'
   const gridTemplateColumns = desktop
     ? [
-        layout.treeOpen ? `${layout.treeWidth}px` : '0px',
-        layout.treeOpen ? 'auto' : '0px',
+        rail,
+        treeShown ? `${layout.treeWidth}px` : '0px',
+        treeShown ? 'auto' : '0px',
         'minmax(0, 1fr)',
-        layout.inspectorOpen ? 'auto' : '0px',
-        layout.inspectorOpen ? `${layout.inspectorWidth}px` : '0px',
+        inspectorShown ? 'auto' : '0px',
+        inspectorShown ? `${layout.inspectorWidth}px` : '0px',
+        assistantShown ? 'auto' : '0px',
+        assistantShown ? `${layout.assistantWidth}px` : '0px',
       ].join(' ')
-    : 'minmax(0, 1fr)'
+    : `${rail} minmax(0, 1fr)`
   const maxTree = Math.min(PANEL_LIMITS.tree.max, size.width * PANEL_LIMITS.tree.share)
   const maxInspector = Math.min(PANEL_LIMITS.inspector.max, size.width * PANEL_LIMITS.inspector.share)
+  const maxAssistant = Math.min(PANEL_LIMITS.assistant.max, size.width * PANEL_LIMITS.assistant.share)
+  const explorerTitle = explorerProject ? 'Project Explorer' : 'Product tree'
 
   return (
-    <div className="ws-app" data-mode={mode}>
+    <div className="ws-app" data-mode={mode} data-maximized={maximized || undefined}>
       <Header repository={repository} mode={mode} onOpenPalette={() => setLauncherOpen(true)} />
       <div className="ws-body" style={{ gridTemplateColumns }}>
+        {!phone && <NavigationRail desktop={desktop} expanded={railExpanded} />}
         {/* New projects show their registered artifacts by module; the example project keeps its product tree (C12). */}
-        <SidePanel side="left" title={explorerProject ? 'Project explorer' : 'Product tree'} open={layout.treeOpen} mode={mode} onClose={() => setLayout({ treeOpen: false })}>
+        <SidePanel
+          side="left"
+          title={explorerTitle}
+          icon="project"
+          open={desktop ? treeShown : layout.treeOpen}
+          mode={mode}
+          onClose={() => setLayout({ treeOpen: false })}
+          toolbar={<ExplorerFilter label={explorerProject ? 'Filter project artifacts' : 'Filter the product tree'} />}
+        >
           {explorerProject ? <ProjectExplorer projectId={explorerProject} /> : <ProductTree />}
         </SidePanel>
-        {desktop && layout.treeOpen && (
+        {desktop && treeShown && (
           <ResizeHandle
             orientation="vertical"
-            label="Resize product tree"
+            label="Resize project explorer"
             value={layout.treeWidth}
             min={PANEL_LIMITS.tree.min}
             max={maxTree}
@@ -162,36 +188,11 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
           <PaneArea
             mode={mode}
             onOpenLauncher={() => setLauncherOpen(true)}
-            tabsLeading={
-              mode !== 'phone' && (
-                <ToggleIconButton
-                  className="ws-panel-toggle"
-                  label="Product tree"
-                  icon={layout.treeOpen ? 'panel-left' : 'panel-left'}
-                  size="sm"
-                  isSelected={layout.treeOpen}
-                  onChange={() => setLayout(desktop ? { treeOpen: !layout.treeOpen } : { treeOpen: !layout.treeOpen, inspectorOpen: false })}
-                />
-              )
-            }
-            tabsTrailing={
-              mode !== 'phone' && (
-                <ToggleIconButton
-                  className="ws-panel-toggle"
-                  label="Inspector"
-                  icon={layout.inspectorOpen ? 'panel-right' : 'panel-right'}
-                  size="sm"
-                  isSelected={layout.inspectorOpen}
-                  onChange={() =>
-                    setLayout(desktop ? { inspectorOpen: !layout.inspectorOpen } : { inspectorOpen: !layout.inspectorOpen, treeOpen: false })
-                  }
-                />
-              )
-            }
+            tabsTrailing={!phone && <PanelToggles mode={mode} layout={layout} />}
           />
-          <BottomDock mode={mode} />
+          {!maximized && <BottomDock mode={mode} assistantInDock={!right} />}
         </div>
-        {desktop && layout.inspectorOpen && (
+        {desktop && inspectorShown && (
           <ResizeHandle
             orientation="vertical"
             label="Resize inspector"
@@ -204,11 +205,25 @@ function MainWorkspace({ repository }: { repository: DemoRepository }) {
             className="ws-area-inspector-handle"
           />
         )}
-        <SidePanel side="right" title="Inspector" open={layout.inspectorOpen} mode={mode} onClose={() => setLayout({ inspectorOpen: false })}>
+        <SidePanel side="right" title="Inspector" icon="tune" open={desktop ? inspectorShown : layout.inspectorOpen} mode={mode} onClose={() => setLayout({ inspectorOpen: false })}>
           <Inspector />
         </SidePanel>
+        {assistantShown && (
+          <ResizeHandle
+            orientation="vertical"
+            label="Resize assistant"
+            value={layout.assistantWidth}
+            min={PANEL_LIMITS.assistant.min}
+            max={maxAssistant}
+            invert
+            onChange={(assistantWidth) => setLayout({ assistantWidth })}
+            onReset={() => setLayout({ assistantWidth: DEFAULT_LAYOUTS[layoutClass].assistantWidth })}
+            className="ws-area-assistant-handle"
+          />
+        )}
+        {right && <AssistantDockPanel open={assistantShown} />}
       </div>
-      {mode === 'phone' && <MobileNav onOpenLauncher={() => setLauncherOpen(true)} />}
+      {phone ? <MobileNav onOpenLauncher={() => setLauncherOpen(true)} /> : <StatusBar repository={repository} />}
       <CommandPalette isOpen={launcherOpen} onOpenChange={setLauncherOpen} />
       <BaselineDialog />
       <CapabilitiesDialog />
@@ -232,7 +247,7 @@ function DetachedWorkspace({ repository }: { repository: DemoRepository }) {
   const tool = kind === 'tool' ? getTool(toolId) : undefined
   // Re-evaluated whenever the subscription changes (also when changed in another window).
   const entitled = useEntitlements((s) => (tool ? s.has(tool.entitlement) : true))
-  const title = kind === 'tool' ? (tool?.name ?? 'Unknown tool') : kind === 'inspector' ? 'Inspector' : 'ChatGPT'
+  const title = kind === 'tool' ? (tool?.name ?? 'Unknown tool') : kind === 'inspector' ? 'Inspector' : 'AI Assistant'
 
   useEffect(() => {
     document.title = `${title} · Engineering Workspace`

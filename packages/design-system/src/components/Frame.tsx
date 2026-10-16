@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react'
 import {
-  Breadcrumb as AriaBreadcrumb,
-  Breadcrumbs as AriaBreadcrumbs,
   Button as AriaButton,
   Disclosure,
   DisclosurePanel,
@@ -127,29 +125,45 @@ export interface BreadcrumbItem {
   onPress?: () => void
 }
 
-/** Location trail (React Aria Breadcrumbs): the last item is marked as the current page. */
+/**
+ * Location trail: a navigation landmark with an ordered list; the last item is the current location
+ * (aria-current). Items with `onPress` are links (React Aria Link: keyboard and press handling); the others
+ * are plain text. (Plain markup rather than React Aria Breadcrumbs, whose collection cannot render inside
+ * other React Aria collections such as Tabs.)
+ */
 export function Breadcrumbs({ items, label = 'Location', className }: { items: BreadcrumbItem[]; label?: string; className?: string }) {
   return (
-    <AriaBreadcrumbs aria-label={label} className={cx('ws-breadcrumbs m-0 flex min-w-0 list-none items-center gap-1 p-0 text-ui-sm text-fg-2', className)}>
-      {items.map((item, index) => (
-        <AriaBreadcrumb key={item.id} id={item.id} className="flex min-w-0 items-center gap-1">
-          <AriaLink
-            onPress={index < items.length - 1 ? item.onPress : undefined}
-            aria-label={item.textValue}
-            className={cx(
-              'flex min-w-0 items-center gap-1 truncate rounded-xs px-0.5 outline-none',
-              'data-[current]:font-medium data-[current]:text-fg',
-              'data-[hovered]:not-data-[current]:text-accent data-[hovered]:not-data-[current]:underline',
-              'data-[focus-visible]:outline-2 data-[focus-visible]:outline-focus',
-            )}
-          >
-            {item.icon && <Icon name={item.icon} size={14} />}
-            <span className="truncate">{item.label}</span>
-          </AriaLink>
-          {index < items.length - 1 && <Icon name="chevron-right" size={14} className="text-fg-3" />}
-        </AriaBreadcrumb>
-      ))}
-    </AriaBreadcrumbs>
+    <nav aria-label={label} className={cx('ws-breadcrumbs min-w-0', className)}>
+      <ol className="m-0 flex min-w-0 list-none items-center gap-1 p-0 text-ui-sm text-fg-2">
+        {items.map((item, index) => {
+          const current = index === items.length - 1
+          const content = (
+            <>
+              {item.icon && <Icon name={item.icon} size={14} className="text-fg-3" />}
+              <span className="truncate">{item.label}</span>
+            </>
+          )
+          return (
+            <li key={item.id} className={cx('flex min-w-0 items-center gap-1', current ? 'flex-shrink' : 'flex-none')}>
+              {item.onPress && !current ? (
+                <AriaLink
+                  onPress={item.onPress}
+                  aria-label={item.textValue}
+                  className="flex min-w-0 cursor-pointer items-center gap-1 rounded-xs px-0.5 outline-none data-[hovered]:text-accent data-[hovered]:underline data-[focus-visible]:outline-2 data-[focus-visible]:outline-focus"
+                >
+                  {content}
+                </AriaLink>
+              ) : (
+                <span aria-current={current ? 'location' : undefined} className={cx('flex min-w-0 items-center gap-1 px-0.5', current && 'font-medium text-fg')}>
+                  {content}
+                </span>
+              )}
+              {!current && <Icon name="chevron-right" size={12} className="flex-none text-fg-3" />}
+            </li>
+          )
+        })}
+      </ol>
+    </nav>
   )
 }
 

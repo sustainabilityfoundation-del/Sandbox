@@ -1,4 +1,5 @@
-import { AppIcon, Badge, Button, EmptyState } from '@ews/design-system'
+import { AppIcon, Badge, Button, CollapsibleSection, EmptyState, Tab, TabList, TabPanel, Tabs } from '@ews/design-system'
+import { create } from 'zustand'
 import {
   ARTIFACT_OWNER,
   changeImpact,
@@ -38,15 +39,38 @@ const RELATIONSHIP_LABEL: Record<RelationshipType, { out: string; in: string }> 
   'evidence-for': { out: 'Evidence for (retired)', in: 'Evidence (retired)' },
 }
 
+/** A collapsible inspector section (open by default); the inspector shows only what applies to the selection. */
 function Section({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
   return (
-    <section className="ws-insp-section">
-      <h3>
-        {title}
-        {count !== undefined && <span className="text-fg-3"> {count}</span>}
-      </h3>
+    <CollapsibleSection title={title} count={count} className="ws-insp-section">
       {children}
-    </section>
+    </CollapsibleSection>
+  )
+}
+
+/** The inspector's tab (per window), so links such as "show saved output" can reveal their section. */
+export const useInspectorTab = create<{ tab: InspectorTab; setTab: (tab: InspectorTab) => void }>()((set) => ({
+  tab: 'properties',
+  setTab: (tab) => set({ tab }),
+}))
+export type InspectorTab = 'properties' | 'traceability' | 'history'
+
+/** Validation status of the selected object from real data: saved evidence that became potentially stale. */
+function ValidationStatus({ object, configurationId }: { object: EngineeringObject; configurationId: string }) {
+  const model = useWorkspaceStore((s) => s.model)!
+  const outputs = useWorkspaceStore((s) => s.outputs)
+  const stale = useMemo(
+    () => outputs.filter((o) => o.configurationId === configurationId && o.objectIds.includes(object.id) && outputFreshness(o, model).stale).length,
+    [outputs, configurationId, object.id, model],
+  )
+  return stale ? (
+    <Badge tone="warning" icon="stale" title="Saved artifacts for this object whose inputs changed since they were saved">
+      {stale} potentially stale artifact{stale === 1 ? '' : 's'}
+    </Badge>
+  ) : (
+    <Badge tone="neutral" icon="success" title="No saved artifact for this object is potentially stale">
+      Evidence current
+    </Badge>
   )
 }
 
@@ -378,6 +402,30 @@ function TypeSpecific({ object }: { object: EngineeringObject }) {
   return null
 }
 
+/** Contextual tabs; every panel stays mounted (hidden when inactive) so links and searches find their content. */
+function InspectorTabs({ properties, traceability, history }: { properties: ReactNode; traceability: ReactNode; history: ReactNode }) {
+  const tab = useInspectorTab((s) => s.tab)
+  const setTab = useInspectorTab((s) => s.setTab)
+  return (
+    <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(k as InspectorTab)} className="ws-insp-tabs">
+      <TabList aria-label="Inspector sections" className="ws-insp-tablist">
+        <Tab id="properties">Properties</Tab>
+        <Tab id="traceability">Traceability</Tab>
+        <Tab id="history">History</Tab>
+      </TabList>
+      <TabPanel id="properties" shouldForceMount className="ws-insp-panel">
+        {properties}
+      </TabPanel>
+      <TabPanel id="traceability" shouldForceMount className="ws-insp-panel">
+        {traceability}
+      </TabPanel>
+      <TabPanel id="history" shouldForceMount className="ws-insp-panel">
+        {history}
+      </TabPanel>
+    </Tabs>
+  )
+}
+
 function ObjectDetails({ object, configurationId }: { object: EngineeringObject; configurationId: string }) {
   const model = useWorkspaceStore((s) => s.model)!
   const parent = object.parentId ? model.get(object.parentId) : undefined
@@ -386,15 +434,24 @@ function ObjectDetails({ object, configurationId }: { object: EngineeringObject;
   return (
     <div className="ws-insp-object" data-inspected-id={object.id}>
       <header className="ws-insp-head">
-        <AppIcon name={iconForType(object.type)} size="md" />
-        <div>
+        <span className="ws-insp-glyph" aria-hidden="true">
+          <AppIcon name={iconForType(object.type)} size="md" />
+        </span>
+        <div className="min-w-0">
           <div className="ws-insp-title">{object.name}</div>
+          <div className="ws-insp-type">{OBJECT_TYPE_LABEL[object.type]}</div>
           <div className="ws-insp-sub">
-            <span className="font-mono">{displayId(object)}</span> · {OBJECT_TYPE_LABEL[object.type]} · rev {object.revision} · owned by {ARTIFACT_OWNER[object.type] === 'product' ? 'product structure' : toolName(ARTIFACT_OWNER[object.type])}
+            <span className="font-mono">{displayId(object)}</span> · rev {object.revision} · owned by {ARTIFACT_OWNER[object.type] === 'product' ? 'product structure' : toolName(ARTIFACT_OWNER[object.type])}
           </div>
         </div>
       </header>
+      <div className="ws-insp-status">
+        <ValidationStatus object={object} configurationId={configurationId} />
+      </div>
       <TypeSpecific object={object} />
+      <InspectorTabs
+        properties={
+          <>
       <Section title="Properties">
         <dl className="ws-props">
           {parent && (
@@ -415,11 +472,18 @@ function ObjectDetails({ object, configurationId }: { object: EngineeringObject;
         </dl>
       </Section>
       <Representations object={object} />
-      <Relationships object={object} />
       <Artifacts object={object} configurationId={configurationId} />
-      <ConceptsSection object={object} />
-      <ChangeImpactSection object={object} />
-      <RevisionHistory object={object} />
+          </>
+        }
+        traceability={
+          <>
+            <Relationships object={object} />
+            <ConceptsSection object={object} />
+            <ChangeImpactSection object={object} />
+          </>
+        }
+        history={<RevisionHistory object={object} />}
+      />
     </div>
   )
 }

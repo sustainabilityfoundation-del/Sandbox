@@ -41,27 +41,41 @@ export type LayoutClass = 'compact' | 'spacious'
 export interface Layout {
   treeOpen: boolean
   inspectorOpen: boolean
-  /** Whether the bottom dock (Activity / ChatGPT) is expanded. */
+  /** Whether the bottom dock (Activity, Validation and, when docked there, the assistant) is expanded. */
   activityOpen: boolean
-  dockTab: 'activity' | 'assistant'
+  dockTab: 'activity' | 'assistant' | 'validation'
   /** Height of the expanded bottom dock body, in pixels. */
   dockHeight: number
   treeWidth: number
   inspectorWidth: number
   /** Optional second tool view beside the main one (spacious layouts only). */
   split: { toolId: string; ratio: number } | null
+  /** Focused Canvas shell (UI layout preferences only; shell/layout/presets.ts). Where the assistant is docked (right: desktops only). */
+  assistantDock: 'right' | 'bottom'
+  /** Whether the right-docked assistant column is expanded. */
+  assistantOpen: boolean
+  assistantWidth: number
+  /** Navigation rail with labels (true) or icons only. */
+  railExpanded: boolean
+  /** Side panels and the bottom panel hidden so the canvas takes the space (their settings are kept). */
+  canvasMaximized: boolean
 }
 
 export const DEFAULT_LAYOUTS: Record<LayoutClass, Layout> = {
   spacious: {
     treeOpen: true,
     inspectorOpen: true,
-    activityOpen: true,
+    activityOpen: false,
     dockTab: 'activity',
-    dockHeight: 280,
-    treeWidth: 248,
-    inspectorWidth: 320,
+    dockHeight: 240,
+    treeWidth: 264,
+    inspectorWidth: 300,
     split: null,
+    assistantDock: 'right',
+    assistantOpen: false,
+    assistantWidth: 380,
+    railExpanded: true,
+    canvasMaximized: false,
   },
   compact: {
     treeOpen: false,
@@ -72,6 +86,11 @@ export const DEFAULT_LAYOUTS: Record<LayoutClass, Layout> = {
     treeWidth: 320,
     inspectorWidth: 360,
     split: null,
+    assistantDock: 'bottom',
+    assistantOpen: false,
+    assistantWidth: 360,
+    railExpanded: false,
+    canvasMaximized: false,
   },
 }
 
