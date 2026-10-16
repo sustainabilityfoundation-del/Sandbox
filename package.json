@@ -14,6 +14,7 @@
     "tests/*"
   ],
   "scripts": {
+    "docs:api": "node scripts/gen-api-reference.mjs",
     "dev": "node scripts/dev.mjs",
     "dev:workspace": "npm run dev -w @ews/workspace",
     "dev:viewer": "npm run dev -w @ews/glb-viewer",
