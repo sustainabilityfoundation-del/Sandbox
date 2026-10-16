@@ -43,6 +43,7 @@ Next work (start as new agents, at most 2-3 implementers at once):
 | Integration run on integrate/codex (4e3239f) | integration-runner role (Sonnet) | main checkout | green: typecheck, unit 1255, all six DB suites, build, e2e demo-d1 and ai-fake-provider on fake ports 18787/15173/54399 |
 | Owner request: remove top workspace tabs (keep left), tab Inspector and AI Assistant in one right panel | module-agent role (Sonnet), UI | worktree branch ui/remove-top-tabs | running; owner words recorded in shell.md by the agent |
 | Open item 1, increment I1: SDK 1.10 module manifest types | task-worker role (Sonnet) | merged to main | done: typecheck, unit (after one load-related rerun), build pass. Known flaky test under load: packages/tool-sysml-modeler/src/tool.test.ts CodeMirror completion (20 s timeout), seen twice |
+| Open item 1, increment I3: API host module list, createPolicy | task-worker role (Sonnet) | worktree branch feature/manifests-i3 from 9d096c9 | running. I2 (workspace) waits for the UI branch: both edit capabilities.ts and help.test.ts |
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
 2. **D1 owner acceptance** (16 October 2026: the owner has no time now and will review D1 later; keep working on the other items meanwhile, do not ask again until the owner returns): ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.
