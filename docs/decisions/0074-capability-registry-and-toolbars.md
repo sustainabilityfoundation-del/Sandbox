@@ -43,3 +43,18 @@ ADR-0013 is **amended, not superseded:** its registry clause is implemented as d
   priority.
 - The `strict` policy default changes the default-`propose` rule in the module-registration recipe once Project Management's
   operations are catalogued.
+
+## Prior art and licences
+
+The specification borrows **concepts only** (no code, no new dependency) from three projects. Licences verified from the upstream
+repositories on 16 October 2026:
+
+| Project | Concept borrowed | Licence (upstream) |
+| --- | --- | --- |
+| VS Code (`microsoft/vscode`) | Contribution points: declarative commands and menus separate from handlers | MIT (Copyright Microsoft Corporation) |
+| `@lumino/commands` (`jupyterlab/lumino`, v2.3.4) | A command registry with label, enablement and visibility separate from execution | BSD-3-Clause |
+| Eclipse Theia (`@theia/core`) | Command registry and contribution interfaces | EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 |
+
+CT-2a integrates none of them: the registry is data on the existing manifest, and `CommandBar` is built on React Aria Components,
+which the design system already uses. If one were integrated later, MIT and BSD-3-Clause are preferred licences; Theia's EPL needs
+the compliance review the strategy requires. No dependency was added.

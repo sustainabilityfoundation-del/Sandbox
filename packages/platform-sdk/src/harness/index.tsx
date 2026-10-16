@@ -2,23 +2,21 @@ import {
   AppIcon,
   Badge,
   Button,
+  CommandBar,
   ComboBox,
   EmptyState,
   LoadingState,
   Notice,
   SegmentedControl,
   Select,
-  ToggleButton,
   Toaster,
-  Toolbar,
-  ToolbarSeparator,
-  cx,
 } from '@ews/design-system'
 import { initPreferences, resolvedTheme, usePreferences } from '@ews/design-system/preferences'
 import type { EngineeringObject } from '@ews/model-service'
 import { Component, StrictMode, Suspense, useEffect, useMemo, type ErrorInfo, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useStore } from 'zustand'
+import { buildCommandModel } from '../react/commandModel'
 import { SDK_VERSION, isSdkCompatible } from '../contract/version'
 import type { AnyToolDefinition } from '../react/defineTool'
 import { PlatformHostProvider, ToolScope } from '../react/host'
@@ -51,7 +49,7 @@ class ViewBoundary extends Component<{ children: ReactNode }, { error: Error | n
   }
 }
 
-/** A plain rendering of the tool's toolbar contribution (the workspace adds overflow handling). */
+/** The tool's toolbar contribution through the command model and the shared CommandBar (the workspace adds overflow handling). A harness has no registry data, so the bar is flat. */
 function HarnessToolbar({ tool, host }: { tool: AnyToolDefinition; host: MockHost }) {
   const state = useStore(host.store)
   const model = state.model!
@@ -59,36 +57,14 @@ function HarnessToolbar({ tool, host }: { tool: AnyToolDefinition; host: MockHos
   const context = host.getContext(VIEW_ID)
   const selection = context.selectedIds.map((id) => model.get(id)).filter((o): o is EngineeringObject => !!o)
   const items = tool.toolbar({ api, viewState: host.getViewState(VIEW_ID, tool.id), context, model, selection })
-  return (
-    <Toolbar aria-label={`${tool.name} toolbar`} className="flex flex-wrap items-center gap-1 border-b border-line bg-surface px-2 py-1">
-      {items.map((item) => {
-        if (item.type === 'separator') return <ToolbarSeparator key={item.id} />
-        if (item.type === 'text') return <span key={item.id} className="px-2 text-ui-sm text-fg-3">{item.text}</span>
-        if (item.type === 'select') {
-          return (
-            <Select
-              key={item.id}
-              ariaLabel={item.label}
-              size="sm"
-              value={item.value}
-              isDisabled={item.disabled}
-              onChange={item.onChange}
-              options={item.options.map((o) => ({ id: o.value, label: o.label }))}
-            />
-          )
-        }
-        return item.active !== undefined && !item.primary ? (
-          <ToggleButton key={item.id} size="sm" icon={item.icon} isSelected={item.active} isDisabled={item.disabled} onChange={() => item.onClick()} data-toolbar-id={item.id}>
-            <span className={cx(item.illustrative && 'underline decoration-dotted underline-offset-4')}>{item.label}</span>
-          </ToggleButton>
-        ) : (
-          <Button key={item.id} size="sm" variant={item.primary ? 'filled' : 'quiet'} icon={item.icon} isPending={item.busy} isDisabled={item.disabled} onPress={item.onClick} data-toolbar-id={item.id}>
-            <span className={cx(item.illustrative && 'underline decoration-dotted underline-offset-4')}>{item.label}</span>
-          </Button>
-        )
-      })}
-    </Toolbar>
-  )
+  const commandModel = buildCommandModel(undefined, [], items, {
+    context,
+    selection,
+    services: host.getServices(),
+    entitlements: [tool.entitlement],
+    connections: { aiAccount: false, api: false },
+  })
+  return <CommandBar ariaLabel={`${tool.name} toolbar`} tabs={commandModel.tabs} />
 }
 
 function SidePanel({ host }: { host: MockHost }) {

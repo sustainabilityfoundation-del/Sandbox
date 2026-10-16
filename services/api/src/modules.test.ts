@@ -99,6 +99,23 @@ describe('AI policy from the installed manifests', () => {
     expect(cad?.settings?.definitions.length).toBeGreaterThan(0)
   })
 
+  it('takes Requirements from its manifest (no legacy entry): same module, prefix, entitlement, operation classes and proposal API as before', () => {
+    expect(aiModules.filter((m) => m.id === 'requirements')).toEqual([{ id: 'requirements', label: 'Requirements', description: 'Requirements Management.', entitlement: 'tool:requirements', prefixes: ['requirements.'] }])
+    expect(Object.fromEntries(Object.entries(policy.catalogue).filter(([n]) => n.startsWith('requirements.')))).toEqual({
+      'requirements.read_for_component': 'read',
+      'requirements.search': 'search',
+      'requirements.explain_quality': 'calculate',
+      'requirements.update': 'propose',
+      'requirements.create': 'propose',
+      'requirements.get': 'read',
+      'requirements.get_conventions': 'read',
+      'requirements.allocate': 'propose',
+    })
+    expect(policy.classify('requirements.update')).toMatchObject({ operationClass: 'propose', entitlement: 'tool:requirements', module: { id: 'requirements' } })
+    expect(INSTALLED_SERVER_MODULES.find((m) => m.id === 'requirements')?.proposals).toEqual({ entitlement: 'tool:requirements', projectParam: 'projectId' })
+    expect(INSTALLED_SERVER_MODULES.find((m) => m.id === 'requirements')?.basePath).toBe('/api/requirements/v1')
+  })
+
   it('takes Conceptualize from its manifest (no legacy entry): same module, prefix, entitlement and operation classes as before', () => {
     expect(aiModules.filter((m) => m.id === 'conceptualize')).toEqual([{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] }])
     expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('conceptualize.'))).toHaveLength(34)
@@ -125,12 +142,12 @@ describe('AI policy from the installed manifests', () => {
     expect(withDemo.classify('demo.read')).toMatchObject({ operationClass: 'read', module: { id: 'demo' } })
     expect(withDemo.settingDefinitions.some((d) => d.id === 'ai.access.demo')).toBe(true)
     // The legacy platform entries are still in force.
-    expect(withDemo.classify('requirements.search')?.module.id).toBe('requirements')
+    expect(withDemo.classify('read_help')?.module.id).toBe('help')
 
-    // A manifest that defines an ID the legacy list already has (requirements is still a legacy entry until its M-step).
-    const dupModule = collectPolicyContributions([fixture({ id: 'requirements', aiModule: { id: 'requirements', label: 'R', description: 'R.', prefixes: ['requirements.'] } })])
+    // A manifest that defines an ID the platform list already has (help).
+    const dupModule = collectPolicyContributions([fixture({ id: 'help', aiModule: { id: 'help', label: 'H', description: 'H.', prefixes: ['help.'] } })])
     expect(() => createPolicy(dupModule.aiModules, dupModule.operations)).toThrow(/defined twice/)
-    const dupOperation = collectPolicyContributions([fixture({ id: 'x', operations: { 'requirements.search': 'search' } })])
+    const dupOperation = collectPolicyContributions([fixture({ id: 'x', operations: { read_help: 'read' } })])
     expect(() => createPolicy(dupOperation.aiModules, dupOperation.operations)).toThrow(/defined twice/)
     // Two manifests defining the same operation.
     expect(() => collectPolicyContributions([fixture({ id: 'a', operations: { 'demo.x': 'read' } }), fixture({ id: 'b', operations: { 'demo.x': 'read' } })])).toThrow(/both/)

@@ -42,14 +42,6 @@ import { SAMPLE_TWIN } from './sampleTwin'
 
 export { SAMPLE_TWIN }
 
-/**
- * Proposal APIs the assistant may call for declarative proposals (integration milestone 1 C9): per server module, the
- * entitlement and the project parameter. The module list itself (ID, label, base path) comes from the installed manifests.
- */
-const PROPOSAL_APIS: Record<string, { entitlement: string; projectParam?: string }> = {
-  requirements: { entitlement: 'tool:requirements', projectParam: 'projectId' },
-}
-
 export interface ServerOptions {
   pool: Pool
   storage: ObjectStorage
@@ -258,10 +250,9 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
       onReady: (b) => (assistantBackend = b),
       // Declarative proposals (integration milestone 1 C9): the module APIs they may call, executed in-process
       // as the person (their identity headers are forwarded; each module enforces its own permissions).
-      modules: ALL_SERVER_MODULES.flatMap((m) => {
-        const proposals = m.proposals ?? PROPOSAL_APIS[m.id]
-        return proposals ? [{ id: m.id, label: m.name, basePath: m.basePath, ...proposals }] : []
-      }),
+      // Proposal APIs the assistant may call for declarative proposals (integration milestone 1 C9): each module declares
+      // `proposals` (entitlement and project parameter) in its manifest.
+      modules: ALL_SERVER_MODULES.flatMap((m) => (m.proposals ? [{ id: m.id, label: m.name, basePath: m.basePath, ...m.proposals }] : [])),
       policy,
       callModule: async ({ method, url, headers, body }) => {
         const res = await app.inject({ method: method as 'GET', url, headers: { ...headers, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, payload: body === undefined ? undefined : JSON.stringify(body) })

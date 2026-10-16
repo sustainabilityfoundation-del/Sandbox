@@ -16,6 +16,41 @@ keyboard and focus behaviour. Conventions: props named after React Aria (`onPres
 | `Kbd` | Keyboard hint | `tone` (`default`, `inverse`, `shell`) |
 | `Tooltip` | Tooltip content inside a React Aria `TooltipTrigger` | `placement`, `shortcut` |
 
+### CommandBar and CommandInfoPopover
+
+`CommandBar` is the capability-aware toolbar ([specification §4](../../specifications/capability-registry.md), ADR-0074). It renders a
+neutral model (`tabs` → `groups` → `commands`) and does not import the SDK; hosts build the model with `buildCommandModel` from
+`@ews/platform-sdk/react` (registry hierarchy and state merged with the tool's runtime toolbar items). With no registry data the model
+is one unlabelled group and the bar looks like the plain toolbar.
+
+| Prop | Use |
+| --- | --- |
+| `ariaLabel` | Name of the toolbar (and, with " sections", of the tab list) |
+| `tabs` | `{ id, label, groups: { id, label, icon?, commands }[] }[]`; one tab shows no tab strip; an empty group label renders its entries flat |
+| `layout`, `compact` | Force `desktop`, `tablet` or `phone`; default measures the bar's own width (under 840 px tablet, under 520 px phone) |
+| `onHelp(helpId)` | Called by the popover's Help button and the F1 key on a command with a `helpId` |
+
+A command has `id`, `label`, `icon?`, `description`, `shortcut?`, `helpId?`, `primary?`, `priority?`, `illustrative?`, `testId?` (the
+`data-toolbar-id`) and a `state` (`CommandState`):
+
+| State | Appearance | Press | Accessible name |
+| --- | --- | --- | --- |
+| `ready` (`onInvoke`, `active?`, `busy?`) | as a quiet toolbar button (toggle when `active` is set) | invokes | the label |
+| `partial` (`onInvoke`, `limitation`) | 4 px filled dot at the icon's top right; tooltip "Partial: ..." | invokes | "Export STEP, partial: geometry only" |
+| `planned` (`info`, no `onInvoke`) | label and icon in `fg-3`, 4 px hollow ring | opens `CommandInfoPopover`; invokes nothing | "Fillet, planned" |
+| `unavailable` (`reason`, no `onInvoke`) | disabled opacity, no ring | opens a popover with the reason | "Save, unavailable: open a document first" |
+
+`planned` and `unavailable` use `aria-disabled` and stay focusable; the description is linked with `aria-describedby`. The union is
+type-safe: `onInvoke` on a planned or unavailable state is a compile error. Keyboard: arrow keys move between controls and tabs, Enter
+or Space invokes or opens the popover, Escape closes it and returns focus to the command, F1 opens help. Tablet: `secondary`
+commands move into a per-group menu; phone: tabs become a `Select`, each group a menu, primary commands stay visible. Non-command
+controls (`select`, `text`, `separator` entries) sit in the same groups.
+
+A bound entry without test evidence stays `partial`; `buildCommandModel` accepts an optional `evidenceGaps` set of entry IDs that words its limitation as "Implemented; test evidence not yet linked" and never changes the state.
+
+`CommandInfoPopover` (`command`, `triggerRef`, `isOpen`, `onOpenChange`, `onHelp`) is the non-modal explanation (description, status,
+backlog IDs, Help); `CommandBar` uses it, and a host may open it from a palette or menu.
+
 ## Layout and frame
 
 | Component | Use | Key props |
