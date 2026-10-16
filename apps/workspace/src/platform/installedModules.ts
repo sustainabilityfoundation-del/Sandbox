@@ -17,7 +17,7 @@ import { createCadModelerTool } from '@ews/tool-cad-modeler'
 import { conceptualizeTool } from '@ews/tool-conceptualize'
 import { requirementsTool } from '@ews/tool-requirements'
 import { sysmlTool } from '@ews/tool-sysml'
-import { createSysmlModelerTool } from '@ews/tool-sysml-modeler'
+import { sysmlModelerModule } from '@ews/tool-sysml-modeler'
 import type { HelpModuleSource } from '../help/helpService'
 import { projectsModule } from '@ews/projects-client'
 import { switchProject } from '../projects/currentProject'
@@ -28,7 +28,6 @@ import {
   CONCEPTUALIZE_CAPABILITIES,
   REQUIREMENTS_CAPABILITIES,
   SYSML_CAPABILITIES,
-  SYSML_MODELER_CAPABILITIES,
 } from './installedCapabilities'
 import { serviceSettings } from './services'
 
@@ -56,11 +55,8 @@ export const INSTALLED_MODULES: ClientModule[] = [
     manifest: manifest('cad-modeler', 'CAD Modeler', CAD_MODELER_CAPABILITIES, { entitlement: 'tool:cad' }),
     tool: (env) => createCadModelerTool(env.requirementsMode === 'demo' ? { mode: 'files' } : { mode: 'api', baseUrl: '/api/cad/v1', devUser: env.devUser }),
   },
-  {
-    // SysML Modeler (sysml-program-contracts.md §1, §7): API → /api/sysml/v1; demo → explicit in-browser repository.
-    manifest: manifest('sysml-modeler', 'SysML Modeler', SYSML_MODELER_CAPABILITIES, { entitlement: 'tool:sysml' }),
-    tool: (env) => createSysmlModelerTool(env.requirementsMode === 'demo' ? { mode: 'local' } : { mode: 'api', baseUrl: '/api/sysml/v1', devUser: env.devUser }),
-  },
+  // SysML Modeler (sysml-program-contracts.md §1, §7): API → /api/sysml/v1; demo → explicit in-browser repository. Lives in @ews/tool-sysml-modeler (M3).
+  sysmlModelerModule(),
   // Project Management is a platform module, not a tool: its assistant operations work headless (milestone C9). It lives in
   // @ews/projects-client (M1); the window supplies how to switch project.
   projectsModule({ switchProject }),
