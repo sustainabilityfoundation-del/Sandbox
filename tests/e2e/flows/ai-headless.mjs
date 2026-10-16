@@ -153,6 +153,8 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, EXPECTED_REFUSALS, re
     'requirements.search': { text: 'load' },
     'requirements.explain_quality': { requirementId: 'REQ-001' },
     'requirements.update': { requirementId: 'REQ-001', rationale: 'Headless flow check (preview only, never applied).' },
+    'requirements.get': { requirementId: 'REQ-001' },
+    'requirements.get_conventions': {},
     'sysml.read_model': {},
     'sysml.create_part': { name: `headlessPart${stamp}` },
     'sysml.add_requirement_reference': { requirementId: 'REQ-003' },
