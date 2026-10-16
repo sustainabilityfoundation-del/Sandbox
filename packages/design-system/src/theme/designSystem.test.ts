@@ -54,7 +54,7 @@ describe('styling contract for tool packages', () => {
 
   it.each(toolFiles.filter((f) => /\.tsx?$/.test(f)).map((f) => [relative(repo, f), f]))('%s gets controls and icons only from the design system', (_name, path) => {
     const source = readFileSync(path, 'utf8')
-    expect(source.match(/from '(react-aria-components|react-aria|@phosphor-icons\/[^']+|@mui\/[^']+|antd|@radix-ui\/[^']+|@headlessui\/[^']+|@material-symbols\/[^']+)'/g) ?? []).toEqual([])
+    expect(source.match(/from '(react-aria-components|react-aria|lucide-react|@phosphor-icons\/[^']+|@mui\/[^']+|antd|@radix-ui\/[^']+|@headlessui\/[^']+|@material-symbols\/[^']+)'/g) ?? []).toEqual([])
   })
 })
 
@@ -64,22 +64,24 @@ describe('one component library and one icon set', () => {
     for (const manifest of manifests) {
       const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
       const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies })
-      expect(deps.filter((d) => /^(@mui\/|antd$|@radix-ui\/|@headlessui\/|@chakra-ui\/|react-bootstrap$|@mantine\/|lucide|react-icons$|@fortawesome\/|@material-symbols\/)/.test(d)), manifest).toEqual([])
+      expect(deps.filter((d) => /^(@mui\/|antd$|@radix-ui\/|@headlessui\/|@chakra-ui\/|react-bootstrap$|@mantine\/|@phosphor-icons\/|react-icons$|@fortawesome\/|@material-symbols\/|@tabler\/)/.test(d)), manifest).toEqual([])
+      // Lucide is the one icon library, and only the design system depends on it.
+      if (!manifest.endsWith(join('design-system', 'package.json'))) expect(deps.filter((d) => /^lucide/.test(d)), manifest).toEqual([])
     }
   })
 
-  it('imports Phosphor icons only in the central registry', () => {
+  it('imports Lucide icons only in the central registry', () => {
     const sources = [...files(join(repo, 'packages'), ['.ts', '.tsx']), ...files(shellSrc, ['.ts', '.tsx'])]
-    const offenders = sources.filter((p) => !p.endsWith(join('icons', 'registry.tsx')) && !p.endsWith(join('icons', 'AppIcon.tsx')) && /from '@phosphor-icons\//.test(readFileSync(p, 'utf8')))
+    const offenders = sources.filter((p) => !p.endsWith(join('icons', 'registry.tsx')) && /from 'lucide-react'|from '@phosphor-icons\//.test(readFileSync(p, 'utf8')))
     expect(offenders.map((p) => relative(repo, p))).toEqual([])
   })
 
-  it('maps every semantic icon name to an installed Phosphor icon or a custom SVG with the same interface', () => {
+  it('maps every semantic icon name to a Lucide icon or a custom glyph with the same interface', () => {
     for (const name of ICON_NAMES) {
       const entry = ICON_REGISTRY[name]
       expect(entry, name).toBeTruthy()
       expect(['regular', 'duotone']).toContain(entry.weight)
-      // Phosphor icons and the custom icons are forwardRef components.
+      // Lucide icons and the custom glyphs (createLucideIcon) are forwardRef components.
       expect(typeof entry.icon === 'object' || typeof entry.icon === 'function', name).toBe(true)
     }
     // Tools and model categories use duotone; actions use regular.
@@ -170,6 +172,27 @@ describe('theme contrast (WCAG AA, 4.5:1 for text)', () => {
     ['--ws-inverse-text', '--ws-inverse-surface'],
     ['--ws-text-2', '--ws-surface-3'],
     ['--ws-accent', '--ws-surface-2'],
+    ['--ws-text-2', '--ws-bg'],
+    ['--ws-text-3', '--ws-bg'],
+    ['--ws-success', '--ws-surface'],
+    ['--ws-warning', '--ws-surface'],
+    ['--ws-danger', '--ws-surface'],
+    ['--ws-shell-text', '--ws-shell-bg'],
+    ['--ws-shell-text', '--ws-shell-hover'],
+    ['--ws-shell-text', '--ws-shell-active'],
+    ['--ws-shell-text-2', '--ws-shell-bg'],
+    ['--ws-shell-text-2', '--ws-shell-raised'],
+    ['--ws-text-2', '--ws-statusbar-bg'],
+  ]
+  /** Non-text marks (status dots and icons, control borders, focus rings): 3:1 (WCAG 1.4.11). */
+  const marks: [string, string][] = [
+    ['--ws-success-solid', '--ws-surface'],
+    ['--ws-warning-solid', '--ws-surface'],
+    ['--ws-danger-solid', '--ws-surface'],
+    ['--ws-border-strong', '--ws-surface'],
+    ['--ws-focus', '--ws-surface'],
+    ['--ws-shell-accent', '--ws-shell-bg'],
+    ['--ws-shell-focus', '--ws-shell-bg'],
   ]
 
   for (const [name, theme] of [
@@ -179,5 +202,36 @@ describe('theme contrast (WCAG AA, 4.5:1 for text)', () => {
     it.each(pairs)(`${name}: %s on %s`, (fg, bg) => {
       expect(contrast(resolve(theme, fg), resolve(theme, bg))).toBeGreaterThanOrEqual(4.5)
     })
+    it.each(marks)(`${name}: mark %s on %s (3:1)`, (fg, bg) => {
+      expect(contrast(resolve(theme, fg), resolve(theme, bg))).toBeGreaterThanOrEqual(3)
+    })
   }
+
+  it('keeps the approved Focused Canvas palette as tokens', () => {
+    expect({
+      shell: light['--ws-palette-shell'],
+      hover: light['--ws-palette-shell-hover'],
+      panels: light['--ws-palette-panel'],
+      canvas: light['--ws-palette-canvas'],
+      secondary: light['--ws-palette-secondary'],
+      accent: light['--ws-palette-accent'],
+      success: light['--ws-palette-success'],
+      warning: light['--ws-palette-warning'],
+      error: light['--ws-palette-error'],
+    }).toEqual({
+      shell: '#202c3d',
+      hover: '#304158',
+      panels: '#e8edf3',
+      canvas: '#ffffff',
+      secondary: '#f8fafc',
+      accent: '#2563eb',
+      success: '#0d9488',
+      warning: '#d97706',
+      error: '#dc2626',
+    })
+    // The default (light) appearance: dark slate shell, light working panels, white canvas.
+    expect(resolve(light, '--ws-header-bg')).toBe('#202c3d')
+    expect(resolve(light, '--ws-bg')).toBe('#e8edf3')
+    expect(resolve(light, '--ws-canvas-bg')).toBe('#ffffff')
+  })
 })

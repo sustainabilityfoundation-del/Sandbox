@@ -1,10 +1,13 @@
 /**
  * Components: React Aria Components for behaviour, Tailwind and the design
- * tokens (theme/tokens.css) for appearance, Phosphor icons through AppIcon.
+ * tokens (theme/tokens.css) for appearance, Lucide icons through AppIcon.
+ * API reference: docs/modules/design-system/components.md.
  */
-export { Button, IconButton, SegmentedControl, ToggleButton, ToggleIconButton, Tooltip, buttonVariants } from './Button'
+export { Button, IconButton, Kbd, SegmentedControl, ToggleButton, ToggleIconButton, Tooltip, buttonVariants, shortcutLabel } from './Button'
 export type { ButtonProps, ButtonVariant, IconButtonProps, SegmentOption, ToggleButtonProps } from './Button'
-export { Cell, Column, Row, Tab, TabList, TabPanel, Table, TableBody, TableHeader, Tabs, Toolbar, ToolbarSeparator } from './Collections'
+export { Cell, Column, Row, Tab, TabList, TabPanel, Table, TableBody, TableHeader, Tabs, Toolbar, ToolbarGroup, ToolbarSeparator } from './Collections'
+export { Avatar, Breadcrumbs, CollapsibleSection, PanelHeader, StatusBarItem, StatusBarSeparator } from './Frame'
+export type { BreadcrumbItem } from './Frame'
 export { cx } from './cx'
 export { Checkbox, CheckboxGroup, ComboBox, SearchField, Select, TextField } from './Fields'
 export type { ComboOption, SelectOption, TextFieldProps } from './Fields'

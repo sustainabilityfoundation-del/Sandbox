@@ -1,7 +1,9 @@
 /**
  * Semantic icon names. Tools and the shell refer to icons by meaning
  * ("requirements", "save", "locked"); the design system decides which glyph
- * that is (see registry.tsx). React-free, so contracts can reference it.
+ * that is (see registry.tsx: Lucide, or a custom engineering glyph with the
+ * same interface). React-free, so contracts can reference it. Names are a
+ * shared contract: add, never rename or remove.
  */
 export const ICON_NAMES = [
   // Tools (duotone)
@@ -107,6 +109,35 @@ export const ICON_NAMES = [
   'approved',
   'rejected',
   'stale',
+  // Shell and workspace (added with the Focused Canvas design system, 1.1.0)
+  'notifications',
+  'user',
+  'project',
+  'folder',
+  'folder-open',
+  'document',
+  'maximize',
+  'minimize',
+  'layout',
+  'dock-right',
+  'dock-bottom',
+  'chevron-left',
+  'chevron-up',
+  'collapse',
+  'expand',
+  'grip',
+  'branch',
+  'validate',
+  'attach',
+  'microphone',
+  'voice',
+  // Custom engineering glyphs (same interface as the library icons)
+  'sysml-port',
+  'cad-sketch',
+  'cad-extrude',
+  'constraint',
+  'trace-derive',
+  'trace-satisfy',
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]

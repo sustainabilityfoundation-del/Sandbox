@@ -4,7 +4,7 @@ Brief: [ui-focused-canvas.md](ui-focused-canvas.md). Contracts: [ui-focused-canv
 Maintained by the ui-ux-design-system agent (worktree `Sandbox-ui`, branch `feature/ui-focused-canvas`, from `main` 314f79f).
 
 - [x] Phase 1 audit, regression checklist and plan (this file)
-- [ ] Phase 2 design system
+- [x] Phase 2 design system (design-system 1.1.0)
 - [ ] Phase 3 application shell
 - [ ] Phase 4 engineering workspace
 - [ ] Phase 5 AI assistant panel
@@ -101,3 +101,11 @@ Each item is checked in the running application and, where marked, by a committe
 ## 4. Log
 
 - 16 Oct 2026: audit, checklist and plan.
+- 16 Oct 2026, phase 2: palette tokens (light and dark, shell scope, status solid/text variants, type scale, density
+  sizes), IBM Plex Sans and Mono self-hosted, Lucide behind the semantic registry with custom engineering glyphs,
+  compact controls, new components (Kbd, shortcut tooltips, ToolbarGroup, PanelHeader, CollapsibleSection,
+  Breadcrumbs, StatusBarItem, Avatar), package AGENTS.md, CHANGELOG, docs/modules/design-system. The header uses the
+  dark shell scope already. Checks: design-system tests 332 passed; npm run check 1161 passed, 1 timed out
+  (tool-sysml-modeler CodeMirror completion, 5 s under full-suite load; passes alone, 16/16); npm run build and
+  npm run build:harnesses pass. The platform flow's icon check now identifies registry icons by data-icon instead of
+  Phosphor's viewBox (the library changed; the check is as strict).

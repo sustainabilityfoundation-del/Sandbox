@@ -75,7 +75,7 @@ export function MenuButton({
       {text ? (
         <Button variant={variant} icon={icon} aria-label={label} className={className} isDisabled={isDisabled}>
           {text}
-          <Icon name="chevron-down" size={18} className="-mr-1" />
+          <Icon name="chevron-down" size={16} className="-mr-0.5" />
         </Button>
       ) : (
         <IconButton label={label} icon={icon ?? 'more-vertical'} variant={variant === 'quiet' ? 'quiet' : 'tonal'} className={className} isDisabled={isDisabled} />
@@ -110,7 +110,7 @@ export function MenuItem({ icon, shortcut, description, trailing, children, tone
       textValue={textValue ?? (typeof children === 'string' ? children : undefined)}
       {...props}
       className={cx(
-        'group flex min-h-[max(var(--ws-control-h),var(--ws-touch-target))] cursor-pointer items-center gap-3 rounded-sm px-3 py-1.5 text-ui-sm outline-none',
+        'group flex min-h-[max(var(--ws-control-h),var(--ws-touch-target))] cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-1 text-ui-sm outline-none',
         tone === 'danger' ? 'text-error' : 'text-fg',
         'data-[hovered]:bg-hover data-[focused]:bg-hover data-[pressed]:bg-pressed',
         'data-[disabled]:cursor-default data-[disabled]:opacity-40',
@@ -120,9 +120,9 @@ export function MenuItem({ icon, shortcut, description, trailing, children, tone
       {({ isSelected, selectionMode, hasSubmenu }) => (
         <>
           {selectionMode !== 'none' ? (
-            <Icon name="check" size={18} className={isSelected ? 'text-accent' : 'invisible'} />
+            <Icon name="check" size={16} className={isSelected ? 'text-accent' : 'invisible'} />
           ) : icon ? (
-            <Icon name={icon} size={18} className="text-fg-2" />
+            <Icon name={icon} size={16} className="text-fg-2" />
           ) : null}
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate">{children}</span>
@@ -130,7 +130,7 @@ export function MenuItem({ icon, shortcut, description, trailing, children, tone
           </span>
           {trailing}
           {shortcut && <Keyboard className="font-mono text-ui-xs text-fg-3">{shortcut}</Keyboard>}
-          {hasSubmenu && <Icon name="chevron-right" size={18} className="text-fg-3" />}
+          {hasSubmenu && <Icon name="chevron-right" size={16} className="text-fg-3" />}
         </>
       )}
     </AriaMenuItem>
@@ -187,7 +187,7 @@ export function PopoverButton({
             triggerClassName,
           )}
         >
-          {icon && <Icon name={icon} size={18} />}
+          {icon && <Icon name={icon} size={16} />}
           {text}
         </AriaButton>
       ) : (

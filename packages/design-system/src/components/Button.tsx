@@ -16,7 +16,7 @@ import type { IconName } from '../icons/names'
 import { Spinner } from './Status'
 
 /**
- * Buttons follow Material 3 roles, kept restrained:
+ * Button roles (Focused Canvas: compact, precise, 4 px corners):
  *   filled   – the one primary action in a region
  *   tonal    – important secondary actions
  *   outlined – medium emphasis
@@ -27,15 +27,15 @@ import { Spinner } from './Status'
  */
 
 const base =
-  'relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-control font-medium outline-none ' +
+  'relative inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-control font-medium outline-none ' +
   'min-h-touch cursor-pointer transition-[background-color,color,box-shadow,border-color] duration-[var(--ws-motion-short)] ease-standard ' +
   'data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-focus ' +
   'data-[disabled]:cursor-default data-[disabled]:opacity-40 data-[pending]:cursor-progress'
 
 export const buttonVariants = {
   filled:
-    'bg-accent text-on-accent data-[hovered]:shadow-1 data-[hovered]:bg-accent-strong data-[pressed]:bg-accent-strong',
-  tonal: 'bg-selected text-selected-fg data-[hovered]:shadow-1 data-[pressed]:bg-accent-line',
+    'bg-accent text-on-accent data-[hovered]:bg-accent-strong data-[pressed]:bg-accent-strong',
+  tonal: 'bg-selected text-selected-fg data-[hovered]:bg-accent-line data-[pressed]:bg-accent-line',
   outlined: 'border border-line-strong bg-transparent text-accent data-[hovered]:bg-hover data-[pressed]:bg-pressed',
   text: 'bg-transparent text-accent data-[hovered]:bg-hover data-[pressed]:bg-pressed',
   quiet: 'bg-transparent text-fg-2 data-[hovered]:bg-hover data-[hovered]:text-fg data-[pressed]:bg-pressed',
@@ -43,8 +43,8 @@ export const buttonVariants = {
 } as const
 
 const sizes = {
-  md: 'h-ctl px-4 text-ui-sm',
-  sm: 'h-ctl-sm px-3 text-ui-xs',
+  md: 'h-ctl px-3 text-ui-sm',
+  sm: 'h-ctl-sm px-2 text-ui-sm',
 } as const
 
 export type ButtonVariant = keyof typeof buttonVariants
@@ -66,12 +66,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { variant = 'outlined', size = 'md', icon, className, children, isPending, ...rest },
   ref,
 ) {
-  const iconSize = size === 'md' ? 18 : 16
+  const iconSize = 16
   return (
     <AriaButton
       ref={ref}
       isPending={isPending}
-      className={cx(base, buttonVariants[variant], sizes[size], icon && children ? (size === 'md' ? 'pl-3' : 'pl-2') : '', className)}
+      className={cx(base, buttonVariants[variant], sizes[size], icon && children ? (size === 'md' ? 'pl-2.5' : 'pl-1.5') : '', className)}
       {...rest}
     >
       {isPending ? <Spinner size={iconSize} /> : renderIcon(icon, iconSize)}
@@ -82,18 +82,47 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 // ---- Tooltip ----------------------------------------------------------------------------
 
-export function Tooltip({ children, className, ...props }: Omit<TooltipProps, 'children'> & { children: ReactNode; className?: string }) {
+export function Tooltip({
+  children,
+  shortcut,
+  className,
+  ...props
+}: Omit<TooltipProps, 'children'> & {
+  children: ReactNode
+  /** Keyboard shortcut hint, e.g. "Ctrl K". */
+  shortcut?: string
+  className?: string
+}) {
   return (
     <AriaTooltip
       offset={6}
       {...props}
       className={cx(
-        'ws-tooltip z-[200] max-w-64 rounded-xs bg-inverse px-2 py-1 text-ui-xs text-on-inverse shadow-2',
+        'ws-tooltip z-[200] flex max-w-72 items-center gap-2 rounded-sm bg-inverse px-2 py-1 text-ui-xs text-on-inverse shadow-2',
+        className,
+      )}
+    >
+      <span>{children}</span>
+      {shortcut && <Kbd tone="inverse">{shortcut}</Kbd>}
+    </AriaTooltip>
+  )
+}
+
+/**
+ * A keyboard shortcut hint ("Ctrl K"). Decorative next to a labelled control; controls announce their
+ * shortcut with aria-keyshortcuts.
+ */
+export function Kbd({ children, tone = 'default', className }: { children: ReactNode; tone?: 'default' | 'inverse' | 'shell'; className?: string }) {
+  return (
+    <kbd
+      className={cx(
+        'ws-kbd inline-flex h-[18px] items-center whitespace-nowrap rounded-xs border px-1 font-mono text-ui-xs leading-none font-normal',
+        tone === 'inverse' ? 'border-on-inverse/40 text-on-inverse' : tone === 'shell' ? 'border-shell-line text-shell-fg-2' : 'border-line text-fg-3',
         className,
       )}
     >
       {children}
-    </AriaTooltip>
+    </kbd>
   )
 }
 
@@ -107,10 +136,17 @@ export interface IconButtonProps extends Omit<AriaButtonProps, 'className' | 'ch
   size?: 'md' | 'sm'
   className?: string
   tooltipPlacement?: TooltipProps['placement']
+  /** Keyboard shortcut shown in the tooltip and announced (aria-keyshortcuts), e.g. "Control+K". */
+  shortcut?: string
+}
+
+/** "Control+Shift+K" → "Ctrl Shift K" for display. */
+export function shortcutLabel(shortcut: string | undefined): string | undefined {
+  return shortcut?.replace(/Control/g, 'Ctrl').replace(/\+/g, ' ')
 }
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { label, icon, variant = 'quiet', size = 'md', className, tooltipPlacement = 'bottom', isPending, ...rest },
+  { label, icon, variant = 'quiet', size = 'md', className, tooltipPlacement = 'bottom', isPending, shortcut, ...rest },
   ref,
 ) {
   return (
@@ -118,6 +154,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       <AriaButton
         ref={ref}
         aria-label={label}
+        aria-keyshortcuts={shortcut}
         isPending={isPending}
         className={cx(
           base,
@@ -128,9 +165,11 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         )}
         {...rest}
       >
-        {isPending ? <Spinner size={size === 'md' ? 18 : 16} /> : renderIcon(icon, size === 'md' ? 20 : 18)}
+        {isPending ? <Spinner size={size === 'md' ? 18 : 16} /> : renderIcon(icon, size === 'md' ? 18 : 16)}
       </AriaButton>
-      <Tooltip placement={tooltipPlacement}>{label}</Tooltip>
+      <Tooltip placement={tooltipPlacement} shortcut={shortcutLabel(shortcut)}>
+        {label}
+      </Tooltip>
     </TooltipTrigger>
   )
 })
@@ -156,7 +195,7 @@ export function ToggleButton({ icon, size = 'md', className, children, ...rest }
     >
       {({ isSelected }) => (
         <>
-          {renderIcon(icon, size === 'md' ? 18 : 16, isSelected)}
+          {renderIcon(icon, 16, isSelected)}
           {children}
         </>
       )}
@@ -170,18 +209,31 @@ export function ToggleIconButton({
   icon,
   size = 'md',
   className,
+  shortcut,
+  tooltipPlacement = 'bottom',
   ...rest
-}: Omit<AriaToggleButtonProps, 'className' | 'children'> & { label: string; icon: IconName; size?: 'md' | 'sm'; className?: string }) {
+}: Omit<AriaToggleButtonProps, 'className' | 'children'> & {
+  label: string
+  icon: IconName
+  size?: 'md' | 'sm'
+  className?: string
+  /** Keyboard shortcut shown in the tooltip and announced, e.g. "Control+B". */
+  shortcut?: string
+  tooltipPlacement?: TooltipProps['placement']
+}) {
   return (
     <TooltipTrigger delay={500} closeDelay={100}>
       <AriaToggleButton
         aria-label={label}
+        aria-keyshortcuts={shortcut}
         className={cx(base, buttonVariants.quiet, toggleSelected, 'border border-transparent p-0 min-w-touch', size === 'md' ? 'size-ctl' : 'size-ctl-sm', className)}
         {...rest}
       >
-        {({ isSelected }) => renderIcon(icon, size === 'md' ? 20 : 18, isSelected)}
+        {({ isSelected }) => renderIcon(icon, size === 'md' ? 18 : 16, isSelected)}
       </AriaToggleButton>
-      <Tooltip placement="bottom">{label}</Tooltip>
+      <Tooltip placement={tooltipPlacement} shortcut={shortcutLabel(shortcut)}>
+        {label}
+      </Tooltip>
     </TooltipTrigger>
   )
 }
@@ -231,11 +283,11 @@ export function SegmentedControl<T extends string>({
           id={o.value}
           aria-label={o.textValue}
           className={cx(
-            'inline-flex min-h-touch cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap border-l border-line-strong px-3 font-medium outline-none first:border-l-0',
+            'inline-flex min-h-touch cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap border-l border-line-strong px-2.5 font-medium outline-none first:border-l-0',
             'text-fg-2 transition-colors duration-[var(--ws-motion-short)] ease-standard',
             'data-[hovered]:bg-hover data-[pressed]:bg-pressed data-[selected]:bg-selected data-[selected]:text-selected-fg',
             'data-[focus-visible]:outline-2 data-[focus-visible]:-outline-offset-2 data-[focus-visible]:outline-focus',
-            size === 'md' ? 'h-ctl text-ui-sm' : 'h-ctl-sm text-ui-xs',
+            size === 'md' ? 'h-ctl text-ui-sm' : 'h-ctl-sm text-ui-sm',
           )}
         >
           {({ isSelected }) => (

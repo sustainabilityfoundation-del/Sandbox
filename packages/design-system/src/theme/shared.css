@@ -137,3 +137,45 @@
 }
 
 .ws-tool-host > * { flex: 1; min-height: 0; }
+
+/*
+ * Dark shell scope (header, navigation rail). Remaps the semantic roles so ordinary components
+ * (IconButton, Select, MenuButton, SearchField) render correctly on the dark slate frame without
+ * shell-specific variants. Popovers render outside the scope and keep the working-panel tokens.
+ */
+.ws-shell-scope {
+  --ws-surface: var(--ws-shell-raised);
+  --ws-surface-2: var(--ws-shell-raised);
+  --ws-surface-3: var(--ws-shell-hover);
+  --ws-surface-4: var(--ws-shell-active);
+  --ws-border: var(--ws-shell-line);
+  --ws-border-strong: var(--ws-shell-line);
+  --ws-text: var(--ws-shell-text);
+  --ws-text-2: var(--ws-shell-text-2);
+  --ws-text-3: var(--ws-shell-text-2);
+  --ws-state-hover: color-mix(in srgb, var(--ws-shell-text) 9%, transparent);
+  --ws-state-pressed: color-mix(in srgb, var(--ws-shell-text) 15%, transparent);
+  --ws-selected: var(--ws-shell-active);
+  --ws-selected-text: var(--ws-shell-text);
+  --ws-accent: var(--ws-shell-accent);
+  --ws-accent-soft: var(--ws-shell-active);
+  --ws-accent-border: var(--ws-shell-accent);
+  --ws-focus: var(--ws-shell-focus);
+  color: var(--ws-shell-text);
+}
+
+/*
+ * The engineering canvas surface: bright, with a quiet dot grid. Module renderers draw their
+ * own content and may cover it; the container imposes no rendering technology.
+ */
+.ws-canvas-surface {
+  background-color: var(--ws-canvas-bg);
+  background-image: radial-gradient(circle, var(--ws-canvas-grid) 1px, transparent 1.2px);
+  background-size: 16px 16px;
+}
+
+/* Tabular figures for engineering values. */
+.ws-num {
+  font-family: var(--ws-mono);
+  font-variant-numeric: tabular-nums;
+}

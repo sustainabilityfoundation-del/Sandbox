@@ -308,9 +308,10 @@ async function closePalette() {
   const tag = 'icons'
   const stray = await page.evaluate(() =>
     [...document.querySelectorAll('.ws-header svg, .ws-pane-tabs svg, .ws-toolbar svg, .ws-tree svg, .ws-inspector svg, .ws-dock svg, .ws-mobile-nav svg')]
-      .filter((s) => s.getAttribute('viewBox') !== '0 0 256 256').length,
+      // AppIcon marks every registry icon (Lucide or custom glyph) with data-icon="<semantic name>".
+      .filter((s) => !s.hasAttribute('data-icon')).length,
   )
-  check(tag, stray === 0, `every interface icon in the shell is from the shared Phosphor registry (${stray} other)`)
+  check(tag, stray === 0, `every interface icon in the shell is from the shared icon registry (${stray} other)`)
   const unlabeled = await page.evaluate(() =>
     [...document.querySelectorAll('button')].filter((b) => b.offsetParent && !b.textContent.trim() && !b.getAttribute('aria-label') && !b.getAttribute('aria-labelledby')).length,
   )
