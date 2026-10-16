@@ -1,6 +1,6 @@
 # ADR-0062: Artifact registration from module outboxes, reconciliation, and provisioning without seed data
 
-Status: Proposed (2026-10-15) — **shared contract; coordinator decision** (contracts §2.3)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -23,13 +23,13 @@ revisions only. The browser twin has no server-side events.
 - Synchronous registration exists only for Project Management's own need to resolve an unseen ref
   (`POST /projects/{id}/artifacts/resolve`). Modules never call Project Management.
 - The browser twin reports its inventory to the registry, labelled **client-attested**, until ADR-0063 moves
-  components server-side.
+  components server-side. (Not built at 186db1c.)
 - Provisioning: the project-creation transaction writes the creator's membership (which is what makes the
   project exist for every module); afterwards Project Management calls each module's optional `provision`
-  and records the outcome per module. For a blank template a module must create nothing. A contract test
-  suite checks this for every adapter, and the acceptance test asserts zero artifacts in every module.
-- Until modules ship adapters, Project Management ships labelled contract-test adapters over the modules'
-  HTTP APIs.
+  and records the outcome per module. For a blank template a module must create nothing. There is no shared contract suite; blank-project checks are per module, and the acceptance test asserts zero
+  artifacts in every module.
+- (Historical, superseded: all four modules ship in-process adapters.) Until modules ship adapters, Project
+  Management ships labelled contract-test adapters over the modules' HTTP APIs.
 
 ## Consequences
 
@@ -43,3 +43,10 @@ revisions only. The browser twin has no server-side events.
   compensation for failures.
 - *Project Management reads module tables directly*: violates module ownership (vision §4).
 - *Server-to-server SSE over HTTP*: possible later for split deployments; the interface does not preclude it.
+
+## Amendments on acceptance
+
+- Eventual consistency confirmed: `services/projects/test/acceptance.i1.test.ts` waits for the registry to converge.
+- Client-attested twin reporting is not built.
+- There is no shared contract suite; blank-project checks are per module.
+- The bullet on contract-test adapters is historical: all four modules ship in-process adapters.

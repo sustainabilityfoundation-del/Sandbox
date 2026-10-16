@@ -104,7 +104,10 @@ users can replace it with their own build; our code is not compiled into it. Shi
 and the OCCT exception notice with distributions, state that the application uses Open CASCADE
 Technology, point to the exact source (package version above; OCCT version per the build, see
 docs/modules/cad/kernel-selection.md §4), and do not forbid reverse engineering for debugging the
-library. replicad releases 0.5.0–0.15.1 were AGPL-3.0: keep the exact pin at 1.1.0 (MIT).
+library. The notice ships: `apps/workspace/public/THIRD_PARTY_NOTICES.txt` (LGPL-2.1 text, the Open CASCADE
+exception, replicad's MIT licence, source locations) is copied by Vite to `dist/workspace/THIRD_PARTY_NOTICES.txt`
+and served at `/workspace/THIRD_PARTY_NOTICES.txt`. Whether the LGPL-2.1 terms suit the product is the owner's
+decision (ADR-0021); the notice does not decide it. replicad releases 0.5.0–0.15.1 were AGPL-3.0: keep the exact pin at 1.1.0 (MIT).
 Not used: SolveSpace/libslvs (GPL-3), planegcs (LGPL, evaluation only), commercial kernels and
 translators (need approval).
 ## SysML Modeler (added 15 October 2026, SysML agent; contracts §4)

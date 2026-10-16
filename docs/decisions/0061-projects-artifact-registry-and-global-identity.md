@@ -1,6 +1,6 @@
 # ADR-0061: Artifact registry and global artifact identity
 
-Status: Proposed (2026-10-15)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -21,7 +21,7 @@ Concept UUIDs, SysML `<project>/<element>` pairs, CAD `<document>/<entity>`, twi
   registry.
 - Registry records are never deleted by the application. When a module stops listing an artifact the record
   is marked `missing-in-module`; when the module is absent it is `module-unavailable`.
-- Summary fields are shown only to members entitled to the owning module; others see a restricted entry.
+- Summary fields are shown only to members entitled to the owning module; others see a restricted entry. (Planned: summaries currently go to every member.)
 
 ## Consequences
 
@@ -34,3 +34,7 @@ Concept UUIDs, SysML `<project>/<element>` pairs, CAD `<document>/<entity>`, twi
 - *Use native references only*: no stable identity across module migrations (for example a twin `CAD-120`
   replaced by a CAD Modeler entity) and no uniform handle for links and baselines.
 - *Make modules mint global IDs*: couples every module's write path to Project Management.
+
+## Amendments on acceptance
+
+- Entitlement-filtered summaries are planned; summaries currently go to every member.

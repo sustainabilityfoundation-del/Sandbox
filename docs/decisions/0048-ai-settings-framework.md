@@ -1,6 +1,6 @@
 # ADR-0048: Settings framework — SDK 1.6 setting definitions, settings service, Settings centre
 
-Status: Proposed (2026-10-15, AI connection agent)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 Brief: [ai-connection.md](../specifications/ai-connection.md) §5a. Answers the open preference-service
 question in `requirements-navigation-filtering.md`.
@@ -36,6 +36,11 @@ administrator-set project limits, validated on the server. Today preferences liv
 
 - Module pages appear only when a module contributes definitions; no placeholders.
 - Server validation of a module's values needs its definitions on the API host. Tool packages are React
-  packages, so the host cannot import them today: a framework-free settings export per module (or a
-  definitions file the host loads) is a follow-up (change request in the progress file).
+  packages, so the host cannot import them. The framework-free settings export is done:
+  `ServerModuleSettings` (SDK 1.11, `packages/platform-sdk/src/contract/modules.ts`) carries a module's
+  definitions to the host.
 - Platform preferences stay per browser (not per user on the server); moving them is a later decision.
+
+## Amendments on acceptance
+
+- The "framework-free settings export ... is a follow-up" consequence is done (`ServerModuleSettings`, SDK 1.11, `contract/modules.ts`).

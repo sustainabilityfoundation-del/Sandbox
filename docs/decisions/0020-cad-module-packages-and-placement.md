@@ -1,6 +1,6 @@
 # ADR-0020: CAD Modeler packages, placement and relationship to the mock CAD tool
 
-Status: Proposed (2026-10-14, CAD agent). Number provisional; the coordinator assigns the final number and index entry.
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -13,17 +13,17 @@ UI thread.
 
 ## Decision
 
-Three framework-separated packages in the monorepo (ADR-0001):
+Framework-separated packages in the monorepo (ADR-0001):
 
 | Package | Depends on | Role |
 | --- | --- | --- |
 | `@ews/cad-core` | nothing (no React, no DOM, no kernel) | Native open model and JSON Schema, expression evaluator, sketch constraint solver, profile extraction, typed command registry, transactions, undo/redo, version checks, operation log, dependency graph and incremental regeneration, observability queries, topological naming rules. Talks to geometry only through the `GeometryKernel` interface it defines. |
 | `@ews/cad-kernel` | `@ews/cad-core` (types only) | `GeometryKernel` implementation on Open CASCADE Technology (ADR-0021): solids from profiles, booleans, analysis (mass properties, topology counts, validity, face naming probes), tessellation, STEP AP242 export and import, format detection. Runs in a Web Worker in the browser (RPC client included) and in-process in Node for tests. |
+| `@ews/cad-client` | `@ews/cad-core`, platform SDK | Client of the CAD document service: `CadClient` over HTTP (`/api/cad/v1`) and an explicit in-browser local adapter, plus a contract test suite. |
 | `@ews/tool-cad-modeler` | platform SDK, design system, `cad-core`, `cad-kernel`, three.js | The tool: viewport, feature tree, sketcher, dialogs, inspector; the CAD session shared by the view and the assistant; assistant contribution; help manifest; standalone harness (port 5198). |
 
-- `services/cad` is **not** created in Phase 1. Native models are saved and reopened as open-format
-  files (`.ewscad`). Server-side revisions need a platform service contract (`PlatformServices.cad`)
-  and are a contract change request in the progress file.
+- `services/cad` (`@ews/cad-service`, `/api/cad/v1`) and `@ews/cad-client` exist; native models are
+  stored as service revisions, with `.ewscad` files as well.
 - The mock tool `cad` stays unchanged. Replacing it (retiring `cad`, migrating `cad-representation`
   objects, re-pointing links and the ADR-0006 dimension delegation) is a later coordinator decision,
   to be proposed as its own ADR with a non-destructive migration (ADR-0009).
@@ -39,3 +39,8 @@ Three framework-separated packages in the monorepo (ADR-0001):
 - Package boundary rules for the three packages must be added to
   `packages/platform-sdk/src/boundaries.test.ts` by the coordinator; until then `cad-core` carries
   its own boundary test.
+
+## Amendments on acceptance
+
+- Replaced "`services/cad` is not created in Phase 1" with the service and client that exist at 186db1c; native models are stored as service revisions, with `.ewscad` files as well.
+- Added `@ews/cad-client` to the package table (and changed "Three" to "Framework-separated" packages).

@@ -2,6 +2,8 @@
 
 Status: Proposed (2026-10-15) — **coordinator decision; not implemented before approval** (contracts §2.4)
 
+Review note (16 October 2026): not accepted. It conflicts with AGENTS.md "Model identity and revision rules": the ACT-100/ROD-120 import creates a second server record with an alias. It needs an architecture decision before acceptance.
+
 ## Context
 
 The product/system/subsystem/assembly/part breakdown has no server-side home. Physical components

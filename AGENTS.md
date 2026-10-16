@@ -46,7 +46,7 @@ that completes the workflow; do not substitute disconnected module demonstration
 | SysML tool | `packages/tool-sysml` | Diagram, property panel, text notation, SysML domain logic, assistant actions |
 | CAD tool | `packages/tool-cad` | Mock geometry, dimensions, visibility, CAD domain logic, assistant actions |
 | Conceptualize | `packages/tool-conceptualize`, `packages/conceptualize-client`, `services/conceptualize` | Concepts, alternatives, trade studies, decisions, evidence, implementations ([contracts](docs/specifications/conceptualize-contracts.md)) |
-| CAD Modeler | `packages/cad-core`, `packages/cad-kernel`, `packages/tool-cad-modeler` | Native parametric model, commands, OCCT kernel adapter, modeler UI ([contracts](docs/specifications/cad-program-contracts.md)) |
+| CAD Modeler | `packages/cad-core`, `packages/cad-kernel`, `packages/cad-client`, `services/cad`, `packages/tool-cad-modeler` | Native parametric model, commands, OCCT kernel adapter, modeler UI ([contracts](docs/specifications/cad-program-contracts.md)) |
 | SysML Modeler | `packages/sysml-core`, `services/sysml`, `packages/sysml-client`, `packages/tool-sysml-modeler` | SysML v2 semantic core, repository and API, modeler UI ([contracts](docs/specifications/sysml-program-contracts.md)) |
 | GLB viewer | `apps/glb-viewer` | Standalone viewer (not part of the platform) |
 
@@ -63,6 +63,7 @@ model-service  → (no @ews packages, no React)
 apps/workspace → every package; a tool only through its package entry point
 ```
 
+- Current exception, pending the owner's decision on module-declared imports (docs/specifications/module-registration.md, decision (a)): a tool also imports its own module's packages (for example `tool-cad-modeler` → `cad-core`, `cad-kernel`, `cad-client`; `tool-requirements` and `tool-conceptualize` → their clients).
 - Tools never import another tool, `apps/workspace`, `@ews/model-service`, the repository,
   `localStorage`, React Aria or icon packages directly.
 - Relative imports never leave a package.
