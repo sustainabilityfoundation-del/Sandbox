@@ -33,6 +33,8 @@ Other reasons a feature stops (a blocked feature) name the feature whose own fai
 It is a proposal with a preview like any other change; the choice stays with you.
 
 **How names survive.** Names come from the design intent of each feature. Where a later feature splits a face into
-pieces (a row of slots cuts the top face into strips), the kernel's shape history keeps the name on one piece and numbers
-the others `~2`, `~3` in the order they were created (for example `ext-5/cap-end~2`), so adding or removing slots later
-keeps the existing strips and their fillets. Only a face that really disappears is lost.
+pieces (a row of slots cuts the top face into strips), the piece that still contains the feature's own sample point keeps
+the name and the kernel's shape history numbers the others `~2`, `~3`, … by position (for example `ext-5/cap-end~2`); a
+number stays with its piece, so adding or removing slots later keeps the existing strips and their fillets. A name never
+moves to another piece: a reference is lost only when its face really disappears or the piece carrying the sample point
+is cut away, and then it is listed here.

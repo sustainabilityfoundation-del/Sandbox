@@ -126,8 +126,8 @@ New assistant operation: `cad-modeler.redo`. New capability entries: `cad-modele
 `cad-modeler.documents`; `cad-modeler.redo` is no longer `none`. New help pages: `cad-modeler.sketch-draw`, `cad-modeler.repair-reference`
 (plus changes to sketch, edges, regeneration, troubleshooting, history, document, commands, ai, checks, shortcuts, overview).
 
-Known limits: the piece of a split face that keeps the name is the one with the smallest centre (x, then y, then z), a convention that depends
-on the model axes; names that used `face#n` fallbacks are not portable to this version; the sketch view has no zoom or pan (it re-fits to the
+Known limits: of the pieces of a split face, the one that contains the feature's probe point keeps the name and the others are numbered by
+position (smallest centre, x then y then z), a convention that depends on the model axes; names that used `face#n` fallbacks are not portable to this version; the sketch view has no zoom or pan (it re-fits to the
 geometry, with a working area of at least 60 × 40 mm while drawing); arcs are not drawn by clicking; the planegcs oracle covers lines, circles and
 points (no arcs).
 

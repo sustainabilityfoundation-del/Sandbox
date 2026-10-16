@@ -40,11 +40,13 @@ const result = (e: CadEngine, id: string) => e.regeneration!.parts[0].features.f
 
 describe('repair_reference: the person picks the replacement', () => {
   it('a lost fillet edge lists candidates; nothing is re-bound until the repair is applied', async () => {
-    const lostEdge = 'edge(ext-19/cap-end~4|ext-19/side:ln-8)'
-    const e = await model([{ command: 'fillet_edges', input: { edges: ['edge(ext-19/cap-end|ext-19/side:ln-8)', lostEdge], radius: 0.5, ref: '$f' } }])
+    // n = 4: strips ~2 (x 0-10), ~3 (14-20), ~4 (24-30), ~5 (34-40), ~6 (44-60); the probed name ext-19/cap-end lies on
+    // the wall of the third slot (history.test.ts). At n = 2 the strips are ~2, ~3 and ext-19/cap-end (24-60): ~5 is gone.
+    const lostEdge = 'edge(ext-19/cap-end~5|ext-19/side:ln-8)'
+    const e = await model([{ command: 'fillet_edges', input: { edges: ['edge(ext-19/cap-end~2|ext-19/side:ln-8)', lostEdge], radius: 0.5, ref: '$f' } }])
     const fil = e.document.parts[0].features.find((f) => f.type === 'fillet')!.id
     expect(result(e, fil).status).toBe('ok')
-    await setN(e, 2) // strips ~2 and ~3 remain; ~4 is gone
+    await setN(e, 2) // strips ~2 and ~3 remain; ~5 is gone
     const lost = result(e, fil)
     expect(lost.status).toBe('failed')
     expect(lost.error?.details).toMatchObject({ reason: 'reference-lost', referenceKind: 'edge', lost: [lostEdge] })
@@ -76,29 +78,29 @@ describe('repair_reference: the person picks the replacement', () => {
     expect(result(e, fil).status).toBe('ok')
     expect(failures(e.regeneration)).toEqual([])
     const f = e.document.parts[0].features.find((x) => x.id === fil)!
-    expect(f.type === 'fillet' && f.edges).toEqual(['edge(ext-19/cap-end|ext-19/side:ln-8)', to])
+    expect(f.type === 'fillet' && f.edges).toEqual(['edge(ext-19/cap-end~2|ext-19/side:ln-8)', to])
     await e.undo()
     expect(result(e, fil).status).toBe('failed')
   })
 
   it('refuses a repair that does not match the feature', async () => {
-    const e = await model([{ command: 'fillet_edges', input: { edges: ['edge(ext-19/cap-end|ext-19/side:ln-8)'], radius: 0.5 } }])
+    const e = await model([{ command: 'fillet_edges', input: { edges: ['edge(ext-19/cap-end~2|ext-19/side:ln-8)'], radius: 0.5 } }])
     const fil = e.document.parts[0].features.find((f) => f.type === 'fillet')!.id
-    const wrong = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: fil, from: 'edge(nope|nope)', to: 'edge(ext-19/cap-end~2|ext-19/side:ln-8)' } }] })
+    const wrong = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: fil, from: 'edge(nope|nope)', to: 'edge(ext-19/cap-end~3|ext-19/side:ln-8)' } }] })
     expect(wrong.ok).toBe(false)
-    const same = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: fil, from: 'edge(ext-19/cap-end|ext-19/side:ln-8)', to: 'edge(ext-19/cap-end|ext-19/side:ln-8)' } }] })
+    const same = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: fil, from: 'edge(ext-19/cap-end~2|ext-19/side:ln-8)', to: 'edge(ext-19/cap-end~2|ext-19/side:ln-8)' } }] })
     expect(same.ok).toBe(false)
-    const badName = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: fil, from: 'edge(ext-19/cap-end|ext-19/side:ln-8)', to: 'ext-19/cap-end~2' } }] })
+    const badName = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: fil, from: 'edge(ext-19/cap-end~2|ext-19/side:ln-8)', to: 'ext-19/cap-end~3' } }] })
     expect(badName.ok).toBe(false)
     // A replacement that does not exist is accepted as an edit but the feature reports it again (checked at regeneration).
-    const ghost = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: fil, from: 'edge(ext-19/cap-end|ext-19/side:ln-8)', to: 'edge(ext-19/cap-end~9|ext-19/side:ln-8)' } }] })
+    const ghost = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: fil, from: 'edge(ext-19/cap-end~2|ext-19/side:ln-8)', to: 'edge(ext-19/cap-end~9|ext-19/side:ln-8)' } }] })
     expect(ghost.ok).toBe(true)
     expect(result(e, fil).error?.details?.reason).toBe('reference-lost')
   })
 
   it('repairs a sketch placed on a lost face; the extrude it blocked recovers', async () => {
     const e = await model([
-      { command: 'create_sketch', input: { partId: '$p', face: 'ext-19/cap-end~4', ref: '$fs' } },
+      { command: 'create_sketch', input: { partId: '$p', face: 'ext-19/cap-end~5', ref: '$fs' } },
       { command: 'add_rectangle', input: { sketchId: '$fs', corner: [40, 5], width: 4, height: 4 } },
       { command: 'extrude_profile', input: { sketchId: '$fs', distance: 3, operation: 'join', ref: '$boss' } },
     ])
@@ -107,7 +109,7 @@ describe('repair_reference: the person picks the replacement', () => {
     expect(result(e, boss.id).status).toBe('ok')
     await setN(e, 2)
     expect(result(e, sk.id).status).toBe('failed')
-    expect(result(e, sk.id).error?.details).toMatchObject({ reason: 'reference-lost', referenceKind: 'face', lost: ['ext-19/cap-end~4'] })
+    expect(result(e, sk.id).error?.details).toMatchObject({ reason: 'reference-lost', referenceKind: 'face', lost: ['ext-19/cap-end~5'] })
 
     // Item 4: the blocked extrude names the feature that is the cause and says what to do.
     const blocked = result(e, boss.id)
@@ -121,10 +123,10 @@ describe('repair_reference: the person picks the replacement', () => {
     const repairs = referenceRepairs(e.document, e.regeneration)
     expect(repairs.map((r) => r.featureId)).toEqual([sk.id]) // the blocked extrude is not a repair target
     expect(repairs[0].lost[0].candidates.map((c) => c.name)).toContain('ext-19/cap-end~3')
-    const r = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: sk.id, from: 'ext-19/cap-end~4', to: 'ext-19/cap-end~3' } }], source: 'user' })
+    const r = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: sk.id, from: 'ext-19/cap-end~5', to: 'ext-19/cap-end~3' } }], source: 'user' })
     expect(r.ok).toBe(true)
     expect(result(e, sk.id).status).toBe('ok')
-    // The strip ~3 is 10 mm wide (x 24 to 34 at n=2? it spans to the block end); the sketch moved with it.
+    // The strip ~3 (x 14 to 20) exists at n = 2; the sketch moved with it and the boss joins the body.
     expect(result(e, boss.id).status).toBe('ok')
   })
 
@@ -138,7 +140,7 @@ describe('repair_reference: the person picks the replacement', () => {
     await setN(e, 2)
     const repairs = referenceRepairs(e.document, e.regeneration)
     expect(repairs).toHaveLength(1)
-    expect(repairs[0].lost.map((l) => l.name)).toEqual(['edge(ext-19/cap-end~4|ext-19/side:ln-8)'])
+    expect(repairs[0].lost.map((l) => l.name)).toEqual(['edge(ext-19/cap-end~5|ext-19/side:ln-8)'])
     expect(repairs[0].lost[0].candidates.map((c) => c.name)).toContain('edge(ext-19/cap-end~3|ext-19/side:ln-8)')
     const r = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: fil, from: repairs[0].lost[0].name, to: 'edge(ext-19/cap-end~3|ext-19/side:ln-8)' } }] })
     expect(r.ok).toBe(true)
@@ -147,7 +149,7 @@ describe('repair_reference: the person picks the replacement', () => {
 
   it('chains keep naming the root cause', async () => {
     const e = await model([
-      { command: 'create_sketch', input: { partId: '$p', face: 'ext-19/cap-end~4', ref: '$fs' } },
+      { command: 'create_sketch', input: { partId: '$p', face: 'ext-19/cap-end~5', ref: '$fs' } },
       { command: 'add_rectangle', input: { sketchId: '$fs', corner: [40, 5], width: 4, height: 4 } },
       { command: 'extrude_profile', input: { sketchId: '$fs', distance: 3, operation: 'join', ref: '$boss' } },
       { command: 'pattern_linear', input: { features: ['$boss'], direction: 'y', count: 2, spacing: 8, ref: '$pat2' } },

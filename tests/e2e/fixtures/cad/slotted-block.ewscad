@@ -271,8 +271,8 @@
         },
         {
           "edges": [
-            "edge(ext-19/cap-end|ext-19/side:ln-8)",
-            "edge(ext-19/cap-end~4|ext-19/side:ln-8)"
+            "edge(ext-19/cap-end~2|ext-19/side:ln-8)",
+            "edge(ext-19/cap-end~5|ext-19/side:ln-8)"
           ],
           "id": "fil-37",
           "name": "Fillet strip edges",

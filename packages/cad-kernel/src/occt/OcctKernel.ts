@@ -126,7 +126,7 @@ export class OcctKernel implements GeometryKernel {
         builder.SimplifyResult(true, true, 0.001)
         out = r.cast(builder.Shape()) as Shape3D
         if (hint && out && out.faces.length > 0 && sameOrder(a, ca) && sameOrder(b, cb)) {
-          history = inheritNames(oc, builder, [{ source: ca.faces, names: namesA! }, { source: cb.faces, names: namesB! }], out.faces)
+          history = inheritNames(oc, builder, [{ source: ca.faces, names: namesA!, probes: hint.targetProbes }, { source: cb.faces, names: namesB!, probes: hint.toolProbes }], out.faces)
         }
       } finally {
         builder.delete()
@@ -142,7 +142,7 @@ export class OcctKernel implements GeometryKernel {
     return handle
   }
 
-  /** Stable face names of a stored shape (history names first, then probes); '' for unnamed faces. */
+  /** Stable face names of a stored shape (probes first, then history names); '' for unnamed faces. */
   private stableNames(handle: ShapeHandle, probes: FaceProbe[]): string[] {
     const shape = this.get(handle)
     const naming = topologyNames(shape.faces, shape.edges, probes, this.lineage.get(handle.id))
@@ -189,7 +189,7 @@ export class OcctKernel implements GeometryKernel {
         builder.Build()
         if (!builder.IsDone()) throw new Error('the algorithm did not finish')
         out = r.cast(builder.Shape()) as Shape3D
-        if (out && out.faces.length > 0 && sameOrder(shape, clone)) history = inheritNames(oc, builder, [{ source: clone.faces, names }], out.faces)
+        if (out && out.faces.length > 0 && sameOrder(shape, clone)) history = inheritNames(oc, builder, [{ source: clone.faces, names, probes: req.probes }], out.faces)
       } finally {
         builder.delete()
         clone.delete()
@@ -379,42 +379,46 @@ type Face = Shape3D['faces'][number]
 type Edge = Shape3D['edges'][number]
 
 /**
- * Stable names of faces (first probe whose point lies on the face; later ones are aliases; unmatched
- * faces get flagged fallback names) and of edges (sorted adjacent face names, `#n` for repeats).
+ * The face a probe reaches (ADR-0024): the first face, in face order, that the first of the probe's
+ * points lies on; later points are tried only when earlier ones lie on no face. -1 when none does.
+ */
+function probeHit(faces: Face[], faceBoxes: [Vec3, Vec3][], probe: FaceProbe, vertexCache: Map<string, r.Vertex>): number {
+  for (const p of probe.points) {
+    for (let i = 0; i < faces.length; i++) {
+      const [mn, mx] = faceBoxes[i]
+      if (p.some((v, k) => v < mn[k] - 1e-3 || v > mx[k] + 1e-3)) continue
+      const key = p.join(',')
+      let vtx = vertexCache.get(key)
+      if (!vtx) {
+        vtx = r.makeVertex(p)
+        vertexCache.set(key, vtx)
+      }
+      if (r.measureDistanceBetween(faces[i], vtx) < PROBE_TOLERANCE) return i
+    }
+  }
+  return -1
+}
+
+/**
+ * Stable names of faces and of edges (sorted adjacent face names, `#n` for repeats). Probes come first
+ * (ADR-0024, unchanged): a face a probe reaches has the first such probe's name, later ones are aliases.
+ * Shape-history names (ADR-0075) name only the faces no probe reaches; on a probed face a history name
+ * is an alias. `inheritNames` gives a probed name only to the face its probe reaches, so a history name
+ * never names a second face. Faces with neither get flagged fallback names.
  */
 function topologyNames(faces: Face[], edges: Edge[], probes: FaceProbe[], inherited?: string[]) {
   const names: string[][] = faces.map(() => [])
-  // Names recorded by the shape history win; a probe may not take a name that history gave to a face.
-  const claimed = new Set<string>()
-  inherited?.forEach((n, i) => {
-    if (!n || i >= faces.length) return
-    names[i].push(n)
-    claimed.add(n)
-  })
   const vertexCache = new Map<string, r.Vertex>()
   const faceBoxes = faces.map((f) => f.boundingBox.bounds as [Vec3, Vec3])
   for (const probe of probes) {
-    if (claimed.has(probe.name)) continue
-    let assigned = false
-    for (const p of probe.points) {
-      for (let i = 0; i < faces.length && !assigned; i++) {
-        const [mn, mx] = faceBoxes[i]
-        if (p.some((v, k) => v < mn[k] - 1e-3 || v > mx[k] + 1e-3)) continue
-        const key = p.join(',')
-        let vtx = vertexCache.get(key)
-        if (!vtx) {
-          vtx = r.makeVertex(p)
-          vertexCache.set(key, vtx)
-        }
-        if (r.measureDistanceBetween(faces[i], vtx) < PROBE_TOLERANCE) {
-          names[i].push(probe.name)
-          assigned = true
-        }
-      }
-      if (assigned) break
-    }
+    const i = probeHit(faces, faceBoxes, probe, vertexCache)
+    if (i >= 0) names[i].push(probe.name)
   }
   vertexCache.forEach((v) => v.delete())
+  inherited?.forEach((n, i) => {
+    if (!n || i >= faces.length || names[i].includes(n)) return
+    names[i].push(n)
+  })
   const faceNames = names.map((own, i) => own[0] ?? `face#${i + 1}`)
   const edgeFaceIdx = new Map<number, number[]>()
   faces.forEach((f, fi) => {
@@ -484,47 +488,72 @@ function descendants(oc: OpenCascadeInstance, builder: ShapeHistory, face: Face,
 }
 
 /**
- * Shape history as a naming signal (ADR-0024 amendment). Every named face of the arguments passes its
- * name to the faces it became. When a face is split, the piece with the smallest centre (x, then y,
- * then z) keeps the name and the other pieces are numbered \`<name>~2\`, \`~3\`, … in that order, continuing
- * the numbers already used for that name, so earlier pieces keep their names when later operations add
- * pieces. Returns names aligned to \`outFaces\` ('' = no history name; probes decide).
+ * Shape history as a naming signal (ADR-0024 amendment, ADR-0075). Every named face of the arguments
+ * passes its name to the faces it became. Probe-first rule: a name that has a probe stays with the piece
+ * the probe reaches (the same face the probe names, so stable names never move); when the probe reaches
+ * no piece, no piece takes the name and references to it are lost, never re-bound. A name without a
+ * probe (an earlier `~k` piece) stays with the piece with the smallest centre (x, then y, then z). The
+ * other pieces are numbered `<name>~2`, `~3`, … in smallest-centre order, continuing the numbers already
+ * used for that name, so earlier pieces keep their names when later operations add pieces. Returns names
+ * aligned to `outFaces` ('' = no history name; probes decide).
  */
-function inheritNames(oc: OpenCascadeInstance, builder: ShapeHistory, sources: { source: Face[]; names: string[] }[], outFaces: Face[]): string[] {
+function inheritNames(oc: OpenCascadeInstance, builder: ShapeHistory, sources: { source: Face[]; names: string[]; probes: FaceProbe[] }[], outFaces: Face[]): string[] {
   const out = outFaces.map(() => '')
   const known = new Set(sources.flatMap((s) => s.names).filter(Boolean))
+  const faceBoxes = outFaces.map((f) => f.boundingBox.bounds as [Vec3, Vec3])
+  const vertexCache = new Map<string, r.Vertex>()
+  const centres = new Map<number, number[]>()
   const centre = (j: number) => {
-    const c = outFaces[j].center
-    const v = [c.x, c.y, c.z].map((x) => Math.round(x * 1e6) / 1e6)
-    c.delete?.()
+    let v = centres.get(j)
+    if (!v) {
+      const c = outFaces[j].center
+      v = [c.x, c.y, c.z].map((x) => Math.round(x * 1e6) / 1e6)
+      c.delete?.()
+      centres.set(j, v)
+    }
     return v
+  }
+  const byCentre = (p: number, q: number) => {
+    const a = centre(p)
+    const b = centre(q)
+    return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]
   }
   const next = (root: string) => {
     let max = 1
     for (const n of known) if (n.startsWith(`${root}~`)) max = Math.max(max, Number.parseInt(n.slice(root.length + 1), 10) || 1)
     return max + 1
   }
-  for (const src of sources) {
-    src.source.forEach((face, i) => {
-      const name = src.names[i]
-      if (!name) return
-      const pieces = descendants(oc, builder, face, outFaces).filter((j) => !out[j])
-      if (!pieces.length) return
-      const cs = new Map(pieces.map((j) => [j, centre(j)]))
-      pieces.sort((p, q) => {
-        const a = cs.get(p)!
-        const b = cs.get(q)!
-        return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]
-      })
-      pieces.forEach((j, k) => {
-        let n = name
-        if (k > 0 || out.includes(name)) {
-          n = `${name.split('~')[0]}~${next(name.split('~')[0])}`
+  try {
+    for (const src of sources) {
+      src.source.forEach((face, i) => {
+        const name = src.names[i]
+        if (!name) return
+        const pieces = descendants(oc, builder, face, outFaces).filter((j) => !out[j])
+        if (!pieces.length) return
+        const probe = src.probes.find((p) => p.name === name)
+        let keeper = -1
+        if (probe) {
+          // Scanned over every face, exactly as topologyNames does, so the keeper is the face the probe names.
+          const hit = probeHit(outFaces, faceBoxes, probe, vertexCache)
+          if (pieces.includes(hit)) keeper = hit
+        } else {
+          keeper = [...pieces].sort(byCentre)[0]
         }
-        out[j] = n
-        known.add(n)
+        if (keeper >= 0 && out.includes(name)) keeper = -1
+        if (keeper >= 0) {
+          out[keeper] = name
+          known.add(name)
+        }
+        const root = name.split('~')[0]
+        for (const j of pieces.filter((j) => j !== keeper).sort(byCentre)) {
+          const n = `${root}~${next(root)}`
+          out[j] = n
+          known.add(n)
+        }
       })
-    })
+    }
+  } finally {
+    vertexCache.forEach((v) => v.delete())
   }
   return out
 }

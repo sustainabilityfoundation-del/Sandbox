@@ -34,10 +34,16 @@ calls go through the same bindings. Owner approval: none beyond ADR-0021, which 
 - `OcctKernel.boolean` and `OcctKernel.blendEdges` run the OCCT builders (`BRepAlgoAPI_Fuse/Cut` with `SimplifyResult`,
   `BRepFilletAPI_MakeFillet/MakeChamfer`) and read `Modified` and `IsDeleted` for every named face of the arguments.
 - The kernel keeps, per shape handle, face names derived from history (`lineage`). A named face passes its name to the faces it
-  became. When a face is split, the piece with the smallest centre (x, then y, then z, rounded to 1e-6 mm) keeps the name and the other pieces
-  become `<name>~2`, `~3`, … continuing the numbers already used for that name, so earlier pieces keep their names when later
-  operations add pieces. History names win over probe names; a probe may not take a name that history gave to another face; faces
-  without a history name use the probes as before (fallback unchanged).
+  became. **Probe-first rule.** Probes remain the first naming signal: a face a probe reaches has the probe's name, exactly as under
+  ADR-0024 (first probe in order, first face in order; later probes are aliases). When a named face is split, the piece that the
+  name's probe reaches keeps the name; when the probe reaches no piece, no piece takes it and references to the name are reported
+  as `reference-lost`, never re-bound. A name without a probe (an earlier `~k` piece) stays with the piece with the smallest centre
+  (x, then y, then z, rounded to 1e-6 mm). The other pieces become `<name>~2`, `~3`, … in smallest-centre order, continuing the
+  numbers already used for that name, so earlier pieces keep their names when later operations add pieces. History names only the
+  faces that no probe reaches; on a probed face a history name is an alias. Faces with neither keep the `face#n` fallback.
+  (The first implementation on this branch let history names win and gave a split face's name to the smallest-centre piece; a
+  review found that this silently moved `ext-19/cap-end`, and with it a stored fillet, from the probed 46 mm strip to the 10 mm
+  strip of a document saved on main. The rule above corrects that; `format-compat.test.ts` is the evidence.)
 - `GeometryKernel.boolean` takes an optional `BooleanHint { targetProbes, toolProbes }` so the kernel can name the faces of both arguments
   before the operation. Kernels that ignore it keep the probe behaviour.
 - History is used only when the clone the builder ran on lists faces and edges in the same order as the stored shape (checked by centres); otherwise
@@ -45,7 +51,11 @@ calls go through the same bindings. Owner approval: none beyond ADR-0021, which 
 - Errors: `KernelError` carries optional structured `details`; a lost edge or face reports `lost` names and the `available` names
   (see ADR-0024 and the `repair_reference` command).
 - Tests at the boundary: `history.test.ts` (real OCCT) covers the split names, a fillet that survives pocket counts 2 to 6, and
-  determinism of a fresh regeneration. All earlier naming tests (`kernel.test.ts`, `features2.test.ts`, `d1.test.ts`) pass unchanged.
+  determinism of a fresh regeneration. `format-compat.test.ts` opens a format 1.3.0 document written by main 6aaaaef
+  (`fixtures/slotted-block-fillet-1.3.0.ewscad`: block, one slot, fillet on `edge(ext-19/cap-end|ext-19/side:ln-8)`) and asserts the
+  blend face on the 46 mm strip (x ≈ 37) and main's volume 23037.53 mm³, also after a later cut on the leftmost piece, and that a
+  cut which removes every probe point of a name makes the reference lost. All earlier naming tests (`kernel.test.ts`,
+  `features2.test.ts`, `d1.test.ts`) pass unchanged.
 - Provenance: the names are derived data; documents store the names only where a user or the AI chose them (edge lists, face references).
 
 ## Decision
@@ -63,8 +73,14 @@ could be offered later; nothing is submitted without the owner's authorisation.
 - Dependencies: none added. `OcctKernel` no longer calls replicad's `cut`, `fuse`, `fillet`, `chamfer` or `simplify` for these
   operations; it uses the same OCCT builders (same options as replicad 1.1.0: `SimplifyResult(true, true, 0.001)`, `ChFi3d_Rational`). The
   second `ShapeUpgrade_UnifySameDomain` pass of the old code was redundant with `SimplifyResult` and is dropped (all volume and face-count tests agree).
-- Names of split faces change from `face#n` to `<name>~k`; stored fillet edge lists that used such fallback names are not
-  portable across this change (they were flagged unstable by ADR-0024). Names that were stable are unchanged.
-- Limits: the convention for which piece keeps the name depends on the model axes; vertex naming is still not implemented; a face
-  that is split in a way history cannot follow (for example a boolean the kernel runs without the hint) falls back to probes.
+- Stable names are unchanged: every face a probe reaches has the same name as under ADR-0024 (probe-first rule), so stored references
+  to stable names resolve to the same faces and edges as before, and the document format stays 1.3.0 (no migration; proof:
+  `format-compat.test.ts` with a fixture written by main). Only faces that no probe reaches change from the unstable `face#n` to
+  `<name>~k`; stored edge lists that used such fallback names are not portable across this change (they were flagged unstable by
+  ADR-0024). A name never moves to another piece: when the piece carrying the probe is cut away, dependent references are lost
+  and repaired explicitly.
+- Limits: the probe method's known weakness stays (a probe point on coincident geometry, for example on a slot wall, names that
+  face first; `history.test.ts` documents such a case); the numbering of the probe-less pieces depends on the model axes; vertex
+  naming is still not implemented; a face that is split in a way history cannot follow (for example a boolean the kernel runs
+  without the hint) falls back to probes.
 - Follow-ups: use the same history for patterns of fillets and holes (sprint C2), and for mirror and shell.
