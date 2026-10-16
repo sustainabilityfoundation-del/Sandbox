@@ -139,23 +139,23 @@ describe('Requirements ArtifactSource (CR-PM-REG-1)', () => {
     expect(d.relations).toEqual([{ type: 'derives-from', to: { module: 'requirements', kind: 'requirement', id: REQ1 }, toRevision: req1Rev }])
   })
 
-  it('reports allocations to product elements with the C3 ref (by UUID or via a resolved alias); sample-twin allocations are not reported', async () => {
+  it('reports allocations to product elements with the C3 ref; the canonical ID is stored, so allocations made by alias are reported', async () => {
     const r = (await createIn(PROJECT, 'Gearbox efficiency')).body
     for (const toTwinId of [PRODUCT_ELEMENT, 'GBX-200', 'ROD-120']) {
       expect((await env.call('eli', 'POST', `${BASE}/relationships`, { type: 'allocated-to', fromId: r.id, toTwinId })).status).toBe(201)
     }
+    // ROD-120 is an alias of a product element when Project Management's registry has one (its seed), else a sample-twin ID.
+    const rod = (await env.pool.query<{ id: string }>(`SELECT element_id::text AS id FROM projects.product_element_aliases WHERE project_id = $1 AND alias = 'ROD-120'`, [PROJECT])).rows[0]?.id
+    const stored = (await env.call('eli', 'GET', `${BASE}/requirements/${r.id}/relationships`)).body.map((x: { toTwinId: string }) => x.toTwinId).sort()
+    expect(stored).toEqual([PRODUCT_ELEMENT, ALIASED_ELEMENT, rod ?? 'ROD-120'].sort())
+    const expected = [PRODUCT_ELEMENT, ALIASED_ELEMENT, ...(rod ? [rod] : [])].map((id) => ({ type: 'allocated-to', to: { module: 'product', kind: 'product-element', id } }))
     const [d] = await source.describe(PROJECT, [{ module: 'requirements', kind: 'requirement', id: r.id }])
-    expect(d.relations).toEqual(
-      expect.arrayContaining([
-        { type: 'allocated-to', to: { module: 'product', kind: 'product-element', id: PRODUCT_ELEMENT } },
-        { type: 'allocated-to', to: { module: 'product', kind: 'product-element', id: ALIASED_ELEMENT } },
-      ]),
-    )
-    expect(d.relations).toHaveLength(2)
-    // Without the directory only UUID targets are recognised.
+    expect(d.relations).toEqual(expect.arrayContaining(expected))
+    expect(d.relations).toHaveLength(expected.length)
+    // The stored IDs are canonical, so a source without a directory reports the same.
     const plain = createRequirementsArtifactSource(env.pool, env.server.events)
     const [p] = await plain.describe(PROJECT, [{ module: 'requirements', kind: 'requirement', id: r.id }])
-    expect(p.relations).toEqual([{ type: 'allocated-to', to: { module: 'product', kind: 'product-element', id: PRODUCT_ELEMENT } }])
+    expect(p.relations).toEqual(d.relations)
     // The list path reports the same relations.
     const listed = (await listAll(PROJECT, undefined, ['requirement'])).find((x) => x.ref.id === r.id)!
     expect(listed.relations).toEqual(d.relations)
