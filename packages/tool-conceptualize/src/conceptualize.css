@@ -115,19 +115,20 @@
   .cv-validation { margin: 0; }
   .cv-figure { margin: 0; display: flex; flex-direction: column; gap: var(--ws-space-1); }
   .cv-layout { display: block; width: 100%; height: auto; background: var(--ws-diagram-bg); border: 1px solid var(--ws-border); border-radius: var(--ws-radius); }
-  .cv-figure.is-compact .cv-layout { max-height: 280px; }
   .cv-layout.is-pickable { cursor: crosshair; }
-  .cv-layout text { fill: var(--ws-text); font-size: 11px; font-family: var(--ws-font-sans); }
+  .cv-layout text { fill: var(--ws-text); font-size: 12px; font-family: var(--ws-font-sans); }
+  .cv-extension { stroke: var(--ws-diagram-detail); stroke-width: 0.8; }
+  .cv-arrow { fill: var(--ws-diagram-detail); }
   .cv-component rect, .cv-component ellipse { fill: var(--ws-diagram-part-1); stroke: var(--ws-diagram-stroke-strong); stroke-width: 1.2; }
   .cv-component.cv-kind-envelope rect, .cv-component.cv-kind-envelope ellipse { fill: none; stroke: var(--ws-diagram-stroke); stroke-dasharray: 6 4; }
   .cv-component.cv-kind-purchased rect, .cv-component.cv-kind-purchased ellipse { fill: var(--ws-diagram-part-2); }
   .cv-component.cv-kind-feature rect, .cv-component.cv-kind-feature ellipse { fill: var(--ws-diagram-part-3); }
   .cv-component.cv-highlight rect, .cv-component.cv-highlight ellipse { stroke: var(--ws-accent); stroke-width: 2.5; }
-  .cv-component-label { font-size: 10px; }
+  .cv-component-label { font-size: 11px; }
   .cv-interface line { stroke: var(--ws-diagram-leader); stroke-width: 1.2; stroke-dasharray: 3 3; }
   .cv-interface text { fill: var(--ws-text-2); font-size: 10px; }
   .cv-dimension line { stroke: var(--ws-diagram-detail); stroke-width: 1; }
-  .cv-dimension text { fill: var(--ws-text); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .cv-dimension text { fill: var(--ws-text); font-size: 12px; font-variant-numeric: tabular-nums; }
   .cv-dimension.cv-not-to-scale text { fill: var(--ws-warning); }
   .cv-dimension.cv-highlight text { fill: var(--ws-accent-strong); font-weight: var(--ws-weight-strong); }
   .cv-annotation circle, .cv-annotation rect { fill: var(--ws-accent-soft); stroke: var(--ws-accent); stroke-width: 2; }

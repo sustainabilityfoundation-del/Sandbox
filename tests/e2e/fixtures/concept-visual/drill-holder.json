@@ -1,0 +1,146 @@
+{
+  "description": "Example data for tests/e2e/flows/concept-visual.mjs (the D1 drill bit holder). Test fixture only: the product logic knows nothing about drill bits.",
+  "text": "Holder for six 1/4 inch hex drill bits that mounts on a drill and keeps the bits accessible",
+  "name": "Drill bit holder",
+  "statements": [{ "kind": "constraint", "text": "Holds six 1/4 inch hex bits", "quantity": { "value": 6, "unit": "-" } }],
+  "alternatives": [
+    {
+      "name": "Single-row block",
+      "summary": "One block with six hexagonal pockets in a line, clipped to the drill foot.",
+      "statements": [
+        { "kind": "principle", "text": "Friction fit of hex shanks in a linear row of pockets" },
+        { "kind": "benefit", "text": "One part, simple to print" },
+        { "kind": "trade-off", "text": "Long block (about 80 mm) along the drill foot" },
+        { "kind": "question", "text": "Which clip fits the drill foot?" }
+      ],
+      "definition": {
+        "intent": "Hold six hex bits in reach on the drill",
+        "components": [
+          { "id": "C1", "name": "Block", "kind": "part" },
+          { "id": "C2", "name": "Pocket row", "kind": "feature" },
+          { "id": "C3", "name": "Clip", "kind": "part" }
+        ],
+        "parameters": [
+          { "id": "P1", "symbol": "block_l", "name": "Block length", "value": 80, "unit": "mm" },
+          { "id": "P2", "symbol": "block_w", "name": "Block width", "value": 20, "unit": "mm" },
+          { "id": "P3", "symbol": "pitch", "name": "Pocket pitch", "value": 13, "unit": "mm" },
+          { "id": "P4", "symbol": "clip_w", "name": "Clip width", "value": 30, "unit": "mm" }
+        ],
+        "interfaces": [{ "id": "I1", "name": "Snap clip", "kind": "mechanical", "between": ["C1", "C3"], "parameterIds": ["P4"] }],
+        "layout": {
+          "view": "top",
+          "unit": "mm",
+          "items": [
+            { "componentId": "C1", "x": 0, "y": 0, "width": { "parameter": "P1" }, "height": { "parameter": "P2" } },
+            { "componentId": "C2", "x": 4, "y": 6, "width": 72, "height": 8 },
+            { "componentId": "C3", "x": 25, "y": 20, "width": { "parameter": "P4" }, "height": 12 }
+          ],
+          "dimensions": [
+            { "parameterId": "P1", "componentId": "C1", "axis": "x" },
+            { "parameterId": "P2", "componentId": "C1", "axis": "y" },
+            { "parameterId": "P4", "componentId": "C3", "axis": "x" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Two-row staggered block",
+      "summary": "A shorter block with two staggered rows of three pockets.",
+      "statements": [
+        { "kind": "principle", "text": "Friction fit in two staggered rows to halve the length" },
+        { "kind": "benefit", "text": "Short block (about 45 mm)" },
+        { "kind": "trade-off", "text": "Back row is harder to reach" }
+      ],
+      "definition": {
+        "intent": "Hold six hex bits in reach on the drill",
+        "components": [
+          { "id": "C1", "name": "Block", "kind": "part" },
+          { "id": "C2", "name": "Front pocket row", "kind": "feature" },
+          { "id": "C3", "name": "Back pocket row", "kind": "feature" },
+          { "id": "C4", "name": "Clip", "kind": "part" }
+        ],
+        "parameters": [
+          { "id": "P1", "symbol": "block_l", "name": "Block length", "value": 45, "unit": "mm" },
+          { "id": "P2", "symbol": "block_w", "name": "Block width", "value": 32, "unit": "mm" },
+          { "id": "P3", "symbol": "pitch", "name": "Pocket pitch", "value": 13, "unit": "mm" },
+          { "id": "P4", "symbol": "clip_w", "name": "Clip width", "value": 30, "unit": "mm" }
+        ],
+        "interfaces": [{ "id": "I1", "name": "Snap clip", "kind": "mechanical", "between": ["C1", "C4"], "parameterIds": ["P4"] }],
+        "layout": {
+          "view": "top",
+          "unit": "mm",
+          "items": [
+            { "componentId": "C1", "x": 0, "y": 0, "width": { "parameter": "P1" }, "height": { "parameter": "P2" } },
+            { "componentId": "C2", "x": 3, "y": 4, "width": 39, "height": 8 },
+            { "componentId": "C3", "x": 9, "y": 18, "width": 33, "height": 8 },
+            { "componentId": "C4", "x": 7, "y": 32, "width": { "parameter": "P4" }, "height": 12 }
+          ],
+          "dimensions": [
+            { "parameterId": "P1", "componentId": "C1", "axis": "x" },
+            { "parameterId": "P2", "componentId": "C1", "axis": "y" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Magnetic strip with clip-in holders",
+      "summary": "A magnetic strip on the drill holds six separate clip-in bit holders.",
+      "statements": [
+        { "kind": "principle", "text": "Magnetic retention of a steel strip, bits in individual clip-in sleeves" },
+        { "kind": "benefit", "text": "Holders can be rearranged" },
+        { "kind": "trade-off", "text": "Seven parts and a magnet to source" },
+        { "kind": "uncertainty", "text": "Magnet strength under drill vibration" }
+      ],
+      "definition": {
+        "intent": "Hold six hex bits in reach on the drill",
+        "components": [
+          { "id": "C1", "name": "Magnetic strip", "kind": "purchased" },
+          { "id": "C2", "name": "Clip-in holder", "kind": "part" },
+          { "id": "C3", "name": "Mounting plate", "kind": "part" }
+        ],
+        "parameters": [
+          { "id": "P1", "symbol": "strip_l", "name": "Strip length", "value": 90, "unit": "mm" },
+          { "id": "P2", "symbol": "strip_w", "name": "Strip width", "value": 15, "unit": "mm" },
+          { "id": "P3", "symbol": "holder_d", "name": "Holder diameter", "value": 12, "unit": "mm" },
+          { "id": "P4", "symbol": "plate_l", "name": "Plate length", "value": 95, "unit": "mm" }
+        ],
+        "interfaces": [
+          { "id": "I1", "name": "Magnetic contact", "kind": "mechanical", "between": ["C1", "C2"] },
+          { "id": "I2", "name": "Screwed joint", "kind": "mechanical", "between": ["C1", "C3"] }
+        ],
+        "layout": {
+          "view": "top",
+          "unit": "mm",
+          "items": [
+            { "componentId": "C3", "x": 0, "y": 0, "width": { "parameter": "P4" }, "height": 25 },
+            { "componentId": "C1", "x": 2.5, "y": 5, "width": { "parameter": "P1" }, "height": { "parameter": "P2" } },
+            { "componentId": "C2", "x": 10, "y": 6.5, "width": { "parameter": "P3" }, "height": { "parameter": "P3" }, "shape": "circle" }
+          ],
+          "dimensions": [
+            { "parameterId": "P4", "componentId": "C3", "axis": "x" },
+            { "parameterId": "P1", "componentId": "C1", "axis": "x" },
+            { "parameterId": "P3", "componentId": "C2", "axis": "y" }
+          ]
+        }
+      }
+    }
+  ],
+  "tradeStudy": {
+    "criteria": [
+      { "name": "Length along the drill", "weight": 2, "direction": "minimize", "unit": "mm" },
+      { "name": "Ease of access", "weight": 2 },
+      { "name": "Part count", "weight": 1, "direction": "minimize", "unit": "-" }
+    ],
+    "scores": [
+      { "alternative": 0, "criterion": 0, "value": 80, "rationale": "Block length parameter" },
+      { "alternative": 1, "criterion": 0, "value": 45, "rationale": "Block length parameter" },
+      { "alternative": 2, "criterion": 0, "value": 95, "rationale": "Plate length parameter" },
+      { "alternative": 0, "criterion": 1, "qualitative": 5, "rationale": "Every bit reachable from one side" },
+      { "alternative": 1, "criterion": 1, "qualitative": 3, "rationale": "Back row partly shadowed" },
+      { "alternative": 2, "criterion": 1, "qualitative": 4, "rationale": "Holders can be pulled off" },
+      { "alternative": 0, "criterion": 2, "value": 2, "rationale": "Block and clip" },
+      { "alternative": 1, "criterion": 2, "value": 2, "rationale": "Block and clip" },
+      { "alternative": 2, "criterion": 2, "value": 8, "rationale": "Strip, plate and six holders" }
+    ]
+  }
+}

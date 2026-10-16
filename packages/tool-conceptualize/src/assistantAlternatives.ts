@@ -233,7 +233,8 @@ export const developAlternatives: AssistantActionDefinition = {
       },
       visuals: { type: 'object', properties: { layout: { type: 'boolean', description: 'Draw a layout for each alternative with a layout definition (default true)' }, illustration: { type: 'boolean', description: 'Also request illustrations (default false)' } } },
     },
-    required: ['text', 'alternatives'],
+    // alternatives is checked by the action, so a call without them gets the explicit refusal below.
+    required: ['text'],
     additionalProperties: false,
   },
   async run(args, ctx) {

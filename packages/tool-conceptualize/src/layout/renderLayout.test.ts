@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EngineeringDefinition } from '@ews/conceptualize-client'
-import { componentAt, definitionDifferences, parameterLabel, renderLayout, toSvg } from './renderLayout'
+import { componentAt, definitionDifferences, layoutSpanMm, parameterLabel, renderLayout, toSvg } from './renderLayout'
 
 const param = (id: string, symbol: string, value: number, unit = 'mm') => ({ id, symbol, name: symbol, value, min: null, max: null, unit, basis: 'user-assertion' as const, componentId: null, constraintId: null, note: '' })
 const comp = (id: string, name: string, kind: 'part' | 'envelope' = 'part') => ({ id, name, kind, description: '', basis: 'user-assertion' as const })
@@ -87,5 +87,20 @@ describe('structured layout renderer', () => {
 
   it('returns null without a layout (never an invented drawing)', () => {
     expect(renderLayout({ ...bracket(), layout: null })).toBeNull()
+  })
+})
+
+describe('common comparison scale', () => {
+  it('draws alternatives at one scale when given the largest extent', () => {
+    const small = bracket(60)
+    const large = bracket(150)
+    const spans = [layoutSpanMm(small)!, layoutSpanMm(large)!]
+    expect(spans[1].x).toBeGreaterThan(spans[0].x)
+    const common = { x: Math.max(...spans.map((s) => s.x)), y: Math.max(...spans.map((s) => s.y)) }
+    const a = renderLayout(small, { width: 500, commonSpanMm: common })!
+    const b = renderLayout(large, { width: 500, commonSpanMm: common })!
+    expect(a.scale).toBeCloseTo(b.scale, 6)
+    expect(a.components.find((c) => c.componentId === 'C2')!.w / b.components.find((c) => c.componentId === 'C2')!.w).toBeCloseTo(60 / 150, 2)
+    expect(a.caption).toMatch(/common scale/)
   })
 })

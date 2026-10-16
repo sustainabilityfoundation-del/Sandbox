@@ -1,10 +1,11 @@
 import { Badge, Button, Dialog, EmptyState, LoadingState, Notice, SegmentedControl, Select, TextField } from '@ews/design-system'
 import { useToolViewState } from '@ews/platform-sdk/react'
 import { definitionInput, type CadHandoff, type ConceptCard, type Visual, type VisualAnnotation } from '@ews/conceptualize-client'
-import { useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useModuleData, useResource } from '../data'
 import type { ConceptualizeViewState } from '../domain'
-import { componentAt, definitionDifferences, parameterLabel, renderLayout, type LayoutDrawing } from '../layout/renderLayout'
+import { componentAt, definitionDifferences, layoutSpanMm, parameterLabel, renderLayout, type LayoutDrawing } from '../layout/renderLayout'
+import { visualizationPort } from '../visualization'
 import { ApiErrorNotice, MaturityBadge, Section } from './common'
 
 /**
@@ -30,6 +31,11 @@ export function LayoutSvg({ drawing, annotations = [], pending, onPick, title }:
   return (
     <svg ref={ref} className={`cv-layout${onPick ? ' is-pickable' : ''}`} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={title} onClick={click}>
       <title>{title}</title>
+      <defs>
+        <marker id="cv-arrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path className="cv-arrow" d="M0,0 L8,4 L0,8 z" />
+        </marker>
+      </defs>
       {drawing.components.map((c) => (
         <g key={c.componentId} className={`cv-component cv-kind-${c.kind}${c.highlighted ? ' cv-highlight' : ''}`} data-component-id={c.componentId}>
           {c.shape === 'circle' ? <ellipse cx={c.x + c.w / 2} cy={c.y + c.h / 2} rx={c.w / 2} ry={c.h / 2} /> : <rect x={c.x} y={c.y} width={c.w} height={c.h} />}
@@ -48,8 +54,11 @@ export function LayoutSvg({ drawing, annotations = [], pending, onPick, title }:
       ))}
       {drawing.dimensions.map((m) => (
         <g key={m.id} className={`cv-dimension${m.toScale ? '' : ' cv-not-to-scale'}${m.highlighted ? ' cv-highlight' : ''}`} data-parameter-id={m.parameterId}>
-          <line x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} />
-          <text x={m.lx} y={m.ly} textAnchor={m.axis === 'x' ? 'middle' : 'end'}>
+          <line x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} markerStart="url(#cv-arrow)" markerEnd="url(#cv-arrow)" />
+          {m.extensions.map(([a, b, c, e], i) => (
+            <line key={i} className="cv-extension" x1={a} y1={b} x2={c} y2={e} />
+          ))}
+          <text x={m.lx} y={m.ly} textAnchor="middle" transform={m.axis === 'y' ? `rotate(-90 ${m.lx} ${m.ly})` : undefined}>
             {m.label}
             {m.toScale ? '' : ' (n.t.s.)'}
           </text>
@@ -68,27 +77,35 @@ export function LayoutSvg({ drawing, annotations = [], pending, onPick, title }:
           {pending.w ? <rect x={pending.x * W} y={pending.y * H} width={pending.w * W} height={(pending.h ?? 0) * H} /> : <circle cx={pending.x * W} cy={pending.y * H} r={9} />}
         </g>
       )}
-      <text className="cv-caption" x={12} y={H - 12}>
-        {drawing.caption}
-      </text>
     </svg>
   )
 }
 
-export function VisualView({ visual, card, highlight, annotate, onPick, pending, compact }: { visual: Visual; card: ConceptCard; highlight?: { components: Set<string>; parameters: Set<string> }; annotate?: boolean; onPick?: (x: number, y: number, drawing: LayoutDrawing) => void; pending?: { x: number; y: number; w?: number; h?: number } | null; compact?: boolean }) {
+export function VisualView({ visual, card, highlight, annotate, onPick, pending, compact, commonSpanMm }: { visual: Visual; card: ConceptCard; highlight?: { components: Set<string>; parameters: Set<string> }; annotate?: boolean; onPick?: (x: number, y: number, drawing: LayoutDrawing) => void; pending?: { x: number; y: number; w?: number; h?: number } | null; compact?: boolean; commonSpanMm?: { x: number; y: number } }) {
   const { client, projectId } = useModuleData()
   // The drawing shows the pinned Concept revision, never the current one.
+  // Drawn at the width it is shown, so labels keep their size (no scaled-down text).
+  const [box, setBox] = useState<HTMLElement | null>(null)
+  const [broken, setBroken] = useState(false)
+  const [width, setWidth] = useState(0)
+  useEffect(() => {
+    const el = box
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setWidth(Math.round(e.contentRect.width / 20) * 20))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [box])
   const concept = useResource(() => client.concept(visual.conceptId, visual.conceptRevision), [client, visual.conceptId, visual.conceptRevision])
   const def = concept.data?.definition
-  const drawing = useMemo(() => (def && visual.kind === 'layout' ? renderLayout(def, { highlightComponents: highlight?.components, highlightParameters: highlight?.parameters, caption: { key: card.concept.key, name: concept.data!.name, revision: visual.conceptRevision } }) : null), [def, visual.kind, highlight, card.concept.key, concept.data, visual.conceptRevision])
+  const drawing = useMemo(() => (def && visual.kind === 'layout' ? renderLayout(def, { width: width ? Math.max(width, 280) : undefined, commonSpanMm, highlightComponents: highlight?.components, highlightParameters: highlight?.parameters, caption: { key: card.concept.key, name: concept.data!.name, revision: visual.conceptRevision } }) : null), [def, visual.kind, highlight, card.concept.key, concept.data, visual.conceptRevision, width, commonSpanMm])
   if (visual.kind === 'layout') {
     if (concept.loading && !def) return <LoadingState label="Drawing the layout" />
     if (!drawing) return <Notice tone="warning">This revision of {card.concept.key} has no structured layout.</Notice>
     return (
-      <figure className={`cv-figure${compact ? ' is-compact' : ''}`} data-help-id="conceptualize.visual.layout">
+      <figure ref={setBox} className={`cv-figure${compact ? ' is-compact' : ''}`} data-help-id="conceptualize.visual.layout">
         <LayoutSvg drawing={drawing} annotations={annotate ? visual.annotations : []} pending={pending} title={`${visual.key} rev ${visual.revision}: ${visual.title}`} onPick={onPick ? (x, y) => onPick(x, y, drawing) : undefined} />
         <figcaption className="con-muted">
-          {visual.key} rev {visual.revision} · from {card.concept.key} rev {visual.conceptRevision} · {drawing.notToScale ? 'not to scale' : 'to scale'} · labels from parameters
+          {visual.key} rev {visual.revision} · from {card.concept.key} rev {visual.conceptRevision} · {drawing.view} view · {drawing.notToScale ? 'not to scale' : 'to scale'}{commonSpanMm ? ' (common scale)' : ''} · labels from parameters
           {drawing.unplaced.length ? ` · not placed: ${drawing.unplaced.map((u) => `${u.componentId} ${u.name}`).join(', ')}` : ''}
         </figcaption>
       </figure>
@@ -97,14 +114,14 @@ export function VisualView({ visual, card, highlight, annotate, onPick, pending,
   const g = visual.generation
   return (
     <figure className="cv-figure" data-help-id="conceptualize.visual.illustration">
-      {g?.state === 'succeeded' && g.assetId ? (
+      {g?.state === 'succeeded' && g.assetId && !broken ? (
         <>
-          <img className="cv-illustration" alt={`${visual.title} (illustrative, not to scale)`} src={`${VISUALIZATION_BASE}/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(g.assetId)}/content`} />
+          <img className="cv-illustration" onError={() => setBroken(true)} alt={`${visual.title} (illustrative, not to scale)`} src={visualizationPort()?.contentUrl(projectId, g.assetId) ?? `${VISUALIZATION_BASE}/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(g.assetId)}/content`} />
           {g.testAsset && <Badge tone="warning" icon="warning">TEST ASSET (fake adapter)</Badge>}
         </>
       ) : (
-        <Notice tone={g?.state === 'failed' || g?.state === 'refused' ? 'warning' : 'info'} title={g ? `Illustration ${g.state}` : 'No illustration generated'}>
-          {g?.error?.message ?? (g ? 'The visualization service is working on it.' : 'Image generation was not requested or is not available; the structured layout is the engineering view.')}
+        <Notice tone={broken || g?.state === 'failed' || g?.state === 'refused' ? 'warning' : 'info'} title={broken ? 'The image could not be loaded' : g ? `Illustration ${g.state}` : 'No illustration generated'}>
+          {broken ? `Asset ${g?.assetId} is recorded${g?.testAsset ? ' (TEST ASSET)' : ''}, but the visualization service did not return it.` : g?.error?.message ?? (g ? 'The visualization service is working on it.' : 'Image generation was not requested or is not available; the structured layout is the engineering view.')}
         </Notice>
       )}
       <figcaption className="con-muted">
@@ -135,7 +152,7 @@ function StalenessNotice({ visual, onRerender }: { visual: Visual; onRerender?: 
   )
 }
 
-function ConceptCardView({ card, highlight, expanded, onExpand, onRefine, onDecide, onHandoff }: { card: ConceptCard; highlight: { components: Set<string>; parameters: Set<string> }; expanded: boolean; onExpand: () => void; onRefine: (v: Visual) => void; onDecide: (outcome: 'accepted' | 'rejected') => void; onHandoff: () => void }) {
+function ConceptCardView({ card, highlight, commonSpanMm, expanded, onExpand, onRefine, onDecide, onHandoff }: { card: ConceptCard; highlight: { components: Set<string>; parameters: Set<string> }; commonSpanMm?: { x: number; y: number }; expanded: boolean; onExpand: () => void; onRefine: (v: Visual) => void; onDecide: (outcome: 'accepted' | 'rejected') => void; onHandoff: () => void }) {
   const { client, invalidate } = useModuleData()
   const [state] = useToolViewState<ConceptualizeViewState>()
   const [error, setError] = useState<unknown>(null)
@@ -166,7 +183,7 @@ function ConceptCardView({ card, highlight, expanded, onExpand, onRefine, onDeci
       </header>
       {primary ? (
         <>
-          <VisualView visual={primary} card={card} highlight={highlight} compact={!expanded} />
+          <VisualView visual={primary} card={card} highlight={highlight} compact={!expanded} commonSpanMm={commonSpanMm} />
           <StalenessNotice visual={primary} onRerender={state.readOnly ? undefined : () => void rerender(primary)()} />
         </>
       ) : (
@@ -398,6 +415,11 @@ function RefinePanel({ card, visual, onClose }: { card: ConceptCard; visual: Vis
   const current = useResource(() => client.visual(visual.id), [client, visual.id])
   const v = current.data ?? visual
   const concept = useResource(() => client.concept(card.concept.id), [client, card.concept.id])
+  const panel = useRef<HTMLElement>(null)
+  // Bring the panel into view when it opens (it sits above the cards).
+  useEffect(() => {
+    panel.current?.scrollIntoView?.({ block: 'start' })
+  }, [visual.id])
   const pick = (x: number, y: number, drawing: LayoutDrawing) => {
     if (mode === 'pin') {
       setPoint({ x, y })
@@ -441,7 +463,7 @@ function RefinePanel({ card, visual, onClose }: { card: ConceptCard; visual: Vis
     })
   const params = concept.data?.definition?.parameters ?? []
   return (
-    <section className="cv-refine" data-help-id="conceptualize.visual.refine">
+    <section ref={panel} className="cv-refine" data-help-id="conceptualize.visual.refine">
       <header className="con-section-head">
         <h3>
           Refine {card.concept.key} · {v.key} rev {v.revision}
@@ -507,6 +529,12 @@ export function VisualComparisonPage() {
   const [handoff, setHandoff] = useState<ConceptCard | null>(null)
   const items = cards.data?.cards ?? []
   const diff = useMemo(() => definitionDifferences(items.map((c) => ({ intent: c.intent, components: c.components, interfaces: c.interfaces, parameters: c.parameters, relationships: [], layout: null, idSeq: 0 }))), [items])
+  // One scale for all alternatives (the largest extent), so sizes compare at a glance.
+  const defs = useResource(items.length ? () => Promise.all(items.map((c) => c.visuals.find((v) => v.id === c.primaryVisualId)).filter((v): v is Visual => !!v).map((v) => client.concept(v.conceptId, v.conceptRevision))) : null, [client, cards.data])
+  const commonSpanMm = useMemo(() => {
+    const spans = (defs.data ?? []).map((c) => (c.definition ? layoutSpanMm(c.definition) : null)).filter((s): s is { x: number; y: number } => !!s)
+    return spans.length > 1 ? { x: Math.max(...spans.map((s) => s.x)), y: Math.max(...spans.map((s) => s.y)) } : undefined
+  }, [defs.data])
   return (
     <div className="con-page" data-help-id="conceptualize.visual">
       <div className="con-row">
@@ -523,6 +551,7 @@ export function VisualComparisonPage() {
             key={card.concept.id}
             card={card}
             highlight={{ components: diff.components[i] ?? new Set(), parameters: diff.parameters[i] ?? new Set() }}
+            commonSpanMm={commonSpanMm}
             expanded={!!expanded[card.concept.id]}
             onExpand={() => setExpanded((e) => ({ ...e, [card.concept.id]: !e[card.concept.id] }))}
             onRefine={(visual) => setRefine({ card, visual })}

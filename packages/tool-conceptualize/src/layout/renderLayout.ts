@@ -23,6 +23,11 @@ export interface RenderOptions {
   highlightParameters?: ReadonlySet<string>
   /** Caption: Concept key, name and revision (shown in the title block). */
   caption?: { key: string; name: string; revision: number }
+  /**
+   * Common scale for comparison: the drawing is sized as if it spanned at least this much (in mm), so
+   * alternatives drawn with the same value share one scale.
+   */
+  commonSpanMm?: { x: number; y: number }
 }
 
 export interface DrawnComponent {
@@ -54,9 +59,11 @@ export interface DrawnDimension {
   y1: number
   x2: number
   y2: number
-  /** Label anchor. */
+  /** Label anchor (y dimensions are drawn rotated by -90° around it). */
   lx: number
   ly: number
+  /** Extension lines from the component edges to the dimension line. */
+  extensions: [number, number, number, number][]
   highlighted: boolean
 }
 
@@ -94,9 +101,10 @@ export const formatValue = (v: number) => (Number.isInteger(v) ? String(v) : Str
 export const parameterLabel = (p: DefinedParameter) =>
   `${p.symbol} = ${p.value != null ? formatValue(p.value) : `${p.min != null ? formatValue(p.min) : '…'}–${p.max != null ? formatValue(p.max) : '…'}`} ${p.unit}`
 
-const MARGIN = 56
-const TITLE = 40
-const DIM_OFFSET = 22
+const MARGIN = 24
+const TITLE = 30
+/** Spacing of stacked dimension lines (outside the drawing, so labels never cross components). */
+const DIM_STEP = 24
 
 export function renderLayout(def: EngineeringDefinition, options: RenderOptions = {}): LayoutDrawing | null {
   const layout = def.layout
@@ -126,12 +134,24 @@ export function renderLayout(def: EngineeringDefinition, options: RenderOptions 
   const maxX = Math.max(...raw.map((r) => r.x + r.w))
   const maxY = Math.max(...raw.map((r) => r.y + r.h))
   const width = options.width ?? 640
-  const spanX = Math.max(maxX - minX, 1e-9)
-  const spanY = Math.max(maxY - minY, 1e-9)
-  const pxPerUnit = Math.min((width - 2 * MARGIN) / spanX, 360 / spanY)
-  const height = Math.round(spanY * pxPerUnit + 2 * MARGIN + TITLE)
-  const tx = (x: number) => MARGIN + (x - minX) * pxPerUnit
-  const ty = (y: number) => MARGIN + (y - minY) * pxPerUnit
+  const toLayout = (mm: number) => {
+    try {
+      return convert(mm, 'mm', layout.unit)
+    } catch {
+      return mm
+    }
+  }
+  const spanX = Math.max(maxX - minX, options.commonSpanMm ? toLayout(options.commonSpanMm.x) : 0, 1e-9)
+  const spanY = Math.max(maxY - minY, options.commonSpanMm ? toLayout(options.commonSpanMm.y) : 0, 1e-9)
+  // Dimensions are stacked above (x) and to the left (y) of the whole drawing.
+  const nx = layout.dimensions.filter((d) => d.axis === 'x').length
+  const ny = layout.dimensions.filter((d) => d.axis === 'y').length
+  const left = MARGIN + ny * DIM_STEP
+  const top = MARGIN + nx * DIM_STEP
+  const pxPerUnit = Math.min(Math.max(width - left - MARGIN, 40) / spanX, (options.width ? Math.max(options.width * 0.6, 200) : 360) / spanY)
+  const height = Math.round((maxY - minY) * pxPerUnit + top + MARGIN + TITLE)
+  const tx = (x: number) => left + (x - minX) * pxPerUnit
+  const ty = (y: number) => top + (y - minY) * pxPerUnit
   const norm = (x: number, y: number, w: number, h: number) => ({ x: x / width, y: y / height, w: w / width, h: h / height })
   const hlC = options.highlightComponents ?? new Set<string>()
   const hlP = options.highlightParameters ?? new Set<string>()
@@ -158,7 +178,8 @@ export function renderLayout(def: EngineeringDefinition, options: RenderOptions 
   })
   const byId = new Map(components.map((c) => [c.componentId, c]))
   const placedItems = new Map(layout.items.map((i) => [i.componentId, i]))
-  const perSide = new Map<string, number>()
+  let rowX = 0
+  let rowY = 0
   const dimensions: DrawnDimension[] = []
   for (const d of layout.dimensions) {
     const c = byId.get(d.componentId)
@@ -170,16 +191,14 @@ export function renderLayout(def: EngineeringDefinition, options: RenderOptions 
     const item = placedItems.get(d.componentId)!
     const extent = d.axis === 'x' ? item.width : item.height
     const toScale = typeof extent === 'object' && extent.parameter === d.parameterId
-    const k = `${d.componentId}:${d.axis}`
-    const n = perSide.get(k) ?? 0
-    perSide.set(k, n + 1)
-    const off = DIM_OFFSET * (n + 1)
     if (d.axis === 'x') {
-      const y = round(c.y - off)
-      dimensions.push({ id: d.id, parameterId: p.id, componentId: c.componentId, axis: 'x', label: parameterLabel(p), toScale, x1: c.x, y1: y, x2: round(c.x + c.w), y2: y, lx: round(c.x + c.w / 2), ly: round(y - 6), highlighted: hlP.has(p.id) })
+      const y = round(top - DIM_STEP * ++rowX + 8)
+      const extensions: [number, number, number, number][] = [[c.x, round(c.y - 2), c.x, round(y - 4)], [round(c.x + c.w), round(c.y - 2), round(c.x + c.w), round(y - 4)]]
+      dimensions.push({ id: d.id, parameterId: p.id, componentId: c.componentId, axis: 'x', label: parameterLabel(p), toScale, x1: c.x, y1: y, x2: round(c.x + c.w), y2: y, lx: round(c.x + c.w / 2), ly: round(y - 4), extensions, highlighted: hlP.has(p.id) })
     } else {
-      const x = round(c.x - off)
-      dimensions.push({ id: d.id, parameterId: p.id, componentId: c.componentId, axis: 'y', label: parameterLabel(p), toScale, x1: x, y1: c.y, x2: x, y2: round(c.y + c.h), lx: round(x - 6), ly: round(c.y + c.h / 2), highlighted: hlP.has(p.id) })
+      const x = round(left - DIM_STEP * ++rowY + 8)
+      const extensions: [number, number, number, number][] = [[round(c.x - 2), c.y, round(x - 4), c.y], [round(c.x - 2), round(c.y + c.h), round(x - 4), round(c.y + c.h)]]
+      dimensions.push({ id: d.id, parameterId: p.id, componentId: c.componentId, axis: 'y', label: parameterLabel(p), toScale, x1: x, y1: c.y, x2: x, y2: round(c.y + c.h), lx: round(x - 4), ly: round(c.y + c.h / 2), extensions, highlighted: hlP.has(p.id) })
     }
   }
   const centre = (c: DrawnComponent) => ({ x: round(c.x + c.w / 2), y: round(c.y + c.h / 2) })
@@ -204,9 +223,26 @@ export function renderLayout(def: EngineeringDefinition, options: RenderOptions 
     dimensions,
     interfaces,
     unplaced,
-    caption: `${cap ? `${cap.key} rev ${cap.revision}: ${cap.name} · ` : ''}${layout.view} view · ${layout.unit} · dimensions from parameters${notToScale ? ' · NOT TO SCALE' : ''}`,
+    caption: `${cap ? `${cap.key} rev ${cap.revision}: ${cap.name} · ` : ''}${layout.view} view · ${layout.unit} · dimensions from parameters${notToScale ? ' · NOT TO SCALE' : ''}${options.commonSpanMm ? ' · common scale' : ''}`,
     problems,
   }
+}
+
+/** Extent of a layout in mm (for a common comparison scale); null without a layout. */
+export function layoutSpanMm(def: EngineeringDefinition): { x: number; y: number } | null {
+  const d = renderLayout(def, { width: 1000 })
+  if (!d) return null
+  const unit = def.layout!.unit
+  const xs = d.components.flatMap((c) => [c.x, c.x + c.w])
+  const ys = d.components.flatMap((c) => [c.y, c.y + c.h])
+  const toMm = (px: number) => {
+    try {
+      return convert(px * d.scale, unit, 'mm')
+    } catch {
+      return px * d.scale
+    }
+  }
+  return { x: toMm(Math.max(...xs) - Math.min(...xs)), y: toMm(Math.max(...ys) - Math.min(...ys)) }
 }
 
 function round(n: number) {
@@ -237,11 +273,11 @@ export function toSvg(d: LayoutDrawing, title = 'Concept layout'): string {
   for (const f of d.interfaces) parts.push(`<g class="cv-interface cv-interface-${esc(f.kind)}" data-interface-id="${esc(f.id)}"><line x1="${f.x1}" y1="${f.y1}" x2="${f.x2}" y2="${f.y2}"/><text x="${round((f.x1 + f.x2) / 2)}" y="${round((f.y1 + f.y2) / 2 - 4)}" text-anchor="middle">${esc(f.name)}</text></g>`)
   for (const m of d.dimensions) {
     const cls = `cv-dimension${m.toScale ? '' : ' cv-not-to-scale'}${m.highlighted ? ' cv-highlight' : ''}`
-    const ext = m.axis === 'x' ? `<line class="cv-extension" x1="${m.x1}" y1="${m.y1 - 4}" x2="${m.x1}" y2="${m.y1 + 4}"/><line class="cv-extension" x1="${m.x2}" y1="${m.y2 - 4}" x2="${m.x2}" y2="${m.y2 + 4}"/>` : `<line class="cv-extension" x1="${m.x1 - 4}" y1="${m.y1}" x2="${m.x1 + 4}" y2="${m.y1}"/><line class="cv-extension" x1="${m.x2 - 4}" y1="${m.y2}" x2="${m.x2 + 4}" y2="${m.y2}"/>`
-    const anchor = m.axis === 'x' ? 'middle' : 'end'
-    parts.push(`<g class="${cls}" data-parameter-id="${esc(m.parameterId)}" data-dimension-id="${esc(m.id)}"><line x1="${m.x1}" y1="${m.y1}" x2="${m.x2}" y2="${m.y2}"/>${ext}<text x="${m.lx}" y="${m.ly}" text-anchor="${anchor}">${esc(m.label)}${m.toScale ? '' : ' (n.t.s.)'}</text></g>`)
+    const ext = m.extensions.map(([a, b, c, e]) => `<line class="cv-extension" x1="${a}" y1="${b}" x2="${c}" y2="${e}"/>`).join('')
+    const rotate = m.axis === 'y' ? ` transform="rotate(-90 ${m.lx} ${m.ly})"` : ''
+    parts.push(`<g class="${cls}" data-parameter-id="${esc(m.parameterId)}" data-dimension-id="${esc(m.id)}"><line x1="${m.x1}" y1="${m.y1}" x2="${m.x2}" y2="${m.y2}"/>${ext}<text x="${m.lx}" y="${m.ly}" text-anchor="middle"${rotate}>${esc(m.label)}${m.toScale ? '' : ' (n.t.s.)'}</text></g>`)
   }
-  parts.push(`<text class="cv-caption" x="${MARGIN}" y="${d.height - 14}">${esc(d.caption)}</text>`)
+  parts.push(`<text class="cv-caption" x="${MARGIN}" y="${d.height - 10}">${esc(d.caption)}</text>`)
   parts.push('</svg>')
   return parts.join('')
 }
@@ -258,8 +294,9 @@ const keyOf = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
 export function definitionDifferences(defs: EngineeringDefinition[]): { components: Set<string>[]; parameters: Set<string>[] } {
   const compKeys = defs.map((d) => new Set(d.components.map((c) => `${keyOf(c.name)}|${c.kind}`)))
   const paramVal = defs.map((d) => new Map(d.parameters.map((p) => [p.symbol, `${p.value ?? ''}|${p.min ?? ''}|${p.max ?? ''}|${p.unit}`])))
+  // A component is a difference when no other alternative has it (by name and kind).
   return {
-    components: defs.map((d) => new Set(d.components.filter((c) => !compKeys.every((s) => s.has(`${keyOf(c.name)}|${c.kind}`))).map((c) => c.id))),
+    components: defs.map((d, i) => new Set(d.components.filter((c) => defs.length > 1 && !compKeys.some((s, j) => j !== i && s.has(`${keyOf(c.name)}|${c.kind}`))).map((c) => c.id))),
     parameters: defs.map((d) => new Set(d.parameters.filter((p) => !paramVal.every((m) => m.get(p.symbol) === paramVal[defs.indexOf(d)].get(p.symbol))).map((p) => p.id))),
   }
 }
