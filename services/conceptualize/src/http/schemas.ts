@@ -109,6 +109,67 @@ export const StatementInput = Type.Object(
 
 // ---- concepts -------------------------------------------------------------------------------------------
 
+// ---- engineering definition (concept-visualization.md §5) -------------------------------------------------------------
+
+const ItemId = Type.String({ pattern: '^[A-Za-z][A-Za-z0-9_-]{0,39}$', description: 'Stable ID within the Concept (kept across revisions; assigned when omitted)' })
+const ParameterBasis = L('user-assertion', 'ai-hypothesis', 'assumption', 'estimate')
+export const Stage = L('exploration', 'layout', 'engineering')
+const Coord = Type.Union([Type.Number(), Type.Object({ parameter: ItemId }, { additionalProperties: false })], { description: 'Layout units, or the nominal value of a length parameter' })
+const ComponentFields = { name: Text(200, 1), kind: L('part', 'assembly', 'purchased', 'envelope', 'feature'), description: Text(4000), basis: ParameterBasis }
+const RelationshipFields = { type: L('contains', 'attached-to', 'supports', 'guides', 'drives', 'connected-to', 'clears'), from: ItemId, to: ItemId, note: Text(2000) }
+const InterfaceFields = { name: Text(200, 1), kind: L('mechanical', 'electrical', 'fluid', 'thermal', 'data', 'other'), between: Type.Array(ItemId, { minItems: 2, maxItems: 2 }), description: Text(4000), parameterIds: Type.Array(ItemId, { maxItems: 50 }) }
+const ParameterFields = {
+  symbol: Type.String({ pattern: '^[A-Za-z_][A-Za-z0-9_]{0,39}$' }),
+  name: Text(200),
+  value: Nullable(Type.Number()),
+  min: Nullable(Type.Number()),
+  max: Nullable(Type.Number()),
+  unit: Type.String({ maxLength: 60 }),
+  basis: ParameterBasis,
+  componentId: Nullable(ItemId),
+  constraintId: Nullable(Uuid),
+  note: Text(2000),
+}
+const LayoutItemFields = { componentId: ItemId, x: Coord, y: Coord, width: Coord, height: Coord, shape: L('rect', 'circle') }
+const LayoutDimensionFields = { parameterId: ItemId, componentId: ItemId, axis: L('x', 'y') }
+const opt = <T extends Record<string, TSchema>>(o: T, keep: (keyof T)[]) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, keep.includes(k) ? v : Type.Optional(v)])) as { [K in keyof T]: TSchema }
+
+export const Definition = Type.Object(
+  {
+    intent: Type.String({ description: 'Functional intent: what the Concept must do' }),
+    components: Type.Array(Type.Object({ id: ItemId, ...ComponentFields })),
+    relationships: Type.Array(Type.Object({ id: ItemId, ...RelationshipFields })),
+    interfaces: Type.Array(Type.Object({ id: ItemId, ...InterfaceFields })),
+    parameters: Type.Array(Type.Object({ id: ItemId, ...ParameterFields }), { description: 'Defined engineering values with units and basis (never "verified": verification comes from recorded checks)' }),
+    layout: Nullable(Type.Object({ view: L('top', 'front', 'side', 'section'), unit: Type.String(), items: Type.Array(Type.Object(LayoutItemFields)), dimensions: Type.Array(Type.Object({ id: ItemId, ...LayoutDimensionFields })) })),
+    idSeq: Type.Integer({ minimum: 0 }),
+  },
+  { $id: 'EngineeringDefinition', description: 'The authoritative engineering definition of a Concept revision. Layouts render it; CAD consumes it; images never write it.' },
+)
+export const DefinitionInput = Type.Object(
+  {
+    intent: Type.Optional(Text(4000)),
+    components: Type.Optional(Type.Array(Type.Object({ id: Type.Optional(ItemId), ...opt(ComponentFields, ['name']) }, { additionalProperties: false }), { maxItems: 200 })),
+    relationships: Type.Optional(Type.Array(Type.Object({ id: Type.Optional(ItemId), ...opt(RelationshipFields, ['type', 'from', 'to']) }, { additionalProperties: false }), { maxItems: 400 })),
+    interfaces: Type.Optional(Type.Array(Type.Object({ id: Type.Optional(ItemId), ...opt(InterfaceFields, ['name', 'between']) }, { additionalProperties: false }), { maxItems: 200 })),
+    parameters: Type.Optional(Type.Array(Type.Object({ id: Type.Optional(ItemId), ...opt(ParameterFields, ['symbol', 'unit']) }, { additionalProperties: false }), { maxItems: 400 })),
+    layout: Type.Optional(
+      Nullable(
+        Type.Object(
+          {
+            view: Type.Optional(L('top', 'front', 'side', 'section')),
+            unit: Type.Optional(Type.String({ maxLength: 20 })),
+            items: Type.Array(Type.Object(opt(LayoutItemFields, ['componentId', 'x', 'y', 'width', 'height']), { additionalProperties: false }), { maxItems: 200 }),
+            dimensions: Type.Optional(Type.Array(Type.Object({ id: Type.Optional(ItemId), ...LayoutDimensionFields }, { additionalProperties: false }), { maxItems: 200 })),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
+  },
+  { $id: 'EngineeringDefinitionInput', additionalProperties: false, description: 'Replaces the definition. Items sent with their id keep their identity; items without one get a new, never reused ID.' },
+)
+
 export const Concept = Type.Object(
   {
     id: Uuid,
@@ -123,6 +184,8 @@ export const Concept = Type.Object(
     classifications: Type.Array(Type.String()),
     attributes: Type.Record(Type.String(), Attribute),
     statements: Type.Array(Statement),
+    stage: Stage,
+    definition: Definition,
     maturity: Maturity,
     verificationStatus: VerificationStatus,
     implementationStatus: ConceptImplementationStatus,
@@ -200,6 +263,8 @@ export const ConceptCreate = Type.Object(
     classifications: Type.Optional(Type.Array(Text(60, 1), { maxItems: 30 })),
     attributes: Type.Optional(Type.Record(Type.String({ minLength: 1, maxLength: 80 }), Attribute)),
     statements: Type.Optional(Type.Array(StatementInput, { maxItems: 300 })),
+    stage: Type.Optional(Stage),
+    definition: Type.Optional(DefinitionInput),
     maturity: Type.Optional(L('idea', 'exploring', 'defined')),
     parentId: Type.Optional(Uuid),
     decompositionId: Type.Optional(Uuid),
@@ -221,6 +286,8 @@ export const ConceptPatch = Type.Object(
     classifications: Type.Optional(Type.Array(Text(60, 1), { maxItems: 30 })),
     attributes: Type.Optional(Type.Record(Type.String({ minLength: 1, maxLength: 80 }), Nullable(Attribute), { description: 'Merged; null removes an attribute' })),
     statements: Type.Optional(Type.Array(StatementInput, { maxItems: 300, description: 'Replaces the statement list. Statements sent with their id keep their identity.' })),
+    stage: Type.Optional(Stage),
+    definition: Type.Optional(DefinitionInput),
     reason: Type.Optional(Text(2000)),
   },
   { $id: 'ConceptPatch', additionalProperties: false },
@@ -729,6 +796,8 @@ const ConceptSeed = {
   classifications: Type.Optional(Type.Array(Text(60, 1), { maxItems: 30 })),
   attributes: Type.Optional(Type.Record(Type.String({ minLength: 1, maxLength: 80 }), Attribute)),
   statements: Type.Optional(Type.Array(StatementInput, { maxItems: 300 })),
+  stage: Type.Optional(Stage),
+  definition: Type.Optional(DefinitionInput),
 }
 const EvidenceSeed = Type.Object(
   {
@@ -954,3 +1023,4 @@ export type ImplementationDto = Static<typeof Implementation>
 export type ConceptLinkDto = Static<typeof ConceptLink>
 export type DecompositionDto = Static<typeof Decomposition>
 export type ExplorationDto = Static<typeof Exploration>
+export type DefinitionInputDto = Static<typeof DefinitionInput>
