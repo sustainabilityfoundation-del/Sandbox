@@ -4,6 +4,7 @@ import { AppIcon, Icon, cx, type IconName } from '@ews/design-system'
 import { getProjectsClient, type Artifact } from '@ews/projects-client'
 import { workspaceServices } from '../platform/services'
 import { openToolOrExplain } from '../platform/api'
+import { useExplorerFilter, visibleWithAncestors } from '../shell/layout/explorerFilter'
 import { useWorkspaceStore } from '../platform/store'
 
 /**
@@ -78,7 +79,7 @@ function Row({ children, hasChildren }: { children: ReactNode; hasChildren: bool
         <div className="ws-tree-row" style={{ paddingInlineStart: 4 + (level - 1) * 16 }}>
           {hasChildren ? (
             <AriaButton slot="chevron" className="ws-tree-caret" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
-              <Icon name="chevron-right" size={18} className={cx('transition-transform duration-[var(--ws-motion-short)]', isExpanded && 'rotate-90')} />
+              <Icon name="chevron-right" size={14} className={cx('transition-transform duration-[var(--ws-motion-short)]', isExpanded && 'rotate-90')} />
             </AriaButton>
           ) : (
             <span className="ws-tree-caret" aria-hidden="true" />
@@ -133,14 +134,19 @@ export function ProjectExplorer({ projectId }: { projectId: string }) {
     }
   }, [projectId, reload])
 
+  // Explorer search (shell filter): matches and their containers; the data access is unchanged.
+  const query = useExplorerFilter((s) => s.query)
+  const filtering = query.trim().length > 0
   const tree = useMemo(() => {
-    const items = artifacts ?? []
+    const all = artifacts ?? []
+    const visible = visibleWithAncestors(all.map((a) => ({ ...a, id: a.artifactId })), query, (a) => [a.key, a.title], (a) => a.containerId)
+    const items = visible ? all.filter((a) => visible.has(a.artifactId)) : all
     const byId = new Map(items.map((a) => [a.artifactId, a]))
     const childrenOf = new Map<string, Artifact[]>()
     for (const a of items) if (a.containerId && byId.has(a.containerId)) childrenOf.set(a.containerId, [...(childrenOf.get(a.containerId) ?? []), a])
     const top = (g: Group) => items.filter((a) => g.modules.includes(a.ref.module) && !(a.containerId && byId.has(a.containerId)))
     return { childrenOf, top }
-  }, [artifacts])
+  }, [artifacts, query])
 
   const open = (a: Artifact) => {
     const group = GROUPS.find((g) => g.modules.includes(a.ref.module))
@@ -157,7 +163,7 @@ export function ProjectExplorer({ projectId }: { projectId: string }) {
     return (
       <TreeItem key={a.artifactId} id={a.artifactId} textValue={`${a.key} ${a.title}`} className="ws-tree-item" data-artifact-id={a.artifactId}>
         <Row hasChildren={children.length > 0}>
-          <AppIcon name={ICON[a.ref.kind] ?? 'artifact'} size={18} className="ws-tree-icon" />
+          <AppIcon name={ICON[a.ref.kind] ?? 'artifact'} size={16} className="ws-tree-icon" />
           <span className="ws-tree-id font-mono">{a.key}</span>
           <span className="ws-tree-name" title={`${a.key} ${a.title} · ${a.ref.module}/${a.ref.kind} · version ${a.version.value} · ${a.lifecycle}`}>
             {a.title}
@@ -191,7 +197,7 @@ export function ProjectExplorer({ projectId }: { projectId: string }) {
     return (
       <TreeItem key={g.id} id={g.id} textValue={g.title} className="ws-tree-item ws-tree-group">
         <Row hasChildren>
-          <Icon name={g.icon} size={18} className="ws-tree-icon" />
+          <Icon name={g.icon} size={16} className="ws-tree-icon" />
           <span className="ws-tree-name">{g.title}</span>
           <span className="ws-tree-count">{items.length}</span>
         </Row>
@@ -199,8 +205,8 @@ export function ProjectExplorer({ projectId }: { projectId: string }) {
       </TreeItem>
     )
   }
-  const groups = GROUPS.map(renderGroup)
-  const expandedKeys = new Set<Key>(expandable.filter((id) => !collapsed.has(id)))
+  const groups = GROUPS.filter((g) => !filtering || tree.top(g).length > 0).map(renderGroup)
+  const expandedKeys = new Set<Key>(filtering ? expandable : expandable.filter((id) => !collapsed.has(id)))
   const groupIds = new Set<string>(expandable.filter((id) => id.startsWith('grp:')))
 
   return (
