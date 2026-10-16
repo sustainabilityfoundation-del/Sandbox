@@ -38,7 +38,7 @@ await page.screenshot({ path: `${shots}/help-1-menu.png` })
 await page.getByRole('menuitem', { name: /^SysML(?! Modeler)/ }).hover()
 await page.waitForTimeout(400)
 const sysml = await page.locator('[role="menu"]').last().getByRole('menuitem').allTextContents().catch(() => [])
-check('fallback', sysml.some((t) => t.includes('No documentation yet')), `a module without documentation says so (${sysml.join(' | ')})`)
+check('sysml', sysml.some((t) => t.includes('Tutorial: Explore the SysML demo')) && !sysml.some((t) => t.includes('No documentation yet')), `SysML now has documentation, including its tutorial (${sysml.join(' | ')})`)
 await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.waitForTimeout(300)
 
 // 3. Help Centre from the Requirements submenu, search, navigation.
@@ -87,7 +87,9 @@ await page.evaluate(() => { window.location.hash = '' })
 await helpBtn.click(); await page.getByRole('menuitem', { name: 'About and versions' }).click()
 await page.waitForSelector('[data-testid="help-about"]')
 const about = await page.locator('[data-testid="help-about"]').textContent()
-check('about', /SDK 1.[0-9]+.[0-9]+/.test(about) && /Not available yet/.test(about), 'About lists versions and modules without documentation')
+const aboutRows = await page.locator('[data-testid="help-about"] tbody tr').allTextContents()
+const documented = (name) => aboutRows.some((r) => r.startsWith(name) && /\d+ topics for /.test(r))
+check('about', /SDK 1.[0-9]+.[0-9]+/.test(about) && !/Not available yet/.test(about) && aboutRows.length > 0 && documented('SysML') && documented('CAD'), `About lists versions and every module with topic counts, none without documentation (${aboutRows.join(' | ')})`)
 await closeHelp()
 
 // 7. Subscription: Requirements only hides SysML and CAD from the menu.
