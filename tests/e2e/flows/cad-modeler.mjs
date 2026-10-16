@@ -196,6 +196,7 @@ const phoneSvg = phone.locator('svg.cadm-sketch')
 await phoneSvg.waitFor({ timeout: 30000 })
 await phone.locator('.cadm-draw-bar').getByRole('radio', { name: 'Rectangle', exact: true }).tap()
 const tapAt = async (x, y) => {
+  await phoneSvg.scrollIntoViewIfNeeded()
   const p = await phoneSvg.evaluate((el, [sx, sy]) => {
     const [vx, vy, vw, vh] = el.getAttribute('viewBox').split(' ').map(Number)
     const r = el.getBoundingClientRect()

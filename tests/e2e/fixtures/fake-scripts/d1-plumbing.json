@@ -531,12 +531,6 @@
                     "value": "${cad-modeler.check.data.results.[quantity^=pattern].measured.value}",
                     "unit": "${cad-modeler.check.data.results.[quantity^=pattern].measured.unit}",
                     "constraintId": "${cad-modeler.check.data.results.[quantity^=pattern].bound.key}"
-                  },
-                  {
-                    "name": "pocket width across flats, measured by the kernel",
-                    "value": "${cad-modeler.check.data.results.2.measured.value}",
-                    "unit": "${cad-modeler.check.data.results.2.measured.unit}",
-                    "constraintId": "${cad-modeler.check.data.results.2.bound.key}"
                   }
                 ]
               }

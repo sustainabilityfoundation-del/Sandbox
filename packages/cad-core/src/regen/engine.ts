@@ -456,7 +456,7 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
             const analyses = await Promise.all(tools[0].map((t) => kernel.analyze(t, [])))
             const lo = Math.min(...analyses.map((a) => a.boundingBox.min[axis]))
             const hi = Math.max(...analyses.map((a) => a.boundingBox.max[axis]))
-            occurrenceWidth = hi - lo
+            occurrenceWidth = Math.round((hi - lo) * 1e9) / 1e9
             const flatAt = (at: number) => analyses.some((a) => a.faces.some((f) => f.surfaceType === 'PLANE' && f.normal && Math.abs(Math.abs(f.normal[axis]) - 1) < 1e-6 && Math.abs(f.center[axis] - at) < 1e-6))
             occurrenceWidthFlats = flatAt(lo) && flatAt(hi)
             cache.putMeta(widthKey, { width: occurrenceWidth, flats: occurrenceWidthFlats }, gen)
