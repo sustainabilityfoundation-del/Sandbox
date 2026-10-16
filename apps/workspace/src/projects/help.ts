@@ -34,6 +34,7 @@ export const projectsHelp: HelpManifest = {
     { control: 'projects.home.project', helpId: 'projects.home' },
     { control: 'projects.wizard', helpId: 'projects.wizard' },
     { control: 'projects.overview', helpId: 'projects.overview-panel' },
+    { control: 'projects.explorer', helpId: 'projects.explorer' },
     // Every assistant operation.
     ...projectsAssistant().actions.map((a) => ({ operation: a.name, helpId: OPERATION_TOPICS[a.name] ?? 'projects.assistant' })),
   ],
