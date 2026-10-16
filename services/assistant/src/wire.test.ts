@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CredentialVault } from './crypto'
 import { policyFromSettings } from './policy'
-import { prepareRequest, redact, screenCalls, signCall, type WireRequest } from './wire'
+import { prepareRequest, redact, resultOutput, screenCalls, signCall, type WireRequest } from './wire'
 
 const vault = new CredentialVault(CredentialVault.randomKey())
 const ALL = ['tool:requirements', 'tool:conceptualize', 'tool:sysml', 'tool:cad']
@@ -86,5 +86,27 @@ describe('request preparation (server-side policy)', () => {
     expect(p.instructions).not.toContain('ROD-120')
     expect(p.instructions).not.toContain('Rod')
     expect(p.instructions).not.toContain('Ignore previous')
+  })
+
+  it('tells the model on its next turn which operations the platform refused', () => {
+    const history = [{ role: 'event' as const, event: 'refused', proposalId: '', summary: 'The platform refused requirements.update (AI access to Requirements is off in your AI settings.). Nothing was run.' }]
+    const p = prepareRequest(request({}, history), policyFromSettings({}), ALL, vault, 'eli')
+    const notice = p.messages.find((m) => m.type === 'message' && m.text.startsWith('[Platform notice]')) as { text: string }
+    expect(notice.text).toContain('the platform refused requirements.update')
+    expect(notice.text).toContain('Do not request these operations again')
+  })
+})
+
+describe('large operation results', () => {
+  it('shortens long strings first so the structure (for example a STEP read-back) reaches the model as valid JSON', () => {
+    const sharing = { requirementText: true, elementDetails: true } as never
+    const data = { file: { name: 'part.step', size: 150000, content: 'x'.repeat(150000) }, readBack: { ok: true, imported: { solids: 1 } } }
+    const out = resultOutput({ callId: 'c', name: 'cad-modeler.export', ok: true, data }, sharing)
+    const parsed = JSON.parse(out)
+    expect(parsed.data.readBack).toEqual({ ok: true, imported: { solids: 1 } })
+    expect(parsed.data.file.content).toMatch(/148000 more characters not sent/)
+    expect(out.length).toBeLessThan(24000)
+    const small = resultOutput({ callId: 'c', name: 'x', ok: true, data: { text: 'y'.repeat(3000) } }, sharing)
+    expect(JSON.parse(small).data.text).toHaveLength(3000)
   })
 })

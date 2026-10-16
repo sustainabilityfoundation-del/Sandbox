@@ -7,6 +7,7 @@ import type { ProjectsEvent } from '@ews/platform-sdk'
 import { buildOpenApi } from './openapi'
 import { errorBody, registerRoute, type HostServices, type RouteSpec } from './route'
 import { registerProjectRoutes } from './routes'
+import { reconcileProject, startRegistryConsumer } from '../registry'
 import { SCHEMAS } from './schemas'
 
 export type ProjectsPluginOptions = HostServices
@@ -63,6 +64,16 @@ export const projectsPlugin: FastifyPluginAsync<ProjectsPluginOptions> = async (
   })
 
   registerProjectRoutes(app, services, registry)
+
+  // Registry consumer (ADR-0062): module events keep the artifact registry current; stopped with the host.
+  if (services.artifactSources?.length) {
+    const consumer = startRegistryConsumer({ pool: services.pool, sources: services.artifactSources, onError: (e) => app.log.error({ err: e }, 'projects registry consumer') })
+    services.onRegistry?.({ idle: consumer.idle, reconcile: (projectId: string) => reconcileProject({ pool: services.pool, sources: services.artifactSources! }, projectId) })
+    app.addHook('onClose', async () => {
+      consumer.stop()
+      await consumer.idle()
+    })
+  }
 
   registerRoute(
     app,

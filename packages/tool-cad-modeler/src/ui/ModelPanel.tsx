@@ -1,8 +1,8 @@
 import type { CadEngine, EngineState, Feature, Part } from '@ews/cad-core'
 import { AppIcon, Button, IconButton, MenuButton, MenuItem, Select, TextField, cx } from '@ews/design-system'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { CadModelerViewState, SelectionItem } from '../viewState'
-import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf } from './common'
+import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf, useMeasure } from './common'
 
 interface Props {
   engine: CadEngine
@@ -11,7 +11,7 @@ interface Props {
   update: (u: Partial<CadModelerViewState>) => void
 }
 
-const ICON: Record<Feature['type'], 'edit' | 'arrow-right' | 'sync' | 'tune' | 'dimensions' | 'split'> = { sketch: 'edit', extrude: 'arrow-right', revolve: 'sync', fillet: 'tune', chamfer: 'dimensions', 'datum-plane': 'split' }
+const ICON: Record<Feature['type'], 'edit' | 'arrow-right' | 'sync' | 'tune' | 'dimensions' | 'split' | 'windows'> = { sketch: 'edit', extrude: 'arrow-right', revolve: 'sync', fillet: 'tune', chamfer: 'dimensions', 'datum-plane': 'split', 'pattern-linear': 'windows' }
 
 /** Feature tree, bodies and parameters of each part (brief §8: feature tree, dimension editing). */
 export function ModelPanel({ engine, state, vs, update }: Props) {
@@ -36,6 +36,7 @@ export function ModelPanel({ engine, state, vs, update }: Props) {
 }
 
 function PartSection({ part, state, vs, onSelect, onEdit, engine }: { part: Part; state: EngineState; vs: CadModelerViewState; onSelect: (s: SelectionItem) => void; onEdit: (f: Feature) => void; engine: CadEngine }) {
+  const M = useMeasure()
   const run = makeRun(engine)
   const pr = regenOf(state, part.id)
   const isSelected = (id: string) => vs.selection.some((s) => s.id === id)
@@ -85,7 +86,7 @@ function PartSection({ part, state, vs, onSelect, onEdit, engine }: { part: Part
                 <Button variant="quiet" size="sm" className={cx("cadm-tree-button justify-start!", isSelected(b.bodyId) && "is-selected")} onPress={() => onSelect({ kind: 'body', id: b.bodyId })}>
                   <AppIcon name="cad-representation" size="sm" />
                   <span className="cadm-tree-name">{b.name}</span>
-                  <span className="cadm-muted">{fmtNum(b.analysis.volume, 1)} mm³</span>
+                  <span className="cadm-muted">{M.volume(b.analysis.volume, 1)}</span>
                 </Button>
               </li>
             ))}
@@ -118,12 +119,22 @@ function Parameters({ part, engine, state }: { part: Part; engine: CadEngine; st
       {part.parameters.map((p) => {
         const ev = evaluated.find((x) => x.id === p.id)
         return (
-          <div key={p.id} className="cadm-param-row">
+          <Fragment key={p.id}>
+          <div className="cadm-param-row">
             <span className="cadm-param-name cadm-mono" title={p.description}>{p.name}</span>
             <CommitField ariaLabel={`Expression of ${p.name}`} value={p.expression} className="cadm-param-expr" errorMessage={ev?.error?.message} onCommit={(v) => run([{ command: 'set_parameter', input: { partId: part.id, name: p.name, expression: v } }], `Set ${p.name}`)} />
             <span className="cadm-param-value">{ev?.value !== undefined ? `= ${fmtNum(ev.value, 4)}` : '—'} {p.unit === 'none' ? '' : p.unit}</span>
             <IconButton label={`Delete parameter ${p.name}`} icon="close" size="sm" onPress={() => run([{ command: 'delete_parameter', input: { partId: part.id, name: p.name } }], `Delete ${p.name}`)} />
           </div>
+          {p.binding && (
+            <p className="cadm-param-binding cadm-muted" data-help-id="cad-modeler.parameters">
+              <AppIcon name="link" size="sm" /> Implements {p.binding.quantity ? `“${p.binding.quantity}” of ` : ''}
+              <span className="cadm-mono">{p.binding.ref.module}/{p.binding.ref.kind} {p.binding.ref.id.length > 12 ? `${p.binding.ref.id.slice(0, 8)}…` : p.binding.ref.id}</span>
+              {p.binding.ref.revision !== undefined ? `, revision ${p.binding.ref.revision}` : ', latest revision'}
+              <IconButton label={`Remove the binding of ${p.name}`} icon="unlink" size="sm" onPress={() => run([{ command: 'unbind_parameter', input: { partId: part.id, name: p.name } }], `Unbind ${p.name}`)} />
+            </p>
+          )}
+          </Fragment>
         )
       })}
       <div className="cadm-param-add">

@@ -1,4 +1,5 @@
 import { ProviderError, type AssistantProvider, type ProviderMessage, type RespondInput, type RespondOutput } from './types'
+import { loadReplayScripts, replay } from './replay'
 
 /**
  * FAKE PROVIDER for tests and the development browser flow. It is a deterministic script, not a model:
@@ -37,7 +38,7 @@ function turnResults(messages: ProviderMessage[]) {
 
 let seq = 0
 
-export function createFakeProvider(options: { id?: string; delayMs?: number } = {}): AssistantProvider & { calls: RespondInput[] } {
+export function createFakeProvider(options: { id?: string; delayMs?: number; /** Directory of replay scripts (default: EWS_ASSISTANT_FAKE_SCRIPTS). */ scriptsDir?: string } = {}): AssistantProvider & { calls: RespondInput[] } {
   const calls: RespondInput[] = []
   const check = (key: string) => {
     if (!key.startsWith('fake-') || key.length < 12 || key.startsWith('fake-invalid')) throw new ProviderError('invalid-credential', 'The fake provider did not accept this key (use fake- followed by at least 7 characters).', 401)
@@ -82,6 +83,10 @@ export function createFakeProvider(options: { id?: string; delayMs?: number } = 
       const offered = new Set(input.tools.map((t) => t.name))
       const call = (name: string, args: Record<string, unknown>): RespondOutput => ({ type: 'tool_calls', calls: [{ callId: `fake_call_${++seq}`, name, arguments: args }], usage, model: input.model })
       const final = (t: string): RespondOutput => ({ type: 'final', text: t, usage, model: input.model })
+
+      // Recorded tool-call scripts (test fixtures), replayed step by step.
+      const replayed = replay(loadReplayScripts(options.scriptsDir ?? process.env.EWS_ASSISTANT_FAKE_SCRIPTS), text, input.messages, input.model)
+      if (replayed) return { ...replayed, usage }
 
       const forge = /forge\s+([\w.-]+)/i.exec(text)
       if (forge) return results.length ? final(`Forged call result: ${results[0].output.slice(0, 300)}`) : call(forge[1], {})

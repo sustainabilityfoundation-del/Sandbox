@@ -18,6 +18,7 @@ import type {
   ProjectTemplate,
   PropertyValue,
   ElementKind,
+  FileProvenance,
   WorkItem,
   WorkItemInput,
 } from './types'
@@ -152,15 +153,16 @@ export class ProjectsClient {
   documents(projectId: string) {
     return this.get<ProjectDocument[]>(`${this.p(projectId)}/documents`)
   }
-  createDocument(projectId: string, input: { title: string; description?: string; documentKind?: string; subjects?: string[] }) {
-    return this.write<ProjectDocument>('POST', `${this.p(projectId)}/documents`, input, { idempotent: true })
+  createDocument(projectId: string, input: { title: string; description?: string; documentKind?: string; subjects?: string[] }, opts: WriteOpts = {}) {
+    return this.write<ProjectDocument>('POST', `${this.p(projectId)}/documents`, input, { ...opts, idempotent: true })
   }
-  async uploadDocumentVersion(projectId: string, id: string, revision: number, file: { bytes: Uint8Array | Blob; fileName: string; mediaType?: string; note?: string }) {
+  async uploadDocumentVersion(projectId: string, id: string, revision: number, file: { bytes: Uint8Array | Blob; fileName: string; mediaType?: string; note?: string; provenance?: FileProvenance }, opts: WriteOpts = {}) {
     const res = await this.transport.request<ProjectDocument>('POST', `${this.p(projectId)}/documents/${enc(id)}/versions`, {
       rawBody: file.bytes,
       contentType: file.mediaType ?? 'application/octet-stream',
       ifMatch: revision,
-      headers: { 'X-File-Name': encodeURIComponent(file.fileName), ...(file.note ? { 'X-Version-Note': encodeURIComponent(file.note) } : {}) },
+      provenance: opts.provenance,
+      headers: { 'X-File-Name': encodeURIComponent(file.fileName), ...(file.note ? { 'X-Version-Note': encodeURIComponent(file.note) } : {}), ...(file.provenance ? { 'X-Provenance': encodeURIComponent(JSON.stringify(file.provenance)) } : {}) },
     })
     return res.data
   }

@@ -79,13 +79,17 @@ function featureDetails(f: Feature, r?: FeatureResult): Record<string, unknown> 
   if (f.type === 'revolve') return { sketch: f.sketch, axis: f.axis, angle: f.angle, operation: f.operation, target: f.target ?? null, body: r?.bodyId ?? null }
   if (f.type === 'fillet') return { edges: f.edges, radius: f.radius, target: f.target ?? null, body: r?.bodyId ?? null }
   if (f.type === 'chamfer') return { edges: f.edges, distance: f.distance, target: f.target ?? null, body: r?.bodyId ?? null }
+  if (f.type === 'pattern-linear') return { features: f.features, direction: f.direction, count: f.count, spacing: f.spacing, body: r?.bodyId ?? null, pattern: r?.pattern ?? null }
   return { planeKind: f.plane.kind, plane: f.plane.kind === 'standard' ? f.plane.plane : f.plane.kind === 'datum' ? f.plane.datum : f.plane.face, offset: f.plane.offset ?? 0, resolvedPlane: r?.plane ?? null }
 }
 
 export function parameterTable(doc: CadDocument, partId: string) {
   const part = findPart(doc, partId)
   const scope = evaluateParameters(part)
-  return scope.parameters.map((p) => ({ ...p, description: part.parameters.find((x) => x.id === p.id)?.description, usedBy: usersOf(part, p.name) }))
+  return scope.parameters.map((p) => {
+    const own = part.parameters.find((x) => x.id === p.id)
+    return { ...p, description: own?.description, binding: own?.binding ?? null, usedBy: usersOf(part, p.name) }
+  })
 }
 
 function usersOf(part: Part, name: string): string[] {
@@ -201,6 +205,17 @@ export function dependencyGraph(doc: CadDocument, partId: string) {
         const owner = f.plane.face.split('/')[0]
         const body = bodyOf.get(owner)
         edges.push({ from: (body && lastOnBody.get(body)) ?? owner, to: f.id, kind: 'reference' })
+      }
+      continue
+    }
+    if (f.type === 'pattern-linear') {
+      for (const src of f.features) edges.push({ from: src, to: f.id, kind: 'reference' })
+      const body = bodyOf.get(f.features[0]) ?? latest
+      if (body && lastOnBody.has(body)) {
+        edges.push({ from: lastOnBody.get(body)!, to: f.id, kind: 'body' })
+        lastOnBody.set(body, f.id)
+        bodyOf.set(f.id, body)
+        latest = body
       }
       continue
     }

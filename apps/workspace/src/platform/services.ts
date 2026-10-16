@@ -1,8 +1,9 @@
-import type { ConceptsService, PlatformServices, ProjectsService, RequirementsService, SysmlModelService } from '@ews/platform-sdk'
+import type { CadService, ConceptsService, PlatformServices, ProjectsService, RequirementsService, SysmlModelService } from '@ews/platform-sdk'
 import { createHttpProjectsService } from '@ews/projects-client'
 import { createDemoConceptsService, createHttpConceptsService } from '@ews/conceptualize-client'
 import { createDemoRequirementsService, createHttpRequirementsService } from '@ews/requirements-client'
 import { createHttpSysmlClient, createSysmlModelService } from '@ews/sysml-client'
+import { createWorkspaceCadService } from '@ews/tool-cad-modeler'
 import { create } from 'zustand'
 import { workspaceHelp } from '../help/workspaceHelp'
 
@@ -86,8 +87,20 @@ function createProjects(settings: ServiceSettings): ProjectsService | undefined 
   return createHttpProjectsService({ baseUrl: '/api/projects/v1', devUser: settings.devUser })
 }
 
+/** CAD Modeler read service (SDK 1.8): regenerates stored revisions in the shared kernel worker. API mode only. */
+function createCad(settings: ServiceSettings): CadService | undefined {
+  if (settings.requirementsMode === 'demo') return undefined
+  return createWorkspaceCadService({ baseUrl: '/api/cad/v1', devUser: settings.devUser })
+}
 
-export const workspaceServices: PlatformServices = { requirements: createRequirements(serviceSettings), help: workspaceHelp, concepts: createConcepts(serviceSettings), sysml: createSysml(serviceSettings), projects: createProjects(serviceSettings) }
+export const workspaceServices: PlatformServices = {
+  cad: createCad(serviceSettings),
+  requirements: createRequirements(serviceSettings),
+  help: workspaceHelp,
+  concepts: createConcepts(serviceSettings),
+  sysml: createSysml(serviceSettings),
+  projects: createProjects(serviceSettings),
+}
 
 /** Saves new settings and reloads; other windows follow through the storage event below. */
 export function saveServiceSettings(next: ServiceSettings): void {

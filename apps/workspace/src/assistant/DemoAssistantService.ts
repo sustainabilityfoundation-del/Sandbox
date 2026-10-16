@@ -1,6 +1,7 @@
 import type { AssistantRequest, AssistantResponse, AssistantService, HistoryItem, ToolCallRequest, ToolCallResult } from './types'
-import { getTools } from '../platform/registry'
-import { drillBitHolderDemo } from './demos/drillBitHolder'
+import { assistantContributions } from './contributions'
+import { runScriptedPlan, scriptedPlans } from './scriptedPlans'
+import { clientDecision } from './aiPolicy'
 
 /**
  * DEMO ASSISTANT: deterministic, rule-based responses for a handful of example
@@ -21,7 +22,8 @@ export const EXAMPLE_PROMPTS = [
   'Open SysML and show the rod.',
   'Which artifacts are stale?',
   'Undo the last model change.',
-  'Start the drill bit holder example',
+  // Example prompts of scripted plans shipped as fixtures (none is required).
+  ...scriptedPlans().flatMap((p) => (p.examplePrompt ? [p.examplePrompt] : [])),
 ]
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
@@ -124,8 +126,13 @@ class Turn {
   }
 }
 
-/** Reply when an action's tool isn't offered (not in the subscription). */
-function notInSubscription(toolName: string): AssistantResponse {
+/**
+ * Reply when an operation isn't offered: because of the person's AI access settings (with the policy's reason), or
+ * because its tool is not in the subscription. The two causes are never confused.
+ */
+function notInSubscription(toolName: string, operation: string): AssistantResponse {
+  const policy = clientDecision(operation)
+  if (!policy.ok) return final(`${policy.reason} So I can't run ${operation} here; nothing was changed. You can change what the assistant may do in Settings → AI and reasoning.`)
   return final(
     `That needs **${toolName}**, which isn't included in your subscription, so I can't do it from here. Nothing was changed. ` +
       'Your existing data is kept and still visible in the product tree and inspector.',
@@ -155,7 +162,7 @@ function proposalReply(result: ToolCallResult): AssistantResponse {
 
 function requirementsIntent(turn: Turn): AssistantResponse {
   const name = 'requirements.read_for_component'
-  if (!turn.offered(name)) return notInSubscription('Requirements')
+  if (!turn.offered(name)) return notInSubscription('Requirements', name)
   const target = turn.component()
   if ('next' in target) return target.next
   if ('missing' in target) {
@@ -181,7 +188,7 @@ function requirementsIntent(turn: Turn): AssistantResponse {
 
 function requirementEditIntent(turn: Turn): AssistantResponse {
   const name = 'requirements.update'
-  if (!turn.offered(name)) return notInSubscription('Requirements')
+  if (!turn.offered(name)) return notInSubscription('Requirements', name)
   const id = [...turn.text.matchAll(OBJECT_ID)].map((m) => m[0]).find((x) => x.startsWith('REQ-'))
   if (!id) return final('Which requirement? Please give its ID, e.g. REQ-003.', { clarification: true })
   const field = /\brationale\b/i.test(turn.text) ? 'rationale' : /\bstatus\b/i.test(turn.text) ? 'status' : 'statement'
@@ -202,7 +209,7 @@ function requirementEditIntent(turn: Turn): AssistantResponse {
 
 function dimensionIntent(turn: Turn, parameter: string): AssistantResponse {
   const name = 'cad.set_dimension'
-  if (!turn.offered(name)) return notInSubscription('CAD')
+  if (!turn.offered(name)) return notInSubscription('CAD', name)
   const parsed = parseValue(turn.text)
   if (!parsed) return final(`What should the ${parameter} be, in mm?`, { clarification: true })
   const target = turn.component()
@@ -216,7 +223,7 @@ function dimensionIntent(turn: Turn, parameter: string): AssistantResponse {
 
 function sysmlReferenceIntent(turn: Turn): AssistantResponse {
   const name = 'sysml.add_requirement_reference'
-  if (!turn.offered(name)) return notInSubscription('SysML')
+  if (!turn.offered(name)) return notInSubscription('SysML', name)
   const id = [...turn.text.matchAll(OBJECT_ID)].map((m) => m[0]).find((x) => x.startsWith('REQ-'))
   if (!id) return final('Which requirement should the SysML model reference? Give its ID, e.g. REQ-003.', { clarification: true })
   const result = turn.last(name)
@@ -227,7 +234,7 @@ function sysmlReferenceIntent(turn: Turn): AssistantResponse {
 
 function sysmlPartIntent(turn: Turn): AssistantResponse {
   const name = 'sysml.create_part'
-  if (!turn.offered(name)) return notInSubscription('SysML')
+  if (!turn.offered(name)) return notInSubscription('SysML', name)
   const called = /\b(?:called|named)\s+["“]?([A-Za-z][\w -]{0,40}?)["”]?(?:\s+(?:for|that|representing)\b|[.?!]?$)/i.exec(turn.text)?.[1]
   let representsId: string | undefined
   if (/\bfor\b|\brepresent/i.test(turn.text)) {
@@ -245,7 +252,7 @@ function sysmlPartIntent(turn: Turn): AssistantResponse {
 
 function sysmlConnectIntent(turn: Turn): AssistantResponse {
   const name = 'sysml.connect'
-  if (!turn.offered(name)) return notInSubscription('SysML')
+  if (!turn.offered(name)) return notInSubscription('SysML', name)
   const reqId = [...turn.text.matchAll(OBJECT_ID)].map((m) => m[0]).find((x) => x.startsWith('REQ-'))
   const from = turn.component(0)
   if ('next' in from) return from.next
@@ -324,10 +331,11 @@ function undoIntent(turn: Turn, history: HistoryItem[]): AssistantResponse {
  * executor, so validation, subscription checks and previews are unchanged.
  */
 function toolDemoIntent(turn: Turn): AssistantResponse | null {
-  for (const tool of getTools()) {
-    const plan = tool.assistant?.demo?.(turn.text, { selectionIds: turn.context.selection.map((s) => s.id) })
+  for (const tool of assistantContributions()) {
+    const plan = tool.assistant.demo?.(turn.text, { selectionIds: turn.context.selection.map((s) => s.id) })
     if (!plan || !plan.calls.length) continue
-    if (!plan.calls.every((c) => turn.offered(c.name))) return notInSubscription(tool.name)
+    const missing = plan.calls.find((c) => !turn.offered(c.name))
+    if (missing) return notInSubscription(tool.name, missing.name)
     const done = turn.results.filter((r) => plan.calls.some((c) => c.name === r.name))
     const failure = done.find((r) => !r.ok)
     if (failure) return failed(failure, plan.calls.find((c) => c.name === failure.name)?.name ?? failure.name)
@@ -371,9 +379,9 @@ export class DemoAssistantService implements AssistantService {
     const text = turn.text
     const history = request.history
 
-    // Optional demonstration (drill bit holder), separate from the product's general intents.
-    const example = drillBitHolderDemo(request)
-    if (example) return example
+    // Scripted demonstration plans from fixtures (data, not product logic), before the general intents.
+    const scripted = runScriptedPlan(request)
+    if (scripted) return scripted
     if (/\b(undo|revert|roll ?back)\b/i.test(text)) return undoIntent(turn, history)
     if (/\b(stale|out of date|outdated)\b/i.test(text)) return staleIntent(turn, history)
     if (/\bsysml\b/i.test(text) && /\b(reference|ref)\b/i.test(text)) return sysmlReferenceIntent(turn)

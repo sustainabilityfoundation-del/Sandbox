@@ -1,6 +1,6 @@
 import { Button, Checkbox, CheckboxGroup, Notice, Select, StatusBadge, TextField } from '@ews/design-system'
 import { useModel, useUnsavedChanges } from '@ews/platform-sdk/react'
-import { newIdempotencyKey, type AttributeDefinition, type AttributeValue, type Requirement, type RequirementCreate } from '@ews/requirements-client'
+import { REQUIREMENT_ORIGINS, newIdempotencyKey, type AttributeDefinition, type AttributeValue, type Requirement, type RequirementCreate } from '@ews/requirements-client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useModuleData } from '../data'
 import { ApiErrorNotice, METHOD_LABEL, RichText } from './common'
@@ -17,6 +17,10 @@ interface Draft {
   acceptanceCriteria: string
   applicability: string[]
   attributes: Record<string, AttributeValue>
+  /** '' = not recorded. */
+  origin: string
+  /** New derived requirements only: key or ID of the parent requirement. */
+  derivesFrom: string
   reason: string
 }
 
@@ -32,6 +36,8 @@ const fromRequirement = (r: Requirement | null, defaultType: string): Draft => (
   acceptanceCriteria: r?.acceptanceCriteria ?? '',
   applicability: r?.applicability ?? [],
   attributes: { ...(r?.attributes ?? {}) },
+  origin: r?.origin ?? '',
+  derivesFrom: '',
   reason: '',
 })
 
@@ -140,6 +146,7 @@ export function RequirementEditor({
     acceptanceCriteria: draft.acceptanceCriteria,
     applicability: draft.applicability,
     attributes: draft.attributes,
+    origin: (draft.origin || null) as RequirementCreate['origin'],
   })
 
   const save = async () => {
@@ -148,13 +155,16 @@ export function RequirementEditor({
     try {
       let saved: Requirement
       if (!base) {
-        saved = await client.create({ ...payload(), collectionId: collectionId ?? undefined, reason: draft.reason || undefined }, createKey.current)
+        // A derived requirement names its parent (key or ID); the server creates the derives-from link.
+        const parent = draft.origin === 'derived' && draft.derivesFrom.trim() ? draft.derivesFrom.trim() : ''
+        const derivesFrom = parent ? (/^[0-9a-f-]{36}$/i.test(parent) ? parent : (await client.resolve(parent)).id) : undefined
+        saved = await client.create({ ...payload(), derivesFrom, collectionId: collectionId ?? undefined, reason: draft.reason || undefined }, createKey.current)
       } else {
         const changed: Record<string, unknown> = {}
         const p = payload() as unknown as Record<string, unknown>
         const o = { ...fromRequirement(base, defaultType) } as unknown as Record<string, unknown>
         for (const k of Object.keys(p)) {
-          const before = k === 'owner' ? base.owner : k === 'priority' ? base.priority : o[k]
+          const before = k === 'owner' ? base.owner : k === 'priority' ? base.priority : k === 'origin' ? base.origin : o[k]
           if (JSON.stringify(p[k]) !== JSON.stringify(before)) changed[k] = p[k]
         }
         if (changed.attributes) {
@@ -223,6 +233,19 @@ export function RequirementEditor({
         />
         <TextField label="Owner" value={draft.owner} onChange={(v) => set('owner', v)} isReadOnly={readOnly || !fullModule} />
         <TextField label="Source" value={draft.source} onChange={(v) => set('source', v)} isReadOnly={readOnly || !fullModule} description="Stakeholder, document or clause" />
+        <div data-help-id="requirements.requirement.origin">
+          <Select
+            label="Origin"
+            value={draft.origin || '__none'}
+            isDisabled={readOnly || !fullModule}
+            onChange={(v) => set('origin', v === '__none' ? '' : v)}
+            description="User constraint, an AI-proposed choice you accepted, or derived from another requirement"
+            options={[{ id: '__none', label: 'Not recorded' }, ...REQUIREMENT_ORIGINS.map((o) => ({ id: o.id, label: o.label }))]}
+          />
+        </div>
+        {!base && draft.origin === 'derived' && (
+          <TextField label="Derived from (key)" value={draft.derivesFrom} onChange={(v) => set('derivesFrom', v)} isReadOnly={readOnly} description="Creates a derives-from link to this requirement, e.g. REQ-001" />
+        )}
       </div>
       <CheckboxGroup label="Verification methods" value={draft.verificationMethods} onChange={(v) => set('verificationMethods', v)} isDisabled={readOnly || !fullModule}>
         {Object.entries(METHOD_LABEL).map(([id, label]) => (

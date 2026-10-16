@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clientDecision, usePolicyView, type PolicyView } from './aiPolicy'
 import { RemoteAssistantService } from './RemoteAssistantService'
-import { DRILL_ALTERNATIVES, DRILL_BIT_HOLDER_NEED, drillBitHolderDemo } from './demos/drillBitHolder'
-import type { AssistantRequest, ToolCallResult } from './types'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -46,39 +44,15 @@ describe('connected assistant service', () => {
   })
 })
 
-describe('drill bit holder demo plan (optional demonstration)', () => {
-  const tools = ['conceptualize.create', 'conceptualize.search', 'conceptualize.decompose', 'conceptualize.propose_requirement'].map((name) => ({ name, description: '', parameters: { type: 'object' as const, properties: {} } }))
-  const req = (text: string, toolResults: ToolCallResult[] = [], offered = tools): AssistantRequest => ({ history: [], turn: { text, context: {} as never, toolResults }, tools: offered })
-  const ok = (name: string, data: unknown): ToolCallResult => ({ callId: 'c', name, ok: true, data })
-
-  it('creates the Concept from the verbatim need, labelled as a demo, with Milwaukee only as compatibility', () => {
-    const first = drillBitHolderDemo(req('Start the drill bit holder example'))!
-    expect(first).toMatchObject({ type: 'tool_calls', calls: [{ name: 'conceptualize.create', arguments: { text: DRILL_BIT_HOLDER_NEED } }] })
-    expect(DRILL_BIT_HOLDER_NEED).toMatch(/Milwaukee-compatible/)
-    expect(DRILL_BIT_HOLDER_NEED).toMatch(/Assume the drill body dimensions are not measured/)
-    const done = drillBitHolderDemo(req('Start the drill bit holder example', [ok('conceptualize.create', { proposalId: 'CP-1' })]))!
-    expect(done.type === 'final' && done.text).toMatch(/Scripted demo plan.*not affiliated with or endorsed by Milwaukee Tool/is)
-    expect(done.type === 'final' && done.text).toMatch(/Apply/)
-  })
-
-  it('finds the applied Concept, then decomposes, adds three alternatives with a trade study, and drafts requirements', () => {
-    const found = ok('conceptualize.search', { concepts: [{ key: 'CON-007', name: 'Drill bit holder for a Milwaukee-compatible cordless drill/driver' }] })
-    expect(drillBitHolderDemo(req('Decompose the drill bit holder'))).toMatchObject({ calls: [{ name: 'conceptualize.search' }] })
-    expect(drillBitHolderDemo(req('Decompose the drill bit holder', [found]))).toMatchObject({ calls: [{ name: 'conceptualize.decompose', arguments: { conceptId: 'CON-007' } }] })
-    let results = [found]
-    for (let i = 0; i < 3; i++) {
-      const next = drillBitHolderDemo(req('Propose alternatives for the drill bit holder', results))!
-      expect(next).toMatchObject({ calls: [{ name: 'conceptualize.create', arguments: { text: DRILL_ALTERNATIVES[i], parentId: 'CON-007' } }] })
-      results = [...results, ok('conceptualize.create', { proposalId: `CP-${i + 2}` })]
-    }
-    const study = drillBitHolderDemo(req('Propose alternatives for the drill bit holder', results))!
-    expect(study.type === 'final' && study.text).toMatch(/Weighted total\*\* \| \*\*31\*\* \| \*\*27\*\* \| \*\*31\*\*/)
-    expect(drillBitHolderDemo(req('Draft requirements for the drill bit holder', [found]))).toMatchObject({ calls: [{ name: 'conceptualize.propose_requirement', arguments: { conceptId: 'CON-007' } }] })
-  })
-
-  it('explains instead of acting when the operations are not offered, and ignores unrelated prompts', () => {
-    const r = drillBitHolderDemo(req('Start the drill bit holder example', [], []))!
-    expect(r.type === 'final' && r.text).toMatch(/do not offer/)
-    expect(drillBitHolderDemo(req('Change the rod diameter to 28 mm'))).toBeNull()
-  })
+describe('refusal wording', () => {
+  it('names the AI access settings, not the subscription, when the policy removed an operation', async () => {
+    await import('../platform/tools')
+    const { DemoAssistantService } = await import('./DemoAssistantService')
+    usePolicyView.setState({ view: view({ workspace: 'propose', conceptualize: 'off' }) })
+    const service = new DemoAssistantService({ thinkingMs: 0 })
+    const r = await service.respond({ history: [], turn: { text: 'Create a concept for a compact gripper that holds 2 kg', context: { selection: [] } as never, toolResults: [] }, tools: [] }, new AbortController().signal)
+    expect(r.type === 'final' && r.text).toMatch(/AI access to Conceptualize is off/)
+    expect(r.type === 'final' && r.text).not.toMatch(/subscription/)
+    // Importing the whole tool registry (CAD kernel included) can exceed the default 5 s under parallel load.
+  }, 30_000)
 })

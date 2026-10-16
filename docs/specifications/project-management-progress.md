@@ -315,3 +315,35 @@ ad9f768 phase A · 9b6e709 SDK 1.7.0 (COORDINATOR REVIEW) · 3f70afe phase B ser
 (COORDINATOR REVIEW) · 737e067 product registry WIP · 12d8c35 merge main · 55cd7c2 C1/C2/C13 · 0adb037 host API-3
 (COORDINATOR REVIEW) · 45ab78a projects-client · 04fa32c MS-1 (COORDINATOR REVIEW) · 2c834be Project Home, product
 projection, I1 acceptance · 84e02fb WS-1, MS-2 (COORDINATOR REVIEW).
+
+## D1-PM status (demo-ai-engineering.md), 15 October 2026
+
+| D1 item | State | Evidence |
+| --- | --- | --- |
+| 1 I1 checkpoint reported | accepted and merged by the coordinator (f67a385) | — |
+| 2 `projects.create` (blank), `projects.open`, `projects.create_product_element`, `projects.add_breakdown_edge`, `projects.list_artifacts`, `projects.store_document` (+ `get_context`, `list_projects`) | implemented, tested headless against the real API, CAD service and registry; **not registered with the assistant yet** (waits for `registerPlatformModule`; `projectsAssistant()` is the one-line hook) | `services/projects/test/assistant.actions.test.ts` |
+| 2 Document provenance for stored exports (source artifact and revision, tool and version; `describes` link) | implemented, tested | idem |
+| 3 Project Home with New project, switcher, reopen of the remembered project, C12 tabs; tools and assistant use the current project | implemented, browser-tested | `tests/e2e/flows/projects.mjs` 16/16; platform, integration, conceptualize, help flows pass |
+| 4 Composed TwinDirectory to Requirements; Requirements, SysML and CAD artifact sources registered; canonical UUID for alias lookups | implemented, tested | `registry.test.ts`, `product.scoping.test.ts` |
+
+Choice to review: "reopen the last project in a fresh browser session" uses the project remembered by the browser
+(survives closing the browser; verified) plus `?project=`. When the browser remembers nothing (cleared storage) the
+example project opens, as all committed e2e flows expect; Project Home lists the server's recently opened projects.
+Jumping to the server's most recent project instead is a one-line change in `bootstrap.ts` but would change where the
+existing flows land.
+
+Not done (D1-adjacent): Project Management help pages and capability-inventory entries (the inventory is in
+`apps/workspace/src/assistant/`, which I do not edit); the Settings-centre project page (needs the platform-module
+registry); Conceptualize ArtifactSource (CR-PM-REG-2, Conceptualize's).
+
+**CR-PM-SDK-4 — file hand-off between modules and the platform** (needed for STEP export → project document without
+passing bytes through the model): `ToolApi.stageFile(file: { bytes: Uint8Array; fileName: string; mediaType: string;
+provenance?: { source?: { module: string; kind: string; id: string; revision?: number | string }; tool?: { name: string;
+version: string }; details?: Record<string, unknown> } }): string` returning a handle, and
+`PlatformServices.files?.get(handle)` for platform modules. Until then `apps/workspace/src/projects/assistant.ts`
+exports `stageFile` for platform code, and `projects.store_document` also accepts base64 for small files.
+
+Test-suite notes: `npm run req:test:db` is at the limit of the shared test PostgreSQL under parallel load
+(`services/api/test/infrastructure.test.ts` "seeds reproducibly" timed out once; `services/sysml/test/scoping.test.ts`
+"events are delivered per project" saw a late event once; both pass in isolation). A higher `max_connections` for the
+test server or fewer parallel DB files would make the run stable.

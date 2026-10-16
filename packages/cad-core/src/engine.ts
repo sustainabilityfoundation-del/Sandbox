@@ -1,4 +1,5 @@
 import { DocumentHistory, type ExecuteResult, type OperationLogEntry } from './commands/history'
+import { readBackStep, type StepReadBack } from './regen/readback'
 import { applyTransaction } from './commands/executor'
 import { QUERIES } from './commands/catalog'
 import type { Affected, CommandSource, Transaction } from './commands/types'
@@ -225,6 +226,14 @@ export class CadEngine {
       { unit: 'mm' },
     )
     return { text, version: regen!.documentVersion, partId: id, bodies: pr.bodies.map((b) => b.bodyId) }
+  }
+
+  /** STEP export of a part, imported again and compared with the native bodies (solid count, bounding box, volume). */
+  async exportStepWithReadBack(partId?: string, options: { color?: string } = {}): Promise<{ text: string; version: number; partId: string; bodies: string[]; readBack: StepReadBack }> {
+    const out = await this.exportStep(partId, options)
+    const pr = this.regen!.parts.find((p) => p.partId === out.partId)!
+    const readBack = await readBackStep(this.kernel, out.text, pr.bodies.map((b) => b.analysis))
+    return { ...out, readBack }
   }
 
   /** Mesh of a body for display (face indices map to stable face names in the analysis). */

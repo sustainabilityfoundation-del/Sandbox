@@ -121,7 +121,9 @@ export function ChangeCard({ proposalId }: { proposalId: string }) {
   const expected = proposal.changes
     .filter((c): c is Extract<PreviewChange, { kind: 'set-property' }> => c.kind === 'set-property')
     .map((c) => `${c.targetId} rev ${c.expectedRevision}`)
-  const reviewable = proposal.status === 'pending' || proposal.status === 'conflict'
+  // A stale declarative proposal is never re-applied with a changed intention: it must be prepared again.
+  const staleDeclarative = proposal.status === 'conflict' && !!proposal.service?.declarative
+  const reviewable = proposal.status === 'pending' || (proposal.status === 'conflict' && !staleDeclarative)
 
   return (
     <div className={`as-card is-${proposal.status}`} data-proposal-id={proposal.id}>
@@ -132,6 +134,9 @@ export function ChangeCard({ proposalId }: { proposalId: string }) {
         <Badge tone={status.tone} icon={status.icon} spin={proposal.status === 'applying'}>
           {status.label}
         </Badge>
+        {proposal.reopened && <Badge tone="info" icon="history">From an earlier session</Badge>}
+        {proposal.server?.kind === 'closure' && <Badge tone="warning">Fallback: applies only in the window that prepared it</Badge>}
+        {proposal.server?.kind === 'declarative' && <Badge tone="neutral" icon="saved">Saved; applied by the {proposal.service?.module} API</Badge>}
       </header>
       {proposal.service ? (
         <ServicePreview service={proposal.service} />
@@ -219,6 +224,14 @@ export function ChangeCard({ proposalId }: { proposalId: string }) {
             </Button>
             <Button size="sm" variant="outlined" icon="close" onPress={() => reject(proposal.id)}>
               Reject
+            </Button>
+          </>
+        )}
+        {staleDeclarative && (
+          <>
+            <span className="text-fg-3">Ask the assistant again for a current preview.</span>
+            <Button size="sm" variant="outlined" onPress={() => reject(proposal.id)}>
+              Dismiss
             </Button>
           </>
         )}

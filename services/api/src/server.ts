@@ -11,13 +11,17 @@ import {
   staticTwinDirectory,
   type EventHub,
   type ObjectStorage,
+  type SysmlElementDirectory,
   type TwinDirectory,
+  createRequirementsArtifactSource,
 } from '@ews/requirements-service'
 import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsEventHub, migrateConcepts, seedConcepts, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
 import { registerApiDocs } from './apiDocs'
-import { SYSML_BASE_PATH, sysmlPlugin } from '@ews/sysml-service'
-import { CAD_BASE_PATH, cadPlugin } from '@ews/cad-service'
+import { sysmlElementDirectory } from './sysmlDirectory'
+import { SYSML_BASE_PATH, createSysmlArtifactSource, sysmlPlugin, type SysmlEventHub, type SysmlRepository } from '@ews/sysml-service'
+import { CAD_BASE_PATH, CAD_SETTINGS, cadPlugin, createCadArtifactSource, type CadEventHub } from '@ews/cad-service'
+import type { ArtifactSource } from '@ews/platform-sdk'
 import {
   PROJECTS_BASE_PATH,
   PROJECT_SETTINGS_PAGE,
@@ -77,6 +81,7 @@ export const INSTALLED_MODULES: ProvisioningModule[] = [
   { module: 'requirements', name: 'Requirements', lazyReason: 'Requirements stores data by project ID; its project space appears with the first requirement.' },
   { module: 'conceptualize', name: 'Conceptualize', lazyReason: 'Conceptualize stores data by project ID; its project space appears with the first concept.' },
   { module: 'sysml', name: 'SysML Modeler', lazyReason: 'A SysML model is created in the SysML Modeler when you start modelling; none exists in a new project.' },
+  { module: 'cad', name: 'CAD Modeler', lazyReason: 'CAD Modeler documents are created when you model; none exists in a new project.' },
 ]
 
 export interface ServerOptions {
@@ -84,6 +89,8 @@ export interface ServerOptions {
   storage: ObjectStorage
   production?: boolean
   twin?: TwinDirectory
+  /** SysML Modeler elements as allocation targets (default: the in-process SysML service). */
+  sysml?: SysmlElementDirectory
   logger?: boolean
   eventPollMs?: number
   /** Official ReqIF schemas for validation (npm run req:reqif:schemas). */
@@ -115,6 +122,8 @@ export interface ApiServer {
   projectEvents: ProjectsEventHub
   /** Project Management blob store (documents, attachments). */
   projectBlobs: BlobStore
+  /** Artifact registry consumer (tests wait for it with idle()). */
+  projectsRegistry: () => { idle: () => Promise<void>; reconcile: (projectId: string) => Promise<unknown> } | undefined
   /** The assistant backend (server-side callers such as the design reasoning model gateway use it). */
   assistant: () => AssistantBackend | undefined
   close: () => Promise<void>
@@ -171,6 +180,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     pool: options.pool,
     // Allocation targets: the product registry first (C2, CR-PM-API-3), then the static development directory.
     twin: composeTwinDirectories(productTwinDirectory(options.pool), options.twin ?? SAMPLE_TWIN),
+    sysml: options.sysml ?? sysmlElementDirectory(options.pool),
     storage: options.storage,
     events,
     authenticate: auth.authenticate,
@@ -180,10 +190,13 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   await app.register(conceptsPlugin, { prefix: CONCEPTS_BASE_PATH, pool: options.pool, events: conceptEvents, authenticate: auth.authenticate, roleOf: auth.roleOf })
   // SysML Modeler (docs/specifications/sysml-program-contracts.md §7): migrates schema `sysml`; seeds the example outside production.
   registerApiDocs(app, { path: `${SYSML_BASE_PATH}/docs`, openapiUrl: `${SYSML_BASE_PATH}/openapi.json`, title: 'SysML Modeler API' })
-  await app.register(sysmlPlugin, { prefix: SYSML_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, seed: !production, eventPollMs: options.eventPollMs })
+  // The SysML and CAD plugins hand their repository and event hub to the host (onReady) for the artifact sources below.
+  let sysml: { repo: SysmlRepository; events: SysmlEventHub } | undefined
+  let cadEvents: CadEventHub | undefined
+  await app.register(sysmlPlugin, { prefix: SYSML_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, seed: !production, eventPollMs: options.eventPollMs, onReady: (s) => (sysml = s) })
   // CAD Modeler documents (CR-CAD-2): migrates schema `cad`; entitlement tool:cad enforced by the plugin.
   registerApiDocs(app, { path: `${CAD_BASE_PATH}/docs`, openapiUrl: `${CAD_BASE_PATH}/openapi.json`, title: 'CAD Modeler API' })
-  await app.register(cadPlugin, { prefix: CAD_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, eventPollMs: options.eventPollMs })
+  await app.register(cadPlugin, { prefix: CAD_BASE_PATH, pool: options.pool, authenticate: auth.authenticate, roleOf: auth.roleOf, eventPollMs: options.eventPollMs, onReady: (s) => (cadEvents = s.events) })
   // Project Management (CR-PM-API-5). It reads raw membership roles and applies the record state itself.
   registerApiDocs(app, { path: `${PROJECTS_BASE_PATH}/docs`, openapiUrl: `${PROJECTS_BASE_PATH}/openapi.json`, title: 'Project Management API' })
   const projectBlobs = options.blobs ?? memoryBlobStore()
@@ -200,7 +213,24 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
       return (await settingsStore.read('project', projectId)).values
     },
   }
+  // Module artifact sources (ADR-0062, CR-PM-REG-1/3/4): read-only adapters over each module's own tables and outbox.
+  // SysML and CAD share the hubs their plugins opened (no extra database connections).
+  // Conceptualize has no ArtifactSource yet (CR-PM-REG-2): its artifacts are not indexed.
+  if (!sysml || !cadEvents) throw new Error('The SysML and CAD plugins did not report their services (onReady).')
+  const artifactSources: ArtifactSource[] = [
+    createRequirementsArtifactSource(options.pool, events),
+    createSysmlArtifactSource(sysml.repo, sysml.events),
+    createCadArtifactSource(options.pool, cadEvents),
+  ]
+  // Provisioning uses each module's own provision() where it has an ArtifactSource.
+  const installedModules: ProvisioningModule[] = INSTALLED_MODULES.map((m) => {
+    const source = artifactSources.find((s) => s.module === m.module)
+    return source?.provision ? { ...m, provision: (req) => source.provision!(req) } : m
+  })
+  let projectsRegistry: { idle: () => Promise<void>; reconcile: (projectId: string) => Promise<unknown> } | undefined
   await app.register(projectsPlugin, {
+    artifactSources,
+    onRegistry: (handle) => (projectsRegistry = handle),
     prefix: PROJECTS_BASE_PATH,
     pool: options.pool,
     events: projectEvents,
@@ -208,13 +238,15 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     authenticate: auth.authenticate,
     roleOf: auth.membershipRole,
     memberships: platformMemberships(),
-    modules: INSTALLED_MODULES,
+    modules: installedModules,
     settings: projectSettings,
   })
   // Settings (SDK 1.6) and the AI connection (docs/specifications/ai-connection.md §5, §5a).
   const settingsRegistry = new SettingsRegistry()
   settingsRegistry.register(AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS)
   settingsRegistry.register(PROJECT_SETTINGS_PAGE, [...PROJECT_SETTING_DEFINITIONS, ...moduleEnablementDefinitions(INSTALLED_MODULES.map((m) => ({ id: m.module, name: m.name })))])
+  // Module contributions validated on the server (SDK 1.6): the same definitions the tool declares.
+  settingsRegistry.register(CAD_SETTINGS.page, CAD_SETTINGS.definitions)
   let settingsStore: SettingsStore | undefined
   registerApiDocs(app, { path: `${SETTINGS_BASE_PATH}/docs`, openapiUrl: `${SETTINGS_BASE_PATH}/openapi.json`, title: 'Settings API' })
   await app.register(settingsPlugin, { prefix: SETTINGS_BASE_PATH, pool: options.pool, registry: settingsRegistry, authenticate: auth.authenticate, roleOf: auth.roleOf, onReady: (s) => (settingsStore = s) })
@@ -241,6 +273,23 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
         },
       },
       onReady: (b) => (assistantBackend = b),
+      // Declarative proposals (integration milestone 1 C9): the module APIs they may call, executed in-process
+      // as the person (their identity headers are forwarded; each module enforces its own permissions).
+      modules: [
+        { id: 'requirements', label: 'Requirements', basePath: BASE_PATH, entitlement: 'tool:requirements', projectParam: 'projectId' },
+        { id: 'conceptualize', label: 'Conceptualize', basePath: CONCEPTS_BASE_PATH, entitlement: 'tool:conceptualize', projectParam: 'projectId' },
+        { id: 'sysml-modeler', label: 'SysML Modeler', basePath: SYSML_BASE_PATH, entitlement: 'tool:sysml' },
+      ],
+      callModule: async ({ method, url, headers, body }) => {
+        const res = await app.inject({ method: method as 'GET', url, headers: { ...headers, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, payload: body === undefined ? undefined : JSON.stringify(body) })
+        let parsed: unknown
+        try {
+          parsed = res.body ? JSON.parse(res.body) : undefined
+        } catch {
+          parsed = undefined
+        }
+        return { status: res.statusCode, body: parsed }
+      },
     })
     registerOAuthCallback(app, () => assistantBackend)
   } else app.log.warn('EWS_ASSISTANT_KEY is not set: the assistant API (/api/assistant/v1) is not started.')
@@ -251,11 +300,12 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     projectEvents,
     projectBlobs,
     assistant: () => assistantBackend,
+    projectsRegistry: () => projectsRegistry,
     close: async () => {
+      await app.close()
       await events.close()
       await conceptEvents.close()
       await projectEvents.close()
-      await app.close()
     },
   }
 }

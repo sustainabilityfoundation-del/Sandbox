@@ -69,11 +69,19 @@ export function defineSysmlClientContract(name: string, setup: () => Promise<{ c
       expect((await client.describeCommands()).commands.map((c) => c.op)).toContain('applyText')
       const events: SysmlEvent[] = []
       const off = client.subscribe(project.id, (e) => events.push(e))
-      await new Promise((r) => setTimeout(r, 300))
-      await client.transact(project.id, branch.id, { baseCommitId: branch.headCommitId!, commands: [{ op: 'setDocumentation', elementId: 'C', text: 'Contract.' }] })
-      for (let k = 0; k < 50 && !events.some((e) => e.type === 'sysml.commit-created'); k++) await new Promise((r) => setTimeout(r, 100))
+      // Deterministic under load: the subscription may connect after a commit, so commit again until an
+      // event of a commit made while subscribed arrives (generous deadline), instead of a fixed sleep.
+      let base = branch.headCommitId!
+      const deadline = Date.now() + 45000
+      let n = 0
+      while (!events.some((e) => e.type === 'sysml.commit-created') && Date.now() < deadline) {
+        const out = await client.transact(project.id, branch.id, { baseCommitId: base, commands: [{ op: 'setDocumentation', elementId: 'C', text: `Contract ${++n}.` }] })
+        base = out.commit!.id
+        const until = Date.now() + 2000
+        while (!events.some((e) => e.type === 'sysml.commit-created') && Date.now() < until) await new Promise((r) => setTimeout(r, 50))
+      }
       off()
-      expect(events.some((e) => e.type === 'sysml.commit-created' && e.commitNumber === 2)).toBe(true)
+      expect(events.some((e) => e.type === 'sysml.commit-created' && (e.commitNumber ?? 0) >= 2)).toBe(true)
     })
 
     it('branches and tags', async () => {

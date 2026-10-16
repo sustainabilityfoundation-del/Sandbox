@@ -31,6 +31,19 @@ function parents(nodes: BreakdownNode[], parentId: string | undefined, out: Map<
   }
 }
 
+/**
+ * The example project keeps its browser twin authoritative for the illustrative tools; its components exist in the
+ * product registry with their twin IDs as aliases. References stored canonically by other services (for example a
+ * Requirements allocation to ROD-120 is stored with the element UUID) are mapped back to the twin's objects.
+ */
+export async function loadLegacyProductAliases(service: ProjectsService, projectId: string): Promise<ExternalProjection | null> {
+  const client = getProjectsClient(service)
+  if (!client) return null
+  const elements = await client.productElements(projectId)
+  const aliases = new Map(elements.filter((e) => e.aliases.length).map((e) => [e.id, e.aliases[0]]))
+  return aliases.size ? { objects: [], aliases, relationships: [], ownedRelationshipTypes: [] } : null
+}
+
 /** Loads the projection; throws on service failure (the caller reports it, nothing is substituted). */
 export async function loadProductProjection(service: ProjectsService, projectId: string): Promise<ExternalProjection | null> {
   const client = getProjectsClient(service)

@@ -35,17 +35,17 @@ interface Transaction {
 - Determinism: IDs come from `nextId` (`sk-5`, `ext-21`); no clock or random input affects the model.
 - Engine: `CadEngine.execute(tx)` also regenerates and returns `regeneration`.
 
-## 3. Commands (33)
+## 3. Commands (37)
 
 | Category | Command | Effect (summary) |
 | --- | --- | --- |
 | document | `set_document_metadata` | title, description |
 | part | `create_part`, `rename`, `set_material` | parts, display names, material |
-| parameter | `create_parameter`, `set_parameter`, `delete_parameter` | expressions with cycle checks |
+| parameter | `create_parameter`, `set_parameter`, `delete_parameter`, `bind_parameter`, `unbind_parameter` | expressions with cycle checks; revision-pinned bindings to other modules' artifacts |
 | datum | `create_datum_plane` | reference plane offset from a standard plane, a datum or a planar face |
-| sketch | `create_sketch` (on a standard plane, datum or planar face), `set_sketch_plane`, `add_point`, `add_line`, `add_circle`, `add_arc`, `add_rectangle`, `delete_sketch_entities`, `move_sketch_point`, `set_construction` | geometry |
+| sketch | `create_sketch` (on a standard plane, datum or planar face), `set_sketch_plane`, `add_regular_polygon` (fully constrained, across flats or circumradius), `add_point`, `add_line`, `add_circle`, `add_arc`, `add_rectangle`, `delete_sketch_entities`, `move_sketch_point`, `set_construction` | geometry |
 | constraint | `apply_constraint`, `set_dimension`, `set_dimension_driving`, `delete_constraint` | constraints and dimensions |
-| feature | `extrude_profile`, `revolve_profile`, `fillet_edges`, `chamfer_edges`, `edit_feature`, `set_suppressed`, `delete_feature` | solids; fillets and chamfers on stable edge names |
+| feature | `extrude_profile`, `revolve_profile`, `fillet_edges`, `chamfer_edges`, `pattern_linear`, `edit_feature`, `set_suppressed`, `delete_feature` | solids; fillets and chamfers on stable edge names; linear patterns with count and spacing expressions |
 | semantics | `add_semantic`, `remove_semantic` | engineering meaning |
 | reference | `add_reference`, `remove_reference` | links to other modules |
 
@@ -81,5 +81,6 @@ the available names), `face-not-planar`, `blend-failed`).
 ## 7. Versioning
 
 The catalogue has `catalogVersion` (1.1.0: adds `create_datum_plane`, `fillet_edges`, `chamfer_edges`
-and the plane options of `create_sketch` / `set_sketch_plane`). Adding commands or optional inputs is a minor change;
+and the plane options of `create_sketch` / `set_sketch_plane`; 1.2.0: adds `add_regular_polygon`,
+`pattern_linear`, `bind_parameter`, `unbind_parameter` and the pattern fields of `edit_feature`). Adding commands or optional inputs is a minor change;
 removing or changing semantics is major and needs a deprecation period with both versions served.

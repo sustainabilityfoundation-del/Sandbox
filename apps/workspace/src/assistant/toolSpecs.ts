@@ -1,7 +1,5 @@
 import type { AssistantActionDefinition } from '@ews/platform-sdk'
-import type { AnyToolDefinition } from '@ews/platform-sdk/react'
-import { useEntitlements } from '../platform/entitlements'
-import { getTools } from '../platform/registry'
+import { assistantContributions, contributorIncluded, type AssistantContributor } from './contributions'
 import { clientDecision } from './aiPolicy'
 import type { AssistantToolSpec } from './types'
 
@@ -96,10 +94,10 @@ export function isPlatformOperation(name: string): boolean {
   return PLATFORM_NAMES.has(name)
 }
 
-/** A tool-contributed action and the tool that owns it (whether or not it is currently included). */
-export function findToolAction(name: string): { tool: AnyToolDefinition; action: AssistantActionDefinition } | undefined {
-  for (const tool of getTools()) {
-    const action = tool.assistant?.actions.find((a) => a.name === name)
+/** A contributed action (tool or headless platform module) and its owner, whether or not it is currently included. */
+export function findToolAction(name: string): { tool: AssistantContributor; action: AssistantActionDefinition } | undefined {
+  for (const tool of assistantContributions()) {
+    const action = tool.assistant.actions.find((a) => a.name === name)
     if (action) return { tool, action }
   }
   return undefined
@@ -111,10 +109,9 @@ export function findToolAction(name: string): { tool: AnyToolDefinition; action:
  * policy again and is authoritative.
  */
 export function availableOperations(): AssistantToolSpec[] {
-  const { has } = useEntitlements.getState()
-  const toolActions = getTools()
-    .filter((t) => has(t.entitlement))
-    .flatMap((t) => (t.assistant?.actions ?? []).map((a) => ({ name: a.name, label: a.label, description: `[${t.name}] ${a.description}`, parameters: a.parameters })))
+  const toolActions = assistantContributions()
+    .filter(contributorIncluded)
+    .flatMap((t) => t.assistant.actions.map((a) => ({ name: a.name, label: a.label, description: `[${t.name}] ${a.description}`, parameters: a.parameters })))
   return [...PLATFORM_TOOLS, ...toolActions].filter((t) => clientDecision(t.name).ok)
 }
 

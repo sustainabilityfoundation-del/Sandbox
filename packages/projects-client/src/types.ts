@@ -196,6 +196,17 @@ export interface DocumentVersion {
   note: string
   uploadedAt: string
   uploadedBy: string
+  provenance?: FileProvenance
+}
+
+/** Where a stored file came from (source artifact and revision, tool and version). */
+export interface FileProvenance {
+  source?: { module: string; kind: string; id: string; revision?: number | string }
+  tool?: { name: string; version: string }
+  kernel?: { name: string; version: string }
+  generatedAt?: string
+  notes?: string
+  details?: Record<string, unknown>
 }
 
 export interface ProjectDocument {

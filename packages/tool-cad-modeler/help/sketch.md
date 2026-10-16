@@ -28,3 +28,15 @@ dimensions (in parentheses) only measure.
 **Profiles:** non-construction curves that form closed loops become the profile; loops inside loops
 are holes. Open or crossing loops are reported. Mark helper lines (for example a revolution axis) as
 construction.
+
+**Regular polygon.** In the sketch tools choose **Polygon** and enter the centre, the number of sides,
+the size (**Across flats** or **Circumradius**) and the rotation of the first vertex in degrees. The
+polygon is fully constrained and stays editable:
+
+- N lines with equal-length and point-on-circle constraints on a construction circumcircle;
+- the centre dimensioned from the origin;
+- the rotation fixed;
+- the size as one driving dimension. Across flats is the diameter of a tangent construction circle,
+  so the dimension reads exactly the across-flats value and can be an expression such as `hex_af`.
+
+Command: `add_regular_polygon { sketchId, center, sides, size: { acrossFlats | circumradius }, rotation }`.

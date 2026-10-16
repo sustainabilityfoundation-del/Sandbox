@@ -99,6 +99,7 @@ export function referencesOf(f: Feature): string[] {
   if (f.type === 'extrude' || f.type === 'revolve') out.push(f.sketch)
   if ((f.type === 'extrude' || f.type === 'revolve' || f.type === 'fillet' || f.type === 'chamfer') && f.target) out.push(f.target)
   if (f.type === 'fillet' || f.type === 'chamfer') for (const e of f.edges) out.push(...owners((/^edge\((.*)\)(#\d+)?$/.exec(e)?.[1] ?? '').split('|').filter(Boolean)))
+  if (f.type === 'pattern-linear') out.push(...f.features)
   if (f.type === 'sketch' || f.type === 'datum-plane') {
     if (f.plane.kind === 'datum') out.push(f.plane.datum)
     if (f.plane.kind === 'face') out.push(...owners([f.plane.face]))
@@ -119,6 +120,42 @@ function parameterUsers(part: Part, paramName: string): string[] {
 }
 
 const define = <I,>(spec: CommandSpec<I>): CommandSpec<Record<string, unknown>> => spec as unknown as CommandSpec<Record<string, unknown>>
+
+// ---- linear patterns ------------------------------------------------------------------------------
+
+const AXIS_NAMES = ['x', 'y', 'z', '-x', '-y', '-z']
+const vec3: JsonSchema = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3, description: 'Model vector [x, y, z].' }
+
+function directionOf(input: unknown): [number, number, number] {
+  if (typeof input === 'string') {
+    const m = /^(-?)([xyz])$/.exec(input)
+    if (!m) throw new CadError('invalid-input', `Unknown direction "${input}" (use x, y, z, -x, -y, -z or a vector).`)
+    const v: [number, number, number] = [0, 0, 0]
+    v['xyz'.indexOf(m[2])] = m[1] ? -1 : 1
+    return v
+  }
+  const v = input as number[]
+  const len = Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === 'number' && Number.isFinite(x)) ? Math.hypot(v[0], v[1], v[2]) : 0
+  if (!(len > 1e-9)) throw new CadError('invalid-input', 'The direction must be a non-zero [x, y, z] vector.')
+  return [v[0] / len, v[1] / len, v[2] / len]
+}
+
+function patternCount(part: Part, count: Expr): Expr {
+  checkExpr(part, count, 'count')
+  if (typeof count === 'number' && !(Number.isInteger(count) && count >= 2)) throw new CadError('invalid-input', `count must be an integer of at least 2 (got ${count}).`)
+  return count
+}
+
+function patternTargets(part: Part, ids: string[], before?: string): string[] {
+  const end = before ? part.features.findIndex((f) => f.id === before) : part.features.length
+  const earlier = part.features.slice(0, end < 0 ? part.features.length : end)
+  for (const id of ids) {
+    const f = earlier.find((x) => x.id === id)
+    if (!f) throw new CadError('not-found', `Feature ${id} does not exist earlier in ${part.name}.`)
+    if (f.type !== 'extrude' && f.type !== 'revolve') throw new CadError('invalid-input', `${id} is a ${f.type}; a linear pattern repeats extrudes and revolves.`)
+  }
+  return [...new Set(ids)]
+}
 
 // ---- planes ---------------------------------------------------------------------------------------
 
@@ -498,6 +535,100 @@ define<{ sketchId: string; x: number; y: number; construction?: boolean; ref?: s
       return out
     },
   }),
+  define<{ sketchId: string; center?: [number, number]; sides: number; size: { acrossFlats?: Expr; circumradius?: Expr }; rotation?: Expr; name?: string; ref?: string }>({
+    name: 'add_regular_polygon',
+    category: 'sketch',
+    summary:
+      'Add a regular polygon as editable sketch geometry: N lines with equal-length and point-on-circle constraints on a construction circumcircle, its centre dimensioned from the origin, its rotation fixed, and its size as a driving dimension (across flats through a tangent inscribed construction circle, or the circumradius). Fully constrained; the solver checks it like any sketch.',
+    input: obj(
+      {
+        sketchId: id('Sketch ID'),
+        center: { ...coords, description: 'Centre [x, y] in mm (default [0, 0]); dimensioned from the origin.' },
+        sides: { type: 'integer', minimum: 3, maximum: 64, description: 'Number of sides.' },
+        size: obj(
+          {
+            acrossFlats: expr('Distance between opposite sides (inscribed-circle diameter).'),
+            circumradius: expr('Distance from the centre to a vertex.'),
+          },
+          [],
+        ),
+        rotation: expr('Angle of the first vertex from the sketch x axis, in degrees (default 0).'),
+        name: { type: 'string', maxLength: 60, description: 'Name of the size dimension (default "across flats" or "circumradius").' },
+        ref,
+      },
+      ['sketchId', 'sides', 'size'],
+    ),
+    output: '{ points: [N], lines: [N], center, circumcircle, inscribedCircle?, size: constraintId, constraints: [...] }',
+    preconditions: ['The sketch exists.', 'Exactly one of size.acrossFlats and size.circumradius is given, and it is positive.', 'Rotation is a number or expression in degrees.'],
+    errors: ['not-found', 'invalid-input', 'invalid-expression'],
+    undo: 'Removes the polygon and its constraints.',
+    apply(ctx, i) {
+      const { part, sketch } = sketchOf(ctx, i.sketchId)
+      const n = i.sides
+      if (!Number.isInteger(n) || n < 3 || n > 64) throw new CadError('invalid-input', `A regular polygon needs 3 to 64 sides (got ${n}).`)
+      const hasAF = i.size?.acrossFlats !== undefined
+      const hasR = i.size?.circumradius !== undefined
+      if (hasAF === hasR) throw new CadError('invalid-input', 'Give exactly one size: size.acrossFlats or size.circumradius.')
+      const sizeExpr = (hasAF ? i.size.acrossFlats : i.size.circumradius) as Expr
+      checkExpr(part, sizeExpr, hasAF ? 'size.acrossFlats' : 'size.circumradius')
+      if (i.rotation !== undefined) checkExpr(part, i.rotation, 'rotation')
+      const scope = evaluateParameters(part)
+      const num = (v: Expr) => (typeof v === 'number' ? v : evaluateExpr(v, scope.lookup))
+      const s = num(sizeExpr)
+      if (!(s > 0)) throw new CadError('invalid-input', `The polygon size must be positive (got ${s}).`)
+      const R = hasAF ? s / 2 / Math.cos(Math.PI / n) : s
+      const rot = i.rotation === undefined ? 0 : num(i.rotation)
+      const [cx, cy] = i.center ?? [0, 0]
+      // Seed positions are the exact solution, so the solver starts converged.
+      const center = pointFrom(ctx, sketch, [cx, cy], true)
+      const points = Array.from({ length: n }, (_, k) => {
+        const a = ((rot + (360 * k) / n) * Math.PI) / 180
+        return pointFrom(ctx, sketch, [cx + R * Math.cos(a), cy + R * Math.sin(a)])
+      })
+      const lines = points.map((p, k) => {
+        const lid = ctx.newId('ln')
+        sketch.entities.push({ id: lid, type: 'line', start: p, end: points[(k + 1) % n] })
+        ctx.created(lid)
+        return lid
+      })
+      const circumcircle = ctx.newId('ci')
+      sketch.entities.push({ id: circumcircle, type: 'circle', center, radius: R, construction: true })
+      ctx.created(circumcircle)
+      const ray = ctx.newId('ln')
+      sketch.entities.push({ id: ray, type: 'line', start: center, end: points[0], construction: true })
+      ctx.created(ray)
+      const constraints: string[] = []
+      const add = (c: Omit<SketchConstraint, 'id'>) => {
+        const cid = addConstraint(ctx, part, sketch, c)
+        constraints.push(cid)
+        return cid
+      }
+      // Centre: dimensioned from the origin (or on it).
+      if (cx === 0 && cy === 0) add({ type: 'coincident', entities: ['origin', center] })
+      else {
+        add({ type: 'distance-x', entities: ['origin', center], value: cx })
+        add({ type: 'distance-y', entities: ['origin', center], value: cy })
+      }
+      for (const p of points) add({ type: 'point-on-circle', entities: [p, circumcircle] })
+      for (let k = 1; k < n; k++) add({ type: 'equal', entities: [lines[0], lines[k]] })
+      // Rotation of the first vertex (the angle constraint is unsigned, so 0/180 and 90/270 use horizontal/vertical).
+      const r = ((rot % 360) + 360) % 360
+      if (Math.abs(r) < 1e-9 || Math.abs(r - 180) < 1e-9) add({ type: 'horizontal', entities: [ray] })
+      else if (Math.abs(r - 90) < 1e-9 || Math.abs(r - 270) < 1e-9) add({ type: 'vertical', entities: [ray] })
+      else add({ type: 'angle', entities: ['x-axis', ray], value: Math.abs(r > 180 ? 360 - r : r) })
+      let inscribedCircle: string | undefined
+      let size: string
+      if (hasAF) {
+        inscribedCircle = ctx.newId('ci')
+        sketch.entities.push({ id: inscribedCircle, type: 'circle', center, radius: s / 2, construction: true })
+        ctx.created(inscribedCircle)
+        add({ type: 'tangent', entities: [lines[0], inscribedCircle] })
+        size = add({ type: 'diameter', entities: [inscribedCircle], value: sizeExpr, name: i.name ?? 'across flats' })
+      } else size = add({ type: 'radius', entities: [circumcircle], value: sizeExpr, name: i.name ?? 'circumradius' })
+      ctx.modified(sketch.id)
+      return { points, lines, center, circumcircle, ...(inscribedCircle ? { inscribedCircle } : {}), size, constraints }
+    },
+  }),
   define<{ sketchId: string; type: ConstraintType; entities: string[]; value?: Expr; driving?: boolean; name?: string; ref?: string }>({
     name: 'apply_constraint',
     category: 'constraint',
@@ -783,15 +914,15 @@ define<{ sketchId: string; x: number; y: number; construction?: boolean; ref?: s
       return { featureId: fid }
     },
   }),
-  define<{ featureId: string; distance?: Expr; direction?: ExtrudeDirection; angle?: Expr; axis?: string; operation?: BodyOperation; target?: string | null; radius?: Expr; edges?: string[]; offset?: Expr }>({
+  define<{ featureId: string; distance?: Expr; direction?: ExtrudeDirection | [number, number, number] | string; angle?: Expr; axis?: string; operation?: BodyOperation; target?: string | null; radius?: Expr; edges?: string[]; offset?: Expr; count?: Expr; spacing?: Expr; features?: string[] }>({
     name: 'edit_feature',
     category: 'feature',
-    summary: 'Change a feature: extrude (distance, direction), revolve (angle, axis), fillet (radius, edges), chamfer (distance, edges), datum plane (offset); operation or target body.',
+    summary: 'Change a feature: extrude (distance, direction), revolve (angle, axis), fillet (radius, edges), chamfer (distance, edges), datum plane (offset), linear pattern (count, spacing, direction, features); operation or target body.',
     input: obj(
       {
         featureId: id('Feature ID'),
         distance: expr('Extrude depth or chamfer distance.'),
-        direction: { type: 'string', enum: DIRECTIONS },
+        direction: { oneOf: [{ type: 'string', enum: [...DIRECTIONS, ...AXIS_NAMES] }, vec3] , description: 'Extrude: normal, reverse or symmetric. Linear pattern: an axis name ("x", "-y" …) or an [x, y, z] vector.' },
         angle: expr('Revolve angle.'),
         axis: { type: 'string', minLength: 1 },
         operation: { type: 'string', enum: OPERATIONS },
@@ -799,6 +930,9 @@ define<{ sketchId: string; x: number; y: number; construction?: boolean; ref?: s
         radius: expr('Fillet radius.'),
         edges: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 400 }, minItems: 1, maxItems: 200, description: 'Fillet or chamfer edges (stable edge names).' },
         offset: expr('Datum plane offset.'),
+        count: expr('Linear pattern: number of occurrences including the original (integer ≥ 2).'),
+        spacing: expr('Linear pattern: distance between neighbouring occurrences.'),
+        features: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, maxItems: 50, description: 'Linear pattern: extrude or revolve features to repeat.' },
       },
       ['featureId'],
     ),
@@ -815,6 +949,7 @@ define<{ sketchId: string; x: number; y: number; construction?: boolean; ref?: s
         fillet: ['radius', 'edges', 'target'],
         chamfer: ['distance', 'edges', 'target'],
         'datum-plane': ['offset'],
+        'pattern-linear': ['count', 'spacing', 'direction', 'features'],
       }
       if (feature.type === 'sketch') throw new CadError('invalid-input', `${feature.id} is a sketch; edit it with sketch and constraint commands.`)
       const given = Object.keys(i).filter((k) => k !== 'featureId' && (i as Record<string, unknown>)[k] !== undefined)
@@ -825,9 +960,17 @@ define<{ sketchId: string; x: number; y: number; construction?: boolean; ref?: s
         if (typeof v === 'number' && v <= 0) throw new CadError('invalid-input', `${field} must be greater than zero.`)
         return v
       }
-      if (feature.type === 'extrude') {
+      if (feature.type === 'pattern-linear') {
+        if (i.count !== undefined) feature.count = patternCount(part, i.count)
+        if (i.spacing !== undefined) feature.spacing = positive(i.spacing, 'spacing')
+        if (i.direction !== undefined) feature.direction = directionOf(i.direction)
+        if (i.features) feature.features = patternTargets(part, i.features, feature.id)
+      } else if (feature.type === 'extrude') {
         if (i.distance !== undefined) feature.extent.distance = positive(i.distance, 'distance')
-        if (i.direction) feature.extent.direction = i.direction
+        if (i.direction) {
+          if (!(DIRECTIONS as readonly string[]).includes(i.direction as string)) throw new CadError('invalid-input', `Extrude direction must be one of ${DIRECTIONS.join(', ')}.`)
+          feature.extent.direction = i.direction as ExtrudeDirection
+        }
       } else if (feature.type === 'revolve') {
         if (i.angle !== undefined) {
           checkExpr(part, i.angle, 'angle')
@@ -862,7 +1005,97 @@ define<{ sketchId: string; x: number; y: number; construction?: boolean; ref?: s
       return {}
     },
   }),
-define<{ featureId: string; suppressed: boolean }>({
+define<{ features: string[]; direction: [number, number, number] | string; count: Expr; spacing: Expr; name?: string; ref?: string }>({
+    name: 'pattern_linear',
+    category: 'feature',
+    summary:
+      'Repeat extrude or revolve features (for example a pocket cut) along a direction: count occurrences (including the original), spacing apart. Count and spacing may be expressions over parameters. Each occurrence is rebuilt from the original sketch on a shifted plane and applied with the same operation; faces get stable names "<patternId>/i<k>-<featureId>-<role>". Regeneration reports the gap between neighbouring occurrences.',
+    input: obj(
+      {
+        features: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, maxItems: 50, description: 'Extrude or revolve feature IDs, earlier in the same part.' },
+        direction: { oneOf: [{ type: 'string', enum: AXIS_NAMES }, vec3], description: 'Model direction: "x", "y", "z", "-x", "-y", "-z", or an [x, y, z] vector (normalised).' },
+        count: expr('Number of occurrences including the original (integer ≥ 2).'),
+        spacing: expr('Distance between neighbouring occurrences (mm, > 0).'),
+        name: name('Pattern name'),
+        ref,
+      },
+      ['features', 'direction', 'count', 'spacing'],
+    ),
+    output: '{ featureId }',
+    preconditions: ['The features are extrudes or revolves of the same part, earlier in the history.', 'count evaluates to an integer ≥ 2 and spacing to a positive length (checked again at regeneration).'],
+    errors: ['not-found', 'invalid-input', 'invalid-expression'],
+    undo: 'Removes the pattern.',
+    apply(ctx, i) {
+      const first = i.features?.[0]
+      if (!first) throw new CadError('invalid-input', 'Give at least one feature to repeat.')
+      const { part } = findFeature(ctx.doc, first)
+      const features = patternTargets(part, i.features)
+      const count = patternCount(part, i.count)
+      checkExpr(part, i.spacing, 'spacing')
+      if (typeof i.spacing === 'number' && !(i.spacing > 0)) throw new CadError('invalid-input', 'spacing must be greater than zero.')
+      const fid = ctx.newId('pat')
+      const n = part.features.filter((f) => f.type === 'pattern-linear').length + 1
+      part.features.push({ id: fid, type: 'pattern-linear', name: i.name ?? `Linear pattern ${n}`, features, direction: directionOf(i.direction), count, spacing: i.spacing })
+      ctx.created(fid)
+      return { featureId: fid }
+    },
+  }),
+  define<{ partId: string; name: string; ref: { module: string; kind: string; id: string; revision?: number }; quantity?: string; note?: string }>({
+    name: 'bind_parameter',
+    category: 'parameter',
+    summary:
+      'Record what a parameter implements: a revision-pinned reference to another module\'s artifact (typically a design constraint, { module: "conceptualize", kind: "constraint", id, revision }). Nothing is copied from the target; cad-modeler.check reads the bound values from the owning module, and cad-modeler.check_bindings reports bindings pinned to superseded revisions.',
+    input: obj(
+      {
+        partId: id('Part ID'),
+        name: name('Parameter name'),
+        ref: obj(
+          {
+            module: { type: 'string', minLength: 1, maxLength: 60 },
+            kind: { type: 'string', minLength: 1, maxLength: 60 },
+            id: { type: 'string', minLength: 1, maxLength: 300 },
+            revision: { type: 'integer', minimum: 1, description: 'The target revision the parameter was set against.' },
+          },
+          ['module', 'kind', 'id'],
+        ),
+        quantity: { type: 'string', maxLength: 120, description: 'The quantity of the target the parameter implements (e.g. "pocket across flats").' },
+        note: { type: 'string', maxLength: 500 },
+      },
+      ['partId', 'name', 'ref'],
+    ),
+    output: '{ parameterId }',
+    preconditions: ['The parameter exists.'],
+    errors: ['not-found', 'invalid-input'],
+    undo: 'Restores the previous binding (or none).',
+    apply(ctx, i) {
+      const part = findPart(ctx.doc, i.partId)
+      const p = part.parameters.find((x) => x.name === i.name)
+      if (!p) throw new CadError('not-found', `Parameter ${i.name} does not exist in ${part.name}.`)
+      p.binding = { ref: { module: i.ref.module, kind: i.ref.kind, id: i.ref.id, ...(i.ref.revision !== undefined ? { revision: i.ref.revision } : {}) }, ...(i.quantity ? { quantity: i.quantity } : {}), ...(i.note ? { note: i.note } : {}) }
+      ctx.modified(p.id)
+      return { parameterId: p.id }
+    },
+  }),
+  define<{ partId: string; name: string }>({
+    name: 'unbind_parameter',
+    category: 'parameter',
+    summary: 'Remove the binding of a parameter (its value and expression stay).',
+    input: obj({ partId: id('Part ID'), name: name('Parameter name') }, ['partId', 'name']),
+    output: '{ parameterId }',
+    preconditions: ['The parameter exists and is bound.'],
+    errors: ['not-found', 'precondition-failed'],
+    undo: 'Restores the binding.',
+    apply(ctx, i) {
+      const part = findPart(ctx.doc, i.partId)
+      const p = part.parameters.find((x) => x.name === i.name)
+      if (!p) throw new CadError('not-found', `Parameter ${i.name} does not exist in ${part.name}.`)
+      if (!p.binding) throw new CadError('precondition-failed', `Parameter ${i.name} is not bound.`)
+      delete p.binding
+      ctx.modified(p.id)
+      return { parameterId: p.id }
+    },
+  }),
+  define<{ featureId: string; suppressed: boolean }>({
     name: 'set_suppressed',
     category: 'feature',
     summary: 'Suppress or unsuppress a feature (suppressed features are skipped by regeneration; dependents are blocked).',

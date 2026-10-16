@@ -4,7 +4,9 @@ import { lazy } from 'react'
 import pkg from '../package.json'
 import { cadModelerAssistant } from './assistant'
 import { cadModelerHelp } from './help'
-import { createHttpCadClient, createLocalCadClient, type CadClient } from '@ews/cad-client'
+import { createCadReadService, createHttpCadClient, createLocalCadClient, type CadClient } from '@ews/cad-client'
+import type { CadService } from '@ews/platform-sdk'
+import { localRegenerator, type Regenerator } from '@ews/cad-core'
 import { createWorkerKernel } from '@ews/cad-kernel/worker-client'
 import { chooseFile } from './files'
 // Imported here (not only by the lazy view) so the deep link is captured before the workspace removes ?tool=.
@@ -12,6 +14,8 @@ import './deepLink'
 export { cadDeepLinkParams, parseCadDeepLink, type CadDeepLink } from './deepLink'
 import { cadSession, setDefaultKernelFactory } from './session'
 import { INITIAL_VIEW_STATE, type CadModelerViewState } from './viewState'
+import { CAD_SETTINGS } from './settings'
+export { CAD_SETTINGS, CAD_SETTING_DEFINITIONS, CAD_SETTING_IDS } from './settings'
 
 export type { CadModelerViewState } from './viewState'
 /** For platform-level workflow tests: the window's CAD session (documents, kernel, files). */
@@ -41,6 +45,27 @@ export interface CadModelerOptions {
   client?: CadClient
 }
 
+/**
+ * `PlatformServices.cad` for the workspace (SDK 1.8, contract C5): CAD entity summaries and mass
+ * properties at a document revision. It reads stored revisions from the CAD service and regenerates
+ * them in this window's shared kernel worker (the CAD Modeler's), so no second kernel is loaded.
+ * Results are cached per immutable revision. Call it once from the host's platform services.
+ */
+export function createWorkspaceCadService(options: { baseUrl?: string; devUser?: string; client?: CadClient } = {}): CadService {
+  const client = options.client ?? createHttpCadClient({ baseUrl: options.baseUrl ?? '/api/cad/v1', devUser: options.devUser })
+  let regenerator: Regenerator | undefined
+  return createCadReadService({
+    client,
+    regenerator: () => {
+      if (regenerator) return regenerator
+      const kernel = cadSession.getKernel() as ReturnType<typeof cadSession.getKernel> & { createRegenerator?: () => Regenerator }
+      // The worker's regenerator (browser); an in-process one where the kernel has none (Node, tests).
+      regenerator = kernel.createRegenerator ? kernel.createRegenerator() : localRegenerator(kernel)
+      return regenerator
+    },
+  })
+}
+
 export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefinition<CadModelerViewState> {
   const client = options.client ?? (options.mode === 'api' ? createHttpCadClient({ baseUrl: options.baseUrl ?? '/api/cad/v1', devUser: options.devUser }) : options.mode === 'local' ? createLocalCadClient() : null)
   cadSession.configureStore(client)
@@ -59,6 +84,7 @@ export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefin
   initialViewState: INITIAL_VIEW_STATE,
   assistant: cadModelerAssistant,
   help: cadModelerHelp,
+  settings: CAD_SETTINGS,
   keepMounted: true,
   toolbar: ({ api, viewState, context }) => {
     const s = viewState.status
@@ -169,6 +195,16 @@ export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefin
         active: viewState.editing?.kind === 'chamfer',
         title: 'Bevel edges of a body',
         onClick: () => api.updateViewState({ editing: { kind: 'chamfer' }, tab: 'edit' }),
+      },
+      {
+        type: 'button',
+        id: 'pattern',
+        label: 'Pattern',
+        icon: 'windows',
+        active: viewState.editing?.kind === 'pattern-linear',
+        disabled: !s.hasBody,
+        title: 'Repeat an extrude or revolve (for example a pocket) along a direction',
+        onClick: () => api.updateViewState({ editing: { kind: 'pattern-linear' }, tab: 'edit' }),
       },
       {
         type: 'button',

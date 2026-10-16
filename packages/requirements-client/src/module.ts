@@ -98,8 +98,11 @@ export class RequirementsModuleClient {
   listRelationships(q: { type?: T.RelationshipType; toTwinId?: string; baselineId?: string; limit?: number } = {}) {
     return this.get<T.Relationship[]>('/relationships', q)
   }
-  createRelationship(input: { type: T.RelationshipType; fromId: string; toRequirementId?: string; toTwinId?: string; rationale?: string; reason?: string }) {
-    return this.send<T.Relationship>('POST', '/relationships', input, { idempotencyKey: newIdempotencyKey() })
+  createRelationship(
+    input: { type: T.RelationshipType; fromId: string; toRequirementId?: string; toTwinId?: string; toSysmlElement?: string; expectedFromRevision?: number; rationale?: string; reason?: string },
+    idempotencyKey = newIdempotencyKey(),
+  ) {
+    return this.send<T.Relationship>('POST', '/relationships', input, { idempotencyKey })
   }
   deleteRelationship(id: string, expectedRevision: number, reason?: string) {
     return this.send<T.Relationship>('DELETE', `/relationships/${id}`, undefined, { ifMatch: expectedRevision, query: { reason } })

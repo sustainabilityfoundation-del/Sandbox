@@ -63,7 +63,8 @@ await page.waitForSelector('[data-testid="help-centre"]')
 check('f1', (await page.getAttribute('[data-help-topic]', 'data-help-topic')) === 'requirements.requirement.create', 'F1 on Add opens “Create a requirement”')
 await closeHelp()
 // F1 with nothing focused in a tool: the active tool's guide.
-await page.locator('body').click({ position: { x: 5, y: 990 } }).catch(() => {})
+// Nothing focused: blur explicitly (a click at a fixed point depends on how long the product tree is).
+await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined))
 await page.keyboard.press('F1')
 await page.waitForSelector('[data-testid="help-centre"]')
 const f1Tool = await page.getAttribute('[data-help-topic]', 'data-help-topic')

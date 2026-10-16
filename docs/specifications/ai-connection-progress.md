@@ -103,6 +103,8 @@ model gateway, CR-A3) use `AssistantBackend.complete()`; `ApiServer.assistant()`
 | CR-AI-5 | Coordinator (root docs) | Update the root rule "do not claim real ChatGPT access" at integration: the product now offers "connect your own OpenAI account" (help and UI say exactly that) |
 | CR-AI-6 | Coordinator / Requirements | In API mode requirements are projected from the Requirements service, so `propose_changes` on a requirement's status cannot apply (existing coverage finding 1); a model will try it. The real-model path is `requirements.update` |
 | CR-AI-7 | Coordinator | `docs/roadmap.md` and `docs/architecture.md` §6: AI development-plan sprint 4 (backend provider integration) is delivered by this sprint |
+| CR-AI-9 | Conceptualize | No assistant operation returns a constraint's UUID and revision: `search_design` and `traverse` return keys, while `getConstraint`, the constraints route and the CAD `bind_parameter` / `check` references need `{id: UUID, revision}`. A real model therefore cannot bind a CAD parameter or check against a constraint. Proposal: return `id` and `revision` with each constraint in `search_design` / `traverse` (or add `conceptualize.get_constraint` accepting a key). The D1 plumbing script works around it by passing the UUID and revision in the person's message (`${user.N}`), labelled as such |
+| CR-AI-10 | Requirements | `services/requirements/src/events/hub.ts` `close()` is not idempotent: a second call runs `UNLISTEN` and `listener.release()` on an already released client ("Release called on client which has already been released"). Proposal: return early when `closed` is already true and clear `listener` after release. It is in the Requirements package, so I have not edited it |
 
 ## 5. Settings seen in module code (suggestions for module agents; not implemented)
 
@@ -179,3 +181,86 @@ bit holder*, *Draft requirements for the drill bit holder*.
   sign-in (owner). Owner acceptance: pending.
 - Next increment: owner connects and runs the tutorial; then CR-AI-1/2 (Conceptualize operations for named
   alternatives and requirement wording), CR-AI-3 (module settings registration), streaming answers.
+
+## 8. Sprint 2: headless AI operation boundary (integration milestone 1 I5, C9, C13)
+
+Status: **ready for coordinator review** (merged base: main `be2bb2a`). Decision: [ADR-0049](../decisions/0049-ai-persisted-proposals-and-headless-contributions.md).
+Status vocabulary per [integration-milestone-1.md](integration-milestone-1.md): items below are **implemented** and
+**tested**; none is **integrated** (not on main) or **owner-accepted** yet.
+
+| Scope item | State | Ran against |
+| --- | --- | --- |
+| Headless contribution registry (`registerPlatformModule`, CR-PM-WS-2 moved to AI) feeding assistant, Help Service, Settings centre; `assistantContributions()` single read path | implemented, tested (`platformModules.test.ts`; a module without a view runs its operation, shows help and settings) | unit, browser flow |
+| SDK 1.8.0 (pending): `DeclarativeProposal`, `ModuleOperation`, `ExpectedRevision`, `ActionEffect`, `PlatformModuleContribution` | implemented (COORDINATOR REVIEW commit) | — |
+| Proposals persisted, versioned (`assistant.proposals`, schema 1), project- and actor-scoped; declarative, twin and closure kinds | implemented, tested | real service, real PostgreSQL |
+| Apply gateway: identity, membership, entitlements, confirmation, C13 project scope, operations re-validated against module OpenAPI, expected revisions, idempotency, placeholders, resumable partial failure | implemented, tested (`proposals.api.test.ts`, 10 tests) | real Conceptualize and Requirements APIs on PostgreSQL |
+| Proposal reopened after a **server restart** and applied | tested (restart test builds a new server on the same database) | real services |
+| Proposal reopened in a **fresh browser session** (declarative applied by the server; twin refused as stale with explanation, refreshed preview applied) | tested (`tests/e2e/flows/ai-fake-provider.mjs`) | real services, **fake provider** |
+| Stale proposal refused with explanation ("… changed since the preview: revision 1 → 2"), nothing written | tested (API and browser) | real services |
+| C13: proposal of project A refused while the current project is B (server and browser); operations whose path names another project refused when stored | tested | real services; browser unit test |
+| Refusals told to the model on its next turn (and shown to the person) | implemented, tested (unit, browser flow) | fake provider |
+| UI/AI validation parity: the same invalid input refused identically through the UI path and the AI path | tested for Conceptualize (`createConcept`) and Requirements (`createRequirement`) | real services |
+| Every engineering operation available and succeeding with **all tool tabs closed** | tested (`tests/e2e/flows/ai-headless.mjs`): 22 operations of workspace, help, illustrative SysML/CAD and Conceptualize succeed; a Conceptualize change applied with no view mounted. Known failing (listed with CRs, flow passes while they fail, fails if a passing one regresses): Requirements (`search`, `explain_quality` need the view connection; `read_for_component`, `update` already pass), SysML Modeler (`sessionFor`), CAD Modeler (`cadSession.active`) | real services |
+| Engineering-operation vs view-control coverage measured separately | implemented, tested (`capabilities.test.ts`; coverage dialog shows both) | unit |
+| Conversations keyed by project (one stored conversation per project; switching project switches it) | implemented; not exercised end to end (no project switcher on main yet) | — |
+
+### What is still a fallback or missing
+
+- No product module returns `DeclarativeProposal` yet: Conceptualize, Requirements and SysML Modeler changes are
+  closure fallbacks (labelled; applicable only in the preparing window). The browser flow proves the declarative
+  path with a clearly labelled test-only module. **CR-AI-8 (Conceptualize, Requirements, SysML Modeler):** return
+  `DeclarativeProposal` with `ifMatch` and `expected` instead of `apply` closures; the gateway already allows their APIs.
+- Requirements, SysML Modeler and CAD Modeler operations that depend on a view (assigned by the coordinator to
+  their agents).
+- Declarative undo (compensating operations), multi-module atomicity (reported and resumable instead), and the
+  SDK 1.7 `confirmation` prompt in the card (the server enforces it; the card has no input for the phrase yet).
+- Requirements event hub `close()` is not idempotent: filed as CR-AI-10.
+
+### Verification (this sprint)
+
+See §8.1 below (filled after the full run).
+
+## 9. Demonstration D1, AI part (D1-AI)
+
+Brief: [demo-ai-engineering.md](demo-ai-engineering.md) §3 D1-AI. Boundaries: ADR-0070 (AI output stays distinguishable).
+
+| # | Item | State | Evidence |
+| --- | --- | --- | --- |
+| 1 | `registerPlatformModule` for headless modules (Project Management `projects.*`, design reasoning `reasoning.*`) | implemented, tested | `apps/workspace/src/platform/platformModules.ts`, `platformModules.test.ts`; server catalogue knows `projects.` and `reasoning.` |
+| 2 | Generic engineering-workflow instructions; multi-step budget | implemented, tested | `services/assistant/src/wire.ts` `INSTRUCTIONS` (material questions only, explicit assumptions, origin labels user constraint / AI-proposed / derived, read before proposing, previewed proposals, checks as measured or computed, never compliance or adequacy); defaults 24 operations per answer (max 60), 4000 output tokens, 90 s, 12 history items, all with project limits; `policy.test.ts` checks the rules and that no example content is in the instructions |
+| 3 | Persisted declarative proposals, revalidation at Apply; survive reload and restart | implemented, tested | §8; `proposals.api.test.ts` (server restart), `ai-fake-provider` flow (fresh browser session) |
+| 4 | Drill example isolated | implemented, tested | `apps/workspace/fixtures/demo-plans/drill-bit-holder.json` read by the generic `scriptedPlans.ts`; `exampleIsolation.test.ts` scans product source (workspace, assistant and settings services) for the example's vocabulary |
+| 5 | `tests/e2e/flows/demo-d1.mjs` (fake provider replaying a recorded tool-call script; plumbing only, not D1 acceptance) | implemented, tested (passes against main f68369c services) | Script `tests/e2e/fixtures/fake-scripts/d1-plumbing.json` (fake provider `replay.ts`: `${user.N}`, `[field=value]` selectors; `replay.test.ts`). It applies 26 previews against the real services: `projects.create` and `open` (the window reloads into the new project); Concept, function, two constraints and an assumption; `requirements.create` (stakeholder, ai-proposed) and `allocate` to a product element; `projects.create_product_element`; `sysml-modeler.create_project` and `link_product_element`; alternatives; CAD `run_commands` with a regular polygon, pocket cut, linear pattern and `bind_parameter`, with the CAD view closed; `cad-modeler.check` (measured 6.6 mm and 2.4 mm, satisfied) and `conceptualize.record_evidence`; `revise_constraint`, then `check_bindings` (revision 1 superseded by 2), update and re-bind, check again (6.8 mm against revision 2); STEP export with read-back (1 solid, valid, 0 differences) and download; the transcript; read-back from the services in a fresh browser session. PENDING lines: CR-AI-9 (constraint UUIDs typed by the person), CR-AI-1, CR-PM-SDK-4 |
+| 6 | Live-run guide with transcript and tool-call evidence capture; D1 spec §5 How to run | implemented | [d1-live-run.md](../modules/ai-interface/d1-live-run.md) (updated for the new project, headless CAD and the CR-AI-9 gap); [demo-ai-engineering.md](demo-ai-engineering.md) §5 (plumbing test and live run); panel **Export transcript**; audit with stored prompts. The live run itself needs the owner's account and is **not done** |
+
+### D1-AI fixes and findings (checkpoint after main f68369c)
+
+- (a) A refusal caused by the AI access policy names the access settings and the policy reason, not the subscription
+  (`DemoAssistantService.notInSubscription`, `scriptedPlans.ts`; test in `connection.test.ts`).
+- (b) Requirements event hub `close()` is in the Requirements package: filed as CR-AI-10 instead of editing it.
+- (c) Leftover open proposals from earlier sessions: **Dismiss all** in the panel's earlier-proposals section. Each
+  one is recorded as rejected on the server (`proposalSync.test.ts`).
+- Large operation results: strings longer than 2000 characters are shortened before the 24000-character cut, so a
+  STEP export returned to the model keeps its read-back report as valid JSON. It also sends less data
+  (`wire.test.ts`).
+- Findings from the plumbing run:
+  - `conceptualize.record_evidence` accepts a CAD source only as `cad-modeler-entity` (`<document>/<part>`), not as
+    the registered `cad-document` kind. The script uses the part.
+  - `run_commands` saves the document revision on Apply when the document is stored, so a following
+    `save_document` reports "No changes".
+  - Documents created by `run_commands` are titled "Untitled 1".
+  - In the dev server, the first CAD use makes Vite optimise `replicad` and reload the page, which interrupts the
+    running reply. Proposal to the coordinator: add `replicad` and `replicad-opencascadejs` to
+    `optimizeDeps.include` of the workspace Vite config.
+
+### Verification (checkpoint after main f68369c)
+
+- `npm run check`: typecheck clean; 1107 tests passed, 1 skipped.
+- `npm run build` and `npm run build:harnesses`: pass.
+- `npm run req:test:db`: 380 passed, 2 failed.
+  - `services/projects/test/acceptance.i1.test.ts` passes when run alone: timing (artifact registry confirmation).
+  - `services/api/test/sprint002.test.ts` "requirements.collection-changed is emitted after commit…" times out, also
+    when run alone. This branch has no changes in `services/api`, `services/requirements` or the Requirements
+    packages compared with main f68369c. I have not checked whether it also fails on main.
+- Browser flows against my stack (API 8801 with the fake provider, PostgreSQL 54343, workspace 5202): all 14 pass,
+  including `demo-d1` and `ai-headless`. `platform` failed once with a search-option timeout and passed on the rerun.

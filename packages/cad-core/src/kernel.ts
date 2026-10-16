@@ -145,6 +145,8 @@ export interface GeometryKernel {
   importStep: (text: string) => Promise<{ shapes: ShapeHandle[]; analyses: ShapeAnalysis[] }>
   release: (shapes: ShapeHandle[]) => Promise<void>
   dispose: () => Promise<void>
+  /** Minimum distance between two shapes in mm (0 when they touch or overlap). Optional: kernels without it report no gaps. */
+  distance?: (a: ShapeHandle, b: ShapeHandle) => Promise<number>
 }
 
 export class KernelError extends Error {

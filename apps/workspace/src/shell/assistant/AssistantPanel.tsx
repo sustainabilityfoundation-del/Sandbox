@@ -12,6 +12,7 @@ import { ChangeCard } from './ChangeCard'
 import { MessageText, Reference } from './MessageText'
 import { useAiConnection } from '../../assistant/connection'
 import { useSettingsCentre } from '../../settings/SettingsCentre'
+import { downloadTranscript } from '../../assistant/transcript'
 
 function LiveContextChips() {
   const model = useWorkspaceStore((s) => s.model)!
@@ -225,6 +226,29 @@ function ConnectionLine() {
   )
 }
 
+/** Open proposals saved in the assistant service by earlier sessions, which no message here shows (C9). */
+function ReopenedProposals() {
+  const reopened = useConversation((s) => s.reopenedIds)
+  const messages = useConversation((s) => s.messages)
+  const proposals = useConversation((s) => s.proposals)
+  const shown = new Set(messages.flatMap((m) => (m.role === 'assistant' ? m.proposalIds : m.role === 'event' && m.cardProposalId ? [m.cardProposalId] : [])))
+  const open = reopened.filter((id) => !shown.has(id) && proposals[id])
+  if (!open.length) return null
+  return (
+    <section className="as-reopened" aria-label="Proposals from earlier sessions" data-testid="reopened-proposals">
+      <div className="as-note">
+        Proposals from earlier sessions in this project, saved by the assistant service. Nothing has been applied.{' '}
+        <Button size="sm" variant="text" icon="close" onPress={() => useConversation.getState().dismissReopened()} data-testid="dismiss-reopened">
+          Dismiss all
+        </Button>
+      </div>
+      {open.map((id) => (
+        <ChangeCard key={id} proposalId={id} />
+      ))}
+    </section>
+  )
+}
+
 /** The ChatGPT panel: conversation with the (replaceable) assistant service. */
 export function AssistantPanel() {
   const messages = useConversation((s) => s.messages)
@@ -269,6 +293,11 @@ export function AssistantPanel() {
               New conversation
             </Button>
           )}
+          {messages.length > 0 && (
+            <Button size="sm" variant="text" icon="save" onPress={downloadTranscript} isDisabled={running} className="float-right" data-testid="export-transcript">
+              Export transcript
+            </Button>
+          )}
           <ConnectionLine />
           Model changes are only made when you choose Apply.{' '}
           <Button size="sm" variant="text" onPress={() => useCoverageDialog.getState().setOpen(true)}>
@@ -287,6 +316,7 @@ export function AssistantPanel() {
           {messages.map((m) => (
             <Message key={m.id} message={m} focused={m.id === focusId} />
           ))}
+          <ReopenedProposals />
         </div>
       </div>
       <div className="as-composer">

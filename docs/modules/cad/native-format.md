@@ -1,4 +1,4 @@
-# ews-cad native format specification (format 1.1.0)
+# ews-cad native format specification (format 1.2.0)
 
 Status: Proposed with ADR-0022. Machine-readable schema:
 [`packages/cad-core/schema/ews-cad.schema.json`](../../../packages/cad-core/schema/ews-cad.schema.json)
@@ -62,7 +62,8 @@ along the normal:
   of a body produced by an earlier feature.
 
 A face plane is re-resolved at every regeneration, so the sketch follows the face when upstream
-parameters change. The origin is the face centroid, the normal is the outward face normal, and
+parameters change. The origin is the model origin projected onto the face plane, so on faces parallel to a standard
+plane the sketch coordinates equal the model coordinates. The normal is the outward face normal, and
 `faceFrame` gives the x direction (Z × normal, or the X axis when the normal is within 0.99 of ±Z).
 If the face no longer exists, the sketch fails with `reference-lost`. If the face is not planar, it
 fails with `face-not-planar`.
@@ -95,6 +96,14 @@ earlier body-creating feature; default the latest body).
 
 **datum-plane** (1.1): `plane` (a plane reference as above, including another datum or a face, with
 `offset`). It produces no body, only a plane for later sketches and datums.
+
+**pattern-linear** (1.2): `features[]` (earlier extrude or revolve IDs), `direction` (unit `[x, y, z]`
+in model coordinates), `count: Expr` (integer ≥ 2, occurrences including the original), `spacing: Expr`
+(mm, > 0). Occurrence k (2 … count) is the source feature rebuilt from its sketch on a plane shifted by
+(k − 1)·spacing·direction and applied with the same operation to the same body. Its faces are named
+`<patternId>/i<k>-<featureId>-<role>`. Regeneration results add `pattern { count, spacing, direction,
+gap }`, where `gap` is the kernel's minimum distance between the tool solids of occurrences 1 and 2.
+The gap is derived and never stored.
 
 **fillet** (1.1): `edges[]` (stable edge names, at least one), `radius: Expr` (> 0), optional
 `target` (ID of the body-creating feature; default the latest body).
@@ -137,6 +146,10 @@ from their seed positions with the constraint values evaluated at regeneration t
 
 - Minor versions add optional fields or new feature/entity/constraint types; older 1.x readers
   reject unknown feature types with a clear message.
+- 1.2.0 (2026-10-15) adds the `pattern-linear` feature and the optional `binding` of a parameter:
+  `{ ref: { module, kind, id, revision? }, quantity?, note? }`. A binding records what the parameter
+  implements; it never copies values from the target. It is additive, so 1.0 and 1.1 documents are
+  valid 1.2 documents.
 - 1.1.0 (2026-10-15) adds plane references `datum` and `face`, and the features `datum-plane`,
   `fillet` and `chamfer`. Every 1.0 document is a valid 1.1 document unchanged; no migration is needed.
   Readers built for 1.0 do not know the additions and may refuse documents that use them.

@@ -37,6 +37,9 @@ export const AI_MODULES: AiModule[] = [
   { id: 'sysml-modeler', label: 'SysML Modeler', description: 'SysML v2 models (repository-backed).', entitlement: 'tool:sysml', prefixes: ['sysml-modeler.'] },
   { id: 'cad-modeler', label: 'CAD Modeler', description: 'Parametric CAD documents and exports.', entitlement: 'tool:cad', prefixes: ['cad-modeler.'] },
   { id: 'illustrative', label: 'Illustrative tools', description: 'The mock SysML diagram and mock CAD tools.', prefixes: ['sysml.', 'cad.'] },
+  // Headless platform modules (SDK 1.8 registerPlatformModule). Their services enforce membership; no entitlement decided yet.
+  { id: 'projects', label: 'Project Management', description: 'Projects, members, work items and milestones (headless module).', prefixes: ['projects.'] },
+  { id: 'reasoning', label: 'Design reasoning', description: 'Calculations and reasoning runs (headless module).', prefixes: ['reasoning.'] },
   { id: 'help', label: 'Help', description: 'Product documentation (read_help).', prefixes: [], names: ['read_help'] },
 ]
 
@@ -70,6 +73,8 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   'requirements.search': 'search',
   'requirements.explain_quality': 'calculate',
   'requirements.update': 'propose',
+  'requirements.create': 'propose',
+  'requirements.allocate': 'propose',
   'conceptualize.search': 'search',
   'conceptualize.read': 'read',
   'conceptualize.create': 'propose',
@@ -121,6 +126,8 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   'cad-modeler.export': 'export',
   'cad-modeler.list_documents': 'read',
   'cad-modeler.save_document': 'propose',
+  'cad-modeler.check': 'read',
+  'cad-modeler.check_bindings': 'read',
   'sysml.read_model': 'read',
   'sysml.create_part': 'propose',
   'sysml.connect': 'propose',
@@ -195,10 +202,10 @@ export const AI_SETTING_DEFINITIONS: SettingDefinition[] = [
   ...pair({ id: 'ai.sharing.open-tools', ceilingId: 'ai.sharing-ceiling.open-tools', label: 'Open tools', description: 'Send which tools are open and which one is active.', helpId: 'ai.privacy', type: 'boolean', default: true, ceilingDefault: true, group: 'Data sharing' }),
   ...pair({ id: 'ai.sharing.requirement-text', ceilingId: 'ai.sharing-ceiling.requirement-text', label: 'Requirement text', description: 'Send requirement statements and rationale in operation results. Off: they are replaced by a placeholder.', helpId: 'ai.privacy', type: 'boolean', default: true, ceilingDefault: true, group: 'Data sharing' }),
   ...pair({ id: 'ai.sharing.element-details', ceilingId: 'ai.sharing-ceiling.element-details', label: 'Model element details', description: 'Send property values, attributes and documentation of objects and model elements in operation results. Off: only IDs, names, types and revisions.', helpId: 'ai.privacy', type: 'boolean', default: true, ceilingDefault: true, group: 'Data sharing' }),
-  ...pair({ id: 'ai.sharing.history-length', ceilingId: 'ai.sharing-ceiling.history-length', label: 'Conversation history', description: 'How many earlier messages and change events are sent with each request.', helpId: 'ai.privacy', type: 'number', unit: 'messages', min: 0, max: 20, integer: true, default: 6, ceilingDefault: 20, group: 'Data sharing' }),
-  ...pair({ id: 'ai.limits.tool-calls', ceilingId: 'ai.limits-ceiling.tool-calls', label: 'Operations per answer', description: 'Maximum operations the model may request while answering one message.', helpId: 'ai.policy', type: 'number', unit: 'operations', min: 1, max: 12, integer: true, default: 6, ceilingDefault: 12, group: 'Limits' }),
-  ...pair({ id: 'ai.limits.output-tokens', ceilingId: 'ai.limits-ceiling.output-tokens', label: 'Maximum answer length', description: 'Output token limit per model call (not accepted by ChatGPT plan usage, where the plan’s limits apply).', helpId: 'ai.policy', type: 'number', unit: 'tokens', min: 256, max: 16000, integer: true, default: 2000, ceilingDefault: 16000, group: 'Limits' }),
-  ...pair({ id: 'ai.limits.timeout', ceilingId: 'ai.limits-ceiling.timeout', label: 'Request timeout', description: 'How long the server waits for one model call.', helpId: 'ai.policy', type: 'number', unit: 's', min: 10, max: 120, integer: true, default: 45, ceilingDefault: 120, group: 'Limits' }),
+  ...pair({ id: 'ai.sharing.history-length', ceilingId: 'ai.sharing-ceiling.history-length', label: 'Conversation history', description: 'How many earlier messages and change events are sent with each request.', helpId: 'ai.privacy', type: 'number', unit: 'messages', min: 0, max: 40, integer: true, default: 12, ceilingDefault: 40, group: 'Data sharing' }),
+  ...pair({ id: 'ai.limits.tool-calls', ceilingId: 'ai.limits-ceiling.tool-calls', label: 'Operations per answer', description: 'Maximum operations the model may request while answering one message.', helpId: 'ai.policy', type: 'number', unit: 'operations', min: 1, max: 60, integer: true, default: 24, ceilingDefault: 60, group: 'Limits' }),
+  ...pair({ id: 'ai.limits.output-tokens', ceilingId: 'ai.limits-ceiling.output-tokens', label: 'Maximum answer length', description: 'Output token limit per model call (not accepted by ChatGPT plan usage, where the plan’s limits apply).', helpId: 'ai.policy', type: 'number', unit: 'tokens', min: 256, max: 32000, integer: true, default: 4000, ceilingDefault: 32000, group: 'Limits' }),
+  ...pair({ id: 'ai.limits.timeout', ceilingId: 'ai.limits-ceiling.timeout', label: 'Request timeout', description: 'How long the server waits for one model call.', helpId: 'ai.policy', type: 'number', unit: 's', min: 10, max: 300, integer: true, default: 90, ceilingDefault: 300, group: 'Limits' }),
   ...pair({ id: 'ai.audit.store-prompts', ceilingId: 'ai.audit-ceiling.store-prompts', label: 'Store prompts for debugging', description: 'Keep the full request sent to the provider in your audit records. Off by default; turn it on only to diagnose a problem.', helpId: 'ai.privacy', type: 'boolean', default: false, ceilingDefault: true, group: 'Audit' }),
 ]
 

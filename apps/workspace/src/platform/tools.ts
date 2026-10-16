@@ -11,6 +11,8 @@ import { sysmlTool } from '@ews/tool-sysml'
 import { registerTool } from './registry'
 import { createSysmlModelerTool } from '@ews/tool-sysml-modeler'
 import { serviceSettings } from './services'
+import { registerPlatformModule } from './platformModules'
+import { projectsAssistant } from '../projects/assistant'
 
 registerTool(requirementsTool)
 registerTool(sysmlTool)
@@ -25,6 +27,9 @@ registerTool(createCadModelerTool(serviceSettings.requirementsMode === 'demo' ? 
 // SysML service (CR-SYSML-01) the tool builds its client: API mode follows the Requirements service
 // mode (API → /api/sysml/v1 as the development user; demo → explicit in-browser repository).
 registerTool(createSysmlModelerTool(serviceSettings.requirementsMode === 'demo' ? { mode: 'local' } : { mode: 'api', baseUrl: '/api/sysml/v1', devUser: serviceSettings.devUser }))
+
+// Project Management is a platform module, not a tool: its assistant operations work headless (milestone C9).
+registerPlatformModule({ id: 'projects', name: 'Project Management', assistant: projectsAssistant() })
 
 /** Tools opened as tabs in a fresh session (only those the subscription includes are opened). */
 export const DEFAULT_OPEN_TOOLS = ['requirements', 'sysml', 'cad', 'conceptualize']

@@ -33,6 +33,28 @@ What changed:
 Why: milestone C5 (cross-module resolution) and demonstration D1 (checks against authoritative constraints).
 Migration for tools: none. Use `useServices().cad` / `.sysml` / `concepts.getConstraint` when present and handle
 their absence (module not installed or not entitled).
+
+AI part (AI connection, integration milestone 1 C9, ADR-0042 / design reasoning CR-A1, CR-A2):
+
+- `contract/assistant.ts`: declarative proposals. New action result kind `DeclarativeProposal`
+  (`kind: 'declarative-proposal'`, module, title, explanation, preview, assumptions, inspected, `operations:
+  ModuleOperation[]`, `expected?: ExpectedRevision[]`, `projectId?`, `confirmation?`). `ModuleOperation` names
+  the module, its OpenAPI `operationId`, method, a path **relative to the module's base path** (validated
+  against that operationId, so a proposal cannot target an arbitrary URL), query, body, `ifMatch` and an
+  optional `idempotencyKey` (default `<proposalId>:<index>`); `"$result[n].field"` placeholders refer to
+  earlier results. `ExpectedRevision` names the artifact, the revision the preview was based on and the read
+  operation used to check it again at Apply. The platform persists declarative proposals in the assistant
+  service, so they reopen after a reload or restart, and executes them through the module API after
+  revalidating identity, permissions, project scope, expected revisions and idempotency.
+- `ActionEffect` and `AssistantActionDefinition.effect?` (read, search, calculate, propose, export,
+  external-generation, view): separates engineering operations from view controls in coverage.
+- `PlatformModuleContribution` (`id`, `name`, `entitlement?`, `assistant?`, `help?`, `settings?`): a module
+  without a tool view (Project Management, design reasoning) registers its assistant operations, help and
+  settings with the workspace (`registerPlatformModule`), read exactly like tool contributions.
+Why: assistant operations must work headless and proposals must survive restarts (integration milestone 1 §4).
+Migration for tools: none. Closure `ServiceProposal`s keep working as a labelled fallback (they can be applied
+only in the window that prepared them); move a mutation to `DeclarativeProposal` by returning its module API
+calls as `operations` with `ifMatch` and `expected` instead of an `apply` closure.
 Validated with: npm run check; npm run build:harnesses
 
 ## 1.7.0 (2026-10-15)

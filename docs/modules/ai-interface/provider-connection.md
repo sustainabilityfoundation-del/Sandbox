@@ -42,3 +42,31 @@ catalogued. Uncatalogued actions of a known module count as "propose changes"; u
 `AssistantBackend.complete(principal, { projectId, purpose, instructions?, messages, tools? })` gives other
 server modules (the design reasoning model gateway, ADR-0045) the person's connection with the same policy
 limits and audit; tools are screened by the same policy.
+
+## Headless operations and persisted proposals (integration milestone 1 C9)
+
+- **Contributions.** Tools and headless platform modules (`registerPlatformModule`, SDK 1.8) are read through
+  `assistantContributions()` (apps/workspace/src/assistant/contributions.ts). An operation gets what it needs from
+  `AssistantActionContext.services`, never from a connection a view sets up; `tests/e2e/flows/ai-headless.mjs`
+  runs every engineering operation with all tool tabs closed.
+- **Proposals as data.** Return a `DeclarativeProposal` (preview, `operations`, `expected`) instead of a
+  `ServiceProposal` closure. The workspace stores every proposal in `services/assistant`
+  (`POST /api/assistant/v1/proposals`); open ones reopen in later sessions (`GET …/proposals?open=true`).
+- **Apply.** `POST …/proposals/{id}/apply?projectId=<current>`: identity, membership, entitlements, confirmation,
+  project scope (C13), operation re-validation against the module OpenAPI, expected revisions, then execution
+  through the module API with `Idempotency-Key <proposalId>:<index>`; resumable; never repeated once applied.
+  Module APIs available to proposals are listed by the host (`services/api/src/server.ts`, `modules`).
+
+Example of a declarative proposal from a module action:
+
+```ts
+return {
+  kind: 'declarative-proposal',
+  module: 'conceptualize',
+  title: `Rename ${c.key}`,
+  explanation: 'Requested in the conversation.',
+  preview: [{ label: 'Name', current: c.name, proposed: name, basis: 'ai-hypothesis', targetId: c.id }],
+  operations: [{ module: 'conceptualize', operationId: 'updateConcept', method: 'PATCH', path: `/projects/${projectId}/concepts/${c.id}`, body: { name }, ifMatch: `"${c.revision}"` }],
+  expected: [{ module: 'conceptualize', kind: 'concept', id: c.id, label: `${c.key} ${c.name}`, revision: c.revision, read: { operationId: 'getConcept', path: `/projects/${projectId}/concepts/${c.id}`, field: 'revision' } }],
+}
+```

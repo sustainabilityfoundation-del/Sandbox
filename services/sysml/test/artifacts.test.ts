@@ -45,11 +45,18 @@ async function all(projectId: string, limit: number): Promise<ArtifactDescriptor
 }
 
 /** Waits until the published events reached the listener (delivery is asynchronous, after commit). */
-async function settle(predicate: () => boolean) {
-  for (let k = 0; k < 100 && !predicate(); k++) {
+async function settle(predicate: () => boolean, ms = 45000) {
+  const deadline = Date.now() + ms
+  while (!predicate() && Date.now() < deadline) {
     await hub.flush()
     await new Promise((r) => setTimeout(r, 50))
   }
+}
+
+/** For "nothing is delivered": publish everything committed so far, then give listeners a moment. */
+async function quiet() {
+  for (let k = 0; k < 5; k++) await hub.flush()
+  await new Promise((r) => setTimeout(r, 300))
 }
 
 const refKey = (d: { ref: { kind: string; id: string } }) => `${d.ref.kind}:${d.ref.id}`
@@ -127,7 +134,7 @@ describe('SysML artifact source (contract)', () => {
     // Dry run: nothing committed, nothing delivered.
     changes.length = 0
     await repo.transact(pid, branch, 'eli', { commands: [{ op: 'createElement', ownerId: project.root_element_id, kind: 'PartDefinition', name: 'Dry' }], dryRun: true })
-    await settle(() => false)
+    await quiet()
     expect(changes).toEqual([])
 
     const out = await repo.transact(pid, branch, 'eli', { commands: [{ op: 'createElement', ownerId: project.root_element_id, kind: 'PartDefinition', name: 'Finger', ref: '$f' }, { op: 'createElement', ownerId: '$f', kind: 'AttributeUsage', name: 'length' }] })
@@ -142,7 +149,7 @@ describe('SysML artifact source (contract)', () => {
     changes.length = 0
     const other = await repo.createBranch(pid, 'eli', 'study', out.commit!.id)
     await repo.transact(pid, other.id, 'eli', { commands: [{ op: 'createElement', ownerId: project.root_element_id, kind: 'PartDefinition', name: 'OnlyOnStudy' }] })
-    await settle(() => false)
+    await quiet()
     expect(changes.filter((c) => c.kind !== 'reconcile' && c.refs.some((r) => r.kind === 'sysml-model-element'))).toEqual([])
     expect((await all(NEW, 100)).some((d) => d.key === 'OnlyOnStudy')).toBe(false)
 
