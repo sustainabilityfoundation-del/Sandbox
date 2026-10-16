@@ -2,6 +2,7 @@ import { CadEngine, COMMANDS, MEDIA_TYPE, QUERIES, createDocument, featureTree, 
 import { ActionError, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { cadSession, type OpenDocument } from './session'
 import { runChecks, type CheckRequest, type MeasureSpec } from './checks'
+import pkg from '../package.json'
 
 /**
  * Assistant operations for the CAD Modeler (contracts §5, ADR-0023). Reads return structured data
@@ -567,6 +568,7 @@ const actions: AssistantActionDefinition[] = [
         bindings: args.bindings !== false,
         storedRevision: d.stored?.revision ?? null,
         unsavedChanges: !!d.stored && cadSession.isDirty(d),
+        toolVersion: pkg.version,
       })
       if (d.remoteRevision) report.assumptions.push(`A newer revision (${d.remoteRevision}) of this document was saved elsewhere; the results refer to revision ${d.stored?.revision}.`)
       const s = report.summary

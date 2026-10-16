@@ -74,6 +74,11 @@ export interface CheckReport {
   unsavedChanges: boolean
   kernel: { name: string; version: string; licence: string }
   results: CheckResult[]
+  /**
+   * Arguments for conceptualize.record_evidence (basis estimate) built from the satisfied and violated
+   * results, or null when the measured model is not a stored revision (evidence must pin a revision).
+   */
+  evidence: EvidenceArgs | null
   /** Open assumptions and limits that affect how the results can be used. */
   assumptions: string[]
   summary: Record<CheckStatus, number>
@@ -93,6 +98,12 @@ const UNITS: Record<string, { dim: Dim; factor: number }> = {
   ft: { dim: 'length', factor: 304.8 },
   'mm²': { dim: 'area', factor: 1 },
   mm2: { dim: 'area', factor: 1 },
+  'mm^2': { dim: 'area', factor: 1 },
+  'cm^2': { dim: 'area', factor: 100 },
+  'm^2': { dim: 'area', factor: 1e6 },
+  'mm^3': { dim: 'volume', factor: 1 },
+  'cm^3': { dim: 'volume', factor: 1000 },
+  'm^3': { dim: 'volume', factor: 1e9 },
   'cm²': { dim: 'area', factor: 100 },
   cm2: { dim: 'area', factor: 100 },
   'm²': { dim: 'area', factor: 1e6 },
@@ -229,7 +240,20 @@ function compare(v: number, b: NonNullable<ConstraintSummary['bound']>): CheckSt
   }
 }
 
+export interface EvidenceArgs {
+  title: string
+  subjects: string[]
+  source: { module: 'cad'; kind: 'cad-modeler-entity'; id: string; revision: number; label: string }
+  tool: { name: string; version: string }
+  results: { name: string; value: number; unit: string; constraintId: string; note?: string }[]
+  basis: 'estimate'
+  kind: 'analysis'
+  summary: string
+}
+
 export interface RunChecksOptions {
+  /** Version of the tool that measured (recorded with evidence). */
+  toolVersion?: string
   projectId: string
   concepts?: Pick<ConceptsService, 'getConstraint'>
   requests?: CheckRequest[]
@@ -356,6 +380,20 @@ export async function runChecks(doc: CadDocument, regen: RegenerationResult, opt
 
   const summary: Record<CheckStatus, number> = { satisfied: 0, violated: 0, 'not-checkable': 0 }
   for (const r of results) summary[r.status]++
+  const comparable = results.filter((r) => r.bound && r.measured && (r.status === 'satisfied' || r.status === 'violated'))
+  const evidence: EvidenceArgs | null =
+    options.storedRevision !== null && !options.unsavedChanges && comparable.length
+      ? {
+          title: `CAD check of ${doc.metadata.title} (revision ${options.storedRevision})`,
+          subjects: [...new Set(comparable.map((r) => r.bound!.constraint.id))],
+          source: { module: 'cad', kind: 'cad-modeler-entity', id: `${doc.documentId}/${doc.documentId}`, revision: options.storedRevision, label: `${doc.metadata.title}, revision ${options.storedRevision}` },
+          tool: { name: `CAD Modeler check (${kernel.name})`, version: `${options.toolVersion ?? 'unknown'}; kernel ${kernel.version}` },
+          results: comparable.map((r) => ({ name: r.quantity, value: r.measured!.value, unit: r.measured!.unit, constraintId: r.bound!.constraint.id, note: r.method })),
+          basis: 'estimate',
+          kind: 'analysis',
+          summary: `${comparable.length} measured value(s) of the regenerated model at document revision ${options.storedRevision}; geometry and values only.`,
+        }
+      : null
   return {
     documentId: doc.documentId,
     documentTitle: doc.metadata.title,
@@ -364,6 +402,7 @@ export async function runChecks(doc: CadDocument, regen: RegenerationResult, opt
     unsavedChanges: options.unsavedChanges,
     kernel: { ...kernel, licence: regen.kernel.licence },
     results,
+    evidence,
     assumptions: [...new Set(assumptions)],
     summary,
   }

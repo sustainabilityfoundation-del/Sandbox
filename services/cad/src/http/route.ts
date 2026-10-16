@@ -93,9 +93,12 @@ const header = (request: FastifyRequest, name: string): string | undefined => {
 
 /** Provenance of a write: X-Source-Kind (user, assistant, import), X-Conversation-Id, X-Proposal-Id, X-Message-Id. */
 export function provenanceOf(request: FastifyRequest): Provenance {
-  const kind = header(request, 'x-source-kind') ?? 'user'
+  // The platform's declarative-proposal gateway (SDK 1.8) sends X-Ews-Source and X-Ews-Proposal ("<conversation>/<proposal>").
+  const gateway = header(request, 'x-ews-proposal')
+  const slash = gateway ? gateway.indexOf('/') : -1
+  const kind = header(request, 'x-source-kind') ?? header(request, 'x-ews-source') ?? 'user'
   if (!['user', 'assistant', 'import'].includes(kind)) throw invalid('X-Source-Kind must be user, assistant or import.', { fields: { 'X-Source-Kind': 'unknown' } }, 400)
-  const ids: Record<string, string | undefined> = { conversationId: header(request, 'x-conversation-id'), proposalId: header(request, 'x-proposal-id'), messageId: header(request, 'x-message-id') }
+  const ids: Record<string, string | undefined> = { conversationId: header(request, 'x-conversation-id') ?? (slash > 0 ? gateway!.slice(0, slash) : undefined), proposalId: header(request, 'x-proposal-id') ?? (slash > 0 ? gateway!.slice(slash + 1) : undefined), messageId: header(request, 'x-message-id') }
   for (const [k, v] of Object.entries(ids)) if (v && (v.length > 200 || !/^[\x21-\x7e]+$/.test(v))) throw invalid(`${k} must be 1–200 visible ASCII characters.`, { fields: { [k]: 'malformed' } }, 400)
   if (kind === 'assistant' && (!ids.conversationId || !ids.proposalId)) throw invalid('Assistant changes must name their conversation and proposal (X-Conversation-Id, X-Proposal-Id).', { fields: { 'X-Proposal-Id': 'required for assistant changes' } }, 400)
   return { sourceKind: kind as Provenance['sourceKind'], ...(ids.conversationId ? { conversationId: ids.conversationId } : {}), ...(ids.proposalId ? { proposalId: ids.proposalId } : {}), ...(ids.messageId ? { messageId: ids.messageId } : {}) }
