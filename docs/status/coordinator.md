@@ -83,10 +83,9 @@ Backlog (tracked here until done):
   docs/dependencies.md: all 14 advisories from @scalar/api-reference (services/api), high one (undici) not reachable in the shipped
   product. OSS-19: raise that pin once a fixed release (1.75.0, 16 Oct) is two weeks old (about 30 October). Line-ending fix: the
   register test ignores CRLF; .gitattributes keeps generated files LF.
-- CT-2a (feature/ct-2a-registry-contract): Opus review "merge after changes" (fallback tab so runtime items are never dropped; declare
-  browser-test devDependencies and regenerate the register; fail in CI when Chrome is missing; flaky focus wait; useId; disabled toggle
-  keeps active). Fixes running. Coordinator decision (revised after review): state stays strictly evidence-based; bound entries without
-  verifiedBy remain partial (subtle dot) everywhere; buildCommandModel takes evidenceGaps and labels them "test evidence not yet linked".
+- CT-2a merged (c094b12) with M6, after a green run: unit 1369, all DB suites, build, deps checks, harnesses, CommandBar
+  browser tests 11, 16/16 e2e. Evidence rule: bound entries without verifiedBy stay partial everywhere (evidenceGaps labels them).
+  Notices generator fixed to write LF and compare content.
 - OSS-3 Module assessments (Phase 2), one per module agent, in priority order set by OSS-1; each ends in an ADR and backlog entries.
 - OSS-4 Shared integration interfaces (solver, geometry, simulation, visualization) documented, after OSS-1.
 - OSS-5 Upstream contribution workflow: nothing is published without explicit owner authorization.
@@ -103,6 +102,14 @@ research feeds OSS-3). D1 keeps priority.
 Owner: "focus on getting the cad working better woth more functionality". CAD Modeler work takes priority after D1: a CAD sprint plan is recorded in
 [cad-sprints-c1-c3.md](../specifications/cad-sprints-c1-c3.md): C1 sketching by clicks and reliability (after OSS-9 merges), C2 part features
 (holes, mirror, circular pattern, shell, draft, body booleans), C3 measurement, STEP import, STL, loft and sweep. Owner decisions listed there.
+
+## Owner decisions, 16 October 2026 (owner's words in the session)
+- Old illustrative tools: "Yes remove the two old ones" (hide from UI and AI; data and IDs kept). Running on branch
+  ui/retire-illustrative-rename-system-model, ADR-0076.
+- "change the SysMl Menu to System Model, I think it's better to have it agnostic of the underlying language" (display name only;
+  IDs unchanged). Same branch.
+- CAD name: "yes leave it CAD" (display "CAD", dropping "Modeler", after sprint C1 merges).
+- Module migration M1-M6 complete; next step F (cleanup), then CT-2b.
 
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
