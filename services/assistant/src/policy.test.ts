@@ -63,7 +63,7 @@ describe('AI access policy', () => {
     expect(p.decide('demo.read', values, ['tool:demo']).ok).toBe(true)
     expect(p.decide('demo.change', values, ['tool:demo'])).toMatchObject({ ok: false, code: 'read-only' })
     expect(p.decide('demo.read', values, [])).toMatchObject({ ok: false, code: 'not-entitled' })
-    // The default policy does not know the module.
+    // The module-level default policy (`classify`) does not know the demo module; only `p` built from it does.
     expect(classify('demo.read')).toBeNull()
     expect(() => createPolicy([{ ...demo, id: 'requirements' }])).toThrow(/defined twice/)
     expect(() => createPolicy([], { 'requirements.search': 'search' })).toThrow(/defined twice/)
