@@ -12,6 +12,7 @@ import { ChangeCard } from './ChangeCard'
 import { MessageText, Reference } from './MessageText'
 import { useAiConnection } from '../../assistant/connection'
 import { useSettingsCentre } from '../../settings/SettingsCentre'
+import { downloadTranscript } from '../../assistant/transcript'
 
 function LiveContextChips() {
   const model = useWorkspaceStore((s) => s.model)!
@@ -235,7 +236,12 @@ function ReopenedProposals() {
   if (!open.length) return null
   return (
     <section className="as-reopened" aria-label="Proposals from earlier sessions" data-testid="reopened-proposals">
-      <div className="as-note">Proposals from earlier sessions in this project, saved by the assistant service. Nothing has been applied.</div>
+      <div className="as-note">
+        Proposals from earlier sessions in this project, saved by the assistant service. Nothing has been applied.{' '}
+        <Button size="sm" variant="text" icon="close" onPress={() => useConversation.getState().dismissReopened()} data-testid="dismiss-reopened">
+          Dismiss all
+        </Button>
+      </div>
       {open.map((id) => (
         <ChangeCard key={id} proposalId={id} />
       ))}
@@ -285,6 +291,11 @@ export function AssistantPanel() {
           {messages.length > 0 && (
             <Button size="sm" variant="text" icon="add" onPress={clear} isDisabled={running} className="float-right">
               New conversation
+            </Button>
+          )}
+          {messages.length > 0 && (
+            <Button size="sm" variant="text" icon="save" onPress={downloadTranscript} isDisabled={running} className="float-right" data-testid="export-transcript">
+              Export transcript
             </Button>
           )}
           <ConnectionLine />

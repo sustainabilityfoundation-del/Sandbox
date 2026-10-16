@@ -12,8 +12,18 @@ import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const KNOWN_FAILING = {
-  'sysml-modeler': 'C9 (SysML agent): operations use the view session sessionFor(projectId)',
-  'cad-modeler': 'C9 (CAD agent): operations use the open document cadSession.active',
+  // Both run headless in a new project in demo-d1.mjs (create_project, link_product_element, run_commands, check,
+  // check_bindings, export). This flow has no example arguments for them in the example project yet, because that
+  // needs a SysML project and a stored CAD document there.
+  'sysml-modeler': 'headless in demo-d1.mjs; no example arguments here yet',
+  'cad-modeler': 'headless in demo-d1.mjs; no example arguments here yet',
+}
+
+// Target of projects.open (the proposal is prepared, never applied): another active project of eli.
+const H = { 'x-dev-user': 'eli', 'content-type': 'application/json' }
+const found = await (await fetch(`${env.api}/api/projects/v1/projects?q=HL-OPEN`, { headers: H })).json()
+if (!found.items?.some((p) => p.key === 'HL-OPEN')) {
+  await fetch(`${env.api}/api/projects/v1/projects`, { method: 'POST', headers: { ...H, 'idempotency-key': `hl-open-${Date.now()}` }, body: JSON.stringify({ key: 'HL-OPEN', name: 'Headless flow: open target', description: 'Target of projects.open in tests/e2e/flows/ai-headless.mjs (never opened).', templateId: 'blank' }) })
 }
 /** View controls (navigation, selection): measured as view-control coverage, not engineering operations. */
 const VIEW_CONTROLS = ['select_objects', 'open_tool']
@@ -83,6 +93,8 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
   const fn = (await designKey('a', 'function')) ?? (await designKey('e', 'function'))
   const decision = (await designKey('a', 'decision')) ?? (await designKey('e', 'decision'))
   const stamp = Date.now() % 100000
+  // A product element of the example project, found through the operations (ref.id is its UUID).
+  const element = (await run('projects.list_artifacts', { category: 'product-element', q: 'ROD-120' })).data?.[0]?.ref?.id
   const examples = {
     read_object: { id: 'ROD-120' },
     search_objects: { query: 'rod' },
@@ -120,6 +132,19 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
     'conceptualize.rationale': { decisionId: decision },
     'conceptualize.traverse': { start: actuator, depth: 1 },
     'conceptualize.search_design': { text: 'actuator' },
+    'conceptualize.revise_constraint': { constraintId: 'CST-001', reason: 'Headless flow check (preview only, never applied)', value: 99, unit: 'mm' },
+    'conceptualize.record_evidence': { title: 'Headless flow check', subjects: [actuator], source: { module: 'external', id: 'headless-flow', revision: 1 }, tool: { name: 'ai-headless.mjs', version: '1' }, results: [{ name: 'envelope length', value: 90, unit: 'mm', constraintId: 'CST-001' }] },
+    'conceptualize.review_flags': {},
+    'requirements.create': { title: `Headless requirement ${stamp}`, statement: 'The actuator shall be checked headless.', origin: 'stakeholder' },
+    'requirements.allocate': { requirementId: 'REQ-001', add: [{ kind: 'product-element', id: element }] },
+    'projects.get_context': {},
+    'projects.list_projects': {},
+    'projects.list_artifacts': { category: 'product-element' },
+    'projects.create': { name: `Headless project ${stamp}`, key: `HL-${stamp}` },
+    'projects.open': { project: 'HL-OPEN' },
+    'projects.create_product_element': { name: `Headless element ${stamp}`, elementKind: 'part' },
+    'projects.add_breakdown_edge': { childId: 'ROD-120', parentId: 'ACT-100' },
+    'projects.store_document': { title: 'Headless document', contentBase64: 'aGVhZGxlc3M=', fileName: 'headless.txt', mediaType: 'text/plain', documentKind: 'other' },
   }
   const ops = availableOperations().map((o) => o.name).filter((n) => !VIEW_CONTROLS.includes(n))
   const results = []

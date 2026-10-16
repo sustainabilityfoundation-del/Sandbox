@@ -29,6 +29,10 @@ export interface ToolStep {
   summary: string
   inspected: InspectedItem[]
   error?: string
+  /** Arguments the model sent (kept for the exported transcript, the evidence of a run). */
+  arguments?: Record<string, unknown>
+  /** Model response this call came from (0-based within the answer). */
+  round?: number
 }
 
 export type ChatMessage =
@@ -47,6 +51,8 @@ export type ChatMessage =
       proposalIds: string[]
       suggestions: string[]
       clarification?: boolean
+      /** Provider and model that produced the final answer (connected assistant only). */
+      model?: string
       error?: string
       note?: string
     }
@@ -78,6 +84,8 @@ interface ConversationState {
   reopenedIds: string[]
   /** Loads open proposals of the project from the assistant service (after a reload, restart or new session). */
   reopen: () => Promise<void>
+  /** Rejects every open proposal from earlier sessions that this conversation does not show (recorded in the service). */
+  dismissReopened: () => void
   conversationId: string
   startedAt: string
   messages: ChatMessage[]
@@ -301,6 +309,19 @@ export const useConversation = create<ConversationState>()((set, get) => {
     service: null,
     projectId: PROJECT_ID,
     reopenedIds: [],
+    dismissReopened: () => {
+      const s = get()
+      const shown = new Set(s.messages.flatMap((m) => (m.role === 'assistant' ? m.proposalIds : m.role === 'event' && m.cardProposalId ? [m.cardProposalId] : [])))
+      const ids = s.reopenedIds.filter((id) => !shown.has(id) && s.proposals[id])
+      for (const id of ids) {
+        const p = s.proposals[id]
+        if (['pending', 'conflict', 'failed'].includes(p.status)) void recordOutcome(p.server?.id, 'rejected', 'Dismissed from earlier sessions')
+      }
+      set((st) => ({
+        reopenedIds: st.reopenedIds.filter((id) => !ids.includes(id)),
+        proposals: Object.fromEntries(Object.entries(st.proposals).filter(([id]) => !ids.includes(id))),
+      }))
+    },
     reopen: async () => {
       const projectId = get().projectId
       const list = await openProposals(projectId)
@@ -391,6 +412,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
               text: response.text,
               suggestions: response.suggestions ?? [],
               clarification: response.clarification,
+              ...(response.meta?.model ? { model: `${response.meta.provider ?? ''} ${response.meta.model}`.trim() } : {}),
             })
             return
           }
@@ -399,7 +421,7 @@ export const useConversation = create<ConversationState>()((set, get) => {
             const label = operationLabel(toolCall.name)
             patchMessage(reply.id, (m) => ({
               status: 'running-tool',
-              steps: [...m.steps, { id: toolCall.id, name: toolCall.name, label, status: 'running', summary: `${label}…`, inspected: [] }],
+              steps: [...m.steps, { id: toolCall.id, name: toolCall.name, label, status: 'running', summary: `${label}…`, inspected: [], arguments: toolCall.arguments, round: step }],
             }))
             const execution = executeToolCall(toolCall, { captured: context, source, env }).then((outcome) => {
               // Record the outcome even if the user pressed Stop meanwhile.

@@ -72,8 +72,45 @@ the design reasoning service (R4+), standards work, certification dashboards, un
 - Another developer reproduces it from §5.
 - Every mocked or adapter-backed dependency is reported.
 
-## 5. How to run (filled in as increments land)
+## 5. How to run
 
-1. `npm install`, `npm run dev`, open http://localhost:5173/workspace/.
-2. Settings (gear) → AI and reasoning → connect an OpenAI account (API key, or Sign in with ChatGPT locally).
-3. _To be completed with the D1 tutorial and the e2e flow._
+**A. Plumbing test (no model, no account; a regression test, not acceptance).**
+
+1. `npm install`, then `npm run ai:dev:fake`. This is `npm run dev` with the development-only fake provider, which
+   replays the recorded tool-call script `tests/e2e/fixtures/fake-scripts/d1-plumbing.json`. Other ports: set
+   `API_PORT` and `EMBEDDED_PG_PORT`; extra arguments go to the workspace dev server (for example `-- --port 5202`).
+2. In a second terminal: `npm run e2e -- demo-d1` (`E2E_BASE` and `E2E_API` for other ports). The flow connects
+   development user eli to the fake provider, then sends each step as a message and applies every preview through
+   the panel:
+   - a new project `D1-xxxxx` through `projects.create` and `projects.open`;
+   - a Concept, a function, two constraints and an assumption;
+   - two requirements (origin `stakeholder` and `ai-proposed`);
+   - a product element and a SysML project, then `requirements.allocate` and `sysml-modeler.link_product_element`;
+   - alternatives;
+   - CAD `run_commands`: a block with a hexagonal pocket, a linear pattern of six, and `af` bound to the pocket-width
+     constraint. The CAD view stays closed; the CAD operations run headless;
+   - `cad-modeler.check` and `conceptualize.record_evidence`;
+   - the change: `revise_constraint`, then `check_bindings` finds the outdated binding, `run_commands` updates and
+     re-binds the parameter, and the check runs again;
+   - STEP export with read-back, then a STEP download;
+   - the transcript export, and a read-back in a fresh browser session and from the service APIs.
+3. Steps the script cannot exercise are printed as PENDING with their change requests. Screenshots, the transcript
+   and the replies are written to `tests/e2e/.output/demo-d1/`. In the dev server, the first CAD use optimises the
+   kernel dependencies and reloads the page once. If the reply that was running is shown as interrupted, run the flow
+   again.
+
+**B. Live run with a real model (acceptance).** Follow
+[d1-live-run.md](../modules/ai-interface/d1-live-run.md):
+
+1. `npm run dev`, Settings → Platform: API mode, development user eli.
+2. The owner connects their own OpenAI account in Settings → AI and reasoning (API key, or Sign in with ChatGPT for
+   a local installation). The credential stays encrypted on the server.
+3. Send the step messages in the panel, review each preview and apply.
+4. Capture the evidence:
+   - **Export transcript** in the panel: every operation with its arguments, the proposals and the model;
+   - the audit, at `GET /api/assistant/v1/audit`;
+   - the committed artifacts, through the module APIs;
+   - the STEP file.
+5. For every step, report whether it ran with the live provider against the real service.
+
+The live run has not been done yet: it needs the owner's account.
