@@ -2,6 +2,7 @@ import { createHttpSysmlClient } from '@ews/sysml-client'
 import { createSysmlModelerTool } from '@ews/tool-sysml-modeler'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { D1_PRODUCT, D1_REQUIREMENT, runD1Sequence } from '../../../packages/tool-sysml-modeler/test/d1-sequence'
+import { LIVE_PRODUCT, runLiveArchitecture } from '../../../packages/tool-sysml-modeler/test/live-architecture'
 import { createTestEnv, type TestEnv } from '../../api/test/helpers'
 import { createSysmlArtifactSource } from '../src/artifacts'
 import { createSysmlEventHub } from '../src/events'
@@ -15,6 +16,8 @@ import { SysmlRepository } from '../src/repository'
 
 let env: TestEnv
 const D1 = 'PRJ-D1-ARCH'
+let origin: string | undefined
+const listen = async () => (origin ??= await env.listen())
 
 beforeAll(async () => {
   env = await createTestEnv()
@@ -24,7 +27,7 @@ afterAll(async () => env?.close())
 
 describe('D1-SYS architecture step (API, PostgreSQL)', () => {
   it('runs headless through the assistant in a new platform project and validates without errors', async () => {
-    const address = await env.listen()
+    const address = await listen()
     const client = createHttpSysmlClient({ baseUrl: `${address}/api/sysml/v1`, devUser: 'eli' })
     expect(await client.listProjects(D1)).toEqual([]) // a new platform project starts empty
     const tool = createSysmlModelerTool({ client })
@@ -35,7 +38,7 @@ describe('D1-SYS architecture step (API, PostgreSQL)', () => {
 
     // Every change is a commit with assistant provenance.
     const commits = await client.listCommits(out.sysmlProjectId)
-    expect(commits.map((c) => c.source.kind)).toEqual(['assistant', 'assistant', 'assistant', 'assistant', 'user'])
+    expect(commits.map((c) => c.source.kind)).toEqual(['assistant', 'assistant', 'assistant', 'assistant', 'assistant'])
     expect(commits[0].source).toMatchObject({ conversationId: 'd1' })
 
     // Project Management sees the elements and their links through the artifact source.
@@ -52,5 +55,17 @@ describe('D1-SYS architecture step (API, PostgreSQL)', () => {
     } finally {
       await hub.close()
     }
+  })
+
+  it('the live run architecture turn: one create_project proposal with links; commits carry assistant provenance', async () => {
+    await env.pool.query(`INSERT INTO platform.project_memberships (project_id, user_id, role) VALUES ('PRJ-D1-LIVE', 'eli', 'administrator')`)
+    const client = createHttpSysmlClient({ baseUrl: `${await listen()}/api/sysml/v1`, devUser: 'eli' })
+    const out = await runLiveArchitecture(createSysmlModelerTool({ client }) as never, 'PRJ-D1-LIVE')
+    expect(out.validationErrors).toBe(0)
+    expect(out.coverage.map((c) => c.status)).toEqual(['satisfied', 'satisfied', 'satisfied'])
+    const commits = await client.listCommits(out.sysmlProjectId)
+    expect(commits.map((c) => c.source)).toEqual([expect.objectContaining({ kind: 'assistant', proposalId: 'CP-2' }), expect.objectContaining({ kind: 'assistant', conversationId: 'live', proposalId: 'CP-1' })])
+    const text = (await env.call('eli', 'GET', `/api/sysml/v1/projects/${out.sysmlProjectId}/commits/${commits[0].id}/text`)).body.text as string
+    expect(text).toContain(`productElementId = "${LIVE_PRODUCT}"`)
   })
 })

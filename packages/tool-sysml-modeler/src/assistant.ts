@@ -1,6 +1,6 @@
-import { ActionError, argOptionalString, argString, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
+import { ActionError, argOptionalString, argString, type RequirementSummary, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { SysmlClientError, type SysmlClient, type TransactionOutcome } from '@ews/sysml-client'
-import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, checkCommandShape, findElements, loadText, relationshipMatrix, requirementCoverage, impact, incomingReferences, isTextEditableNamespace, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
+import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, applyTransaction, checkCommandShape, findElements, isKindOf, loadText, validate, relationshipMatrix, requirementCoverage, impact, incomingReferences, isTextEditableNamespace, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
 import { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from './projection/behavior'
 import type { Graph } from './projection/graph'
 import { existingSession, getClient } from './session'
@@ -57,7 +57,19 @@ function element(model: Model, ref: string) {
   try {
     return resolveRef(model, ref)
   } catch (e) {
-    throw new ActionError('not-found', e instanceof Error ? e.message : String(e))
+    // Suggest elements with the same simple name, and the top-level packages.
+    const last = ref.split('::').pop() ?? ref
+    const want = last.toLowerCase()
+    const rank = (n?: string) => (!n ? 3 : n.toLowerCase() === want ? 0 : n.toLowerCase().includes(want) ? 1 : 2)
+    const near = findElements(model, { text: last, limit: 300 })
+      .filter((x) => !x.isLibrary && rank(x.name) < 2)
+      .sort((x, y) => rank(x.name) - rank(y.name))
+      .slice(0, 5)
+      .map((x) => x.qualifiedName)
+      .filter(Boolean)
+    const s = semanticsOf(model)
+    const tops = s.ownedMembers(model.rootId).map((m) => s.name(m['@id'])).filter(Boolean)
+    throw new ActionError('not-found', `${e instanceof Error ? e.message : String(e)} ${near.length ? `Did you mean: ${near.join(', ')}? ` : ''}Top-level names: ${tops.join(', ') || '(none: the model is empty)'}. Use qualified names (Package::Part::feature) or sysml-modeler.find_elements.`)
   }
 }
 
@@ -268,27 +280,160 @@ const proposeText: AssistantActionDefinition = {
   },
 }
 
+// ---- architecture operations (D1 step 4): create a model, link requirements and product elements ----
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** A managed requirement (Requirements Management) by key (REQ-001) or UUID; clear errors when it cannot be used. */
+async function managedRequirement(ctx: AssistantActionContext, key: string): Promise<RequirementSummary> {
+  const service = ctx.services?.requirements
+  if (!service) throw new ActionError('not-allowed', 'The Requirements service is not available (not provided by this host or not in the subscription), so managed requirements cannot be linked.')
+  const scope = { projectId: ctx.captured.projectId, configurationId: ctx.captured.configurationId }
+  const req = UUID_RE.test(key) ? await service.get(key, scope) : await service.resolve(key, scope)
+  if (!req) throw new ActionError('not-found', `No managed requirement ${key} in ${ctx.captured.projectId}. Use requirements.search to find its key or UUID.`)
+  return req
+}
+
+/** A product element (Project Management) by UUID, pinned to its revision when Project Management knows it. */
+async function productElement(ctx: AssistantActionContext, id: string, revision?: number): Promise<{ id: string; revision?: number; label: string; assumption?: string }> {
+  if (!UUID_RE.test(id)) throw new ActionError('invalid-arguments', `productElement must be the product element UUID (got “${id}”; keys such as PE-001 and names are display text). Product elements proposed in this turn get their UUID when the user applies that proposal: link them afterwards with sysml-modeler.link_product_element.`)
+  const projects = ctx.services?.projects
+  if (!projects) return { id, revision, label: id, assumption: 'Project Management is not available here: the product element could not be checked; the link is stored as given.' }
+  const [found] = await projects.resolve(ctx.captured.projectId, [{ module: 'product', kind: 'product-element', id }])
+  if (!found) throw new ActionError('not-found', `Project Management does not know product element ${id} in ${ctx.captured.projectId}. If it was proposed in this turn, the user must apply that proposal first.`)
+  return { id, revision: revision ?? (typeof found.version.value === 'number' ? found.version.value : undefined), label: `${found.key} ${found.title}` }
+}
+
+const safeName = (key: string) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) ? key : `'${key.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`)
+const safeDoc = (text: string) => text.replace(/\*\//g, '* /').replace(/\s+/g, ' ').trim()
+
+/** SysML text for "the managed requirement is satisfied by these elements": a requirement usage linked by metadata, and satisfy relationships. */
+function requirementAllocationText(req: RequirementSummary, satisfiedBy: string[]): string {
+  const name = safeName(req.key)
+  const lines = [
+    `requirement <${safeName(req.key)}> ${name} {`,
+    `    doc /* ${safeDoc(req.title)}${req.statement ? `: ${safeDoc(req.statement)}` : ''} (text owned by Requirements Management) */`,
+    `    @EWS::ManagedRequirement { requirementId = "${req.id}"; revision = ${req.revision}; }`,
+    '}',
+    ...satisfiedBy.map((x) => `satisfy ${name} by ${x};`),
+  ]
+  return lines.join('\n')
+}
+
+interface Allocation {
+  requirement: string
+  satisfiedBy: string[]
+}
+
+function allocationsArg(args: Record<string, unknown>): Allocation[] {
+  const raw = args.requirements
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) throw new ActionError('invalid-arguments', '“requirements” must be a list of { requirement, satisfiedBy }.')
+  return raw.map((r, k) => {
+    const o = r as { requirement?: unknown; satisfiedBy?: unknown }
+    const by = Array.isArray(o.satisfiedBy) ? o.satisfiedBy : [o.satisfiedBy]
+    if (typeof o.requirement !== 'string' || !by.length || by.some((x) => typeof x !== 'string' || !x)) throw new ActionError('invalid-arguments', `requirements[${k}] needs requirement (key or UUID) and satisfiedBy (qualified name, or a list of them).`)
+    return { requirement: o.requirement, satisfiedBy: by as string[] }
+  })
+}
+
+function productLinksArg(args: Record<string, unknown>): { element: string; productElement: string; revision?: number }[] {
+  const raw = args.productElements
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) throw new ActionError('invalid-arguments', '“productElements” must be a list of { element, productElement }.')
+  return raw.map((r, k) => {
+    const o = r as { element?: unknown; productElement?: unknown; revision?: unknown }
+    if (typeof o.element !== 'string' || typeof o.productElement !== 'string') throw new ActionError('invalid-arguments', `productElements[${k}] needs element (qualified name of a part or item) and productElement (UUID).`)
+    return { element: o.element, productElement: o.productElement, ...(typeof o.revision === 'number' ? { revision: o.revision } : {}) }
+  })
+}
+
+/** Top-level package of an element (where generated requirement text goes). */
+function topPackage(model: Model, id: string): string {
+  const s = semanticsOf(model)
+  let cur = s.get(id)
+  let last: string | undefined
+  for (let k = 0; cur && k < 50; k++) {
+    if (cur['@id'] === model.rootId) break
+    if (isKindOf(cur['@type'], 'Package')) last = cur['@id']
+    cur = s.owner(cur['@id'])
+  }
+  return last ?? model.rootId
+}
+
+/** Commands linking requirements (text) and product elements (metadata) in a model; resolved and checked now. */
+async function linkCommands(ctx: AssistantActionContext, model: Model, allocations: Allocation[], products: { element: string; productElement: string; revision?: number }[]): Promise<{ commands: Command[]; assumptions: string[]; summary: string[] }> {
+  const commands: Command[] = []
+  const assumptions: string[] = []
+  const summary: string[] = []
+  for (const a of allocations) {
+    const req = await managedRequirement(ctx, a.requirement)
+    const targets = a.satisfiedBy.map((x) => element(model, x)['@id'])
+    const s = semanticsOf(model)
+    for (const t of targets) {
+      const ty = s.get(t)!['@type']
+      if (!isKindOf(ty, 'Usage') && !isKindOf(ty, 'Definition')) throw new ActionError('invalid-arguments', `${s.label(t)} is a ${ty}; requirements are satisfied by parts (definitions or usages).`)
+    }
+    commands.push({ op: 'applyText', namespaceId: topPackage(model, targets[0]), mode: 'append', text: requirementAllocationText(req, targets.map((t) => s.qualifiedName(t) ?? t)) })
+    summary.push(`${req.key} (rev ${req.revision}) satisfied by ${targets.map((t) => s.qualifiedName(t)).join(', ')}`)
+  }
+  for (const p of products) {
+    const el = element(model, p.element)
+    if (!/^(Part|Item)(Definition|Usage)$/.test(el['@type'])) throw new ActionError('invalid-arguments', `${semanticsOf(model).label(el['@id'])} is a ${el['@type']}; only parts and items represent product elements.`)
+    const pe = await productElement(ctx, p.productElement, p.revision)
+    if (pe.assumption) assumptions.push(pe.assumption)
+    commands.push({ op: 'setMetadata', elementId: el['@id'], metadata: 'ProductElement', values: { productElementId: pe.id, ...(pe.revision !== undefined ? { revision: pe.revision } : {}) } })
+    summary.push(`${semanticsOf(model).qualifiedName(el['@id'])} represents ${pe.label}`)
+  }
+  return { commands, assumptions, summary }
+}
+
+const ALLOCATION_SCHEMA = { type: 'array', description: 'Managed requirements to allocate: each becomes a SysML requirement linked to the managed requirement (pinned revision) and satisfied by the given parts.', items: { type: 'object', properties: { requirement: { type: 'string', description: 'Requirement key (REQ-001) or UUID' }, satisfiedBy: { type: 'array', items: { type: 'string' }, description: 'Qualified names of the satisfying parts' } }, required: ['requirement', 'satisfiedBy'] } }
+const PRODUCT_LINKS_SCHEMA = { type: 'array', description: 'Parts or items that represent existing product elements (UUIDs of applied product elements).', items: { type: 'object', properties: { element: { type: 'string' }, productElement: { type: 'string', description: 'Product element UUID' }, revision: { type: 'number' } }, required: ['element', 'productElement'] } }
+
 const createProject: AssistantActionDefinition = {
   name: 'sysml-modeler.create_project',
-  label: 'Create a SysML project',
-  description: 'Propose creating a SysML project (versioned model) in the current platform project, optionally with initial SysML v2 text (validated first). A new platform project has no SysML model until one is created. Nothing is created until the user applies the proposal.',
-  parameters: { type: 'object', properties: { name: { type: 'string' }, initialText: { type: 'string', description: 'Optional SysML v2 text for the root namespace, e.g. "package SystemModel;"' }, explanation: { type: 'string' } }, required: ['name'], additionalProperties: false },
+  label: 'Create a SysML project (with its initial architecture)',
+  description:
+    'Propose creating the SysML project of the current platform project, in ONE proposal: initialText (SysML v2 text: packages, part definitions and usages for the physical decomposition, action definitions/usages for the functional decomposition, "allocate action to part;"), plus optional requirements (managed requirements allocated to parts: each becomes a SysML requirement linked to the managed requirement and satisfied by the parts) and productElements (parts that represent EXISTING product elements, by UUID). Everything is validated now and created in one commit when the user applies it. After Apply the result names the project ID; later operations (propose_text, satisfy_requirement, link_product_element) target it by default, or pass projectId. Product elements proposed in the same turn have no UUID until applied: link them afterwards with link_product_element.',
+  parameters: {
+    type: 'object',
+    properties: { name: { type: 'string' }, initialText: { type: 'string', description: 'SysML v2 text for the model root, e.g. "package Arch { part def Body; part def Holder { part body : Body; } part holder : Holder; }"' }, requirements: ALLOCATION_SCHEMA, productElements: PRODUCT_LINKS_SCHEMA, explanation: { type: 'string' } },
+    required: ['name'],
+    additionalProperties: false,
+  },
   run: async (args, ctx) => {
     const client = getClient()
     if (!client) throw new ActionError('not-allowed', 'The SysML Modeler is not configured in this host.')
     const name = argString(args, 'name').trim()
     if (!name) throw new ActionError('invalid-arguments', '“name” must not be empty.')
-    const initialText = argOptionalString(args, 'initialText')
-    if (initialText?.trim()) {
-      const loaded = loadText(initialText)
+    let text = argOptionalString(args, 'initialText')?.trim() ?? ''
+    const allocations = allocationsArg(args)
+    const products = productLinksArg(args)
+    if ((allocations.length || products.length) && !text) throw new ActionError('invalid-arguments', 'requirements and productElements refer to elements of initialText; give initialText with those parts.')
+    const assumptions: string[] = []
+    const linked: string[] = []
+    if (text) {
+      const loaded = loadText(text)
       const errors = loaded.diagnostics.filter((d) => d.severity === 'error')
-      if (errors.length) throw new ActionError('invalid-arguments', `The initial text is not valid: ${errors.slice(0, 5).map((d) => `${d.ruleId} ${d.range ? `${d.range.start.line}:${d.range.start.column} ` : ''}${d.message}`).join(' | ')} Nothing was proposed.`)
+      if (errors.length) throw new ActionError('invalid-arguments', `The initial text is not valid SysML (supported subset): ${errors.slice(0, 5).map((d) => `${d.ruleId} ${d.range ? `line ${d.range.start.line}:${d.range.start.column} ` : ''}${d.message}`).join(' | ')}. Nothing was proposed; fix the text (see sysml-modeler.describe_commands and help topic sysml-modeler.language).`)
+      if (allocations.length || products.length) {
+        const links = await linkCommands(ctx, loaded.model, allocations, products)
+        const r = applyTransaction(loaded.model, { commands: links.commands, validationPolicy: 'reject-new-errors' })
+        if (!r.ok) throw new ActionError('invalid-arguments', `The links cannot be added: ${r.error.message}${r.error.diagnostics?.length ? ` (${r.error.diagnostics.slice(0, 3).map((d) => `${d.ruleId}: ${d.message}`).join(' | ')})` : ''}. Nothing was proposed.`)
+        text = serialize(r.model)
+        assumptions.push(...links.assumptions)
+        linked.push(...links.summary)
+      }
+      const problems = validate(loadText(text).model).filter((d) => d.severity === 'error')
+      if (problems.length) throw new ActionError('invalid-arguments', `The initial model has validation errors: ${problems.slice(0, 5).map((d) => `${d.ruleId}: ${d.message}`).join(' | ')}. Nothing was proposed.`)
     }
     const existing = await client.listProjects(ctx.captured.projectId).catch((e: unknown) => {
       if (e instanceof SysmlClientError) throw new ActionError(e.code === 'forbidden' ? 'not-allowed' : 'unavailable', e.message)
       throw e
     })
     const explanation = argOptionalString(args, 'explanation') ?? `Start the SysML model of ${ctx.captured.projectId}.`
+    const counts = text ? [...loadText(text).model.elements()].filter((e) => typeof e.declaredName === 'string').length : 0
     return {
       kind: 'service-proposal',
       module: MODULE,
@@ -296,62 +441,63 @@ const createProject: AssistantActionDefinition = {
       explanation,
       preview: [
         { label: 'Create SysML project', proposed: `${name} (platform project ${ctx.captured.projectId})`, basis: 'ai-hypothesis' },
-        ...(initialText?.trim() ? [{ label: 'Initial model', proposed: initialText.trim().slice(0, 400), basis: 'ai-hypothesis' as const }] : []),
+        ...(text ? [{ label: 'Initial model', proposed: `${counts} named elements:\n${text.slice(0, 1500)}`, basis: 'ai-hypothesis' as const }] : []),
+        ...linked.map((l) => ({ label: 'Link', proposed: l, basis: 'ai-hypothesis' as const })),
       ],
       assumptions: [
-        ...(existing.length ? [`The platform project already has ${existing.length} SysML project(s): ${existing.map((p) => p.name).join(', ')}. This adds another.`] : []),
+        ...assumptions,
+        ...(existing.length ? [`The platform project already has ${existing.length} SysML project(s): ${existing.map((p) => p.name).join(', ')}. This adds another; pass projectId to later operations.`] : []),
         'A SysML project cannot be deleted from the assistant; its history is kept.',
       ],
       apply: async (provenance) => {
-        const p = await client.createProject({ name, platformProjectId: ctx.captured.projectId, ...(initialText?.trim() ? { initialText } : {}) }, { idempotencyKey: `sysml-create-project:${provenance.conversationId}:${provenance.proposalId}` })
+        const p = await client.createProject(
+          { name, platformProjectId: ctx.captured.projectId, ...(text ? { initialText: text } : {}), source: { kind: 'assistant', conversationId: provenance.conversationId, proposalId: provenance.proposalId, messageId: provenance.messageId } },
+          { idempotencyKey: `sysml-create-project:${provenance.conversationId}:${provenance.proposalId}` },
+        )
         void existingSession(ctx.captured.projectId)?.open(ctx.captured.projectId, p.id)
-        return { summary: `Created SysML project ${p.name} (${p.id})`, createdIds: [p.id] }
+        return { summary: `Created SysML project ${p.name} (projectId ${p.id})${linked.length ? ` with ${linked.length} link(s)` : ''}. Next: propose_text, satisfy_requirement or link_product_element with projectId ${p.id}.`, createdIds: [p.id] }
       },
     }
+  },
+}
+
+const satisfyRequirement: AssistantActionDefinition = {
+  name: 'sysml-modeler.satisfy_requirement',
+  label: 'Allocate managed requirements to SysML parts',
+  description:
+    'Propose allocating managed requirements (Requirements Management, by key or UUID) to SysML parts: for each, a SysML requirement linked to the managed requirement (pinned revision; its text stays in Requirements) and "satisfy <requirement> by <part>" for each part. Use after the model exists (create_project can do the same in its first proposal). Optionally also productElements: parts that represent existing product elements.',
+  parameters: { type: 'object', properties: { requirements: ALLOCATION_SCHEMA, productElements: PRODUCT_LINKS_SCHEMA, explanation: { type: 'string' }, ...projectArg }, required: ['requirements'], additionalProperties: false },
+  run: async (args, ctx) => {
+    const t = await target(ctx, argOptionalString(args, 'projectId'))
+    const allocations = allocationsArg(args)
+    if (!allocations.length) throw new ActionError('invalid-arguments', '“requirements” must list at least one { requirement, satisfiedBy }.')
+    const links = await linkCommands(ctx, t.model, allocations, productLinksArg(args))
+    return propose(ctx, { ...args, assumptions: links.assumptions }, links.commands, `Allocate ${allocations.map((a) => a.requirement).join(', ')}`, argOptionalString(args, 'explanation') ?? links.summary.join('; '))
   },
 }
 
 const linkProductElement: AssistantActionDefinition = {
   name: 'sysml-modeler.link_product_element',
   label: 'Link a SysML element to the product element it represents',
-  description: 'Propose that a SysML part or item (definition or usage) represents a product element of Project Management (CR-PM-SYS-1), by product element UUID, pinned to its current revision when Project Management knows it. Stored as SysML-owned metadata; no product data is copied.',
-  parameters: { type: 'object', properties: { element: { type: 'string', description: 'Qualified name or ID of the SysML element' }, productElement: { type: 'string', description: 'Product element UUID' }, revision: { type: 'number' }, ...projectArg }, required: ['element', 'productElement'], additionalProperties: false },
+  description: 'Propose that a SysML part or item (definition or usage) represents an EXISTING product element of Project Management (CR-PM-SYS-1), by product element UUID (from projects.list_artifacts, or the result of an applied product-element proposal), pinned to its current revision. Stored as SysML-owned metadata; no product data is copied.',
+  parameters: { type: 'object', properties: { element: { type: 'string', description: 'Qualified name or ID of the SysML part or item' }, productElement: { type: 'string', description: 'Product element UUID' }, revision: { type: 'number' }, ...projectArg }, required: ['element', 'productElement'], additionalProperties: false },
   run: async (args, ctx) => {
     const t = await target(ctx, argOptionalString(args, 'projectId'))
-    const el = element(t.model, argString(args, 'element'))
-    if (!/^(Part|Item)(Definition|Usage)$/.test(el['@type'])) throw new ActionError('invalid-arguments', `${semanticsOf(t.model).label(el['@id'])} is a ${el['@type']}; only parts and items represent product elements.`)
-    const id = argString(args, 'productElement')
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new ActionError('invalid-arguments', 'productElement must be the product element UUID (keys and names are display text).')
-    let revision = typeof args.revision === 'number' ? args.revision : undefined
-    let label = id
-    const assumptions: string[] = []
-    const projects = ctx.services?.projects
-    if (projects) {
-      const [found] = await projects.resolve(ctx.captured.projectId, [{ module: 'product', kind: 'product-element', id }])
-      if (!found) throw new ActionError('not-found', `Project Management does not know product element ${id} in ${ctx.captured.projectId}.`)
-      label = `${found.key} ${found.title}`
-      if (revision === undefined && typeof found.version.value === 'number') revision = found.version.value
-    } else assumptions.push('Project Management is not available here: the product element could not be checked; the link is stored as given.')
-    const name = semanticsOf(t.model).qualifiedName(el['@id']) ?? el['@id']
-    return propose(ctx, { ...args, assumptions }, [{ op: 'setMetadata', elementId: el['@id'], metadata: 'ProductElement', values: { productElementId: id, ...(revision !== undefined ? { revision } : {}) } }], `${name} represents ${label}`, `${name} represents the product element ${label}${revision !== undefined ? ` (revision ${revision})` : ' (follows the latest revision)'}.`)
+    const links = await linkCommands(ctx, t.model, [], [{ element: argString(args, 'element'), productElement: argString(args, 'productElement'), ...(typeof args.revision === 'number' ? { revision: args.revision } : {}) }])
+    return propose(ctx, { ...args, assumptions: links.assumptions }, links.commands, links.summary[0], `${links.summary[0]}.`)
   },
 }
 
 const linkRequirement: AssistantActionDefinition = {
   name: 'sysml-modeler.link_requirement',
   label: 'Link a SysML requirement to a managed requirement',
-  description: 'Propose linking a SysML requirement definition or usage to a requirement managed by Requirements Management (by key such as REQ-001, resolved to its canonical UUID and pinned to its current revision). The requirement text stays in Requirements.',
+  description: 'Propose linking an EXISTING SysML requirement definition or usage to a requirement managed by Requirements Management (key such as REQ-001, or UUID; pinned to its current revision). To allocate managed requirements to parts when no SysML requirement exists yet, use satisfy_requirement (or the requirements parameter of create_project).',
   parameters: { type: 'object', properties: { element: { type: 'string', description: 'Qualified name or ID of the SysML requirement' }, requirement: { type: 'string', description: 'Requirement key (REQ-001) or UUID' }, ...projectArg }, required: ['element', 'requirement'], additionalProperties: false },
   run: async (args, ctx) => {
-    const service = ctx.services?.requirements
-    if (!service) throw new ActionError('not-allowed', 'The Requirements service is not available (not provided or not in the subscription).')
     const t = await target(ctx, argOptionalString(args, 'projectId'))
     const el = element(t.model, argString(args, 'element'))
-    if (!/Requirement(Definition|Usage)$/.test(el['@type'])) throw new ActionError('invalid-arguments', `${semanticsOf(t.model).label(el['@id'])} is a ${el['@type']}, not a requirement definition or usage.`)
-    const key = argString(args, 'requirement')
-    const scope = { projectId: ctx.captured.projectId, configurationId: ctx.captured.configurationId }
-    const req = /^[0-9a-f-]{36}$/i.test(key) ? await service.get(key, scope) : await service.resolve(key, scope)
-    if (!req) throw new ActionError('not-found', `No managed requirement ${key} in ${ctx.captured.projectId}.`)
+    if (!/Requirement(Definition|Usage)$/.test(el['@type'])) throw new ActionError('invalid-arguments', `${semanticsOf(t.model).label(el['@id'])} is a ${el['@type']}, not a requirement definition or usage. To allocate a managed requirement to this part, use sysml-modeler.satisfy_requirement.`)
+    const req = await managedRequirement(ctx, argString(args, 'requirement'))
     const name = semanticsOf(t.model).qualifiedName(el['@id']) ?? el['@id']
     return propose(ctx, args, [{ op: 'setMetadata', elementId: el['@id'], metadata: 'ManagedRequirement', values: { requirementId: req.id, revision: req.revision } }], `Link ${name} to ${req.key}`, `${name} stands for the managed requirement ${req.key} “${req.title}” (revision ${req.revision}); its text stays in Requirements Management.`)
   },
@@ -487,6 +633,6 @@ export const sysmlModelerDemo: AssistantContribution['demo'] = (text) => {
 }
 
 export const sysmlModelerAssistant: AssistantContribution = {
-  actions: [describeCommands, findElementsAction, readElement, validateAction, impactAction, explainCommit, matrixAction, coverageAction, behaviourAction, createProject, proposeCommands, proposeText, linkRequirement, linkProductElement],
+  actions: [describeCommands, findElementsAction, readElement, validateAction, impactAction, explainCommit, matrixAction, coverageAction, behaviourAction, createProject, proposeCommands, proposeText, satisfyRequirement, linkRequirement, linkProductElement],
   demo: sysmlModelerDemo,
 }

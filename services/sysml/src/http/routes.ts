@@ -96,13 +96,13 @@ export function registerRoutes(app: FastifyInstance, ctx: Ctx, registry: RouteSp
   route({
     method: 'POST', path: '/projects', operationId: 'postProject', tag: 'Projects', alignment: 'aligned', permission: 'create-project', idempotent: true, responseStatus: 201,
     summary: 'Create a project (with branch main and commit 1: the root namespace, optionally an initial model in textual notation)',
-    body: { type: 'object', additionalProperties: false, required: ['name', 'platformProjectId'], properties: { '@type': { const: 'Project' }, name: { type: 'string', minLength: 1, maxLength: 200 }, description: { type: 'string', maxLength: 4000 }, platformProjectId: { type: 'string', minLength: 1, maxLength: 100 }, initialText: { type: 'string', maxLength: 2_000_000 } } },
+    body: { type: 'object', additionalProperties: false, required: ['name', 'platformProjectId'], properties: { '@type': { const: 'Project' }, name: { type: 'string', minLength: 1, maxLength: 200 }, description: { type: 'string', maxLength: 4000 }, platformProjectId: { type: 'string', minLength: 1, maxLength: 100 }, initialText: { type: 'string', maxLength: 2_000_000 }, source: SOURCE } },
     handler: async (rc) => {
       const role = await ctx.host.roleOf(rc.principal.userId, rc.body.platformProjectId)
       if (!role) throw forbidden(`You are not a member of project ${rc.body.platformProjectId}.`)
       if (!['editor', 'reviewer', 'administrator'].includes(String(role))) throw forbidden(`Your role (${role}) does not allow creating SysML projects.`)
       const shape = (r: { project: ProjectRow; commit: CommitRow }) => ({ ...projectJson(r.project), headCommit: commitJson(r.commit) })
-      const r = await ctx.repo.createProject(rc.principal.userId, { name: rc.body.name, description: rc.body.description, platformProjectId: rc.body.platformProjectId, initialText: rc.body.initialText }, inTx(rc, shape))
+      const r = await ctx.repo.createProject(rc.principal.userId, { name: rc.body.name, description: rc.body.description, platformProjectId: rc.body.platformProjectId, initialText: rc.body.initialText, ...(rc.body.source ? { source: rc.body.source } : {}) }, inTx(rc, shape))
       return shape(r)
     },
   })
