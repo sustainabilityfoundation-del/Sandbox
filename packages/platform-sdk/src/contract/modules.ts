@@ -9,6 +9,9 @@
  */
 import type { ArtifactSource } from './artifacts'
 import type { SettingDefinition } from './settings'
+import type { CommandLayout, Placement, Prerequisite, TestRef } from './capabilities'
+import type { HelpId } from './help'
+import type { IconName } from '@ews/design-system/icon-names'
 
 /** Where the capability is reached by a person. */
 export type CapabilitySurface = 'toolbar' | 'panel' | 'field' | 'header' | 'palette' | 'tree' | 'inspector' | 'dialog' | 'api'
@@ -40,6 +43,30 @@ export interface CapabilityEntry {
   /** Requirements API operationIds behind the capability. */
   apiOperations?: string[]
   note?: string
+  // ---- Capability registry (SDK 1.13, docs/specifications/capability-registry.md); all optional ----
+  /** Position in the module's `commandLayout`. */
+  placement?: Placement
+  /** What the capability does, in a sentence or two (shown for planned commands). */
+  description?: string
+  icon?: IconName
+  /** How it behaves in detail (help and the assistant). */
+  behaviour?: string
+  /** Inputs, outputs and a reference: an OpenAPI operationId, an SDK type or a documentation anchor. */
+  contract?: { inputs?: string; outputs?: string; ref?: string }
+  /** Known limits; non-empty makes a bound entry partial. */
+  limitations?: string[]
+  prerequisites?: Prerequisite[]
+  helpId?: HelpId
+  /** Requirement IDs this capability satisfies. */
+  requirements?: string[]
+  /** Backlog item IDs (a planned entry needs at least one). */
+  backlog?: string[]
+  /** Tests that prove the capability; without them a bound entry is partial. */
+  verifiedBy?: TestRef[]
+  /** Server-side entitlement the person needs (client evaluation is UX only). */
+  entitlement?: string
+  /** IDs of implemented capabilities that serve the same need (offered when this one is planned). */
+  alternatives?: string[]
 }
 
 export type OperationClass = 'read' | 'search' | 'calculate' | 'propose' | 'export' | 'external-generation'
@@ -69,6 +96,10 @@ export interface ModuleManifest {
   aiModule?: AiModuleDescriptor
   /** Open as a tab in a fresh session. */
   defaultOpen?: boolean
+  /** 1 once the module's inventory is complete (SDK 1.13): the strict registry checks then apply to it. */
+  inventory?: 1
+  /** Tabs and groups of the module's command bar (SDK 1.13). */
+  commandLayout?: CommandLayout
 }
 
 /**
