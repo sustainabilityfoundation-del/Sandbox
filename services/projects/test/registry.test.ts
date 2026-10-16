@@ -4,7 +4,7 @@ import { API, createProject, createTestEnv, idem, type TestEnv } from './helpers
 
 /**
  * Artifact registry (ADR-0062, integration milestone 1 C5) against the real module sources on main: Requirements,
- * SysML Modeler and CAD Modeler publish their artifacts through their ArtifactSource adapters; the consumer indexes
+ * System Model and CAD Modeler publish their artifacts through their ArtifactSource adapters; the consumer indexes
  * them with global IDs; reconciliation converges; nothing is deleted. Conceptualize has no adapter yet (CR-PM-REG-2).
  */
 let env: TestEnv

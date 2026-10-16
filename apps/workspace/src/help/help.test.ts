@@ -51,6 +51,16 @@ describe('help manifests of installed modules', () => {
     for (const m of manifests()) expect({ module: m.moduleId, issues: validateHelpManifest(m) }).toEqual({ module: m.moduleId, issues: [] })
   })
 
+  it('has no help for the retired illustrative tools (ADR-0076): not listed, not searchable, no topics', () => {
+    expect(installedIds()).not.toContain('sysml')
+    expect(installedIds()).not.toContain('cad')
+    expect(workspaceHelp.modules().map((m) => m.moduleId)).not.toEqual(expect.arrayContaining(['sysml']))
+    expect(workspaceHelp.modules().map((m) => m.moduleId)).not.toEqual(expect.arrayContaining(['cad']))
+    expect(workspaceHelp.topic('sysml.overview')).toBeUndefined()
+    expect(workspaceHelp.topic('cad.overview')).toBeUndefined()
+    expect(workspaceHelp.search('mock CAD geometry').filter((h) => h.moduleId === 'cad' || h.moduleId === 'sysml')).toEqual([])
+  })
+
   it('every tool ships help, except the known gaps (which may only shrink)', () => {
     const missing = getTools().filter((t) => !t.help).map((t) => t.id)
     expect(missing.sort()).toEqual([...KNOWN_DOCUMENTATION_GAPS].sort())
@@ -129,7 +139,7 @@ describe('workspace help', () => {
     expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', ...installedIds(), 'ai'])
     useEntitlements.getState().setPlan('requirements')
     expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'projects', 'ai'])
-    expect(workspaceHelp.contextual({ moduleId: 'cad' }).map((r) => r.topic.id)).toEqual(['platform.getting-started'])
+    expect(workspaceHelp.contextual({ moduleId: 'cad-modeler' }).map((r) => r.topic.id)).toEqual(['platform.getting-started'])
   })
 
   it('answers F1 on the Requirements Add button and on a selected requirement', () => {

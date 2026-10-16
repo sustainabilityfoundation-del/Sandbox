@@ -1,4 +1,4 @@
-import { DemoRepository, PROJECT_ID, outputFreshness, readRequirement, type StorageLike } from '@ews/model-service'
+import { DemoRepository, PROJECT_ID, readRequirement, type StorageLike } from '@ews/model-service'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { useEntitlements } from '../platform/entitlements'
 import { getTools } from '../platform/registry'
@@ -86,39 +86,6 @@ describe('assistant demo flow across the three tools', () => {
     expect(entry.source).toMatchObject({ kind: 'conversation', conversationId: chat().conversationId })
   })
 
-  it('changes a CAD dimension and the explicitly mapped component property in one transaction', async () => {
-    const reply = await ask('Change the rod diameter to 28 mm.')
-    expect(reply.steps.map((s) => s.name)).toEqual(['search_objects', 'cad.set_dimension'])
-    const proposal = latestProposal()
-    expect(proposal.changes.map((c) => (c.kind === 'set-property' ? `${c.targetId}.${c.property}` : c.kind))).toEqual(['CAD-120.diameter', 'ROD-120.diameter'])
-    expect(proposal.affectedOutputIds).toContain('OUT-0001')
-    await chat().applyProposal(proposal.id)
-    const model = ws().model!
-    expect(model.get('CAD-120')!.properties.diameter).toEqual({ value: 28, unit: 'mm' })
-    expect(model.get('ROD-120')!.properties.diameter).toEqual({ value: 28, unit: 'mm' })
-    expect(model.get('CAD-120')!.revision).toBe(model.revision) // one revision for both
-    expect(outputFreshness(ws().outputs.find((o) => o.id === 'OUT-0001')!, model).stale).toBe(true)
-  })
-
-  it('creates a SysML requirement usage that references an existing requirement', async () => {
-    await ask('Add a SysML requirement reference for REQ-003.')
-    const proposal = latestProposal()
-    expect(proposal.changes.map((c) => c.kind)).toEqual(['create-object', 'add-relationship'])
-    await chat().applyProposal(proposal.id)
-    const applied = chat().proposals[proposal.id]
-    expect(applied.createdIds).toHaveLength(1)
-    const id = applied.createdIds![0]
-    expect(ws().model!.linked(id, 'references', 'out')).toEqual(['REQ-003'])
-  })
-
-  it('connects SysML parts by resolving the named components to their SysML representations', async () => {
-    await ask('Connect the housing to the motor in SysML.')
-    const proposal = latestProposal()
-    expect(proposal.changes[0]).toMatchObject({ kind: 'add-relationship', type: 'connects', from: 'SYS-002', to: 'SYS-004' })
-    await chat().applyProposal(proposal.id)
-    expect(ws().model!.findRelationship('connects', 'SYS-002', 'SYS-004')).toBeTruthy()
-  })
-
   it('undoes the last change with a compensating revision', async () => {
     const before = ws().model!.revision
     await ask('Undo the last model change.')
@@ -126,14 +93,28 @@ describe('assistant demo flow across the three tools', () => {
     expect(proposal.undoOf).toBeTruthy()
     await chat().applyProposal(proposal.id)
     expect(ws().model!.revision).toBe(before + 1)
-    expect(ws().model!.findRelationship('connects', 'SYS-002', 'SYS-004')).toBeUndefined()
+    expect(readRequirement(ws().model!.get('REQ-003')!).status).toBe('in-review') // the earlier approval is compensated
   })
 
   it('navigates between tools and selects the object', async () => {
-    const reply = await ask('Open SysML and show the rod.')
+    const reply = await ask('Open the System Model and show the rod.')
     expect(reply.status).toBe('done')
-    expect(ws().activeToolId).toBe('sysml')
+    expect(ws().activeToolId).toBe('sysml-modeler')
     expect(ws().context.selectedIds).toEqual(['ROD-120'])
+  })
+
+  it('no longer offers or understands the retired illustrative tools (ADR-0076)', async () => {
+    const before = ws().model!.revision
+    for (const prompt of ['Change the rod diameter to 28 mm.', 'Add a SysML requirement reference for REQ-003.', 'Connect the housing to the motor in SysML.']) {
+      const reply = await ask(prompt)
+      expect(reply.proposalIds).toHaveLength(0)
+      expect(reply.steps.map((s) => s.name).filter((n) => /^(cad|sysml)\./.test(n))).toEqual([])
+    }
+    expect(ws().model!.revision).toBe(before)
+    const names = availableOperations().map((t) => t.name)
+    expect(names.filter((n) => /^(cad|sysml)\./.test(n))).toEqual([])
+    expect(ws().openToolIds).not.toContain('sysml')
+    expect(ws().openToolIds).not.toContain('cad')
   })
 
   it('keeps the configuration captured at send time when the workspace context changes before apply', async () => {
@@ -159,20 +140,25 @@ describe('assistant and subscriptions', () => {
   it('explains instead of acting when a request needs a tool outside the subscription', async () => {
     setPlan('requirements')
     const before = ws().model!.revision
-    const reply = await ask('Change the rod diameter to 30 mm.')
-    expect(reply.text).toContain('CAD')
+    const reply = await ask('Open CAD and show the rod.')
     expect(reply.proposalIds).toHaveLength(0)
+    expect(reply.text).toMatch(/CAD Modeler/)
+    expect(reply.text).toMatch(/can't open|not included|subscription/i)
+    expect(ws().activeToolId).not.toBe('cad-modeler')
     expect(ws().model!.revision).toBe(before)
   })
 
   it('refuses tool actions and tool opening for tools outside the subscription, even if requested directly', async () => {
     setPlan('requirements')
     const ctx = validationContext()
+    // The retired illustrative operations are not accepted in any subscription (ADR-0076).
     expect(await executeToolCall({ id: 'x', name: 'cad.set_dimension', arguments: { objectId: 'ROD-120', parameter: 'diameter', value: 30, unit: 'mm' } }, ctx)).toMatchObject({
       ok: false,
-      errorCode: 'not-entitled',
+      errorCode: 'not-allowed',
     })
-    expect(await executeToolCall({ id: 'x', name: 'open_tool', arguments: { toolId: 'sysml' } }, ctx)).toMatchObject({ ok: false, errorCode: 'not-entitled' })
+    expect(await executeToolCall({ id: 'x', name: 'sysml.connect', arguments: { fromId: 'SYS-002', toId: 'SYS-004' } }, ctx)).toMatchObject({ ok: false, errorCode: 'not-allowed' })
+    expect(await executeToolCall({ id: 'x', name: 'open_tool', arguments: { toolId: 'sysml-modeler' } }, ctx)).toMatchObject({ ok: false, errorCode: 'not-entitled' })
+    expect(await executeToolCall({ id: 'x', name: 'open_tool', arguments: { toolId: 'cad' } }, ctx)).toMatchObject({ ok: false })
     // Generic proposals can't reach CAD fields either.
     expect(
       await executeToolCall(
@@ -184,11 +170,14 @@ describe('assistant and subscriptions', () => {
 
   it('does not apply a prepared change after the subscription loses the tool', async () => {
     setPlan('all')
-    await ask('Change the rod diameter to 30 mm.')
+    await ask('Set REQ-002 status to in review.')
     const proposal = latestProposal()
+    expect(proposal.requiredEntitlements).toEqual(['tool:requirements'])
     const before = ws().model!.revision
-    setPlan('requirements')
+    const plan = useEntitlements.getState().plan
+    useEntitlements.setState({ plan: { ...plan, entitlements: [] }, has: () => false })
     await chat().applyProposal(proposal.id)
+    useEntitlements.setState({ plan, has: (e) => plan.entitlements.includes(e) })
     expect(chat().proposals[proposal.id].status).toBe('failed')
     expect(chat().proposals[proposal.id].message).toContain('no longer included')
     expect(ws().model!.revision).toBe(before)
@@ -241,9 +230,9 @@ describe('assistant validation', () => {
     expect(await propose([{ kind: 'create-object', ref: '$r', type: 'requirement', name: 'x', properties: {} }])).toMatchObject({ ok: false, errorCode: 'not-allowed' })
   })
 
-  it('validates units and ranges for CAD dimensions', async () => {
-    expect(await propose([{ kind: 'set-property', targetId: 'CAD-120', property: 'length', value: 12, unit: 'lb' }])).toMatchObject({ ok: false, errorCode: 'unit' })
-    expect(await propose([{ kind: 'set-property', targetId: 'CAD-120', property: 'length', value: 9, unit: 'm' }])).toMatchObject({ ok: false, errorCode: 'range' })
+  it('refuses edits to the CAD dimensions of the twin: the mock CAD tool that allowed them is retired from the interface', async () => {
+    expect(await propose([{ kind: 'set-property', targetId: 'CAD-120', property: 'length', value: 12, unit: 'mm' }])).toMatchObject({ ok: false, errorCode: 'not-allowed' })
+    expect(await propose([{ kind: 'set-property', targetId: 'ROD-120', property: 'diameter', value: 12, unit: 'mm' }])).toMatchObject({ ok: false, errorCode: 'not-allowed' })
   })
 })
 

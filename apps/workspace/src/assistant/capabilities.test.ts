@@ -26,7 +26,7 @@ describe('AI capability inventory', () => {
   })
 
   it('lists every toolbar item of every tool', () => {
-    expect(getTools().length).toBeGreaterThan(5)
+    expect(getTools().length).toBeGreaterThanOrEqual(4)
     expect(toolbarProblems(getTools(), CAPABILITIES)).toEqual([])
   })
 

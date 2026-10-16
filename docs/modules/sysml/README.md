@@ -1,12 +1,12 @@
-# SysML Modeler (MBSE module): architecture documents
+# System Model (MBSE module): architecture documents
 
 Status: **Proposed** (SysML agent, 14 October 2026). Brief: [sysml-program.md](../../specifications/sysml-program.md).
 Contracts: [sysml-program-contracts.md](../../specifications/sysml-program-contracts.md). Progress, decisions,
 risks and backlog status: [sysml-program-progress.md](../../specifications/sysml-program-progress.md).
 
-`docs/modules/sysml.md` remains the specification of the **illustrative** SysML tool (`tool-sysml`, ID `sysml`).
-This folder specifies the new MBSE environment, tool ID **`sysml-modeler`** ("SysML Modeler"), developed
-beside it until the coordinator decides on replacement (contracts §1).
+`docs/modules/sysml.md` is the historical specification of the **illustrative** SysML tool (`tool-sysml`, ID `sysml`), retired from the interface by ADR-0076 (package and data kept).
+This folder specifies the new MBSE environment, tool ID **`sysml-modeler`**, displayed as **System Model**
+(ADR-0076; IDs, operation names, API paths and entitlements keep the `sysml` spelling).
 
 | Document | Brief item (§14) | Content |
 | --- | --- | --- |

@@ -15,7 +15,7 @@ grouped by the module that owns it:
 | Product structure | Product elements (product, systems, assemblies, parts) | selects the element in every tool |
 | Concepts and design knowledge | Concepts (including alternatives), functions, alternative sets, decisions, constraints, assumptions … | opens Conceptualize |
 | Requirements | Requirements and collections | selects the requirement and opens Requirements |
-| SysML models | SysML Modeler projects with their named elements | opens the SysML Modeler |
+| SysML models | System Model projects with their named elements | opens the System Model |
 | CAD documents | CAD Modeler documents with their parts | opens the CAD Modeler on the document |
 | Tasks, milestones and documents | Project Management records | — |
 

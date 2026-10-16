@@ -2,7 +2,7 @@ import type { ServerModuleDescriptor } from '@ews/platform-sdk'
 import { SYSML_BASE_PATH } from './http/plugin'
 
 /**
- * The SysML Modeler's server manifest (docs/specifications/module-registration.md, M3): base path, API documentation page,
+ * The System Model's server manifest (docs/specifications/module-registration.md, M3): base path, API documentation page,
  * provisioning, its place in the AI access policy (module descriptor and operation classes) and the proposal API.
  *
  * The plugin needs the host's pool, authentication and options, so the host (services/api/src/modules.ts) adds `register`
@@ -10,12 +10,12 @@ import { SYSML_BASE_PATH } from './http/plugin'
  */
 export const sysmlServerManifest: ServerModuleDescriptor = {
   id: 'sysml-modeler',
-  name: 'SysML Modeler',
+  name: 'System Model',
   basePath: SYSML_BASE_PATH,
-  docs: 'SysML Modeler API',
-  provisioning: { module: 'sysml', lazyReason: 'A SysML model is created in the SysML Modeler when you start modelling; none exists in a new project.' },
+  docs: 'System Model API',
+  provisioning: { module: 'sysml', lazyReason: 'A SysML model is created in the System Model when you start modelling; none exists in a new project.' },
   proposals: { entitlement: 'tool:sysml' },
-  aiModule: { id: 'sysml-modeler', label: 'SysML Modeler', description: 'SysML v2 models (repository-backed).', entitlement: 'tool:sysml', prefixes: ['sysml-modeler.'] },
+  aiModule: { id: 'sysml-modeler', label: 'System Model', description: 'SysML v2 models (repository-backed).', entitlement: 'tool:sysml', prefixes: ['sysml-modeler.'] },
   operations: {
     'sysml-modeler.describe_commands': 'read',
     'sysml-modeler.matrix': 'read',

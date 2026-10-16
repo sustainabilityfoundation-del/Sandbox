@@ -2,7 +2,7 @@
 
 The workspace shell of the engineering platform: navigation, docking, tool discovery,
 subscriptions, the shared context, the inspector, Activity, ChatGPT and window management. It
-renders the three tool packages (Requirements, SysML, CAD) through the tool registry and has no
+renders the installed tool packages (Requirements, Conceptualize, System Model, CAD Modeler) through the tool registry and has no
 tool-specific code.
 
 The package architecture, development commands, subscription demo and how to add a tool are in
@@ -11,7 +11,7 @@ the [repository README](../../README.md). Rules for working on this package are 
 
 > **Prototype scope.** There is no real backend, no authentication and no CAD kernel. The cloud
 > repository is simulated in this browser ("Demo repository"), subscriptions are a client-side
-> mock, the CAD geometry is a mock drawing and the SysML notation is illustrative.
+> mock. The illustrative SysML and mock CAD tools are retired from the interface (ADR-0076); their data is kept.
 
 ## Run it
 
@@ -25,25 +25,16 @@ To start again from the sample data, open the **Demo repository** menu in the he
 
 ## Demonstration flow
 
-1. Open **CAD** and click the rod. It becomes the shared selection (ROD-120) and the inspector shows
-   it with its SysML and CAD representations.
-2. Open **Requirements**. The rod is still selected, so the table is filtered to REQ-001, the
-   requirement allocated to it. A SysML element or CAD representation selection is resolved to its
-   component the same way.
-3. Open **SysML**. The rod's part `rod : Rod` (SYS-003) is highlighted through its explicit
-   `represents` link, with its connections and satisfy link in the property panel. Choose **Text**
-   for the illustrative textual notation.
-4. In **Requirements**, double-click REQ-001 and edit the statement. The SysML text view and the
-   inspector show the new statement at once: every tool reads the same repository.
-5. In **CAD**, choose **Dimensions**, change the rod diameter and **Apply**. The drawing changes,
-   ROD-120's diameter changes in the same transaction (explicit mapping), Activity records the edit,
-   and the saved snapshot OUT-0001 becomes *Potentially stale*. **Save snapshot** saves a new
-   representation artifact against the rod.
-6. Open the **subscription** menu in the header (key icon) and choose **Requirements only**. SysML
-   and CAD rail entries stay (with a lock) and show why they are locked; the palette, search, direct links (`?tool=cad`),
-   detached windows and ChatGPT all refuse to open them. The SysML and CAD data stays in the tree and
-   inspector. Choose **All tools** to restore access; nothing was lost.
-7. Reload the browser. Model changes, artifacts, selection, open tools and each view's private
+1. Select **ROD-120 Rod** in the product tree. It becomes the shared selection and the inspector shows it with its SysML and CAD
+   representations (the twin data of the retired illustrative tools, which stays readable).
+2. Open **Requirements**. The rod is still selected, so the table is filtered to the requirements allocated to it (REQ-001 and REQ-004).
+3. Open the **System Model** or the **CAD Modeler**: the shared selection is unchanged.
+4. In **Requirements**, double-click REQ-001 and edit the statement. The inspector shows the new statement at once: every tool reads the
+   same repository.
+5. Open the **subscription** menu in the header (key icon) and choose **Requirements only**. The System Model and CAD Modeler rail
+   entries stay (with a lock) and show why they are locked; the palette, search, direct links (`?tool=cad-modeler`), detached windows and
+   ChatGPT all refuse to open them. Choose **All tools** to restore access; nothing was lost.
+6. Reload the browser. Model changes, artifacts, selection, open tools and each view's private
    state (camera, filters, scroll) are restored.
 
 ## Implemented vs illustrative
@@ -53,8 +44,6 @@ To start again from the sample data, open the **Demo repository** menu in the he
 | Shell | Header context (project, configuration, scenario, model revision), repository status, subscription menu, global search (`/`), product tree, inspector, bottom dock with Activity and ChatGPT, tool tabs, command palette (`Ctrl/Cmd+K`) with locked tools, split view | — |
 | Subscriptions | Three demo plans; every entry point checks them; locked tools explained; data kept; changes reach every window | Client-side only (see the root README) |
 | Requirements | Table, search, status filter, filter by selected component (or its representation), Add, Edit (title, statement, rationale, status, methods), Allocate, Trace, relationships and history tabs | — |
-| SysML | Diagram of parts, requirement usages, connections and satisfy links; property panel; Add Part, Add Requirement Reference, Connect; illustrative text notation | Subset of SysML; not SysML v2 compliant; no parser |
-| CAD | Selectable mock assembly; pan, zoom, fit; per-view visibility; editable demonstration dimensions mapped to component properties; representation snapshots | Mock geometry; no CAD kernel |
 | ChatGPT panel | Conversation with a **demo assistant**; tool-contributed actions; previews with Apply, Reject and Undo; conflict refresh; entitlement checks | The assistant is a deterministic mock, not ChatGPT |
 | Windows | Tools, inspector and ChatGPT in separate windows; Follow/Pin per view; live updates; subscription changes apply to every window | Placement on another screen uses an experimental browser API |
 | Repository | Async API, atomic batches with placeholders for new objects, per-object revisions, conflict detection, artifact validation and schema versions, activity log, non-destructive upgrade of 0.1 data | No real backend or authentication |
@@ -157,14 +146,14 @@ assistant actions; the platform executes and validates them.
 Example prompts the demo understands:
 1. What requirements apply to the selected component? (Requirements)
 2. Set REQ-003 status to approved. / Change the REQ-002 rationale to "…". (Requirements)
-3. Change the rod diameter to 28 mm. (CAD: the representation and the mapped ROD-120 property)
-4. Add a SysML requirement reference for REQ-003. (SysML: creates an element)
-5. Connect the housing to the motor in SysML. (SysML: components resolve to their parts)
-6. Open SysML and show the rod. (navigation)
-7. Which artifacts are stale?
-8. Undo the last model change.
+3. Open the System Model and show the rod. (navigation)
+4. Which artifacts are stale?
+5. Undo the last model change.
 
-Close variants also work, such as naming a part ("the motor") or another dimension (length).
+The earlier prompts that changed a CAD dimension or edited SysML elements worked through the illustrative tools and are no longer
+understood (ADR-0076).
+
+Close variants also work, such as naming a requirement by its key.
 
 ### Assistant tool interface
 
@@ -180,8 +169,6 @@ application executes everything itself (`executor.ts`):
 | `propose_changes` | Create a change preview (not applied), validated against the rules of entitled tools |
 | `select_objects`, `open_tool` | Change the shared selection, or open a tool (refused outside the subscription) |
 | `requirements.read_for_component`, `requirements.update` | Requirements tool: read requirements for a component; propose statement, rationale or status edits |
-| `sysml.read_model`, `sysml.create_part`, `sysml.add_requirement_reference`, `sysml.connect` | SysML tool: read the model; propose new parts, requirement usages, connections and satisfy links |
-| `cad.read_representation`, `cad.set_dimension` | CAD tool: read a representation; propose a dimension change (with the mapped component property) |
 
 Tool actions only read the model or return a proposal. A proposal goes through the same platform
 validation as `propose_changes` and is applied only by the user.

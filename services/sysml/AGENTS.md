@@ -1,6 +1,6 @@
 # AGENTS.md: @ews/sysml-service
 
-SysML Modeler repository and API (PostgreSQL schema `sysml`, Fastify plugin hosted by `@ews/api` at
+System Model repository and API (PostgreSQL schema `sysml`, Fastify plugin hosted by `@ews/api` at
 `/api/sysml/v1`). Owner: the SysML agent. Architecture: [docs/modules/sysml/api-and-integration.md](../../docs/modules/sysml/api-and-integration.md),
 ADR-0033, ADR-0034.
 

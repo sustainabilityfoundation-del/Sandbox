@@ -1,5 +1,5 @@
 /**
- * @ews/sysml-service: the SysML Modeler repository and API (schema `sysml`), a Fastify plugin
+ * @ews/sysml-service: the System Model repository and API (schema `sysml`), a Fastify plugin
  * hosted by @ews/api at /api/sysml/v1. Other modules use the HTTP API (or a future SDK service,
  * CR-SYSML-01), never these tables.
  */

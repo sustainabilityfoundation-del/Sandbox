@@ -4,7 +4,7 @@ import { createTestEnv, type TestEnv } from '../../api/test/helpers'
 import { SEED_PROJECT_ID } from '../src/seed'
 
 /**
- * SysML Modeler API against the real API host and a disposable PostgreSQL (npm run req:test:db).
+ * System Model API against the real API host and a disposable PostgreSQL (npm run req:test:db).
  * The host seeds the actuator example (project SEED_PROJECT_ID, platform project PRJ-ACT100).
  */
 

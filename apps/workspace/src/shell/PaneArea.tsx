@@ -13,7 +13,6 @@ import { PANEL_LIMITS, type ViewportMode } from './layout/viewport'
 import { ToolToolbar } from './ToolToolbar'
 import { ToolViewHost, UnsupportedSelectionNotice, ViewControls } from './WorkArea'
 import { canOpenTool, useEntitlements } from '../platform/entitlements'
-import { isDemoTool } from '../platform/demoTools'
 
 /**
  * Where the canvas is: project › configuration › module › selection. Built from the shared context only;
@@ -142,7 +141,7 @@ function SplitPane({ toolId, hidden }: { toolId: string; hidden: boolean }) {
           onChange={(id) => setLayout({ split: { toolId: id, ratio: 0.5 } })}
           options={getTools()
             .filter((t) => !t.singleInstance)
-            .map((t) => ({ id: t.id, label: `${t.name}${isDemoTool(t.id) ? ' (Demo)' : ''}${canOpenTool(t.id) ? '' : ' (not in subscription)'}`, isDisabled: !canOpenTool(t.id) }))}
+            .map((t) => ({ id: t.id, label: `${t.name}${canOpenTool(t.id) ? '' : ' (not in subscription)'}`, isDisabled: !canOpenTool(t.id) }))}
           className="min-w-40"
         />
         <span className="flex-1" />

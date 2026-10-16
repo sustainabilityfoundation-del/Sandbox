@@ -1,6 +1,6 @@
 # AGENTS.md: @ews/tool-sysml-modeler
 
-SysML Modeler tool (ID `sysml-modeler`, entitlement `tool:sysml`). Owner: the SysML agent
+System Model tool (ID `sysml-modeler`, entitlement `tool:sysml`). Owner: the SysML agent
 (docs/specifications/sysml-program-contracts.md). Architecture: [docs/modules/sysml/ui-architecture.md](../../docs/modules/sysml/ui-architecture.md),
 [ai-commands.md](../../docs/modules/sysml/ai-commands.md).
 

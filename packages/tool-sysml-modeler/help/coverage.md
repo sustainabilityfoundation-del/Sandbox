@@ -28,7 +28,7 @@ a satisfying feature or a verification case to open it in Properties.
   evidence that it does.
 - *Verified* means a verification case is **planned** to verify it (its objective names the
   requirement). Test results and verification records are kept in Requirements Management, which
-  pins requirement revisions; the SysML Modeler does not record results.
+  pins requirement revisions; the System Model does not record results.
 
 ## Example
 

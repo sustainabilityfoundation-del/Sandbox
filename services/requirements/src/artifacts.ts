@@ -156,7 +156,7 @@ type Relations = NonNullable<ArtifactDescriptor['relations']>
  *   An allocation target is a product element when its canonical ID is a UUID: the ID the host's
  *   TwinDirectory returns for it, else the stored ID. Allocations pin no target revision. Allocations to
  *   the static sample twin (ACT-100, ROD-120 …) have no native module and are not reported;
- * - allocated-to a SysML Modeler element, as `{ module: 'sysml', kind: 'sysml-model-element', id }` with the
+ * - allocated-to a System Model element, as `{ module: 'sysml', kind: 'sysml-model-element', id }` with the
  *   commit number recorded when the allocation was made as `toRevision`.
  */
 async function relationsOf(pool: Pool, twin: TwinDirectory | undefined, projectId: string, ids: string[]): Promise<Map<string, Relations>> {

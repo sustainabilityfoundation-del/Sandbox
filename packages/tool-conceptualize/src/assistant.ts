@@ -207,7 +207,7 @@ const conceptActions: AssistantActionDefinition[] = [
     name: 'conceptualize.link_artifact',
     label: 'Prepare an implementation link',
     description:
-      'Prepare a ConceptImplementation linking a Concept to an artifact of another module: a SysML Modeler element (<projectId>/<elementId>, revision = commit number), a CAD Modeler entity (<documentUuid>/<entityId>, revision = document revision), a Project Management product element (UUID) or project document (UUID, module projects), an analysis result (test adapter) or an external document. The reference is checked through the owning module and pinned to the given or current revision. Twin objects (SYS-…, CAD-…, ROD-…) are only the PRJ-ACT100 demo.',
+      'Prepare a ConceptImplementation linking a Concept to an artifact of another module: a System Model element (<projectId>/<elementId>, revision = commit number), a CAD Modeler entity (<documentUuid>/<entityId>, revision = document revision), a Project Management product element (UUID) or project document (UUID, module projects), an analysis result (test adapter) or an external document. The reference is checked through the owning module and pinned to the given or current revision. Twin objects (SYS-…, CAD-…, ROD-…) are only the PRJ-ACT100 demo.',
     parameters: { type: 'object', properties: { conceptId: string, artifactId: string, module: { type: 'string', enum: ['sysml', 'cad', 'product', 'projects', 'twin', 'analysis', 'external'] }, revision: { type: 'integer', minimum: 1 } }, required: ['conceptId', 'artifactId'], additionalProperties: false },
     async run(args, ctx) {
       const { client, projectId } = connection(ctx)
@@ -232,7 +232,7 @@ const conceptActions: AssistantActionDefinition[] = [
           if (port.adapter) notes.push(`Checked through ${port.name}.`)
         } else notes.push(`Module unavailable: no read client for ${target.kind} references in this host. The reference is kept.`)
       } else if (isLegacyTwinReference(target)) {
-        if (projectId !== 'PRJ-ACT100') throw new ActionError('invalid-arguments', `${artifactId} is a twin object of the illustrative tools (PRJ-ACT100 demo). Reference a SysML Modeler element as <projectId>/<elementId>, a CAD Modeler entity as <documentUuid>/<entityId> or a product element by UUID.`)
+        if (projectId !== 'PRJ-ACT100') throw new ActionError('invalid-arguments', `${artifactId} is a twin object of the illustrative tools (PRJ-ACT100 demo). Reference a System Model element as <projectId>/<elementId>, a CAD Modeler entity as <documentUuid>/<entityId> or a product element by UUID.`)
         object = ctx.model.get(artifactId)
         if (!object) throw new ActionError('not-found', `${artifactId} is not in the demo twin.`)
         notes.push('Demo: a twin object of the illustrative SysML or mock CAD tool (PRJ-ACT100), not the SysML or CAD Modeler.')

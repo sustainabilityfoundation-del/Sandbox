@@ -96,11 +96,20 @@ async function closePalette() {
 {
   const tag = 'catalogue'
   const tabs = await page.locator('[data-rail-tool]').evaluateAll((els) => els.map((e) => e.getAttribute('data-rail-tool')))
-  check(tag, ['requirements', 'sysml', 'cad', 'conceptualize'].every((id) => tabs.includes(id)) && tabs.every((id) => !/analysis|verification/.test(id)), `rail entries: ${tabs.join(', ')}`)
+  check(tag, ['requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler'].every((id) => tabs.includes(id)) && tabs.every((id) => !/analysis|verification/.test(id)), `rail entries: ${tabs.join(', ')}`)
+  // ADR-0076: the illustrative SysML and mock CAD tools are retired from the interface (their data is kept: see "upgrade" and "retired-data").
+  check(tag, !tabs.includes('sysml') && !tabs.includes('cad'), 'the rail has no entry for the retired illustrative SysML and mock CAD tools')
+  const labels = await page.locator('[data-rail-tool]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') || ''))
+  check(tag, labels.some((n) => /^System Model/.test(n)) && !labels.some((n) => /SysML|\(demo\)|^CAD(\s|$)/i.test(n)), `rail labels: ${labels.join(' | ')}`)
   check(tag, (await page.locator('[role="tab"][data-tool-id]').count()) === 0, 'there is no second (top) tab strip')
   await palette()
   const text = await page.locator('.ws-launcher').textContent()
   check(tag, !/\bAnalysis\b/.test(text) && !/\bVerification\b/.test(text), 'palette lists no Analysis or Verification tool')
+  check(tag, /System Model/.test(text) && !/SysML Modeler|Illustrative in this mockup/.test(text), 'palette lists the System Model')
+  await page.keyboard.type('SysML')
+  await page.waitForTimeout(150)
+  const hits = await page.locator('[role="menuitem"]').allTextContents()
+  check(tag, hits.some((t) => /System Model/.test(t)) && !hits.some((t) => /Demo|illustrative/i.test(t)), `palette search "SysML" finds the System Model and no demo tool (${hits.length} entries)`)
   await closePalette()
 }
 
@@ -110,11 +119,11 @@ async function closePalette() {
   await setPlan('Requirements only')
   check(tag, (await page.getByRole('button', { name: /^Subscription:/ }).textContent()).includes('Requirements only'), 'header shows the plan')
   // Navigation: tabs stay but explain.
-  await tab('cad').click()
+  await tab('cad-modeler').click()
   await page.waitForTimeout(250)
-  check(tag, (await toast().count()) > 0, 'choosing CAD in the rail explains why it is locked instead of opening it')
-  check(tag, (await page.locator('.cad-canvas').count()) === 0, 'the CAD view is not rendered')
-  for (const id of ['sysml', 'cad', 'conceptualize']) {
+  check(tag, (await toast().count()) > 0, 'choosing the CAD Modeler in the rail explains why it is locked instead of opening it')
+  check(tag, (await page.locator('.ws-tool-host[data-tool="cad-modeler"]').count()) === 0, 'the CAD Modeler view is not rendered')
+  for (const id of ['sysml-modeler', 'cad-modeler', 'conceptualize']) {
     check(tag, (await page.locator(`[data-rail-tool="${id}"][aria-label*="not in your subscription"]`).count()) === 1, `the ${id} rail entry says it is not in the subscription`)
   }
   await shot('1-locked-tab')
@@ -124,38 +133,43 @@ async function closePalette() {
   await page.keyboard.type('CAD')
   await page.waitForTimeout(150)
   const cadItem = page.locator('[role="menuitem"]', { hasText: 'Locked: not in your subscription' }).first()
-  check(tag, (await cadItem.getAttribute('aria-disabled')) === 'true', 'palette shows CAD locked and disabled, with the reason')
+  check(tag, (await cadItem.getAttribute('aria-disabled')) === 'true', 'palette shows the CAD Modeler locked and disabled, with the reason')
   await shot('1-palette-locked')
   await closePalette()
   // Search: choosing a locked tool explains instead of opening.
-  await page.getByRole('combobox', { name: 'Search objects, outputs and tools' }).fill('sysml')
+  await page.getByRole('combobox', { name: 'Search objects, outputs and tools' }).fill('system model')
   await page.waitForTimeout(250)
-  await page.getByRole('option', { name: /SysML/ }).first().click()
+  await page.getByRole('option', { name: /System Model/ }).first().click()
   await page.waitForTimeout(300)
-  check(tag, (await page.locator('[data-rail-tool][aria-current="page"]').getAttribute('data-rail-tool')) === 'requirements', 'search does not open SysML')
+  check(tag, (await page.locator('[data-rail-tool][aria-current="page"]').getAttribute('data-rail-tool')) === 'requirements', 'search does not open the System Model')
   check(tag, (await toast().count()) > 0, 'a notification explains why')
   // Direct route.
+  await page.goto(exampleUrl(`tool=cad-modeler`))
+  await page.waitForSelector('.ws-app')
+  await page.waitForTimeout(600)
+  check(tag, (await page.locator('[data-rail-tool][aria-current="page"]').getAttribute('data-rail-tool')) !== 'cad-modeler', 'direct route ?tool=cad-modeler does not open the CAD Modeler')
+  check(tag, (await toast().count()) > 0, 'the direct route explains why')
+  // The retired illustrative tools have no route at all: the ID is unknown, not "locked".
   await page.goto(exampleUrl(`tool=cad`))
   await page.waitForSelector('.ws-app')
   await page.waitForTimeout(600)
-  check(tag, (await page.locator('[data-rail-tool][aria-current="page"]').getAttribute('data-rail-tool')) !== 'cad', 'direct route ?tool=cad does not open CAD')
-  check(tag, (await toast().count()) > 0, 'the direct route explains why')
+  check(tag, (await page.locator('[data-rail-tool][aria-current="page"]').getAttribute('data-rail-tool')) === 'requirements' && (await page.locator('[data-locked-tool="cad"]').count()) === 0, 'direct route ?tool=cad (retired mock CAD tool) opens nothing')
   // Detached window for a locked tool.
   const detached = await context.newPage()
   watch(detached)
-  await detached.goto(exampleUrl(`window=wtest1&kind=tool&tool=sysml`))
+  await detached.goto(exampleUrl(`window=wtest1&kind=tool&tool=sysml-modeler`))
   await detached.waitForSelector('.ws-detached')
   await detached.waitForTimeout(400)
-  check(tag, (await detached.locator('[data-locked-tool="sysml"]').count()) === 1 && (await detached.locator('.sysml-canvas').count()) === 0, 'a detached SysML window shows the locked explanation')
+  check(tag, (await detached.locator('[data-locked-tool="sysml-modeler"]').count()) === 1 && (await detached.locator('.ws-tool-host[data-tool="sysml-modeler"]').count()) === 0, 'a detached System Model window shows the locked explanation')
   await detached.close()
-  // ChatGPT cannot reach CAD.
+  // ChatGPT cannot reach the CAD Modeler.
   await page.click('[data-dock-tab="assistant"]')
   await page.waitForSelector('.as-input textarea')
   const before = await revision()
-  await page.fill('.as-input textarea', 'Change the rod diameter to 30 mm.')
+  await page.fill('.as-input textarea', 'Open CAD and show the rod.')
   await page.press('.as-input textarea', 'Enter')
   await page.waitForFunction(() => [...document.querySelectorAll('.as-assistant .as-text')].some((e) => e.textContent.includes('subscription')), null, { timeout: 15000 })
-  check(tag, (await revision()) === before && (await page.locator('[data-proposal-id]').count()) === 0, 'ChatGPT explains instead of preparing a CAD change')
+  check(tag, (await revision()) === before && (await page.locator('[data-proposal-id]').count()) === 0, 'ChatGPT explains instead of opening the CAD Modeler')
   // Requirements still works.
   await tab('requirements').click()
   check(tag, (await page.locator('.req-table').count()) === 1, 'Requirements opens')
@@ -165,7 +179,7 @@ async function closePalette() {
 {
   const tag = 'all-tools'
   await setPlan('All tools'); await page.waitForTimeout(500)
-  for (const id of ['requirements', 'sysml', 'cad']) {
+  for (const id of ['requirements', 'sysml-modeler', 'cad-modeler']) {
     await tab(id).click()
     await page.waitForTimeout(400)
     const ok = await page.locator(`.ws-tool-host[data-tool="${id}"]`).count()
@@ -174,30 +188,45 @@ async function closePalette() {
   check(tag, (await page.locator(LOCKED_RAIL).count()) === 0, 'no tab shows a lock')
 }
 
-// ---- 3. Selecting the rod in CAD and switching tools ---------------------------------------
+// ---- 3. Selecting the rod and switching tools ----------------------------------------------
 {
   const tag = 'shared-context'
-  await tab('cad').click()
-  await page.waitForSelector('.cad-part[data-object-id="ROD-120"]')
-  await page.locator('.cad-part[data-object-id="ROD-120"]').click()
-  await page.waitForTimeout(250)
-  check(tag, (await inspected()) === 'ROD-120', 'clicking the rod in CAD selects ROD-120')
   await tab('requirements').click()
-  await page.waitForTimeout(500)
+  await tree('ROD-120').click()
+  await page.waitForTimeout(250)
+  check(tag, (await inspected()) === 'ROD-120', 'clicking the rod in the product tree selects ROD-120')
   await page.waitForSelector('.req-table [data-req-key]', { timeout: 15000 }).catch(() => {})
   const rows = await page.locator('.req-table [role="row"][data-req-key]').evaluateAll((els) => els.map((e) => e.getAttribute('data-req-key')))
   // Allocation comes from the Requirements service seed: REQ-001 and REQ-004 are allocated to the rod.
   check(tag, JSON.stringify(rows) === '["REQ-001","REQ-004"]', `Requirements shows the rod's allocated requirements (${rows.join(', ')})`)
-  await tab('sysml').click()
+  await tab('sysml-modeler').click()
   await page.waitForTimeout(500)
-  check(tag, (await page.locator('.sysml-node[data-object-id="SYS-003"]').getAttribute('aria-pressed')) === 'true', 'SysML highlights the rod part SYS-003')
-  check(tag, (await page.getAttribute('.sysml-props', 'data-inspected-id')) === 'SYS-003', 'the SysML property inspector shows SYS-003')
-  check(tag, (await inspected()) === 'ROD-120', 'the shared selection is still ROD-120')
-  await shot('3-sysml-rod')
-  // A component without a SysML representation keeps the selection and explains.
+  check(tag, (await inspected()) === 'ROD-120', 'the shared selection is still ROD-120 in the System Model')
+  await tab('cad-modeler').click()
+  await page.waitForTimeout(500)
+  check(tag, (await inspected()) === 'ROD-120', 'and in the CAD Modeler')
+  await shot('3-shared-selection')
+  // An object no module shows keeps the selection too.
   await tree(REQ['REQ-003']).click()
   await page.waitForTimeout(300)
-  check(tag, (await page.locator('.sysml-notices', { hasText: 'not referenced' }).count()) === 1 && (await inspected()) === REQ['REQ-003'], 'an unrepresented selection is kept and explained')
+  check(tag, (await inspected()) === REQ['REQ-003'], 'the selection is kept when switching to an unrelated object')
+}
+
+// ---- 3b. Data of the retired illustrative tools is kept (ADR-0076) ---------------------------
+{
+  const tag = 'retired-data'
+  await tab('requirements').click()
+  await tree('ROD-120').click()
+  await page.waitForTimeout(300)
+  const reps = await page.locator('.ws-inspector-body').textContent()
+  check(tag, reps.includes('SYS-003') && reps.includes('CAD-120'), 'the twin still links the rod to its SysML part SYS-003 and CAD representation CAD-120 (represents links kept)')
+  await tree('CAD-120').click()
+  await page.waitForTimeout(250)
+  check(tag, (await inspected()) === 'CAD-120' && (await page.locator('.ws-inspector-body').textContent()).includes('mm'), 'the CAD-120 representation and its dimensions are still readable in the inspector')
+  await tree('SYS-003').click()
+  await page.waitForTimeout(250)
+  check(tag, (await inspected()) === 'SYS-003', 'the SysML element SYS-003 is still readable in the inspector')
+  await shot('3b-retired-data')
 }
 
 // ---- 4. A requirement edit appears in other views ----------------------------------------
@@ -217,52 +246,16 @@ async function closePalette() {
   await page.getByRole('button', { name: 'Save revision' }).click()
   await page.waitForTimeout(1500)
   check(tag, (await page.locator('.req-detail [role="alert"]').count()) === 0, 'saved as a new requirement revision in the Requirements service')
-  await tab('sysml').click()
-  await page.waitForTimeout(300)
-  await page.locator('[data-toolbar-id="text"]').first().click()
-  await page.waitForTimeout(200)
-  check(tag, (await page.locator('.sysml-text pre').textContent()).includes(`edited in Requirements ${stamp}`), 'the SysML text view shows the edited statement (canonical text, refreshed by the change event)')
-  await page.locator('[data-toolbar-id="text"]').first().click()
   await tree(REQ['REQ-001']).click()
   await page.waitForTimeout(200)
   check(tag, (await page.locator('.ws-insp-statement').textContent()).includes(`edited in Requirements ${stamp}`), 'the inspector shows the edit')
   check(tag, (await tree(REQ['REQ-001']).textContent()).includes('REQ-001'), 'the product tree shows the key, not the UUID')
 }
 
-// ---- 5. A CAD dimension edit persists and is recorded --------------------------------------
-{
-  const tag = 'cad-dimension'
-  await tab('cad').click()
-  await page.waitForSelector('.cad-part[data-object-id="ROD-120"]')
-  await page.locator('.cad-part[data-object-id="ROD-120"]').click()
-  await page.locator('.ws-pane-main [data-toolbar-id="dimensions"]').first().click()
-  await page.waitForSelector('.cad-panel')
-  const diameter = page.locator('.cad-panel').getByLabel('Diameter')
-  await diameter.fill('31')
-  check(tag, (await page.locator('.cad-panel').textContent()).includes('Also updates ROD-120 diameter'), 'the panel states the explicit mapping')
-  await page.locator('.cad-panel').getByRole('button', { name: 'Apply' }).click()
-  await page.waitForTimeout(900)
-  await shot('5-cad-dimension')
-  check(tag, (await page.locator('.ws-activity-row', { hasText: 'CAD dimension edit on CAD-120' }).count()) >= 1, 'Activity records the dimension edit')
-  await page.locator('.cad-panel').getByRole('button', { name: 'Save snapshot' }).click()
-  await page.waitForTimeout(900)
-  check(tag, (await page.locator('.cad-artifacts li').count()) >= 1, 'a representation artifact is saved against the rod')
-  await page.reload()
-  await page.waitForSelector('.ws-app')
-  await page.waitForTimeout(600)
-  await tree('CAD-120').click()
-  await page.waitForTimeout(200)
-  const props = await page.locator('.ws-inspector-body').textContent()
-  check(tag, props.includes('31 mm'), 'the dimension persists after reload')
-  await tree('ROD-120').click()
-  await page.waitForTimeout(200)
-  check(tag, (await page.locator('.ws-inspector-body').textContent()).includes('31 mm'), 'the mapped component property changed too')
-}
-
 // ---- 7. Detached windows retain context and follow entitlement changes ----------------------
 {
   const tag = 'detached'
-  await tab('cad').click()
+  await tab('cad-modeler').click()
   await page.waitForTimeout(300)
   const [popup] = await Promise.all([
     context.waitForEvent('page'),
@@ -270,29 +263,29 @@ async function closePalette() {
   ])
   watch(popup)
   await popup.waitForSelector('.ws-detached')
-  await popup.waitForSelector('.cad-part[data-object-id="ROD-120"]')
-  check(tag, (await popup.locator('.cad-part[data-object-id="ROD-120"]').getAttribute('aria-pressed')) === 'true', 'the detached CAD window shows the selected rod')
+  await popup.waitForSelector('.ws-tool-host[data-tool="cad-modeler"]', { timeout: 8000 })
+  check(tag, (await popup.locator('.ws-tool-host[data-tool="cad-modeler"]').count()) === 1, 'the detached CAD Modeler window shows the tool')
   await setPlan('Requirements only')
-  await popup.waitForSelector('[data-locked-tool="cad"]', { timeout: 4000 }).catch(() => {})
-  check(tag, (await popup.locator('[data-locked-tool="cad"]').count()) === 1, 'the detached window locks when the subscription loses CAD')
+  await popup.waitForSelector('[data-locked-tool="cad-modeler"]', { timeout: 4000 }).catch(() => {})
+  check(tag, (await popup.locator('[data-locked-tool="cad-modeler"]').count()) === 1, 'the detached window locks when the subscription loses CAD')
   await shot('7-detached-locked', popup)
   await setPlan('All tools')
-  await popup.waitForSelector('.cad-canvas', { timeout: 4000 }).catch(() => {})
-  check(tag, (await popup.locator('.cad-canvas').count()) === 1, 'and returns when access is restored, with nothing lost')
+  await popup.waitForSelector('.ws-tool-host[data-tool="cad-modeler"]', { timeout: 4000 }).catch(() => {})
+  check(tag, (await popup.locator('.ws-tool-host[data-tool="cad-modeler"]').count()) === 1 && (await popup.locator('[data-locked-tool="cad-modeler"]').count()) === 0, 'and returns when access is restored, with nothing lost')
   await popup.close()
 }
 
 // ---- 8. A tool rendering failure is contained ------------------------------------------------
 {
   const tag = 'failure'
-  await tab('sysml').click()
+  await tab('sysml-modeler').click()
   await page.waitForTimeout(300)
   await palette()
   await page.keyboard.type('Simulate')
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Enter')
-  await page.waitForSelector('[data-tool-error="sysml"]', { timeout: 4000 }).catch(() => {})
-  check(tag, (await page.locator('[data-tool-error="sysml"]').count()) === 1, 'the SysML view shows an error notice')
+  await page.waitForSelector('[data-tool-error="sysml-modeler"]', { timeout: 4000 }).catch(() => {})
+  check(tag, (await page.locator('[data-tool-error="sysml-modeler"]').count()) === 1, 'the System Model view shows an error notice')
   await shot('8-failure')
   await tree('HSG-110').click()
   await page.waitForTimeout(200)
@@ -301,10 +294,10 @@ async function closePalette() {
   await page.waitForTimeout(300)
   await page.waitForSelector('.req-table', { timeout: 10000 }).catch(() => {})
   check(tag, (await page.locator('.req-table').count()) === 1, 'other tools keep working')
-  await tab('sysml').click()
+  await tab('sysml-modeler').click()
   await page.getByRole('button', { name: 'Reload tool' }).click()
-  await page.waitForTimeout(400)
-  check(tag, (await page.locator('.sysml-canvas').count()) === 1, 'Reload tool restores the view')
+  await page.waitForTimeout(800)
+  check(tag, (await page.locator('[data-tool-error="sysml-modeler"]').count()) === 0 && (await page.locator('.ws-tool-host[data-tool="sysml-modeler"]').count()) === 1, 'Reload tool restores the view')
 }
 
 // ---- 10. One icon system --------------------------------------------------------------------

@@ -1,4 +1,4 @@
-// SysML Modeler in the real workspace on the real API + PostgreSQL: human workflow and AI workflow
+// System Model in the real workspace on the real API + PostgreSQL: human workflow and AI workflow
 // (demo assistant → service proposal → Apply → commit with provenance → explain → undo).
 import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
@@ -22,7 +22,7 @@ page.on('console', (m) => m.type() === 'error' && !/Failed to load resource|net:
 await page.goto(exampleUrl(`tool=sysml-modeler`))
 await page.waitForSelector('.smod-canvas', { timeout: 40000 })
 await page.waitForTimeout(800)
-check((await page.locator('.smod-statusbar', { hasText: 'API (PostgreSQL)' }).count()) === 1, 'workspace: SysML Modeler opened in API mode')
+check((await page.locator('.smod-statusbar', { hasText: 'API (PostgreSQL)' }).count()) === 1, 'workspace: System Model opened in API mode')
 const start = await head()
 check((await page.locator('.smod-statusbar', { hasText: `commit #${start.number}` }).count()) === 1, `status bar shows the API head (#${start.number})`)
 await page.screenshot({ path: `${shots}/1-workspace.png` })
@@ -131,7 +131,7 @@ await page.keyboard.press('Escape')
 const helpButton = page.getByRole('button', { name: /^Help/ }).first()
 await helpButton.click()
 await page.waitForTimeout(500)
-check((await page.locator('text=SysML Modeler').count()) > 0, 'Help menu lists the SysML Modeler documentation')
+check((await page.locator('text=System Model').count()) > 0, 'Help menu lists the System Model documentation')
 await page.screenshot({ path: `${shots}/5-help.png` })
 await page.keyboard.press('Escape')
 

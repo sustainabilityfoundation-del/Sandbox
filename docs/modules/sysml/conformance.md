@@ -1,7 +1,7 @@
 # Standards conformance: supported and unsupported features
 
 Status: living document, maintained with the implementation (last update 15 October 2026, commit
-range on `feature/sysml`). **The SysML Modeler makes no SysML v2 conformance claim.** It implements a
+range on `feature/sysml`). **The System Model makes no SysML v2 conformance claim.** It implements a
 documented subset of OMG SysML 2.0 / KerML 1.0 (formal, September 2025; research:
 [standards.md](../../research/sysml/standards.md)) and an aligned subset of the Systems Modeling API
 and Services 1.0. Every row below is backed by a test; the test is named.

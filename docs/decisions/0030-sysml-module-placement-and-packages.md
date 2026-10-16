@@ -17,7 +17,7 @@ repository or as an isolated module, favouring independent development and deplo
 - The tool imports only `@ews/platform-sdk`, `@ews/design-system`, `@ews/sysml-client` and
   `@ews/sysml-core` (types and pure functions for projections and text). It never imports another
   tool or the illustrative `tool-sysml`.
-- The illustrative `tool-sysml` stays registered and unchanged. Whether, when and how it is retired, and how its twin data (SysML elements, `represents` links) migrate, is left to a separate future ADR (compare ADR-0027 for the mock CAD tool); this ADR does not decide it.
+- The illustrative `tool-sysml` stayed registered and unchanged when this ADR was accepted. **Amended by [ADR-0076](0076-retire-illustrative-tools-system-model.md) (16 October 2026): it is retired from the interface (no longer registered); its package, twin data (SysML elements, `represents` links) and the ID `sysml` are kept, and no data migration is decided.** The tool shown to users is now named "System Model" (ID `sysml-modeler` unchanged).
 - The SDK now offers a read-only `PlatformServices.sysml` (SDK 1.8); the tool still builds its own
   client through `createSysmlModelerTool({ mode, baseUrl, devUser, storage, client })`, which the
   workspace registers.
@@ -36,5 +36,5 @@ repository or as an isolated module, favouring independent development and deplo
 
 ## Amendments on acceptance
 
-- Retirement of `tool-sysml` and migration of its twin data are left to a separate future ADR.
+- Retirement of `tool-sysml` from the interface: done by ADR-0076. Migration of its twin data is not decided (the data is kept).
 - `PlatformServices.sysml` exists (SDK 1.8, read-only); the factory signature is `createSysmlModelerTool({ mode, baseUrl, devUser, storage, client })` (`packages/tool-sysml-modeler/src/index.ts:31`).

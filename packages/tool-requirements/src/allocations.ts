@@ -2,7 +2,7 @@ import type { RelationshipType } from '@ews/requirements-client'
 
 /**
  * Allocation targets (D1, requirements.allocate). The Requirements service validates them: twin
- * components and product elements through the host's TwinDirectory, SysML Modeler elements through the
+ * components and product elements through the host's TwinDirectory, System Model elements through the
  * host's SysML directory. The UI and the assistant build the same request with these helpers, so both
  * paths are refused by the same server rules (validation parity, C9).
  */

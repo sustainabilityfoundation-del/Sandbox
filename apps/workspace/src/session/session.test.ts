@@ -90,17 +90,17 @@ describe('view instances', () => {
       repository: new DemoRepository({ storage: sharedStorage(), latencyMs: [0, 0] }),
       projectId: PROJECT_ID,
       tools: getTools().map((t) => ({ id: t.id, initialViewState: t.initialViewState })),
-      defaultOpenToolIds: ['cad'],
+      defaultOpenToolIds: ['cad-modeler'],
     })
   })
 
   it('keeps view state private to each instance of the same tool', () => {
-    expect(toolIdOfView(detachedViewId('w1', 'cad'))).toBe('cad')
-    const main = getToolApi<{ camera: { zoom: number } }>('cad')
-    const detached = getToolApi<{ camera: { zoom: number } }>('cad', detachedViewId('w1', 'cad'))
-    detached.updateViewState((vs) => ({ ...vs, camera: { ...vs.camera, zoom: 3 } }))
-    expect(detached.getViewState().camera.zoom).toBe(3)
-    expect(main.getViewState().camera.zoom).toBe(1)
+    expect(toolIdOfView(detachedViewId('w1', 'cad-modeler'))).toBe('cad-modeler')
+    const main = getToolApi<{ probe?: number }>('cad-modeler')
+    const detached = getToolApi<{ probe?: number }>('cad-modeler', detachedViewId('w1', 'cad-modeler'))
+    detached.updateViewState((vs) => ({ ...vs, probe: 3 }))
+    expect(detached.getViewState().probe).toBe(3)
+    expect(main.getViewState().probe).toBeUndefined()
   })
 
   it('pins a view to its objects and configuration while the workspace selection moves on', () => {
@@ -147,7 +147,7 @@ describe('responsive layout helpers', () => {
   })
 
   it('clamps restored sizes so panels stay reachable', () => {
-    const huge = { ...DEFAULT_LAYOUTS.spacious, treeWidth: 2000, inspectorWidth: 2000, dockHeight: 5000, split: { toolId: 'cad', ratio: 0.95 } }
+    const huge = { ...DEFAULT_LAYOUTS.spacious, treeWidth: 2000, inspectorWidth: 2000, dockHeight: 5000, split: { toolId: 'cad-modeler', ratio: 0.95 } }
     const clamped = clampLayout(huge, 1280, 720)
     expect(clamped.treeWidth).toBeLessThanOrEqual(1280 * 0.4)
     expect(clamped.inspectorWidth).toBeLessThanOrEqual(1280 * 0.45)

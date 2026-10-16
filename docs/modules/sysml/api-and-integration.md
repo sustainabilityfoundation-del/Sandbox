@@ -87,7 +87,7 @@ standalone harness, demos and offline experiments; explicit, never a silent fall
 
 ### 5.2 Conceptualize (CR-SYSML-02, approved 15 October 2026)
 
-`ArtifactRef` scheme for SysML Modeler elements (the twin's `SYS-…` objects keep `module: 'sysml'`
+`ArtifactRef` scheme for System Model elements (the twin's `SYS-…` objects keep `module: 'sysml'`
 with their own kinds):
 
 ```ts
@@ -174,8 +174,8 @@ artifacts referencing the commit (provenance). Phase 4.
 
 | ID | Change | Owner | Why |
 | --- | --- | --- | --- |
-| CR-SYSML-01 | SDK: `PlatformServices.sysml?: SysmlModelService` (minimal cross-module read contract: resolve element ref, get element summary, list elements, subscribe) — **approved in principle for SDK 1.6**; the tool keeps its local client until then | Coordinator | Other modules (Conceptualize, CAD, Requirements, inspector) need to resolve SysML Modeler refs without importing our client; the tool would also receive its client from the host instead of constructing it |
-| CR-SYSML-02 | `ArtifactRef` scheme for SysML Modeler elements (§5.2) — **approved** | Coordinator + Conceptualize | Concept-to-model traceability |
+| CR-SYSML-01 | SDK: `PlatformServices.sysml?: SysmlModelService` (minimal cross-module read contract: resolve element ref, get element summary, list elements, subscribe) — **approved in principle for SDK 1.6**; the tool keeps its local client until then | Coordinator | Other modules (Conceptualize, CAD, Requirements, inspector) need to resolve System Model refs without importing our client; the tool would also receive its client from the host instead of constructing it |
+| CR-SYSML-02 | `ArtifactRef` scheme for System Model elements (§5.2) — **approved** | Coordinator + Conceptualize | Concept-to-model traceability |
 | CR-SYSML-03 | CAD mapping contract (§5.3) — **decided**: `cad-modeler-entity` refs owned by SysML, mass read on demand | Coordinator + CAD | Part ↔ CAD traceability, mass properties |
 | CR-SYSML-04 | `boundaries.test.ts` entries for `packages/sysml-core`, `services/sysml`, `packages/sysml-client`, `packages/tool-sysml-modeler`, and `@ews/sysml-service` in `services/api` — **accepted** | Coordinator | Hosting the plugin and enforcing our boundaries |
 | CR-SYSML-05 | `CapabilityModule` union gains `'sysml-modeler'` (capabilities.ts) — **accepted** | Coordinator | Inventory entries for the new tool |

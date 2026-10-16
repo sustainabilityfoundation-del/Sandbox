@@ -29,7 +29,7 @@ const ID_PATTERN: Record<ArtifactRefDto['module'], RegExp> = {
   projects: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 }
 
-// SysML Modeler project and element IDs are UUIDs (services/sysml routes).
+// System Model project and element IDs are UUIDs (services/sysml routes).
 const SYSML_ELEMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const CAD_ENTITY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/i
 
@@ -47,10 +47,10 @@ const KINDS: Partial<Record<ArtifactRefDto['module'], string[]>> = {
  */
 export function artifactProblem(a: ArtifactRefDto): string | null {
   if (!ID_PATTERN[a.module]) return `unknown module ${a.module}`
-  // C3: SysML Modeler elements and CAD Modeler entities (scoped IDs, revision = commit number or document
+  // C3: System Model elements and CAD Modeler entities (scoped IDs, revision = commit number or document
   // revision). The unscoped SYS-…/CAD-… IDs are the legacy twin objects of the illustrative tools.
   const kind = a.kind ?? (a.id.includes('/') && (a.module === 'sysml' || a.module === 'cad') ? (a.module === 'sysml' ? 'sysml-model-element' : 'cad-modeler-entity') : undefined)
-  if (a.module === 'sysml' && kind === 'sysml-model-element') return SYSML_ELEMENT.test(a.id) ? null : 'a SysML Modeler element is referenced as <projectId>/<elementId>'
+  if (a.module === 'sysml' && kind === 'sysml-model-element') return SYSML_ELEMENT.test(a.id) ? null : 'a System Model element is referenced as <projectId>/<elementId>'
   if (a.module === 'cad' && kind === 'cad-modeler-entity') return CAD_ENTITY.test(a.id) ? null : 'a CAD Modeler entity is referenced as <documentUuid>/<entityId>'
   if (a.module === 'cad' && kind === 'cad-document') return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.id) ? null : 'a CAD document is referenced by its document UUID'
   if (!ID_PATTERN[a.module].test(a.id)) {

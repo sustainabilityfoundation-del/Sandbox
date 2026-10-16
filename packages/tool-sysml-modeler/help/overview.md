@@ -1,13 +1,13 @@
 ---
 help_id: sysml-modeler.overview
-title: SysML Modeler
+title: System Model
 kind: overview
 summary: Model systems in SysML v2 (a documented subset) with a model browser, textual notation, projected views, properties, validation and versioned history; the AI assistant uses the same commands.
 keywords: [sysml, mbse, model, sysml v2, overview, systems engineering]
 related: [sysml-modeler.getting-started, sysml-modeler.language, sysml-modeler.example]
 ---
 
-The SysML Modeler is the platform's model-based systems engineering (MBSE) environment. The model
+The System Model is the platform's model-based systems engineering (MBSE) environment. The model
 is stored as **SysML v2 / KerML elements**: definitions, usages and the relationships between them,
 in a versioned repository. Every view is a projection of that model: diagrams, the browser and the
 text are different ways of looking at the same elements.
@@ -29,7 +29,7 @@ text are different ways of looking at the same elements.
 ## How it fits the platform
 
 - **Tool ID** `sysml-modeler`, subscription entitlement `tool:sysml`. The older illustrative *SysML*
-  tool keeps working beside it.
+  tool is retired from the interface; the SysML elements it wrote to the example project stay readable in the product tree and inspector.
 - **Requirements** remain owned by Requirements Management. Platform metadata
   `@EWS::ManagedRequirement` links a requirement in the model to the managed requirement by its UUID
   (see [Commands](help:sysml-modeler.commands)).

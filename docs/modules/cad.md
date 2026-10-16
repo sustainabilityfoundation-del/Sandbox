@@ -1,7 +1,7 @@
 # Module: Parametric Mechanical CAD
 
 Package: `packages/tool-cad` (version 1.0.0, SDK `^1.0.0`, entitlement `tool:cad`).
-Status: **Experimental** (Phase 1): mock geometry, no CAD kernel. Working rules:
+Status: **Retired from the interface** (ADR-0076, 16 October 2026; amends ADR-0027 phase 4): the mock tool is no longer registered, shown or offered to the AI; the package, the twin data (`cad-representation`, dimension delegation) and the ID `cad` are kept. The CAD tool users see is the CAD Modeler. Historical specification follows (mock geometry, no CAD kernel). Working rules:
 [AGENTS.md](../../packages/tool-cad/AGENTS.md).
 
 ## Owns
