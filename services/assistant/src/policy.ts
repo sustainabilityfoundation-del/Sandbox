@@ -104,6 +104,15 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   // CR-C8 (appended by the Conceptualize agent, COORDINATOR REVIEW)
   'conceptualize.evaluate_calculation': 'calculate',
   'conceptualize.record_calculation': 'propose',
+  // Visual concept exploration (appended by the Conceptualize agent, COORDINATOR REVIEW)
+  'conceptualize.define_concept': 'propose',
+  'conceptualize.read_visuals': 'read',
+  'conceptualize.request_illustration': 'external-generation',
+  'conceptualize.annotate_visual': 'propose',
+  'conceptualize.refine_from_annotations': 'propose',
+  'conceptualize.compare_cards': 'read',
+  'conceptualize.reject_alternative': 'propose',
+  'conceptualize.create_cad_handoff': 'propose',
   'sysml-modeler.describe_commands': 'read',
   'sysml-modeler.matrix': 'read',
   'sysml-modeler.coverage': 'read',
