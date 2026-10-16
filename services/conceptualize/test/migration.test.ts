@@ -66,6 +66,12 @@ describe('migration 0002 on old data (ADR-0009)', () => {
     expect((await pool.query(`SELECT * FROM conceptualize.concept_statements ORDER BY revision, ordinal`)).rows).toEqual(before)
     expect((await pool.query(`SELECT * FROM conceptualize.evidence`)).rows.map((r) => ({ ...r, applicability: undefined, manifest: undefined, source: undefined, assumption_ids: undefined, tool: undefined, results: undefined, calculation: undefined, qualifications: undefined }))).toEqual(evidenceBefore.map((r) => ({ ...r, applicability: undefined, manifest: undefined, source: undefined, assumption_ids: undefined, tool: undefined, results: undefined, calculation: undefined, qualifications: undefined })))
     expect((await migrateConcepts(pool)).applied).toEqual([])
+    // 0007: old revisions read as an empty engineering definition at stage exploration; nothing rewritten.
+    expect((await pool.query(`SELECT revision, stage, definition, name FROM conceptualize.concept_revisions WHERE concept_id = $1 ORDER BY revision`, [CONCEPT])).rows).toEqual([
+      { revision: 1, stage: 'exploration', definition: {}, name: 'Old concept' },
+      { revision: 2, stage: 'exploration', definition: {}, name: 'Old concept' },
+    ])
+    expect((await pool.query('SELECT count(*)::int AS n FROM conceptualize.visuals')).rows[0].n).toBe(0)
   })
 
   it('creates one Assumption per assumption statement of the current revision, referencing it', async () => {

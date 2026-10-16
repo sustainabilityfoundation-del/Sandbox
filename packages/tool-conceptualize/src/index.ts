@@ -52,3 +52,4 @@ export const conceptualizeTool = defineTool<ConceptualizeViewState>({
     ]
   },
 })
+export { registerVisualizationPort, type VisualizationPort } from './visualization'

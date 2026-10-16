@@ -492,3 +492,108 @@ concepts perform FN-001?”. API: `POST /batch` with `items` (see OpenAPI exampl
 - 2bb1937: evidence recording, verification status, decompositions, supersede with replacement, criteria editing, realization status, exploration undo, live requirement notifications; help updated.
 - Coordinator notified of the slice checkpoint (c0031f8) with SendMessage.
 - Resume here: backlog above; all validation green at the last commit. Servers used: API 8798, embedded PostgreSQL 54340 (.data/pg-concept, git-ignored data dir inside the worktree), workspace 5196, harness 5197.
+
+## Visual concept exploration
+
+Brief: [concept-visualization.md](concept-visualization.md). Contracts: [concept-visualization-contracts.md](concept-visualization-contracts.md).
+Owner decision (contracts §6): structured layouts are the primary visual; no live image generation.
+
+| # | Item | Status | Commits |
+| --- | --- | --- | --- |
+| 1 | Engineering definition (components, relationships, interfaces, parameters with units, intent, stage), stable never-reused IDs, validation and basis rules | done | e4f451f |
+| 2 | Visuals with revisions pinned to Concept revisions (illustration, layout; others reserved), annotations per revision, generation records (asset ID and SHA-256 only) | done | e4f451f |
+| 3 | Deterministic structured 2D layout renderer (labels only from parameters, stable component IDs, not-to-scale, common comparison scale, differences) | done | 844b910, 64ba27c |
+| 4 | Comparison UI: concept cards with the layout as primary visual, highlighted differences, intended / checked / verified, expand, select, reject with rationale | done | 23f91d5, f00c72d |
+| 5 | Refinement: pin or rectangle, instruction, new Concept and visual revision; assistant refine_from_annotations | done | f00c72d |
+| 6 | Staleness: derived per purpose; dependents and revision staleness endpoints; re-render on request only | done | e4f451f |
+| 7 | CAD handoff package (revision-pinned, unresolved items), API read; SDK 1.9 proposal below | done (CAD consumption by the CAD agent) | 23f91d5 |
+| 8 | Assistant operations (service proposals, same API): define_concept, read_visuals, request_illustration, annotate_visual, refine_from_annotations, compare_cards, reject_alternative, create_cad_handoff; develop_alternatives with definitions and visual requests | done | f00c72d |
+| 9 | Illustrations through `services/visualization` (contract 3e4632a) behind a host-registered port; refused with the reason when unavailable; never a placeholder | done against the interface; host wiring pending (see below) | f00c72d |
+| 10 | Tests, help, docs, `tests/e2e/flows/concept-visual.mjs` | done | 64ba27c, 9616e59 |
+
+### API (all `/api/concepts/v1/projects/{projectId}`)
+
+`GET|POST /visuals`, `GET /visuals/{id}?revision=`, `GET|POST /visuals/{id}/revisions`, `POST /visuals/{id}/archive`,
+`POST /visuals/{id}/revisions/{rev}/annotations`, `PUT /visuals/{id}/revisions/{rev}/generation`,
+`GET /concepts/{id}/dependents`, `GET /concepts/{id}/staleness?revision=&purpose=`, `GET /concepts/{id}/card`,
+`GET /alternative-sets/{id}/cards`, `POST /concepts/{id}/handoffs`, `GET /handoffs?conceptId=`, `GET /handoffs/{id}`.
+Concept create and patch accept `stage` and `definition`; explorations accept them per seed.
+
+### Integration needs for the coordinator
+
+1. **Host wiring of the visualization client** (when `@ews/visualization-client` is on main): in the workspace,
+   `registerVisualizationPort(createVisualizationClient({ baseUrl: '/api/visualization/v1', devUser, token }))`
+   (export `registerVisualizationPort` from `@ews/tool-conceptualize` or call it from the tool's service setup). The
+   port is the subset `adapters`, `createJob`, `getJob`, `cancel`, `retry`, `contentUrl` of `VisualizationClient`
+   (`packages/tool-conceptualize/src/visualization.ts`). Until then illustrations are refused with "not connected".
+2. **SDK 1.9 `ConceptsService` additions** (exact TypeScript, all optional so older hosts stay valid):
+
+```ts
+/** Engineering definition of a Concept revision (SDK 1.9). IDs are stable across revisions. */
+export interface ConceptDefinitionSummary {
+  intent: string
+  components: { id: string; name: string; kind: 'part' | 'assembly' | 'purchased' | 'envelope' | 'feature'; basis: string }[]
+  interfaces: { id: string; name: string; kind: string; between: string[]; parameterIds: string[] }[]
+  parameters: { id: string; symbol: string; name: string; value: number | null; min: number | null; max: number | null; unit: string; basis: string; componentId: string | null; constraintId: string | null }[]
+}
+
+/** Whether something made from a Concept revision is possibly outdated (derived, never stored). */
+export interface ConceptRevisionStaleness {
+  outdated: boolean
+  currentConceptRevision: number
+  changes: { area: 'intent' | 'component' | 'relationship' | 'interface' | 'parameter' | 'layout'; id: string; change: 'added' | 'removed' | 'changed'; label: string }[]
+}
+
+/** CAD handoff package (schema 'conceptualize.cad-handoff/1'), immutable and revision-pinned. */
+export interface ConceptHandoffSummary {
+  id: string
+  key: string
+  projectId: string
+  conceptId: ConceptId
+  conceptRevision: number
+  target: 'cad'
+  /** The package as stored: intent, components, relationships, interfaces, parameters, envelopes, constraints, requirements, decisions, assumptions, visuals, unresolved. */
+  package: Record<string, unknown> & { schema: 'conceptualize.cad-handoff/1'; unresolved: { kind: string; text: string; ref: string | null }[] }
+  staleness: ConceptRevisionStaleness
+  createdAt: string
+}
+
+export interface ConceptsService {
+  // … existing members …
+  /** The engineering definition of a Concept at a revision (SDK 1.9). */
+  getDefinition?: (id: ConceptId, scope: { projectId: string; revision?: number }) => Promise<ConceptDefinitionSummary | undefined>
+  /** A CAD handoff package (SDK 1.9). */
+  getHandoff?: (id: string, scope: { projectId: string }) => Promise<ConceptHandoffSummary | undefined>
+  listHandoffs?: (conceptId: ConceptId, scope: { projectId: string }) => Promise<ConceptHandoffSummary[]>
+  /** Staleness of an artifact made from a Concept revision, e.g. a CAD document (SDK 1.9). */
+  revisionStaleness?: (conceptId: ConceptId, revision: number, scope: { projectId: string; purpose?: 'downstream' | 'handoff' | 'layout' | 'illustration' }) => Promise<ConceptRevisionStaleness | undefined>
+}
+```
+
+   The HTTP adapter maps them to `GET /concepts/{id}?revision=` (definition), `GET /handoffs/{id}`, `GET /handoffs?conceptId=`
+   and `GET /concepts/{id}/staleness`; I add the adapter implementation as soon as the SDK has the members.
+3. Event types `visual.created`, `visual.revised`, `visual.annotated`, `visual.generation-changed`, `handoff.created`
+   are emitted on the Conceptualize outbox (SSE); add them to the SDK `ConceptsEventType` with the members above.
+
+### Validation (last run)
+
+| Check | Result |
+| --- | --- |
+| `npm run concept:test:db` | all passing (visuals.api: 8 tests: IDs, validation, bases, pinning, staleness per purpose, annotations per revision, generation failure isolation and refusal, cards, handoff; migration 0007 on old data) |
+| `npx vitest run packages/tool-conceptualize` | all passing (renderer 7, visual operations 6, CR-AI-1 tests) |
+| Browser `tests/e2e/flows/concept-visual.mjs` (8798/5196) | 32/32, no page errors |
+| Browser `ai-headless.mjs` (8798/5196) | ALL PASSED (new examples for the visual and calculation operations) |
+| Browser `conceptualize.mjs` (8798/5196) | ALL PASSED (regression) |
+
+### Limitations
+
+- No live image generation (owner decision). Illustrations were exercised only with an in-page FAKE TEST port in
+  the browser flow and fakes in unit tests; the service's `fake-test` adapter replaces the in-page port when
+  `services/visualization` is on main.
+- Step 9 of the brief (create the CAD artifact through the CAD workflow) belongs to the CAD agent: the handoff is
+  readable through the API now; CAD consumption and the CAD document's source-revision record are not done here.
+- Layouts are 2D boxes and circles with dimensions; mechanism, architecture, 3D envelope and motion views are reserved.
+- The refinement UI changes parameter values; component, placement and interface changes go through the
+  assistant (`refine_from_annotations`) or `define_concept`.
+- Region-to-component on illustrations is recorded as an inference; the assistant is told to ask when ambiguous
+  (no automatic interpretation of raster regions).
