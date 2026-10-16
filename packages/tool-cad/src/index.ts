@@ -1,3 +1,4 @@
+import { cadHelp } from './help'
 import { defineTool } from '@ews/platform-sdk/react'
 import { lazy } from 'react'
 import pkg from '../package.json'
@@ -25,6 +26,7 @@ export const cadTool = defineTool<CadViewState>({
   view: lazy(() => import('./CadView')),
   initialViewState: INITIAL_VIEW_STATE,
   assistant: cadAssistant,
+  help: cadHelp,
   toolbar: ({ api, viewState }) => [
     {
       type: 'button',
