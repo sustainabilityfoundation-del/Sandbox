@@ -1,11 +1,9 @@
-# Coordinator: session handoff (16 October 2026, `feature/context-optimization` based on main d146f22)
+# Coordinator: session handoff (16 October 2026, updated by the coordinator after merging all branches)
 
-Written by the context-optimization agent from `docs/specifications/*-progress.md` and `git log`; items marked **unconfirmed** were not
-determinable from the repository and need the coordinator's correction. The coordinator session that existed before this file was at
-898k tokens (90% of 1M) after 6 compactions.
+Maintained by the coordinator. Updated 16 October 2026 after all branches were merged; the previous coordinator session ended at about 90% of its context window.
 
 ## First message to send in the fresh coordinator session (paste)
-> You are the coordinator of this repository. Read AGENTS.md, then docs/status/coordinator.md, then run `node scripts/status-digest.mjs` and `git log --oneline -15 main`. Do not read whole progress files, screenshots or module source; use the scout, integration-runner and reviewer agents (.claude/agents). Confirm the "Assigned work" table with me, then continue demonstration D1 per integration-milestone-1.md. Keep each report to about 300 words plus links, and write decisions to the repository before context passes 70%.
+> You are the coordinator of this repository. Read AGENTS.md, then docs/status/coordinator.md, then run `node scripts/status-digest.mjs` and `git log --oneline -15 main`. Do not read whole progress files, screenshots or module source; use the scout, integration-runner and reviewer agents (.claude/agents). Re-create the owner-approved hourly check-in described under "Owner rules to keep", then work through "Open items" in order (start with the per-module registration manifests), keeping demonstration D1 the priority. Keep each report to about 300 words plus links, and write decisions to the repository before context passes 70%.
 
 ## Mission and priority
 AI engineering platform (monorepo). Primary objective: [demonstration D1](../specifications/demo-ai-engineering.md), the smallest
@@ -13,42 +11,36 @@ end-to-end AI-driven workflow (concept, requirements, system model, CAD, STEP) w
 [integration milestone 1](../specifications/integration-milestone-1.md). Milestone work D1 does not need waits. E-ASSURE is deferred
 ([ADR-0070](../decisions/0070-development-assurance-boundaries.md)). Rules: [AGENTS.md](../../AGENTS.md). Context rules: [docs/agents](../agents/README.md).
 
-## State (main d146f22; digest: `node scripts/status-digest.mjs`)
-| Area | Branch | State | Evidence |
-| --- | --- | --- | --- |
-| Requirements | feature/requirements-management | Stages 1-7 done; assistant operations `requirements.get`, `get_conventions` added | [progress](../specifications/requirements-management-progress.md) |
-| Conceptualize | feature/conceptualize | Visual exploration merged; SDK 1.9 ConceptsService proposal open | [progress](../specifications/conceptualize-progress.md) |
-| Design Reasoning | feature/design-reasoning | Real-service checkpoint documented; HTTP binding and two scenarios implemented | [progress](../specifications/design-reasoning-progress.md) |
-| CAD Modeler | feature/cad | Parametric foundation, fillet/chamfer, concept handoff items 2-3 done | [progress](../specifications/cad-program-progress.md) |
-| SysML Modeler | feature/sysml | Sprint 3 (milestone 1) ready for coordinator review | [progress](../specifications/sysml-program-progress.md) |
-| AI connection | feature/ai-connection | Ready for owner review; real ChatGPT sign-in and live-model run need the owner's account | [progress](../specifications/ai-connection-progress.md) |
-| Project Management | feature/project-management | Increment I1 ready for coordinator review; I2-I5 open | [progress](../specifications/project-management-progress.md) |
-| UI Focused Canvas | feature/ui-focused-canvas | Phases 1-4 done, phase 5 (assistant panel) docs committed; 3 commits ahead of main; agent running | [progress](../specifications/ui-focused-canvas-progress.md) |
-| Context optimization | feature/context-optimization | Phases 1-7 in progress (this work) | [progress](../specifications/context-optimization-progress.md) |
+## State (coordinator-verified, 16 October 2026)
+All module branches are merged into main; no module agent is running. The old coordinator session (7c17f988…) ends after
+this handoff; its subagents cannot be messaged from a new session, so start new, short-lived agents (.claude/agents) briefed
+from the repository.
 
-Branch check at d146f22 (measured with `git rev-list` and `git status` in each worktree): the seven module branches have no commits that main lacks and no uncommitted files (they are 30-241 commits behind main, last commits 15-16 Oct); `feature/ui-focused-canvas` is 3 commits ahead of and 3 behind main with no uncommitted files. Which module agents are still running besides ui-ux-design-system: **unconfirmed**. Main also holds the owner approval of the recommendations (brief section B) and the per-module registration manifests specification (scheduled after the UI merge).
-
-## Decisions in force
-[ADR index](../decisions/README.md) (55 ADR files; newest 0070 assurance boundaries, 0071 browser data import, 0072 agent context management, proposed).
-Many module ADRs are still "Proposed" for coordinator review (list in the ADR index). Owner decisions on design reasoning: operational autonomy only.
+| Area | State | Evidence |
+| --- | --- | --- |
+| D1 demonstration | Live run with the owner's real model (ChatGPT plan, gpt-6.1-sol, dev user eli) completed all 9 steps on the real services in project 9ae9a5ad-e5f1-4fb8-ba59-77ab126a8864 (DRILL-BIT-HOLDER-D1), then survived a service restart and reopened in a fresh browser. Gaps found were fixed and merged (empty optional arguments, ChatGPT-route stream parsing, requirement refusal details, SysML links in one proposal, CAD re-bind). **Owner acceptance not yet given.** Plumbing replay: tests/e2e/flows/demo-d1.mjs (fake provider) | [D1](../specifications/demo-ai-engineering.md), [live-run guide](../modules/ai-interface/d1-live-run.md) |
+| Visual concept exploration | Merged: engineering definition, layouts, annotations, refinement, comparison cards, staleness, CAD handoff; CAD starts a part from a handoff. Images: **owner decision, layouts only** (service built, off) | [brief](../specifications/concept-visualization.md), [contracts §6](../specifications/concept-visualization-contracts.md) |
+| Focused Canvas UI | Phases 1-6 merged (design system 1.1.0, shell, workspace frame, AI Assistant panel) | [progress](../specifications/ui-focused-canvas-progress.md) |
+| Context optimization | Merged: .claude/agents, hooks, status line, verify script, this handoff | [brief §B](../specifications/context-optimization.md), [docs/agents](../agents/README.md) |
+| Project Management | I1 plus D1 items merged; I4 (baselines, export/import) waits for D1 acceptance | [progress](../specifications/project-management-progress.md) |
 
 ## Assigned work
-| Agent | Task | Worktree |
-| --- | --- | --- |
-| ui-ux-design-system | Focused Canvas UI phase 5-6 | Sandbox-ui |
-| context-optimization | This work | Sandbox-context |
-| Others | **unconfirmed** (module agents may be idle or finished) | Sandbox-{ai,cad,conceptualize,projects,reasoning,requirements,sysml} |
+None running. Next work (start as new agents, at most 2-3 implementers at once):
 
-## Open items and blockers
-1. Review SysML sprint 3 and Project Management I1 checkpoints (progress files).
-2. Decide the proposed ADRs and SDK 1.9 ConceptsService proposal.
-3. Owner acceptance of the AI connection (needs the owner's ChatGPT account); never record acceptance without the owner's words.
-4. Review [recommendations](../agents/recommendations.md) (items 5, 8, 9, 10 need decisions; item 7 needs a one-line `package.json` script).
-5. Merge `feature/ui-focused-canvas` (3 commits), then schedule per-module registration manifests (owner-approved, not started).
-6. Merge `feature/context-optimization` when approved; module worktrees pick up `.claude/` agents and hooks after the merge (running sessions need a restart).
+## Open items (priority order)
+1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
+2. **D1 owner acceptance**: ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.
+3. **SDK 1.9**: Conceptualize's ConceptsService additions (definition, getHandoff, listHandoffs, revisionStaleness; exact TypeScript in conceptualize-progress.md, "Visual concept exploration") and CR-PM-SDK-4 FilesService (exact TypeScript in project-management-progress.md). Then remove the interim handoff port block in apps/workspace/src/platform/services.ts.
+4. **Fix**: tests/e2e/flows/ai-fake-provider.mjs last step fails, "Prepare draft requirements failed: CON-030 has no quantified constraints" (drill demo plan fixture apps/workspace/fixtures/demo-plans/drill-bit-holder.json vs conceptualize.propose_requirement).
+5. **Codex tasks** CX-001..004 in [docs/codex](../codex/README.md): review and merge the owner's Codex pull requests; add new isolated tasks there.
+6. Proposed ADRs awaiting review (ADR index), incl. mock CAD replacement ADR-0027 and the SysML illustrative-tool retirement.
+7. UI follow-ups listed in ui-focused-canvas-progress.md §6 (units in status bar, per-tab close, context menus).
 
-## Next actions
-1. Read this file, then `git log --oneline -15 main` and the digest. 2. Confirm the assigned-work table. 3. Continue D1 integration per the milestone plan.
+## Owner rules to keep
+- Never let automated runs reach the owner's connected AI account: e2e flows use `demoAssistantContext` (tests/e2e/lib/env.mjs); fake-provider runs use their own ports and database folders, never 5173/8787.
+- No live image generation (owner decision). No use of the owner's account beyond what the owner agreed.
+- Recreate the hourly check-in (CronCreate, owner-approved on 15 October 2026) in the new session: resume stopped agents, merge verified checkpoints, continue the plan, owner decisions stay with the owner.
+- The owner runs the local site with `npm run dev` at http://localhost:5173/workspace/.
 
 ## How to resume
 Read in order: AGENTS.md, this file, the digest, then only the contract or ADR relevant to the decision at hand. Do not load whole progress
