@@ -66,8 +66,18 @@ describe('AI policy from the installed manifests', () => {
     expect(rows(policy.settingDefinitions, 'ai.access.')).toEqual(base)
     expect(rows(policy.settingDefinitions, 'ai.ceiling.')).toEqual(base)
     // A new installed module follows the known ones and precedes the platform tail, in installed-list order.
-    const extra = collectPolicyContributions([fixture({ id: 'x1', aiModule: { id: 'x1', label: 'X1', description: 'X.', prefixes: ['x1.'] } }), fixture({ id: 'x2', aiModule: { id: 'x2', label: 'X2', description: 'X.', prefixes: ['x2.'] } })])
-    expect(createPolicy(extra.aiModules, extra.operations).modules.map((m) => m.id)).toEqual([...base.slice(0, 6), 'x1', 'x2', 'reasoning', 'help'])
+    const extra = collectPolicyContributions([...ALL_SERVER_MODULES, fixture({ id: 'x1', aiModule: { id: 'x1', label: 'X1', description: 'X.', prefixes: ['x1.'] } }), fixture({ id: 'x2', aiModule: { id: 'x2', label: 'X2', description: 'X.', prefixes: ['x2.'] } })])
+    expect(createPolicy(extra.aiModules, extra.operations).modules.map((m) => m.id)).toEqual([...base.slice(0, 7), 'x1', 'x2', 'reasoning', 'help'])
+  })
+
+  it('takes the SysML Modeler from its manifest (no legacy entry): same module, classes and proposal API as before', () => {
+    expect(aiModules.filter((m) => m.id === 'sysml-modeler')).toHaveLength(1)
+    expect(policy.classify('sysml-modeler.read_element')).toMatchObject({ operationClass: 'read', module: { id: 'sysml-modeler', entitlement: 'tool:sysml', prefixes: ['sysml-modeler.'] } })
+    expect(policy.classify('sysml-modeler.impact')?.operationClass).toBe('calculate')
+    expect(policy.classify('sysml-modeler.find_elements')?.operationClass).toBe('search')
+    expect(policy.classify('sysml-modeler.propose_commands')?.operationClass).toBe('propose')
+    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('sysml-modeler.'))).toHaveLength(15)
+    expect(ALL_SERVER_MODULES.find((m) => m.id === 'sysml-modeler')?.proposals).toEqual({ entitlement: 'tool:sysml' })
   })
 
   it('takes Project Management from its manifest (no legacy entry): same module, prefix and default class as before', () => {

@@ -1,14 +1,27 @@
-import { defineTool, type ToolDefinition } from '@ews/platform-sdk/react'
+import { defineTool, type ClientModule, type ModuleHostEnv, type ToolDefinition } from '@ews/platform-sdk/react'
 import { createHttpSysmlClient, createLocalSysmlClient, type StorageLike, type SysmlClient } from '@ews/sysml-client'
 import { lazy } from 'react'
 import pkg from '../package.json'
 import { sysmlModelerAssistant } from './assistant'
+import { SYSML_MODELER_CAPABILITIES } from './capabilities'
 import { sysmlModelerHelp } from './help'
 import { useToasts } from '@ews/design-system'
 import { configureClient, message, sessionFor } from './session'
 import { INITIAL_VIEW_STATE, type ModelerViewState } from './state'
 
 export type { ModelerViewState } from './state'
+
+/**
+ * The SysML Modeler's client module (docs/specifications/module-registration.md, M3): its manifest (capability entries) and its
+ * tool. The workspace lists it in `INSTALLED_MODULES`; API mode follows the Requirements service mode (API → /api/sysml/v1 as the
+ * development user; demo → explicit in-browser repository).
+ */
+export function sysmlModelerModule(): ClientModule {
+  return {
+    manifest: { schemaVersion: 1, id: 'sysml-modeler', name: 'SysML Modeler', capabilities: SYSML_MODELER_CAPABILITIES, entitlement: 'tool:sysml' },
+    tool: (env: ModuleHostEnv) => createSysmlModelerTool(env.requirementsMode === 'demo' ? { mode: 'local' } : { mode: 'api', baseUrl: '/api/sysml/v1', devUser: env.devUser }),
+  }
+}
 export { generalView, interconnectionView, connectableEnds } from './projection/graph'
 export { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from './projection/behavior'
 

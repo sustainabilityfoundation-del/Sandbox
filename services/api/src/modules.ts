@@ -3,7 +3,7 @@ import type { Pool } from 'pg'
 import type { AiModuleDescriptor, OperationClass, ServerModuleHost, ServerModuleDescriptor, ServerModuleManifest } from '@ews/platform-sdk'
 import { BASE_PATH, createRequirementsArtifactSource, requirementsPlugin, type EventHub, type SysmlElementDirectory, type TwinDirectory } from '@ews/requirements-service'
 import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsArtifactSource, type ConceptsEventHub } from '@ews/conceptualize-service'
-import { SYSML_BASE_PATH, createSysmlArtifactSource, sysmlPlugin, type SysmlEventHub, type SysmlRepository } from '@ews/sysml-service'
+import { SYSML_BASE_PATH, createSysmlArtifactSource, sysmlPlugin, sysmlServerManifest, type SysmlEventHub, type SysmlRepository } from '@ews/sysml-service'
 import { CAD_BASE_PATH, CAD_SETTINGS, cadPlugin, createCadArtifactSource, type CadEventHub } from '@ews/cad-service'
 import { composeTwinDirectories, productTwinDirectory, projectsServerManifest, type BlobStore } from '@ews/projects-service'
 import { AdapterRegistry, VISUALIZATION_BASE_PATH, createFakeImageAdapter, createOpenAIImageAdapter, visualizationPlugin } from '@ews/visualization-service'
@@ -83,11 +83,7 @@ export const INSTALLED_SERVER_MODULES: ApiServerModule[] = [
     },
   },
   {
-    id: 'sysml-modeler',
-    name: 'SysML Modeler',
-    basePath: SYSML_BASE_PATH,
-    docs: 'SysML Modeler API',
-    provisioning: { module: 'sysml', lazyReason: 'A SysML model is created in the SysML Modeler when you start modelling; none exists in a new project.' },
+    ...sysmlServerManifest,
     async register(host) {
       const { app, pool, auth, options, production } = host
       // The plugin hands its repository and event hub to the host (onReady) for the artifact source (sysml-program-contracts.md §7).
