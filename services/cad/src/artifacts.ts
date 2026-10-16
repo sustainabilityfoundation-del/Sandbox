@@ -45,9 +45,12 @@ function descriptorsOf(d: DocRow): ArtifactDescriptor[] {
   const version = { value: d.current_revision, label: `Revision ${d.current_revision}`, at: d.updated_at.toISOString() }
   const common = { lifecycle, moduleState, version, createdAt: d.created_at.toISOString(), createdBy: d.created_by, modifiedAt: d.updated_at.toISOString(), modifiedBy: d.updated_by } as const
   const doc = d.content
-  const docRel = relationsOf(doc, doc.documentId)
+  const src = doc.metadata.source
+  // Provenance (format 1.3): the concept the document was started from, at its pinned revision.
+  const sourceRel = src ? [{ type: 'derived-from', to: { module: 'conceptualize', kind: 'concept', id: src.concept.id }, toRevision: src.concept.revision }] : []
+  const docRel = [...(relationsOf(doc, doc.documentId) ?? []), ...sourceRel]
   return [
-    { ref: docRef(d.id), key: `CAD ${short(d.id)}`, title: d.title, ...common, open: openLink(d.id), ...(docRel ? { relations: docRel } : {}) },
+    { ref: docRef(d.id), key: `CAD ${short(d.id)}`, title: d.title, ...common, open: openLink(d.id), ...(docRel.length ? { relations: docRel } : {}) },
     ...doc.parts.map((p): ArtifactDescriptor => {
       const rel = relationsOf(doc, p.id)
       // Part times are the document's: the service versions whole documents, not single parts.

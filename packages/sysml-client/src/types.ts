@@ -123,7 +123,7 @@ export interface SysmlClient {
   /** 'api': the PostgreSQL-backed service. 'local': explicit in-browser repository. Never switches silently. */
   readonly mode: 'api' | 'local'
   listProjects(platformProjectId?: string): Promise<ProjectInfo[]>
-  createProject(input: { name: string; platformProjectId: string; description?: string; initialText?: string }, options?: { idempotencyKey?: string }): Promise<ProjectInfo>
+  createProject(input: { name: string; platformProjectId: string; description?: string; initialText?: string; source?: CommitSource }, options?: { idempotencyKey?: string }): Promise<ProjectInfo>
   getProject(projectId: string): Promise<ProjectInfo>
   listBranches(projectId: string): Promise<BranchInfo[]>
   getBranch(projectId: string, branchId: string): Promise<BranchInfo>

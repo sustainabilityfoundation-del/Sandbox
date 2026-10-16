@@ -68,6 +68,7 @@ export const cadModelerHelp: HelpManifest = {
     { operation: 'cad-modeler.export', helpId: 'cad-modeler.export-step' },
     { operation: 'cad-modeler.check', helpId: 'cad-modeler.checks' },
     { operation: 'cad-modeler.check_bindings', helpId: 'cad-modeler.checks' },
+    { operation: 'cad-modeler.start_from_handoff', helpId: 'cad-modeler.handoff' },
     // Objects that can be linked from CAD parts.
     { objectType: 'part', helpId: 'cad-modeler.references' },
   ],

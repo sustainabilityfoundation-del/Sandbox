@@ -36,12 +36,12 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/tool-sysml': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
   'packages/tool-cad': /^@ews\/(platform-sdk|design-system)(\/[\w.-]+)?$/,
   // The workspace may use every package, but only a tool's public entry point.
-  'apps/workspace': /^@ews\/(model-service|design-system|platform-sdk|tool-[\w-]+|requirements-client|conceptualize-client|sysml-client|cad-client|projects-client)(\/(react|harness|testing|preferences|icon-names|styles\.css))?$/,
+  'apps/workspace': /^@ews\/(model-service|design-system|platform-sdk|tool-[\w-]+|requirements-client|conceptualize-client|sysml-client|cad-client|projects-client|visualization-client)(\/(react|harness|testing|preferences|icon-names|styles\.css))?$/,
   // Requirements module packages, checked once they exist. Only the client reaches the browser.
   'packages/requirements-client': /^@ews\/platform-sdk$/,
   'packages/reqif': /^$/,
   'services/requirements': /^@ews\/(platform-sdk|reqif)$/,
-  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service|settings-service|assistant-service|cad-service|projects-service)$/,
+  'services/api': /^@ews\/(platform-sdk|requirements-service|conceptualize-service|sysml-service|settings-service|assistant-service|cad-service|projects-service|visualization-service)$/,
   // Project Management (docs/specifications/project-management-contracts.md §3). Only the client reaches the browser.
   'services/projects': /^@ews\/platform-sdk$/,
   'packages/projects-client': /^@ews\/platform-sdk$/,
@@ -62,6 +62,9 @@ const ALLOWED: Record<string, RegExp> = {
   // AI connection (docs/specifications/ai-connection.md §5, §5a): framework-free SDK contract only; hosted by services/api.
   'services/settings': /^@ews\/platform-sdk$/,
   'services/assistant': /^@ews\/platform-sdk$/,
+  // Concept visualization (concept-visualization-contracts.md §1): the contract package is framework-free and has no @ews dependencies.
+  'services/visualization': /^@ews\/visualization-client$/,
+  'packages/visualization-client': /^$/,
 }
 
 describe('package boundaries', () => {

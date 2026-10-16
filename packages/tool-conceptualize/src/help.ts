@@ -34,9 +34,23 @@ const OPERATIONS: [string, string][] = [
   ['conceptualize.list_constraints', 'conceptualize.knowledge'],
   ['conceptualize.evaluate_calculation', 'conceptualize.calculations'],
   ['conceptualize.record_calculation', 'conceptualize.calculations'],
+  ['conceptualize.define_concept', 'conceptualize.visual'],
+  ['conceptualize.read_visuals', 'conceptualize.visual'],
+  ['conceptualize.request_illustration', 'conceptualize.visual.illustration'],
+  ['conceptualize.annotate_visual', 'conceptualize.visual.refine'],
+  ['conceptualize.refine_from_annotations', 'conceptualize.visual.refine'],
+  ['conceptualize.compare_cards', 'conceptualize.visual'],
+  ['conceptualize.reject_alternative', 'conceptualize.decision'],
+  ['conceptualize.create_cad_handoff', 'conceptualize.visual.handoff'],
 ]
 
 const CONTROLS: [string, string][] = [
+  ['conceptualize.visual', 'conceptualize.visual'],
+  ['conceptualize.visual.card', 'conceptualize.visual'],
+  ['conceptualize.visual.layout', 'conceptualize.visual'],
+  ['conceptualize.visual.refine', 'conceptualize.visual.refine'],
+  ['conceptualize.visual.illustration', 'conceptualize.visual.illustration'],
+  ['conceptualize.visual.handoff', 'conceptualize.visual.handoff'],
   ['conceptualize.explorer', 'conceptualize.explorer'],
   ['conceptualize.explorer.tree', 'conceptualize.explorer'],
   ['conceptualize.explorer.graph', 'conceptualize.explorer'],

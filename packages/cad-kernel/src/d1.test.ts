@@ -122,7 +122,7 @@ describe('parameter bindings (format 1.2)', () => {
     // Values are never copied: the parameter keeps its own expression.
     expect(e.document.parts[0].parameters.find((p) => p.name === 'af')!.expression).toBe(String(AF))
     expect(validateDocument(e.document)).toEqual([])
-    expect(e.document.formatVersion).toBe('1.2.0')
+    expect(e.document.formatVersion).toBe('1.3.0')
     const un = await e.execute({ commands: [{ command: 'unbind_parameter', input: { partId, name: 'af' } }] })
     expect(un.ok).toBe(true)
     expect(e.document.parts[0].parameters.find((p) => p.name === 'af')!.binding).toBeUndefined()

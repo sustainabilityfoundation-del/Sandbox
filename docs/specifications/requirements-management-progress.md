@@ -139,6 +139,28 @@ Merged main d628556 (docs/specifications/integration-milestone-1.md).
 - **COORDINATOR REVIEW** commit 9bae3e9: `apps/workspace/src/assistant/assistant.test.ts` runs its twin demo flow without a Requirements service (it passed before only because no view was mounted). Test-only.
 - Limitation: proposals are still closures (`apply`/`undo`) held by the workspace, not persisted declarative data (C9 §3); that needs `services/assistant` persistence and a declarative proposal contract from the coordinator. The Requirements Apply is already a pure function of (requirement ID, patch, expected revision, project), so it can be expressed declaratively when that contract exists.
 
+## Live D1 run findings, 16 Oct 2026
+
+Merged main 7092a8d. Transcript: `tests/e2e/.output/d1-live/transcript.json` (main worktree).
+
+- **Cause of the three failed `requirements.create`:** all three (CP-11, CP-12, CP-13) used `type: 'dimensional'`, which is not a project type. The mass budget (CP-14, `physical`, verification `test`) was **applied**, not refused; replaying its exact payload against the API also succeeds.
+- **Field-level details in every refusal.** Content validation now reads, for example, "The requirement is not valid: type “dimensional” is not a requirement type in this project; use one of functional, performance, …". Schema errors now read "The body is not valid: title must NOT have more than 300 characters." `details.fields` is unchanged. So the platform's Apply error, the UI and the model all see the field and the reason.
+- **Validation before the proposal is shown.**
+  - New endpoints `POST /projects/{p}/requirements/validate` (`validateRequirementCreate`) and `POST /projects/{p}/relationships/validate` (`validateRelationship`). They run exactly the create code, including conventions, origin/derivesFrom, target directories and permissions, in a transaction that is always rolled back.
+  - `requirements.create` and `requirements.allocate` call them while preparing the proposal. An invalid proposal is refused then (`invalid-arguments`, `not-allowed` or `not-found`) with the service's message, and is never offered for Apply.
+  - Update is still checked at Apply only.
+- **Allowed values in the operation schema.** Property descriptions now give the limits (title 1–300 characters, text fields at most 20 000), the default types, and guidance (dimensions, mass and size are usually `physical` or `design-constraint`). Verification methods were already an enum. Action parameters are static per operation, so they cannot carry one project's list; instead, `requirements.get_conventions` (new, read) returns the project's types, methods, origins and limits, and a preview refusal lists the allowed types.
+- **Reading requirements headless.** New `requirements.get` (read) takes a key or ID and returns the full record with its relationships and allocations. Its description and `requirements.search`'s now say to use them, not `read_object`, for managed requirements.
+- **Tests** (`services/api/test/d1.test.ts`, real API through the assistant service):
+  - The five model calls from the transcript, verbatim: the three `dimensional` ones are refused when prepared, naming the field and the allowed types; the others apply; an empty `derivesFrom` is ignored.
+  - A conventions change between preview and Apply gives an Apply error that names the field.
+  - `requirements.get` by key, and `get_conventions`.
+  - Create and allocate parity: the assistant's refusal when preparing contains the UI's exact message.
+- **COORDINATOR REVIEW:**
+  - `capabilities.ts`: new operations and API operation IDs.
+  - `policy.ts`: `requirements.get` and `get_conventions` classed `read`.
+- **For the coordinator (read_object):** the platform's `read_object` description says it reads "component, requirement, SysML element, CAD representation" by stable ID. Managed requirements are in the Requirements service, and a key such as REQ-001 is not a model ID in a new project. Suggested wording: "Read one object of the shared model (component, SysML element, CAD representation) or scenario by stable ID. For requirements use requirements.get / requirements.search."
+
 ## Declarative proposals, canonical allocation targets, CR-AI-10, 15 Oct 2026
 
 Merged main 5565018.

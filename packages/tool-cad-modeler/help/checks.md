@@ -49,3 +49,9 @@ compliance.
 **cad-modeler.check_bindings** lists parameters whose binding pins a constraint revision older than its
 latest one. It shows the bound of the pinned revision and of the latest revision, so the parameter can
 be reviewed, changed and re-bound with `bind_parameter`.
+
+**Changing a bound parameter after its constraint was revised.** When `cad-modeler.run_commands` changes
+the value of a parameter whose binding pins an older revision of its constraint, the preview shows an
+**Outdated binding** item. It gives the pinned and the latest revision with their bounds. The same
+proposal also re-binds the parameter to the latest revision, unless the request says `rebind: false`.
+Run `cad-modeler.check` afterwards to confirm the new value against that revision.

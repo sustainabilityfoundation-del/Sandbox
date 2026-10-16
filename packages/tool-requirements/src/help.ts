@@ -30,6 +30,8 @@ export const requirementsHelp: HelpManifest = {
     // Assistant operations: the registry stays authoritative for what runs.
     { operation: 'requirements.update', helpId: 'requirements.requirement.edit' },
     { operation: 'requirements.create', helpId: 'requirements.requirement.create' },
+    { operation: 'requirements.get', helpId: 'requirements.table' },
+    { operation: 'requirements.get_conventions', helpId: 'requirements.quality' },
     { operation: 'requirements.allocate', helpId: 'requirements.requirement.trace' },
     { control: 'requirements.requirement.origin', helpId: 'requirements.requirement.create' },
     { operation: 'requirements.search', helpId: 'requirements.table' },

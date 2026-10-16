@@ -264,3 +264,46 @@ Brief: [demo-ai-engineering.md](demo-ai-engineering.md) §3 D1-AI. Boundaries: A
     packages compared with main f68369c. I have not checked whether it also fails on main.
 - Browser flows against my stack (API 8801 with the fake provider, PostgreSQL 54343, workspace 5202): all 14 pass,
   including `demo-d1` and `ai-headless`. `platform` failed once with a search-option timeout and passed on the rerun.
+
+## 10. Concept visualization: image generation (contracts: concept-visualization-contracts.md §1, §3, §6)
+
+The owner decided (contracts §6): **structured layouts only for now**. Image generation is built and tested
+with the fake adapter and stubbed HTTP, but **no live generation has been run**. Developer documentation:
+[image-generation.md](../modules/ai-interface/image-generation.md). Help: `ai.images`.
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| `services/visualization` (schema `visualization`, `/api/visualization/v1`, OpenAPI 3.1, hosted by services/api) | implemented, tested | jobs (pending, running, succeeded, failed, cancelled), derived idempotency key with a unique index, retry, cancel, batches with per-item outcomes, interrupted recovery without automatic re-run, outbox and SSE events, assets in the Project Management blob store |
+| Client contract `@ews/visualization-client` (types and HTTP client) | implemented; accepted by the coordinator and forwarded to Conceptualize | `packages/visualization-client/src/types.ts`, `client.ts` |
+| Adapter registry: OpenAI Images API (API key) and fake test adapter (development and tests only, labelled SVG) | implemented, tested (stubbed HTTP) | `src/adapters/*.ts`, `src/adapters.test.ts` |
+| Credential port to services/assistant; settings `ai.images.enabled` (off by default), `ai.images.quality`, `ai.images.daily-limit` | implemented, tested | `AssistantBackend.imageAccess()`, `policy.ts`; the key never appears in responses, events or the database (`test/visualization.api.test.ts`) |
+| Clear refusal without a provider (409 `generation-unavailable`, `details.reason`); no placeholder images | implemented, tested | not-connected, images-disabled, method-unsupported (Sign in with ChatGPT), provider-missing, 429 daily-limit |
+| Documentation of configuration, cost and limitations | done | image-generation.md, help ai/images.md |
+| Live generation with the owner's account | **not done** (owner decision) | enabling steps: image-generation.md §5 |
+
+Finding: OpenAI's Sign in with ChatGPT preview lists image generation as unsupported on plan usage, so
+illustrations need an OpenAI API key. The connection port carries `purpose` (`assistant` | `images`), so a later
+image-only key does not change the visualization service. It is not built (owner decision).
+
+### Verification (visualization checkpoint, branch after main e2b6dcd)
+
+- `services/visualization` tests:
+  - unit: `src/adapters.test.ts`, 8 tests;
+  - database: `test/visualization.api.test.ts`, 9 tests, all passing. They cover idempotency (including concurrent
+    requests), retry, cancel (running and pending), a batch where one item fails and one is refused while the others
+    keep their images, interrupted recovery, validation and roles, refusals without a job, and generation through the
+    assistant's credential port with stubbed OpenAI. The key does not appear in responses, events or tables.
+- `npm run check`: 1136 passed. 3 tests failed, all timeouts under parallel load, and all pass when run alone:
+  - `connection.test.ts` refusal wording;
+  - two SysML Modeler tests.
+- `npm run build` and `npm run build:harnesses`: pass.
+- `npm run req:test:db`: the failing files are startup or plugin timeouts under the machine's parallel load ("Plugin
+  did not start in time"). Each one passed when run serially. The remaining timing assertions were
+  `assistant.api` "stops a call at the request timeout" (20.8 s against 20 s) and `acceptance.i1`.
+- Browser flows on 5202/8801/54343, all pass:
+  - `visualization` (new);
+  - `ai-headless`: 62 operations, after following the Conceptualize changes on main;
+  - `demo-d1`: the constraint IDs now come from `conceptualize.list_constraints`;
+  - `ai-fake-provider`: the drill demo plan records its alternatives with `develop_alternatives`;
+  - every other flow. `vision` failed once inside the full run and passed alone.
+- No live image generation was run (owner decision).

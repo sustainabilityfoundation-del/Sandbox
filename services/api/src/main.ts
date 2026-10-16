@@ -38,7 +38,7 @@ const server = await buildServer({
 })
 await server.app.listen({ host: cfg.host, port: cfg.port })
 console.log(`Requirements API on http://${cfg.host}:${cfg.port}/api/requirements/v1 (OpenAPI: /api/requirements/v1/openapi.json), database ${cfg.databaseName} (${cfg.pgMode}).`)
-console.log(`Settings API on http://${cfg.host}:${cfg.port}/api/settings/v1, Assistant API on http://${cfg.host}:${cfg.port}/api/assistant/v1 (references: …/docs).${process.env.EWS_ASSISTANT_FAKE_PROVIDER === '1' && !cfg.production ? ' Fake AI provider registered (development).' : ''}`)
+console.log(`Settings API on http://${cfg.host}:${cfg.port}/api/settings/v1, Assistant API on http://${cfg.host}:${cfg.port}/api/assistant/v1, Visualization API on http://${cfg.host}:${cfg.port}/api/visualization/v1 (references: …/docs).${process.env.EWS_ASSISTANT_FAKE_PROVIDER === '1' && !cfg.production ? ' Fake AI provider and fake test image adapter registered (development).' : ''}`)
 console.log(`Project Management API on http://${cfg.host}:${cfg.port}/api/projects/v1 (OpenAPI: /api/projects/v1/openapi.json, reference: /api/projects/v1/docs).`)
 console.log(`Conceptualize API on http://${cfg.host}:${cfg.port}/api/concepts/v1 (OpenAPI: /api/concepts/v1/openapi.json, reference: /api/concepts/v1/docs).`)
 

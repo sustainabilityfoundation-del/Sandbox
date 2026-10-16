@@ -7,7 +7,7 @@
  */
 
 export const FORMAT = 'ews-cad'
-export const FORMAT_VERSION = '1.2.0'
+export const FORMAT_VERSION = '1.3.0'
 export const MEDIA_TYPE = 'application/vnd.ews.cad+json'
 export const FILE_EXTENSION = '.ewscad'
 
@@ -45,6 +45,17 @@ export interface DocumentMetadata {
   /** Tool that wrote the file. */
   writer?: { tool: string; version: string }
   properties?: Record<string, string | number | boolean>
+  /**
+   * Where the design came from (format 1.3): the Conceptualize concept, at the revision the document was
+   * started from, and optionally the CAD handoff package it was built from. Provenance only: nothing is
+   * copied from the concept, and a newer concept revision never changes the model by itself.
+   */
+  source?: DocumentSource
+}
+
+export interface DocumentSource {
+  concept: { module: 'conceptualize'; kind: 'concept'; id: string; revision: number; label?: string }
+  handoff?: { id: string; revision: number }
 }
 
 export interface Part {
@@ -57,6 +68,17 @@ export interface Part {
   /** Engineering semantics: named interfaces, functional surfaces, design-intent notes. */
   semantics: SemanticAnnotation[]
   properties?: Record<string, string | number | boolean>
+  /**
+   * Where the design came from (format 1.3): the Conceptualize concept, at the revision the document was
+   * started from, and optionally the CAD handoff package it was built from. Provenance only: nothing is
+   * copied from the concept, and a newer concept revision never changes the model by itself.
+   */
+  source?: DocumentSource
+}
+
+export interface DocumentSource {
+  concept: { module: 'conceptualize'; kind: 'concept'; id: string; revision: number; label?: string }
+  handoff?: { id: string; revision: number }
 }
 
 export interface Material {

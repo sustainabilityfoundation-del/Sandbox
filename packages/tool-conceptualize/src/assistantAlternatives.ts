@@ -1,7 +1,10 @@
 import { ActionError, type AssistantActionDefinition, type ServiceProposalItem } from '@ews/platform-sdk'
-import type { CriterionCategory, CriterionInput, ExplorationCreate, Quantity, StatementInput, StatementKind } from '@ews/conceptualize-client'
+import type { CriterionCategory, CriterionInput, DefinitionInput, ExplorationCreate, Quantity, StatementInput, StatementKind } from '@ews/conceptualize-client'
 import { assistantProvenance, connection, optString, proposal, resolve, string } from './assistantShared'
+import { definitionSchema } from './assistantVisual'
 import { formatQuantity, KIND_LABEL } from './domain'
+import { parameterLabel } from './layout/renderLayout'
+import { generationRecord, illustrationAvailability, illustrationInstruction, refusalRecord, visualizationPort } from './visualization'
 
 /**
  * CR-AI-1: `conceptualize.develop_alternatives` records the alternatives (and optionally the trade study)
@@ -11,7 +14,7 @@ import { formatQuantity, KIND_LABEL } from './domain'
  * library content mixed in.
  */
 
-export const STATEMENT_KINDS: StatementKind[] = ['function', 'behavior', 'principle', 'effect', 'input', 'output', 'constraint', 'interface', 'mechanism', 'problem', 'capability', 'performance', 'assumption', 'uncertainty', 'question', 'rationale', 'note']
+export const STATEMENT_KINDS: StatementKind[] = ['function', 'behavior', 'principle', 'effect', 'input', 'output', 'constraint', 'interface', 'mechanism', 'problem', 'capability', 'performance', 'assumption', 'uncertainty', 'question', 'rationale', 'note', 'benefit', 'trade-off']
 /** Bases the assistant may write (ADR-0043); default ai-hypothesis. */
 const MODEL_BASES = ['ai-hypothesis', 'assumption', 'estimate'] as const
 type ModelBasis = (typeof MODEL_BASES)[number]
@@ -87,6 +90,8 @@ interface ModelAlternative {
   description?: string
   statements: StatementInput[]
   parts: string[]
+  /** Engineering definition (components, parameters, interfaces, layout): validated by the service. */
+  definition?: DefinitionInput
 }
 
 function alternativesOf(raw: unknown): ModelAlternative[] {
@@ -97,7 +102,8 @@ function alternativesOf(raw: unknown): ModelAlternative[] {
     const at = `alternatives[${i}]`
     if (!isObj(a)) return bad(`${at} must be an object { name, summary, description?, statements? }. ${REFUSE_NO_ALTERNATIVES}`)
     const parts = a.parts === undefined || a.parts === null ? [] : Array.isArray(a.parts) ? a.parts.map((p, j) => text(p, `${at}.parts[${j}]`)!) : bad(`${at}.parts must be an array of names.`)
-    return { name: text(a.name, `${at}.name`)!, summary: text(a.summary, `${at}.summary`)!, description: text(a.description, `${at}.description`, false), statements: modelStatements(a.statements, `${at}.statements`), parts }
+    if (a.definition !== undefined && a.definition !== null && !isObj(a.definition)) bad(`${at}.definition must be an object { intent?, components?, parameters?, interfaces?, layout? }.`)
+    return { name: text(a.name, `${at}.name`)!, summary: text(a.summary, `${at}.summary`)!, description: text(a.description, `${at}.description`, false), statements: modelStatements(a.statements, `${at}.statements`), parts, ...(isObj(a.definition) ? { definition: a.definition as DefinitionInput } : {}) }
   })
   const names = out.map((a) => a.name.toLowerCase())
   const dup = names.find((n, i) => names.indexOf(n) !== i)
@@ -183,7 +189,8 @@ export const developAlternatives: AssistantActionDefinition = {
     'You must supply `alternatives`: for each a name and a summary (the principle in one or two sentences), optionally a description, statements (kind, text, quantity, basis) and part names. ' +
     'Optionally supply `tradeStudy`: criteria with weights, and scores per alternative and criterion with a rationale (qualitative 1–5, or value / low–high in the criterion unit). ' +
     'Everything is recorded exactly as you write it, as AI hypotheses (or the basis you give: assumption, estimate). The objective text is kept verbatim. ' +
-    'Give `parentId` to put the alternatives under an existing Concept; otherwise `name` names the new parent Concept. Nothing is invented by this operation; without alternatives it refuses. One atomic change, applied only after review.',
+    'Give `parentId` to put the alternatives under an existing Concept; otherwise `name` names the new parent Concept. Nothing is invented by this operation; without alternatives it refuses. One atomic change, applied only after review. ' +
+    'Propose 3 alternatives unless the user asks for another number; make them differ in architecture, mechanism, packaging or manufacture, not only in styling. Give each a `definition` (components, parameters with units, interfaces and a structured layout) so it is drawn as a dimensioned layout and compared side by side (`visuals.layout`, default true). `visuals.illustration` also requests illustrative images when image generation is available (otherwise the reason is shown and layouts still work).',
   parameters: {
     type: 'object',
     properties: {
@@ -197,7 +204,7 @@ export const developAlternatives: AssistantActionDefinition = {
         maxItems: 20,
         items: {
           type: 'object',
-          properties: { name: string, summary: string, description: string, statements: statementsSchema, parts: { type: 'array', items: string, maxItems: 30, description: 'Names of child Concepts (functional decomposition).' } },
+          properties: { name: string, summary: string, description: string, statements: statementsSchema, parts: { type: 'array', items: string, maxItems: 30, description: 'Names of child Concepts (functional decomposition).' }, definition: definitionSchema },
           required: ['name', 'summary'],
         },
       },
@@ -224,8 +231,10 @@ export const developAlternatives: AssistantActionDefinition = {
         },
         required: ['criteria'],
       },
+      visuals: { type: 'object', properties: { layout: { type: 'boolean', description: 'Draw a layout for each alternative with a layout definition (default true)' }, illustration: { type: 'boolean', description: 'Also request illustrations (default false)' } } },
     },
-    required: ['text', 'alternatives'],
+    // alternatives is checked by the action, so a call without them gets the explicit refusal below.
+    required: ['text'],
     additionalProperties: false,
   },
   async run(args, ctx) {
@@ -233,7 +242,10 @@ export const developAlternatives: AssistantActionDefinition = {
     // Validate the model's content before touching the service, so a missing list is refused clearly.
     const alternatives = alternativesOf(args.alternatives)
     const parentStatements = modelStatements(args.statements, 'statements')
-    const { client } = connection(ctx)
+    const { client, projectId } = connection(ctx)
+    const visualsArg = (isObj(args.visuals) ? args.visuals : {}) as { layout?: boolean; illustration?: boolean }
+    const drawLayouts = visualsArg.layout !== false
+    const illustrations = visualsArg.illustration === true ? await illustrationAvailability(projectId) : null
     const parentArg = optString(args, 'parentId')
     const existing = parentArg ? await resolve(client, parentArg) : undefined
     const parentName = optString(args, 'name') ?? (existing ? undefined : objective.length <= 120 ? objective : `${objective.slice(0, 117).trimEnd()}…`)
@@ -251,6 +263,7 @@ export const developAlternatives: AssistantActionDefinition = {
         ...(a.description ? { description: a.description } : {}),
         statements: a.statements,
         ...(a.parts.length ? { children: a.parts.map((p) => ({ name: p, abstraction: 'function' as const })) } : {}),
+        ...(a.definition ? { definition: a.definition, stage: a.definition.layout ? ('layout' as const) : ('exploration' as const) } : {}),
       })),
       ...(tradeStudy ? { tradeStudy } : {}),
       generator: MODEL_GENERATOR,
@@ -263,6 +276,13 @@ export const developAlternatives: AssistantActionDefinition = {
         { label: `Alternative ${i + 1}`, proposed: `${a.name}: ${a.summary}${a.parts.length ? ` (parts: ${a.parts.join(', ')})` : ''}`, basis: 'ai-hypothesis' },
         ...(a.description ? [{ label: `${a.name}: description`, proposed: a.description, basis: 'ai-hypothesis' as const }] : []),
         ...a.statements.map((s): ServiceProposalItem => ({ label: `${a.name}: statement`, proposed: statementLine(s), basis: s.basis as ModelBasis })),
+        ...(a.definition
+          ? [
+              { label: `${a.name}: components`, proposed: (a.definition.components ?? []).map((c) => `${c.id ? `${c.id} ` : ''}${c.name}`).join(', ') || '(none)', basis: 'ai-hypothesis' as const },
+              ...((a.definition.parameters ?? []).length ? [{ label: `${a.name}: parameters`, proposed: (a.definition.parameters ?? []).map((q) => parameterLabel({ value: null, min: null, max: null, ...q } as never)).join('; '), basis: 'ai-hypothesis' as const }] : []),
+              ...(a.definition.layout && drawLayouts ? [{ label: `${a.name}: layout`, proposed: `Drawn from the definition: ${a.definition.layout.items.length} placed components, ${(a.definition.layout.dimensions ?? []).length} dimensions (labels from parameters)` }] : []),
+            ]
+          : []),
       ]),
       ...(tradeStudy
         ? [
@@ -276,14 +296,49 @@ export const developAlternatives: AssistantActionDefinition = {
       title: `Record ${alternatives.length} alternative${alternatives.length === 1 ? '' : 's'} for “${label}”`,
       explanation: `The alternatives${tradeStudy ? ' and the trade study' : ''} are recorded exactly as proposed in the conversation, as AI hypotheses (or the stated basis). Nothing is verified; review, confirm or discard.`,
       preview,
-      assumptions: ['The alternatives, statements and scores are the assistant’s proposals, not research results or measurements.', ...(tradeStudy?.scores?.length ? ['Trade-study scores are AI hypotheses for discussion; the ranking is preliminary.'] : [])],
+      assumptions: [
+        'The alternatives, statements and scores are the assistant’s proposals, not research results or measurements.',
+        ...(tradeStudy?.scores?.length ? ['Trade-study scores are AI hypotheses for discussion; the ranking is preliminary.'] : []),
+        ...(illustrations ? [illustrations.available ? `Illustrations are requested (${illustrations.adapter}); they are illustrative, not to scale. ${illustrations.reason}` : `Illustrations are not available: ${illustrations.reason} The layouts are drawn as usual; no image is made.`] : []),
+      ],
       inspected: existing ? [{ id: existing.key, detail: `parent Concept (rev ${existing.revision})` }] : [],
       async apply(p) {
         const e = await client.createExploration(exploration, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:explore` })
         explorationId = e.id
         const parent = e.created.concepts.find((c) => c.role === 'parent')
         const alts = e.created.concepts.filter((c) => c.role === 'alternative')
-        return { summary: `Recorded ${alts.map((c) => `${c.key} ${c.name}`).join(', ')} as alternatives${parent ? ` of ${parent.key}` : existing ? ` of ${existing.key}` : ''}${tradeStudy ? ' with a trade study' : ''}`, createdIds: e.created.concepts.map((c) => c.id) }
+        const prov = assistantProvenance(p)
+        const notes: string[] = []
+        const visualIds: string[] = []
+        // Visuals per alternative: one item's failure never affects another (each is its own request).
+        for (const [i, alt] of alts.entries()) {
+          const def = alternatives[i]?.definition
+          if (def?.layout && drawLayouts) {
+            try {
+              const v = await client.createVisual({ conceptId: alt.id, kind: 'layout' }, { provenance: prov, idempotencyKey: `${p.conversationId}:${p.proposalId}:layout:${i}` })
+              visualIds.push(v.id)
+              notes.push(`${alt.key}: layout ${v.key}${v.notToScale ? ' (not to scale)' : ''}`)
+            } catch (err) {
+              notes.push(`${alt.key}: no layout (${(err as Error).message})`)
+            }
+          }
+          if (illustrations?.available) {
+            const c = await client.concept(alt.id)
+            const card = await client.conceptCard(alt.id)
+            const instruction = illustrationInstruction({ name: c.name, intent: card.intent, principle: card.principle, components: card.components, interfaces: card.interfaces })
+            const v = await client.createVisual({ conceptId: alt.id, kind: 'illustration', instruction }, { provenance: prov, idempotencyKey: `${p.conversationId}:${p.proposalId}:illustration:${i}` })
+            visualIds.push(v.id)
+            try {
+              const { job } = await visualizationPort()!.createJob(projectId, { kind: 'illustration', subject: { module: 'conceptualize', type: 'concept', id: alt.id, revision: c.revision }, instruction, adapter: illustrations.adapter ?? undefined, clientRef: v.id, purpose: `${alt.key} ${alt.name}`, provenance: { sourceKind: 'assistant', conversationId: p.conversationId, proposalId: p.proposalId, messageId: p.messageId } })
+              await client.recordGeneration(v.id, v.revision, generationRecord(job), { provenance: prov })
+              notes.push(`${alt.key}: illustration ${v.key} ${job.state}`)
+            } catch (err) {
+              await client.recordGeneration(v.id, v.revision, refusalRecord(err), { provenance: prov })
+              notes.push(`${alt.key}: illustration refused (${(err as Error).message})`)
+            }
+          }
+        }
+        return { summary: `Recorded ${alts.map((c) => `${c.key} ${c.name}`).join(', ')} as alternatives${parent ? ` of ${parent.key}` : existing ? ` of ${existing.key}` : ''}${tradeStudy ? ' with a trade study' : ''}${notes.length ? `. Visuals: ${notes.join('; ')}` : ''}`, createdIds: [...e.created.concepts.map((c) => c.id), ...visualIds] }
       },
       async undo() {
         if (!explorationId) return { summary: 'Nothing to undo.' }

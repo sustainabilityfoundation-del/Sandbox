@@ -1,0 +1,13 @@
+{
+  "name": "@ews/visualization-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Contract types and browser client of the visualization service (/api/visualization/v1): image generation jobs with idempotent requests, batches with per-item outcomes, retry, cancel, assets and events.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

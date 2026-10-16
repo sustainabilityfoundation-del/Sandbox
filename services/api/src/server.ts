@@ -43,6 +43,7 @@ import {
 } from '@ews/projects-service'
 import { platformMemberships } from './platform/memberships'
 import { SETTINGS_BASE_PATH, SettingsRegistry, settingsPlugin, type SettingsStore } from '@ews/settings-service'
+import { AdapterRegistry, VISUALIZATION_BASE_PATH, createFakeImageAdapter, createOpenAIImageAdapter, visualizationPlugin, type AdapterRegistry as VisualizationAdapters } from '@ews/visualization-service'
 import { AI_SETTINGS_PAGE, AI_SETTING_DEFINITIONS, ASSISTANT_BASE_PATH, CredentialVault, ProviderRegistry, assistantPlugin, createFakeProvider, createOpenAIProvider, registerOAuthCallback, type AssistantBackend } from '@ews/assistant-service'
 
 /**
@@ -110,6 +111,16 @@ export interface ServerOptions {
     /** Replace the provider registry (tests). */
     providers?: ProviderRegistry
     fetch?: typeof fetch
+  }
+  /** Image generation for concept visuals (docs/specifications/concept-visualization-contracts.md §1). */
+  visualization?: {
+    /** Register the fake test image adapter (development and tests; never in production). Default: assistant.fakeProvider. */
+    fakeAdapter?: boolean
+    /** Replace the adapter registry (tests). */
+    adapters?: VisualizationAdapters
+    /** fetch for the OpenAI image adapter (tests stub it; never a real provider in tests). */
+    fetch?: typeof fetch
+    runner?: { concurrency?: number; pollMs?: number; staleAfterMs?: number }
   }
 }
 
@@ -295,6 +306,27 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     })
     registerOAuthCallback(app, () => assistantBackend)
   } else app.log.warn('EWS_ASSISTANT_KEY is not set: the assistant API (/api/assistant/v1) is not started.')
+  // Visualization (image generation jobs). Credentials stay in the assistant service: the port hands the adapter a
+  // credential for one call at run time. Without the assistant every real adapter is unavailable (refused clearly).
+  const imageAdapters = options.visualization?.adapters ?? new AdapterRegistry({ production }).register(createOpenAIImageAdapter({ fetch: options.visualization?.fetch }))
+  if ((options.visualization?.fakeAdapter ?? options.assistant?.fakeProvider) && !production && !imageAdapters.get('fake-test')) imageAdapters.register(createFakeImageAdapter())
+  registerApiDocs(app, { path: `${VISUALIZATION_BASE_PATH}/docs`, openapiUrl: `${VISUALIZATION_BASE_PATH}/openapi.json`, title: 'Visualization API' })
+  await app.register(visualizationPlugin, {
+    prefix: VISUALIZATION_BASE_PATH,
+    pool: options.pool,
+    blobs: projectBlobs,
+    adapters: imageAdapters,
+    access: {
+      resolve: async (userId, projectId) =>
+        assistantBackend
+          ? assistantBackend.imageAccess(userId, projectId)
+          : { connection: null, enabled: false, quality: 'medium', dailyLimit: 0, credential: async () => Promise.reject(new Error('The assistant service is not started.')) },
+    },
+    authenticate: auth.authenticate,
+    roleOf: async (userId, projectId) => (await auth.roleOf(userId, projectId)) ?? null,
+    eventPollMs: options.eventPollMs,
+    runner: options.visualization?.runner,
+  })
   return {
     app,
     events,

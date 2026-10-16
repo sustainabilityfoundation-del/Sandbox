@@ -227,3 +227,39 @@ describe('D1-CAD: workspace PlatformServices.cad helper', () => {
     expect(mass.value.derivedFrom).toBe('regeneration')
   })
 })
+
+describe('document source concept', () => {
+  it('set_document_source through run_commands; describe_model shows it', async () => {
+    await model()
+    await apply('cad-modeler.run_commands', { commands: [{ command: 'set_document_source', input: { conceptId: 'c-holder', revision: 2, label: 'CON-002 Holder' } }] })
+    const d = (await action('cad-modeler.describe_model').run({}, ctx())) as { data: { document: { source: unknown } } }
+    expect(d.data.document.source).toMatchObject({ concept: { module: 'conceptualize', kind: 'concept', id: 'c-holder', revision: 2 } })
+  })
+})
+
+describe('D1-CAD: changing a bound parameter whose constraint has a newer revision', () => {
+  it('flags it in the preview and re-binds it in the same proposal (or only flags it with rebind: false)', async () => {
+    await model() // af bound to CST-1 revision 1; CST-1 is at revision 2
+    const p = (await action('cad-modeler.run_commands').run({ commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'af', expression: '7.1' } }] }, ctx())) as ServiceProposal
+    const item = p.preview.find((i) => i.label === 'Outdated binding: af')!
+    expect(item).toMatchObject({ current: expect.stringMatching(/bound to CST-1 revision 1 \(6\.4–6\.8 mm\)/), proposed: expect.stringMatching(/re-bound to CST-1 revision 2 \(6\.9–7\.3 mm\)/) })
+    expect(p.preview.some((i) => i.label.endsWith('bind_parameter'))).toBe(true)
+    expect(p.assumptions?.some((a) => /run cad-modeler\.check/.test(a))).toBe(true)
+    await p.apply(provenance)
+    const doc = cadSession.openDocuments()[0].engine.document
+    expect(doc.parts[0].parameters.find((x) => x.name === 'af')!.binding!.ref.revision).toBe(2)
+    const b = (await action('cad-modeler.check_bindings').run({}, ctx())) as { data: { outdated: unknown[] } }
+    expect(b.data.outdated).toEqual([])
+  })
+
+  it('rebind: false only flags; unrelated parameter changes are not flagged', async () => {
+    await model()
+    const flagged = (await action('cad-modeler.run_commands').run({ rebind: false, commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'af', expression: '7.1' } }] }, ctx())) as ServiceProposal
+    expect(flagged.preview.find((i) => i.label === 'Outdated binding: af')?.proposed).toMatch(/still bound to revision 1; CST-1 is at revision 2/)
+    expect(flagged.preview.some((i) => i.label.endsWith('bind_parameter'))).toBe(false)
+    await flagged.apply(provenance)
+    expect(cadSession.openDocuments()[0].engine.document.parts[0].parameters.find((x) => x.name === 'af')!.binding!.ref.revision).toBe(1)
+    const other = (await action('cad-modeler.run_commands').run({ commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'pitch', expression: '13' } }] }, ctx())) as ServiceProposal
+    expect(other.preview.some((i) => i.label.startsWith('Outdated binding'))).toBe(false)
+  })
+})

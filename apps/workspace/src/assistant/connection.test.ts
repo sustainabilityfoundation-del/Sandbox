@@ -45,14 +45,18 @@ describe('connected assistant service', () => {
 })
 
 describe('refusal wording', () => {
+  // Tests the reply builder directly: booting the demo assistant loads every tool and timed out under parallel load.
   it('names the AI access settings, not the subscription, when the policy removed an operation', async () => {
-    await import('../platform/tools')
-    const { DemoAssistantService } = await import('./DemoAssistantService')
+    const { notInSubscription } = await import('./DemoAssistantService')
     usePolicyView.setState({ view: view({ workspace: 'propose', conceptualize: 'off' }) })
-    const service = new DemoAssistantService({ thinkingMs: 0 })
-    const r = await service.respond({ history: [], turn: { text: 'Create a concept for a compact gripper that holds 2 kg', context: { selection: [] } as never, toolResults: [] }, tools: [] }, new AbortController().signal)
+    const r = notInSubscription('Conceptualize', 'conceptualize.create')
     expect(r.type === 'final' && r.text).toMatch(/AI access to Conceptualize is off/)
     expect(r.type === 'final' && r.text).not.toMatch(/subscription/)
-    // Importing the whole tool registry (CAD kernel included) can exceed the default 5 s under parallel load.
-  }, 30_000)
+  })
+  it('names the subscription when the policy allows the operation but the tool is not entitled', async () => {
+    const { notInSubscription } = await import('./DemoAssistantService')
+    usePolicyView.setState({ view: view({ workspace: 'propose', conceptualize: 'propose' }) })
+    const r = notInSubscription('Conceptualize', 'conceptualize.create')
+    expect(r.type === 'final' && r.text).toMatch(/isn't included in your subscription/)
+  })
 })

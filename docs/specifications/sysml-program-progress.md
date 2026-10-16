@@ -125,6 +125,33 @@ export interface SysmlModelService {
 Host wiring: `services.sysml = createSysmlModelService(<the same client the SysML Modeler tool uses>)`.
 The tool then reads its client from the host when `services.sysml` exists (tool change after SDK 1.8).
 
+## D1 live run follow-up (16 October 2026): architecture step
+
+Finding (transcript `tests/e2e/.output/d1-live/transcript.json`, turn M23/M24, proposal CP-16): the
+SysML project was **not empty**. The model passed its architecture as `initialText` and the project was
+created with 52 elements (commit #1: three part definitions, part usages, a functional decomposition of
+four actions, two allocations, and `holder`); the Project Management registry lists them. What was
+missing were the links: the model planned `represents` and requirement allocations for a follow-up
+turn "after Apply provides stable IDs", and the scripted run moved on to the next prompt. Reasons on
+our side:
+
+- the product element (CP-15) was proposed in the same turn, so it had no UUID yet; nothing told the
+  model which links it could include immediately;
+- requirement allocation needed three operations (a SysML requirement in text, `link_requirement`,
+  `satisfy` in text); `link_requirement` only works on an existing SysML requirement;
+- `create_project` could carry only text, and its commit was recorded as a user commit (no
+  provenance).
+
+Fixed: `create_project` takes `requirements` (managed requirements allocated to parts) and
+`productElements` (existing product elements by UUID) next to `initialText`, validates everything at
+proposal time and creates it in one commit with assistant provenance; new `satisfy_requirement` does
+the same allocation on an existing model; `link_product_element` and `link_requirement` say when to use
+which; the applied result names the project ID and the next operations; errors name the missing input
+and what to do (for example "apply the product-element proposal first", suggestions for unknown
+element names, line numbers for invalid text). Tests with the live run's own text:
+`packages/tool-sysml-modeler/src/architecture.test.ts` (in-browser client) and
+`services/sysml/test/d1.test.ts` (HTTP API and PostgreSQL).
+
 ## D1-SYS (15 October 2026): architecture step of demonstration D1
 
 Confirmed headless through the assistant in a **new, empty platform project** (no view mounted):

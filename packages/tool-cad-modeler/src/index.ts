@@ -16,6 +16,7 @@ import { cadSession, setDefaultKernelFactory } from './session'
 import { INITIAL_VIEW_STATE, type CadModelerViewState } from './viewState'
 import { CAD_SETTINGS } from './settings'
 export { CAD_SETTINGS, CAD_SETTING_DEFINITIONS, CAD_SETTING_IDS } from './settings'
+export { configureConceptHandoffs, mapHandoff, type ConceptHandoff, type ConceptHandoffPort, type ConceptRevisionStaleness, type HandoffGap } from './handoff'
 
 export type { CadModelerViewState } from './viewState'
 /** For platform-level workflow tests: the window's CAD session (documents, kernel, files). */

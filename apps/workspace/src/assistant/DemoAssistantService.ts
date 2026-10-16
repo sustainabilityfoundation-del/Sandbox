@@ -130,7 +130,7 @@ class Turn {
  * Reply when an operation isn't offered: because of the person's AI access settings (with the policy's reason), or
  * because its tool is not in the subscription. The two causes are never confused.
  */
-function notInSubscription(toolName: string, operation: string): AssistantResponse {
+export function notInSubscription(toolName: string, operation: string): AssistantResponse {
   const policy = clientDecision(operation)
   if (!policy.ok) return final(`${policy.reason} So I can't run ${operation} here; nothing was changed. You can change what the assistant may do in Settings → AI and reasoning.`)
   return final(

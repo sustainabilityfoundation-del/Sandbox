@@ -13,7 +13,7 @@ export const PLATFORM_TOOLS: AssistantToolSpec[] = [
   {
     name: 'read_object',
     label: 'Read object',
-    description: 'Read one object (component, requirement, SysML element, CAD representation) or scenario by stable ID, with its properties, units, revision and relationships.',
+    description: 'Read one object of the shared model (component, SysML element, CAD representation) or scenario by stable ID, with its properties, units, revision and relationships. For managed requirements use requirements.get or requirements.search; for concepts use conceptualize.read.',
     parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false },
   },
   {

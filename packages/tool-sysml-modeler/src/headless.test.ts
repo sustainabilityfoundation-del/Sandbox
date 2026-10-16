@@ -38,6 +38,7 @@ const CALLS: Record<string, Record<string, unknown>> = {
   link_requirement: { element: 'ActuatorSystem::Requirements::load', requirement: 'REQ-001' },
   link_product_element: { element: 'ActuatorSystem::Mechanical::Rod', productElement: '7d1f3c2e-8b1a-4c55-9e0f-1a2b3c4d5e6f' },
   create_project: { name: 'Second model', initialText: 'package Second;' },
+  satisfy_requirement: { requirements: [{ requirement: 'REQ-001', satisfiedBy: ['ActuatorSystem::Mechanical::Rod'] }] },
 }
 
 describe('assistant operations without a mounted view (headless, C9)', () => {

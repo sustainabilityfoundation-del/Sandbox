@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { ModuleDataProvider, useModuleData, useResource } from './data'
 import type { ConceptPage, ConceptualizeViewState } from './domain'
 import { AlternativesPage } from './ui/Alternatives'
+import { VisualComparisonPage } from './ui/Visual'
 import { CollaborationPage } from './ui/Collaboration'
 import { MaturityBadge } from './ui/common'
 import { BranchDialog, NewConceptDialog } from './ui/Dialogs'
@@ -18,6 +19,7 @@ import { ConceptWorkspace } from './ui/Workspace'
 const PAGES: { value: ConceptPage; label: string }[] = [
   { value: 'explorer', label: 'Explorer' },
   { value: 'alternatives', label: 'Alternatives' },
+  { value: 'visual', label: 'Visual comparison' },
   { value: 'integration', label: 'Integration' },
   { value: 'ai', label: 'AI collaboration' },
 ]
@@ -57,6 +59,7 @@ function ApiView() {
         </div>
       )}
       {state.page === 'alternatives' && <AlternativesPage />}
+      {state.page === 'visual' && <VisualComparisonPage />}
       {state.page === 'integration' && <IntegrationPage />}
       {state.page === 'ai' && <CollaborationPage />}
       <Dialogs />
