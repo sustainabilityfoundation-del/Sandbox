@@ -99,6 +99,11 @@ CommandBar component) next when an implementer slot frees; CT-2b (checks, shell,
 pilot) after M6 and F. Owner decisions: how much planned scope to show; inventories for the mock and illustrative tools. CT-3..n per-module inventories and toolbars (module agents, after CT-2;
 research feeds OSS-3). D1 keeps priority.
 
+## Owner focus (16 October 2026)
+Owner: "focus on getting the cad working better woth more functionality". CAD Modeler work takes priority after D1: a CAD sprint plan
+(architect, read-only, from docs/research/cad and the CAD backlog, open-source first, new commands in the capability registry) is
+running; OSS-9 (D1 check via the OCCT kernel) is running. M6 and CT-2a are in their combined integration run.
+
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
 2. **D1 owner acceptance** (16 October 2026: the owner has no time now and will review D1 later; keep working on the other items meanwhile, do not ask again until the owner returns): ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.
