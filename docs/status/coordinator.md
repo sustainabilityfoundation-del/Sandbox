@@ -31,7 +31,7 @@ Coordinator session resumed 16 October 2026 (fresh session; hourly check-in recr
 | --- | --- | --- | --- |
 | Baseline verification of main (586c635; same code as 595b376) | integration-runner role (Sonnet) | main checkout | done: typecheck, unit (1244), db:req (458, after one load-related rerun), db:concept (86), db:reasoning (15), db:cad (39), db:projects (31), db:ai (64), build all pass; e2e not run (verify.mjs targets 5173/8787) |
 | Open item 1: registration manifests, design plan | architect role (Opus), read-only | — | done; plan and decisions in [module-registration.md](../specifications/module-registration.md); owner decisions (a)-(c) pending; implementation after SDK 1.9 |
-| Open item 3: SDK 1.9 (ConceptsService additions, FilesService) | task-worker role (Sonnet) | isolated worktree, branch feature/sdk-1.9 | running; not merged until verified and reviewed |
+| Open item 3: SDK 1.9 (ConceptsService additions, FilesService) | task-worker role (Sonnet) | branch feature/sdk-1.9, commit 274663a | implemented, check and build pass; review (Opus) and DB suites plus fake-provider D1 flow running; demo-mode handoff "not found" and removal of configureConceptHandoffs under review |
 | Open item 4: ai-fake-provider last step | task-worker role (Sonnet) | worktree branch | done, merged 75c9919: fixture now writes quantified concept statements; flow passed on fake ports 18787/15173/54399 |
 | Open item 5: Codex PRs #4-#7 (CX-001..004) | reviewer role (Opus), read-only | PR refs fetched as pr/4..pr/7 | running; merge only with the owner's agreement |
 
