@@ -14,3 +14,7 @@ docs/research/sysml/sources/
 # Local development data (embedded PostgreSQL data directory, attachment storage)
 .data/
 .env
+
+# Claude Code local state (hook snapshots, personal settings)
+.claude/handoffs/
+.claude/settings.local.json

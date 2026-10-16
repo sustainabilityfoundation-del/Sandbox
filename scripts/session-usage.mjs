@@ -37,7 +37,7 @@ async function analyse(file) {
   const ctx = arr.map((r) => r.in + r.cc + r.cr);
   const models = {}; for (const r of arr) models[r.model] = (models[r.model] ?? 0) + 1;
   return { file: path.basename(file), lines, first, last, messages: arr.length, models, input: sum((r) => r.in), cacheWrite: sum((r) => r.cc), cacheRead: sum((r) => r.cr), output: sum((r) => r.out),
-    maxCtx: Math.max(0, ...ctx), lastCtx: ctx.at(-1) ?? 0, ctxOver500k: ctx.filter((c) => c > 500000).length, compactions, reads, resultBytes, agentBriefs };
+    ctx, maxCtx: Math.max(0, ...ctx), lastCtx: ctx.at(-1) ?? 0, ctxOver500k: ctx.filter((c) => c > 500000).length, compactions, reads, resultBytes, agentBriefs };
 }
 const results = [await analyse(main)]; results[0].role = 'coordinator';
 if (subDir) for (const f of fs.readdirSync(subDir).filter((f) => f.endsWith('.jsonl'))) {
@@ -63,3 +63,10 @@ const w = (r) => r.input + 1.25 * r.cacheWrite + 0.1 * r.cacheRead + 5 * r.outpu
 console.log('\nEstimated relative cost share (role|share|cache-read share of its cost)');
 for (const r of results) console.log(r.role + '|' + (100 * w(r) / tot).toFixed(1) + '%|' + (100 * 0.1 * r.cacheRead / w(r)).toFixed(0) + '%');
 console.log('Totals: messages', results.reduce((a, r) => a + r.messages, 0), '| input+cw', M(results.reduce((a, r) => a + r.input + r.cacheWrite, 0)), '| cache read', M(results.reduce((a, r) => a + r.cacheRead, 0)), '| output', k(results.reduce((a, r) => a + r.output, 0)));
+
+// ESTIMATE: share of all tokens processed that sit above a context cap (what a lower auto-compact window would avoid, ignoring summary cost).
+for (const cap of [300000, 400000, 500000]) {
+  const all = results.reduce((a, r) => a + r.ctx.reduce((x, c) => x + c, 0), 0);
+  const over = results.reduce((a, r) => a + r.ctx.reduce((x, c) => x + Math.max(0, c - cap), 0), 0);
+  console.log('Cap ' + k(cap) + ': ' + (100 * over / all).toFixed(0) + '% of context tokens processed are above the cap');
+}
