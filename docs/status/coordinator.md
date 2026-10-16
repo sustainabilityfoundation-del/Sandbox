@@ -33,6 +33,7 @@ Coordinator session resumed 16 October 2026 (fresh session; hourly check-in recr
 | Open item 1: registration manifests, design plan | architect role (Opus), read-only | — | done; plan and decisions in [module-registration.md](../specifications/module-registration.md); owner decisions (a)-(c) pending; implementation after SDK 1.9 |
 | Open item 3: SDK 1.9 (ConceptsService additions, FilesService) | task-worker role (Sonnet) | isolated worktree, branch feature/sdk-1.9 | running; not merged until verified and reviewed |
 | Open item 4: ai-fake-provider last step | task-worker role (Sonnet) | worktree branch | done, merged 75c9919: fixture now writes quantified concept statements; flow passed on fake ports 18787/15173/54399 |
+| Open item 5: Codex PRs #4-#7 (CX-001..004) | reviewer role (Opus), read-only | PR refs fetched as pr/4..pr/7 | running; merge only with the owner's agreement |
 
 Note: `.claude/agents` definitions load only when the session starts in the repository folder; a session started elsewhere
 uses built-in agent types with the same model and the definition file as instructions.
@@ -59,6 +60,7 @@ Read in order: AGENTS.md, this file, the digest, then only the contract or ADR r
 files, screenshots or module source. Delegate verification to `integration-runner`, lookups to `scout`.
 
 ## Not yet verified
+Resolved 16 October 2026: all nine feature branches have 0 commits ahead of main and their worktrees are clean.
 Running state of the module agents; whether all module branches are fully merged (branch heads equal main, so the code is, but their later local work is unknown); real test status on main (no suite was run for this record).
 
 Update 16 October 2026 (fresh session): unit, DB suites and build verified green on main (see Assigned work). Watch item:
