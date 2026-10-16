@@ -61,6 +61,11 @@ await page.waitForTimeout(1200)
 const rels = await api('GET', `/relationships?conceptId=${found.id}`)
 check('decompose', rels.some((r) => r.type === 'contains' && r.fromId === found.id), 'the child is linked with contains')
 
+// The picker offers the real modules by default; the legacy demo twin objects are a labelled choice in PRJ-ACT100.
+async function chooseDemoTwin(which = 'last') {
+  await page.getByRole('button', { name: /Artifact type/ })[which]().click()
+  await page.getByRole('option', { name: /Demo twin object/ }).click()
+}
 // 6–7. Implementation link and identity preservation.
 const childId = rels.find((r) => r.type === 'contains' && r.fromId === found.id).toId
 const target = await api('GET', `/concepts/${childId}`)
@@ -68,6 +73,7 @@ await page.getByRole('tab', { name: 'Implementations' }).click()
 await page.getByLabel('New implementation').fill('Gripper v1')
 await page.getByRole('button', { name: 'Add implementation' }).click()
 await page.waitForSelector('.con-card:has-text("Gripper v1")', { timeout: 10000 })
+await chooseDemoTwin()
 await page.getByRole('combobox', { name: 'Link artifact' }).fill('CAD-120')
 await page.getByRole('option', { name: /CAD-120/ }).click()
 await page.waitForSelector('.con-card:has-text("Rod (mock geometry)")', { timeout: 10000 }).catch(() => undefined)
@@ -75,6 +81,7 @@ await page.waitForTimeout(800)
 const card = await page.textContent('.con-card:has-text("Gripper v1")')
 check('link', card.includes('CAD-120') && card.includes('pinned rev') && card.includes('Current'), 'the CAD artifact is linked, pinned to its revision, and shown as current')
 await page.getByRole('button', { name: 'Replace' }).first().click()
+await chooseDemoTwin('first') // the replace picker sits in the artifact row, above the link picker
 await page.getByRole('combobox', { name: 'Replace with' }).fill('CAD-130')
 await page.getByRole('option', { name: /CAD-130/ }).click()
 await page.waitForTimeout(1200)
