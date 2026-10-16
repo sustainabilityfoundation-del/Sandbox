@@ -1,8 +1,8 @@
-import { ActionError, argOptionalString, argString, type AssistantActionDefinition, type DemoPlanner, type ServiceProposalItem } from '@ews/platform-sdk'
+import { ActionError, argString, type AssistantActionDefinition, type DemoPlanner, type ServiceProposalItem } from '@ews/platform-sdk'
 import type { BatchItem, ConstraintKind, DesignEntityType, DesignRef, EvaluateResult, Quantity } from '@ews/conceptualize-client'
 import { checkStatusLabel, limitsText, rangeLabel } from './calcLabels'
 import { formatQuantity } from './domain'
-import { assistantProvenance, connection, constraintBindingRef, constraintResult, proposal, resolve, resolveRef, string, UUID } from './assistantShared'
+import { assistantProvenance, connection, constraintBindingRef, constraintResult, optString, proposal, resolve, resolveRef, string, UUID } from './assistantShared'
 
 /**
  * Assistant operations for design knowledge (Design Reasoning P1: Functions, Constraints, Assumptions,
@@ -15,7 +15,7 @@ const UNDO = 'Undo of an assistant proposal (compensating change)'
 const OPERATORS = ['<=', '<', '=', '>=', '>'] as const
 
 function quantityArg(args: Record<string, unknown>): Quantity | undefined {
-  const unit = argOptionalString(args, 'unit')
+  const unit = optString(args, 'unit')
   const value = typeof args.value === 'number' ? args.value : undefined
   if (value === undefined) return undefined
   return { value, unit: unit ?? '-' }
@@ -36,11 +36,11 @@ export const designActions: AssistantActionDefinition[] = [
     async run(args, ctx) {
       const { client } = connection(ctx)
       const name = argString(args, 'name')
-      const parentArg = argOptionalString(args, 'parentFunctionId')
+      const parentArg = optString(args, 'parentFunctionId')
       const parent = parentArg ? await resolveRef(client, parentArg, ['function']) : undefined
       const performers = await Promise.all((Array.isArray(args.performedBy) ? args.performedBy : []).map((k) => resolve(client, String(k))))
-      const description = argOptionalString(args, 'description')
-      const verbPhrase = argOptionalString(args, 'verbPhrase')
+      const description = optString(args, 'description')
+      const verbPhrase = optString(args, 'verbPhrase')
       let fnId: string | undefined
       let linkIds: string[] = []
       return proposal({
@@ -130,10 +130,10 @@ export const designActions: AssistantActionDefinition[] = [
       const subject = await resolveRef(client, argString(args, 'subjectId'), ['concept', 'function'])
       const statement = argString(args, 'statement')
       const quantity = quantityArg(args)
-      const operator = (argOptionalString(args, 'operator') ?? (quantity ? '<=' : undefined)) as (typeof OPERATORS)[number] | undefined
-      const symbol = argOptionalString(args, 'symbol')
-      const kind = (argOptionalString(args, 'kind') ?? (quantity ? 'mathematical' : 'qualitative')) as ConstraintKind
-      const strength = (argOptionalString(args, 'strength') ?? 'hard') as 'hard' | 'soft' | 'preference'
+      const operator = (optString(args, 'operator') ?? (quantity ? '<=' : undefined)) as (typeof OPERATORS)[number] | undefined
+      const symbol = optString(args, 'symbol')
+      const kind = (optString(args, 'kind') ?? (quantity ? 'mathematical' : 'qualitative')) as ConstraintKind
+      const strength = (optString(args, 'strength') ?? 'hard') as 'hard' | 'soft' | 'preference'
       const bound = quantity && operator ? { operator, quantity, ...(symbol ? { symbol } : {}) } : undefined
       let createdId: string | undefined
       return proposal({
@@ -165,7 +165,7 @@ export const designActions: AssistantActionDefinition[] = [
     async run(args, ctx) {
       const { client } = connection(ctx)
       const c = await resolve(client, argString(args, 'conceptId'))
-      const text = argOptionalString(args, 'statementText')?.toLowerCase()
+      const text = optString(args, 'statementText')?.toLowerCase()
       const existing = await client.constraints({ subjectId: c.id })
       const statements = c.statements.filter((s) => s.kind === 'constraint' && s.quantity && !existing.some((x) => x.origin?.statementId === s.id) && (!text || s.text.toLowerCase().includes(text)))
       if (!statements.length) throw new ActionError('no-op', `${c.key} has no quantified constraint statement${text ? ` matching “${text}”` : ''} that is not yet a constraint.`)
@@ -201,10 +201,10 @@ export const designActions: AssistantActionDefinition[] = [
     async run(args, ctx) {
       const { client } = connection(ctx)
       const statement = argString(args, 'statement')
-      const subjectArg = argOptionalString(args, 'subjectId')
+      const subjectArg = optString(args, 'subjectId')
       const subject = subjectArg ? await resolveRef(client, subjectArg, ['concept', 'function', 'constraint']) : undefined
       const quantity = quantityArg(args)
-      const applicability = argOptionalString(args, 'applicability')
+      const applicability = optString(args, 'applicability')
       let createdId: string | undefined
       return proposal({
         title: `Record assumption${subject ? ` for ${subject.key}` : ''}`,
@@ -243,7 +243,7 @@ export const designActions: AssistantActionDefinition[] = [
       const from = await resolveRef(client, argString(args, 'from'))
       const to = await resolveRef(client, argString(args, 'to'))
       if (!lt.fromTypes.includes(from.ref.type) || !lt.toTypes.includes(to.ref.type)) throw new ActionError('invalid-arguments', `${type} links ${lt.fromTypes.join('/')} to ${lt.toTypes.join('/')}; ${from.key} → ${to.key} does not fit.`)
-      const note = argOptionalString(args, 'note')
+      const note = optString(args, 'note')
       let createdId: string | undefined
       return proposal({
         title: `Link ${from.key} ${lt.label} ${to.key}`,
@@ -342,17 +342,17 @@ designActions.push(
       const { client } = connection(ctx)
       const c = await constraintOf(client, argString(args, 'constraintId'))
       const reason = argString(args, 'reason')
-      const statement = argOptionalString(args, 'statement')
-      const strength = argOptionalString(args, 'strength') as 'hard' | 'soft' | 'preference' | undefined
+      const statement = optString(args, 'statement')
+      const strength = optString(args, 'strength') as 'hard' | 'soft' | 'preference' | undefined
       const num = (k: string) => (typeof args[k] === 'number' ? (args[k] as number) : undefined)
       const boundChanged = ['operator', 'value', 'min', 'max', 'unit', 'symbol'].some((k) => args[k] !== undefined)
       let bound = c.bound
       if (boundChanged) {
-        const operator = (argOptionalString(args, 'operator') ?? c.bound?.operator ?? '<=') as (typeof OPS)[number]
-        const unit = argOptionalString(args, 'unit') ?? c.bound?.quantity.unit
+        const operator = (optString(args, 'operator') ?? c.bound?.operator ?? '<=') as (typeof OPS)[number]
+        const unit = optString(args, 'unit') ?? c.bound?.quantity.unit
         if (!unit) throw new ActionError('invalid-arguments', `${c.key} has no bound yet; give the unit.`)
         const quantity: Quantity = operator === 'in-range' ? { unit, min: num('min') ?? c.bound?.quantity.min ?? null, max: num('max') ?? c.bound?.quantity.max ?? null } : { unit, value: num('value') ?? c.bound?.quantity.value ?? null }
-        const symbol = argOptionalString(args, 'symbol') ?? c.bound?.symbol
+        const symbol = optString(args, 'symbol') ?? c.bound?.symbol
         bound = { operator, quantity, ...(symbol ? { symbol } : {}) }
       }
       if (!statement && !strength && !boundChanged) throw new ActionError('no-op', 'Nothing to revise: give a statement, bound or strength.')
@@ -412,10 +412,14 @@ designActions.push(
       const { client } = connection(ctx)
       const title = argString(args, 'title')
       const subjects = await Promise.all((args.subjects as unknown[]).map((k) => resolveRef(client, String(k), ['concept', 'function', 'constraint', 'assumption', 'decision'])))
-      const source = args.source as { module: string; kind?: string; id: string; revision: number; label?: string }
+      const given = args.source as { module: string; kind?: string; id: string; revision: number; label?: string }
+      // Blank optional fields ("") mean not given.
+      const sourceKind = optString(given, 'kind')
+      const sourceLabel = optString(given, 'label')
+      const source = { module: given.module, id: given.id, revision: given.revision, ...(sourceKind ? { kind: sourceKind } : {}), ...(sourceLabel ? { label: sourceLabel } : {}) } as { module: string; kind?: string; id: string; revision: number; label?: string }
       const tool = args.tool as { name: string; version: string }
-      const basis = (argOptionalString(args, 'basis') ?? 'estimate') as 'estimate' | 'assessment' | 'assumption' | 'ai-hypothesis'
-      const kind = (argOptionalString(args, 'kind') ?? 'analysis') as 'analysis' | 'calculation' | 'test' | 'review' | 'estimate'
+      const basis = (optString(args, 'basis') ?? 'estimate') as 'estimate' | 'assessment' | 'assumption' | 'ai-hypothesis'
+      const kind = (optString(args, 'kind') ?? 'analysis') as 'analysis' | 'calculation' | 'test' | 'review' | 'estimate'
       const raw = args.results as { name: string; value: number; unit: string; constraintId?: string; note?: string }[]
       const checked = await Promise.all(raw.map(async (r) => ({ r, c: r.constraintId ? await constraintOf(client, r.constraintId) : undefined })))
       const results = checked.map(({ r, c }) => ({ name: r.name, value: r.value, unit: r.unit, qualification: { kind: 'point' as const }, ...(c ? { constraint: { module: 'conceptualize' as const, type: 'constraint' as const, id: c.id, revision: c.revision } } : {}), ...(r.note ? { note: r.note } : {}) }))
@@ -433,7 +437,7 @@ designActions.push(
         assumptions: [`Basis ${basis}: a measured result of the pinned revision, not verified evidence.`],
         inspected: [{ id: `${source.module}:${source.id}`, detail: `revision ${source.revision}` }],
         async apply(p) {
-          const ev = await client.createEvidence({ subjects: allSubjects, kind, title, ...(argOptionalString(args, 'summary') ? { summary: argOptionalString(args, 'summary') } : {}), basis, source: source as never, tool, results }, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:evidence` })
+          const ev = await client.createEvidence({ subjects: allSubjects, kind, title, ...(optString(args, 'summary') ? { summary: optString(args, 'summary') } : {}), basis, source: source as never, tool, results }, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:evidence` })
           createdId = ev.id
           const statuses = (ev.results ?? []).filter((r) => r.status).map((r) => `${r.name}: ${r.status}`)
           return { summary: `Recorded ${ev.key}${statuses.length ? ` (${statuses.join(', ')})` : ''}`, createdIds: [ev.id] }
@@ -452,7 +456,7 @@ designActions.push(
     parameters: { type: 'object', properties: { conceptId: string, includeValid: { type: 'boolean' } }, additionalProperties: false },
     async run(args, ctx) {
       const { client } = connection(ctx)
-      const conceptArg = argOptionalString(args, 'conceptId')
+      const conceptArg = optString(args, 'conceptId')
       const concept = conceptArg ? await resolveRef(client, conceptArg, ['concept']) : undefined
       const decisions = (await client.decisions(concept ? { conceptId: concept.ref.id } : {})).filter((d) => d.status === 'recorded')
       const shown = args.includeValid === true ? decisions : decisions.filter((d) => d.validity && d.validity !== 'valid')
@@ -480,9 +484,9 @@ designActions.push({
   parameters: { type: 'object', properties: { subjectId: string, text: string, includeRetired: { type: 'boolean' } }, additionalProperties: false },
   async run(args, ctx) {
     const { client } = connection(ctx)
-    const subjectArg = argOptionalString(args, 'subjectId')
+    const subjectArg = optString(args, 'subjectId')
     const subject = subjectArg ? await resolveRef(client, subjectArg, ['concept', 'function']) : undefined
-    const all = await client.constraints({ ...(subject ? { subjectId: subject.ref.id } : {}), ...(argOptionalString(args, 'text') ? { text: argOptionalString(args, 'text') } : {}) })
+    const all = await client.constraints({ ...(subject ? { subjectId: subject.ref.id } : {}), ...(optString(args, 'text') ? { text: optString(args, 'text') } : {}) })
     const list = args.includeRetired === true ? all : all.filter((c) => c.status !== 'retired')
     return {
       kind: 'data',
@@ -525,7 +529,7 @@ designActions.push(
     async run(args, ctx) {
       const { client } = connection(ctx)
       const m = await modelOf(client, argString(args, 'modelId'))
-      const r = await client.evaluateCalculation(m.id, { revision: m.revision, ...(inputsArg(args) ? { inputs: inputsArg(args) } : {}), uncertainty: (argOptionalString(args, 'uncertainty') ?? 'point') as 'point' | 'interval' })
+      const r = await client.evaluateCalculation(m.id, { revision: m.revision, ...(inputsArg(args) ? { inputs: inputsArg(args) } : {}), uncertainty: (optString(args, 'uncertainty') ?? 'point') as 'point' | 'interval' })
       return { kind: 'data', data: { model: `${m.key} ${m.name} rev ${m.revision} (${m.validationStatus})`, ...summarize(r) }, summary: `Evaluated ${m.key}: ${r.qualifications.checks.map((c) => `${c.text} ${c.status}`).join(', ') || 'no checks'}`, inspected: [{ id: m.key, detail: `revision ${m.revision}` }] }
     },
   },
@@ -539,8 +543,8 @@ designActions.push(
       const { client } = connection(ctx)
       const m = await modelOf(client, argString(args, 'modelId'))
       const subjects = await Promise.all((args.subjects as unknown[]).map((k) => resolveRef(client, String(k), ['concept', 'function', 'constraint', 'assumption'])))
-      const r = await client.evaluateCalculation(m.id, { revision: m.revision, ...(inputsArg(args) ? { inputs: inputsArg(args) } : {}), uncertainty: (argOptionalString(args, 'uncertainty') ?? 'point') as 'point' | 'interval' })
-      const title = argOptionalString(args, 'title') ?? `${m.key} ${m.name}`
+      const r = await client.evaluateCalculation(m.id, { revision: m.revision, ...(inputsArg(args) ? { inputs: inputsArg(args) } : {}), uncertainty: (optString(args, 'uncertainty') ?? 'point') as 'point' | 'interval' })
+      const title = optString(args, 'title') ?? `${m.key} ${m.name}`
       const sum = summarize(r)
       let createdId: string | undefined
       return proposal({

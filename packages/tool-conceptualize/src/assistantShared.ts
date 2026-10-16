@@ -61,3 +61,14 @@ export const string = { type: 'string' }
 export function proposal(p: Omit<ServiceProposal, 'kind' | 'module'>): ServiceProposal {
   return { kind: 'service-proposal', module: MODULE, ...p }
 }
+
+/**
+ * Optional string argument: absent, null or blank ("" from a model filling every field) means not given;
+ * anything else must be a string.
+ */
+export function optString(args: Record<string, unknown>, key: string): string | undefined {
+  const v = args[key]
+  if (v === undefined || v === null || (typeof v === 'string' && !v.trim())) return undefined
+  if (typeof v !== 'string') throw new ActionError('invalid-arguments', `“${key}” must be a string.`)
+  return v.trim()
+}

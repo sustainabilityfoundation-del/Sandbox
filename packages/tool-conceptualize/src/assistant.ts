@@ -1,10 +1,11 @@
-import { ActionError, argOptionalString, argString, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposalItem } from '@ews/platform-sdk'
+import { ActionError, argString, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposalItem } from '@ews/platform-sdk'
 import { draftConcept, referencePortsFor, isLegacyTwinReference, isRealModuleReference, referenceKind, scopedId } from '@ews/conceptualize-client'
 import type { ArtifactModule } from '@ews/platform-sdk'
 import { registeredReferencePorts } from './references'
 import { designActions, designDemo } from './assistantDesign'
-import { assistantProvenance, connection, constraintBindingRef, proposal, resolve, string, UUID } from './assistantShared'
-import { GENERATOR, generateExploration } from './ai/generator'
+import { assistantProvenance, connection, constraintBindingRef, optString, proposal, resolve, string, UUID } from './assistantShared'
+import { generateExploration } from './ai/generator'
+import { demoAlternativesArguments, developAlternatives, modelStatements, statementsSchema } from './assistantAlternatives'
 import { formatQuantity, KIND_LABEL } from './domain'
 
 /**
@@ -15,6 +16,10 @@ import { formatQuantity, KIND_LABEL } from './domain'
  * AI output as user assertions, verified evidence or approved decisions. `undo` is a compensating
  * change (archive, withdraw, unlink), never a deletion.
  */
+
+const bad = (message: string): never => {
+  throw new ActionError('invalid-arguments', message)
+}
 
 const conceptActions: AssistantActionDefinition[] = [
   {
@@ -61,28 +66,33 @@ const conceptActions: AssistantActionDefinition[] = [
   {
     name: 'conceptualize.create',
     label: 'Prepare a new Concept',
-    description: 'Prepare a new Concept from a natural-language description (optionally as a child of another Concept). The description is kept verbatim; interpreted functions and constraints are AI hypotheses.',
-    parameters: { type: 'object', properties: { text: string, parentId: string }, required: ['text'], additionalProperties: false },
+    description:
+      'Prepare a new Concept. text is the user’s description, kept verbatim. YOU give the name, optionally a summary and the statements you read from the description (kind, text, quantity with unit, basis); they are recorded exactly as you write them, as AI hypotheses (or assumption, estimate). Nothing is interpreted by this operation. Optionally as a child of another Concept (parentId).',
+    parameters: { type: 'object', properties: { text: string, name: string, summary: string, statements: statementsSchema, parentId: string }, required: ['text', 'name'], additionalProperties: false },
     async run(args, ctx) {
       const { client } = connection(ctx)
       const text = argString(args, 'text')
-      const parentArg = argOptionalString(args, 'parentId')
+      // CR-AI-1: the caller writes name and statements; no scripted interpretation reaches a model's request.
+      const name = optString(args, 'name') ?? bad('Give the Concept a name (name), and the statements you read from the description (statements: [{ kind, text, quantity?, basis? }]).')
+      const statements = modelStatements(args.statements, 'statements')
+      const summary = optString(args, 'summary')
+      const parentArg = optString(args, 'parentId')
       const parent = parentArg ? await resolve(client, parentArg) : undefined
-      const d = draftConcept(text, 'ai-hypothesis')
+      const d = { name, description: text, statements, ...(summary ? { summary } : {}) }
       let createdId: string | undefined
       return proposal({
         title: `Create Concept “${d.name}”`,
-        explanation: `Interpreted from your description${parent ? `, as part of ${parent.key}` : ''}. Saved as maturity “idea”; the interpreted statements stay AI hypotheses until you confirm them.`,
+        explanation: `Your description is kept verbatim${parent ? `; the Concept is part of ${parent.key}` : ''}. Saved as maturity “idea”; the statements stay AI hypotheses (or their stated basis) until you confirm them.`,
         preview: [
           { label: 'New Concept', proposed: d.name, basis: 'ai-hypothesis' },
           { label: 'Description (your words, verbatim)', proposed: d.description, basis: 'user-statement' },
           ...(parent ? [{ label: 'Part of', proposed: `${parent.key} ${parent.name}`, targetId: parent.id }] : []),
-          ...d.statements.map((s): ServiceProposalItem => ({ label: KIND_LABEL[s.kind], proposed: `${s.text}${s.quantity ? ` ${formatQuantity(s.quantity)}` : ''}`, basis: s.basis === 'assumption' ? 'assumption' : 'ai-hypothesis' })),
+          ...d.statements.map((s): ServiceProposalItem => ({ label: KIND_LABEL[s.kind], proposed: `${s.text}${s.quantity ? ` ${formatQuantity(s.quantity)}` : ''}`, basis: (s.basis ?? 'ai-hypothesis') as 'ai-hypothesis' | 'assumption' | 'estimate' })),
         ],
-        assumptions: ['The interpretation is deterministic (scripted demo, no language model); check names, quantities and units.', ...d.notes],
+        assumptions: ['The name and statements are the assistant’s reading of your description; check names, quantities and units.'],
         async apply(p) {
           const c = await client.createConcept(
-            { name: d.name, summary: d.summary, description: d.description, abstraction: d.abstraction, classifications: d.classifications, statements: d.statements, maturity: 'idea', parentId: parent?.id, reason: `Assistant proposal ${p.proposalId}` },
+            { ...d, maturity: 'idea', parentId: parent?.id, reason: `Assistant proposal ${p.proposalId}` },
             { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:create` },
           )
           createdId = c.id
@@ -97,48 +107,7 @@ const conceptActions: AssistantActionDefinition[] = [
       })
     },
   },
-  {
-    name: 'conceptualize.develop_alternatives',
-    label: 'Prepare alternative concepts',
-    description:
-      'Prepare a parent Concept and N alternative solution Concepts for a design objective, each with a functional decomposition, interfaces, preliminary calculations from the stated quantities and a trade study. Everything is labelled as AI hypotheses or estimates. One atomic change, applied only after review.',
-    parameters: { type: 'object', properties: { text: string, count: { type: 'integer', minimum: 1, maximum: 8 } }, required: ['text'], additionalProperties: false },
-    async run(args, ctx) {
-      const { client } = connection(ctx)
-      const text = argString(args, 'text')
-      const count = typeof args.count === 'number' ? args.count : undefined
-      const { exploration, draft, family, assumptions } = generateExploration(text, count)
-      let explorationId: string | undefined
-      const preview: ServiceProposalItem[] = [
-        { label: 'Parent Concept', proposed: draft.name, basis: 'ai-hypothesis' },
-        { label: 'Objective (your words)', proposed: text, basis: 'user-statement' },
-        ...draft.quantities.map((q): ServiceProposalItem => ({ label: 'Constraint (interpreted)', proposed: `${q.label}: ${formatQuantity(q.quantity)}`, basis: 'ai-hypothesis' })),
-        ...exploration.alternatives.map((a, i): ServiceProposalItem => ({ label: `Alternative ${i + 1}`, proposed: `${a.name}: ${a.summary ?? ''}${a.children?.length ? ` (parts: ${a.children.map((c) => c.name).join(', ')})` : ''}`, basis: 'ai-hypothesis' })),
-        ...exploration.alternatives.flatMap((a) => (a.evidence ?? []).map((e): ServiceProposalItem => ({ label: `Preliminary calculation (${a.name})`, proposed: `${e.title}: ${e.method} → ${(e.outputs ?? []).map((o) => `${o.name} = ${formatQuantity(o)}`).join(', ')}`, basis: 'estimate' }))),
-        ...(exploration.tradeStudy ? [{ label: 'Trade study', proposed: `${exploration.tradeStudy.title}: ${exploration.tradeStudy.criteria.map((c) => c.name).join(', ')}`, basis: 'ai-hypothesis' as const }] : []),
-      ]
-      return proposal({
-        title: `Develop ${exploration.alternatives.length} alternatives for “${draft.name}”`,
-        explanation: family
-          ? `Scripted demo: principles from the ${family} library, decomposed into parts, with preliminary estimates computed from your quantities. Nothing is verified; review, confirm or discard.`
-          : 'Scripted demo: no principle library matches this request, so the alternatives are placeholders with open questions.',
-        preview,
-        assumptions,
-        inspected: [{ id: 'request', detail: 'interpreted deterministically (no language model)' }],
-        async apply(p) {
-          const e = await client.createExploration({ ...exploration, generator: GENERATOR }, { provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:explore` })
-          explorationId = e.id
-          const parent = e.created.concepts.find((c) => c.role === 'parent')
-          return { summary: `Created ${parent ? `${parent.key} ` : ''}with ${e.created.concepts.filter((c) => c.role === 'alternative').map((c) => c.key).join(', ')} (alternatives) and their decomposition`, createdIds: e.created.concepts.map((c) => c.id) }
-        },
-        async undo() {
-          if (!explorationId) return { summary: 'Nothing to undo.' }
-          await client.undoExploration(explorationId, { reason: 'Undo of an assistant proposal (compensating change)' })
-          return { summary: 'Archived the generated Concepts and withdrew the alternatives (kept in the history)' }
-        },
-      })
-    },
-  },
+  developAlternatives,
   {
     name: 'conceptualize.decompose',
     label: 'Prepare a decomposition',
@@ -205,7 +174,7 @@ const conceptActions: AssistantActionDefinition[] = [
       const sets = (await client.alternativeSets(chosen.id)).filter((s) => s.members.some((m) => m.conceptId === chosen.id))
       if (!sets.length) throw new ActionError('invalid-arguments', `${chosen.key} is not an alternative in any set.`)
       const set = sets[0]
-      const rationale = argOptionalString(args, 'rationale') ?? `Proposed in the conversation: pursue ${chosen.name}.`
+      const rationale = optString(args, 'rationale') ?? `Proposed in the conversation: pursue ${chosen.name}.`
       let decisionId: string | undefined
       return proposal({
         title: `Propose: pursue ${chosen.key} ${chosen.name}`,
@@ -243,7 +212,7 @@ const conceptActions: AssistantActionDefinition[] = [
       const { client, projectId } = connection(ctx)
       const c = await resolve(client, argString(args, 'conceptId'))
       const artifactId = argString(args, 'artifactId')
-      const given = argOptionalString(args, 'module') as ArtifactModule | undefined
+      const given = optString(args, 'module') as ArtifactModule | undefined
       const scoped = scopedId(artifactId)
       const module: ArtifactModule =
         given ?? (scoped ? (UUID.test(scoped.container) ? 'cad' : 'sysml') : UUID.test(artifactId) ? 'product' : artifactId.startsWith('CAD-') ? 'cad' : artifactId.startsWith('SYS-') ? 'sysml' : /^https?:/.test(artifactId) ? 'external' : 'twin')
@@ -338,8 +307,8 @@ const conceptActions: AssistantActionDefinition[] = [
     async run(args, ctx) {
       const { client } = connection(ctx)
       const c = await resolve(client, argString(args, 'conceptId'))
-      const target = (argOptionalString(args, 'targetModule') ?? 'cad') as 'cad' | 'sysml'
-      const description = argOptionalString(args, 'description') ?? `Generate ${target === 'cad' ? 'geometry' : 'a SysML structure'} realizing ${c.name}`
+      const target = (optString(args, 'targetModule') ?? 'cad') as 'cad' | 'sysml'
+      const description = optString(args, 'description') ?? `Generate ${target === 'cad' ? 'geometry' : 'a SysML structure'} realizing ${c.name}`
       const params = Object.fromEntries(c.statements.filter((s) => s.quantity && (s.kind === 'constraint' || s.kind === 'performance')).map((s) => [s.text, s.quantity]))
       return proposal({
         title: `Request ${target.toUpperCase()} realization of ${c.key}`,
@@ -386,6 +355,17 @@ const CON = /\b(CON-\d{3,})\b/i
  * DEMO ONLY: maps example prompts to `concepts.*` calls for the scripted demo assistant (no model provider).
  * The reply says it is a scripted demo and that results are AI hypotheses.
  */
+/** DEMO ONLY: the deterministic interpreter writes the arguments a model would write for conceptualize.create. */
+function demoCreateArguments(text: string): Record<string, unknown> {
+  const d = draftConcept(text, 'ai-hypothesis')
+  return {
+    text,
+    name: d.name,
+    ...(d.summary ? { summary: d.summary } : {}),
+    statements: [...d.statements.map((s) => ({ kind: s.kind, text: s.text, ...(s.quantity ? { quantity: s.quantity } : {}), ...(s.basis && s.basis !== 'ai-hypothesis' ? { basis: s.basis } : {}) })), ...d.notes.map((n) => ({ kind: 'question', text: n }))],
+  }
+}
+
 export const conceptsDemo: DemoPlanner = (text, ctx) => {
   const design = designDemo(text, ctx)
   if (design) return design
@@ -393,10 +373,10 @@ export const conceptsDemo: DemoPlanner = (text, ctx) => {
   const note = '\n\nScripted demo assistant: no language model is connected; the interpretation and estimates are deterministic and labelled as AI hypotheses.'
   let m: RegExpExecArray | null
   if ((m = /\b(?:create|new|capture|add|record)\s+(?:a\s+)?concept\b\s*(?:for|from|:)?\s*:?\s*(.+)$/i.exec(t)) && m[1].trim().length > 3) {
-    return { reply: `I prepared a new Concept from your description. The text is kept verbatim; what I interpreted from it is marked as AI hypotheses.${note}`, calls: [{ name: 'conceptualize.create', arguments: { text: m[1].trim() } }] }
+    return { reply: `I prepared a new Concept from your description. The text is kept verbatim; what I interpreted from it is marked as AI hypotheses.${note}`, calls: [{ name: 'conceptualize.create', arguments: demoCreateArguments(m[1].trim()) }] }
   }
   if (/\b(develop|generate|propose|suggest|give me|come up with|explore|create)\b.*\b(alternatives?|concepts|options|solutions|variants)\b/i.test(t) && !/\brequirements?\b/i.test(t)) {
-    return { reply: `I prepared alternative Concepts for your objective, with a functional decomposition, preliminary calculations from your quantities and a trade study. All of it is an AI hypothesis or estimate for you to review.${note}`, calls: [{ name: 'conceptualize.develop_alternatives', arguments: { text: t } }] }
+    return { reply: `I prepared alternative Concepts for your objective from the scripted principle library, with a functional decomposition, preliminary estimates from your quantities and a trade study. All of it is an AI hypothesis or estimate for you to review.${note}`, calls: [{ name: 'conceptualize.develop_alternatives', arguments: demoAlternativesArguments(generateExploration(t).exploration) }] }
   }
   if ((m = /\bnext steps?\b.*?(CON-\d{3,})/i.exec(t)) || (m = /\b(CON-\d{3,})\b.*\bnext steps?\b/i.exec(t))) {
     return { reply: `Here is the deterministic maturity assessment of ${m[1].toUpperCase()} with suggested next steps.${note}`, calls: [{ name: 'conceptualize.next_steps', arguments: { conceptId: m[1].toUpperCase() } }] }
