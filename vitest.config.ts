@@ -7,6 +7,6 @@ export default defineConfig({
     testTimeout: 20_000,
     environment: 'node',
     // Unit tests only; tests needing PostgreSQL run with npm run req:test:db.
-    include: ['packages/*/src/**/*.test.{ts,tsx}', 'apps/*/src/**/*.test.{ts,tsx}', 'services/*/src/**/*.test.ts'],
+    include: ['packages/*/src/**/*.test.{ts,tsx}', 'apps/*/src/**/*.test.{ts,tsx}', 'services/*/src/**/*.test.ts', 'scripts/**/*.test.mjs'],
   },
 })

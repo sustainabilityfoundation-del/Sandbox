@@ -1,0 +1,207 @@
+{
+  "schema": "faber.dependency-policy/1",
+  "description": "Hand-maintained inputs for scripts/deps-register.mjs and scripts/deps-check.mjs (ADR-0073). Keys are package names, name@version, or a name prefix ending in *. status: approved, reviewed (conditional licence reviewed), or a string starting with pending (allowed, reported on every check, never for prohibited licences); preferred licences need no status. Anything else non-preferred fails the check.",
+  "packages": {
+    "@codemirror/autocomplete": {
+      "repository": "https://github.com/codemirror/autocomplete",
+      "source": "docs/dependencies.md"
+    },
+    "@codemirror/commands": {
+      "repository": "https://github.com/codemirror/commands",
+      "source": "docs/dependencies.md"
+    },
+    "@codemirror/language": {
+      "repository": "https://github.com/codemirror/language",
+      "source": "docs/dependencies.md"
+    },
+    "@codemirror/state": {
+      "repository": "https://github.com/codemirror/state",
+      "source": "docs/dependencies.md"
+    },
+    "@codemirror/view": {
+      "repository": "https://github.com/codemirror/view",
+      "source": "docs/dependencies.md"
+    },
+    "@fontsource/ibm-plex-mono": {
+      "repository": "https://github.com/fontsource/font-files",
+      "status": "approved",
+      "approvedBy": "coordinator (docs/dependencies.md)",
+      "obligations": "Keep the OFL text with redistributed font files.",
+      "notes": "SIL OFL 1.1, approved by the coordinator (docs/dependencies.md). Keep node_modules/@fontsource/*/LICENSE when redistributing; no font CDN.",
+      "distribution": "browser-or-shared"
+    },
+    "@fontsource/ibm-plex-sans": {
+      "repository": "https://github.com/fontsource/font-files",
+      "status": "approved",
+      "approvedBy": "coordinator (docs/dependencies.md)",
+      "obligations": "Keep the OFL text with redistributed font files.",
+      "notes": "SIL OFL 1.1, approved by the coordinator (docs/dependencies.md). Keep node_modules/@fontsource/*/LICENSE when redistributing; no font CDN.",
+      "distribution": "browser-or-shared"
+    },
+    "@lezer/highlight": {
+      "repository": "https://github.com/lezer-parser/highlight",
+      "source": "docs/dependencies.md"
+    },
+    "@react-three/drei": {
+      "repository": "https://github.com/pmndrs/drei",
+      "source": "docs/dependencies.md"
+    },
+    "@react-three/fiber": {
+      "repository": "https://github.com/pmndrs/react-three-fiber",
+      "source": "docs/dependencies.md"
+    },
+    "@scalar/api-reference": {
+      "repository": "https://github.com/scalar/scalar",
+      "source": "docs/dependencies.md"
+    },
+    "@sinclair/typebox": {
+      "repository": "https://github.com/sinclairzx81/typebox",
+      "source": "docs/dependencies.md"
+    },
+    "@tailwindcss/vite": {
+      "repository": "https://github.com/tailwindlabs/tailwindcss",
+      "source": "docs/dependencies.md"
+    },
+    "@vitejs/plugin-react": {
+      "repository": "https://github.com/vitejs/vite-plugin-react",
+      "source": "docs/dependencies.md"
+    },
+    "@xmldom/xmldom": {
+      "repository": "https://github.com/xmldom/xmldom",
+      "source": "docs/dependencies.md"
+    },
+    "ajv": {
+      "repository": "https://github.com/ajv-validator/ajv",
+      "source": "docs/dependencies.md"
+    },
+    "ajv-formats": {
+      "repository": "https://github.com/ajv-validator/ajv-formats",
+      "source": "docs/dependencies.md"
+    },
+    "caniuse-lite": {
+      "status": "pending review: conditional CC-BY-4.0 (browser-compatibility data)",
+      "obligations": "CC-BY-4.0 attribution if the data is distributed; build-time data only.",
+      "notes": "Not previously listed in docs/dependencies.md (transitive of browserslist)."
+    },
+    "driver.js": {
+      "repository": "https://github.com/kamranahmedse/driver.js",
+      "source": "docs/dependencies.md"
+    },
+    "elkjs": {
+      "repository": "https://github.com/kieler/elkjs",
+      "status": "reviewed",
+      "reviewedBy": "SysML agent, 15 October 2026 (docs/dependencies.md)",
+      "obligations": "EPL-2.0: used unmodified; the worker script is loaded by URL on demand.",
+      "notes": "Package metadata says EPL-2.0 (docs/dependencies.md also records the GPL-3.0-or-later alternative; EPL-2.0 is the one used).",
+      "distribution": "browser-or-shared"
+    },
+    "embedded-postgres": {
+      "repository": "https://github.com/leinelissen/embedded-postgres",
+      "source": "docs/dependencies.md"
+    },
+    "fastify": {
+      "repository": "https://github.com/fastify/fastify",
+      "source": "docs/dependencies.md"
+    },
+    "fflate": {
+      "repository": "https://github.com/101arrowz/fflate",
+      "source": "docs/dependencies.md"
+    },
+    "flatbush": {
+      "repository": "https://github.com/mourner/flatbush",
+      "source": "docs/dependencies.md"
+    },
+    "flatqueue": {
+      "repository": "https://github.com/mourner/flatbush",
+      "source": "docs/dependencies.md"
+    },
+    "lightningcss*": {
+      "status": "pending review: conditional MPL-2.0, dev-only build tool (Tailwind/Vite)",
+      "obligations": "MPL-2.0 is file-level copyleft; used unmodified as a build tool, not distributed in the product bundle. Compliance review not yet recorded.",
+      "notes": "Not previously listed in docs/dependencies.md (transitive of @tailwindcss/vite)."
+    },
+    "lucide-react": {
+      "repository": "https://github.com/lucide-icons/lucide",
+      "source": "docs/dependencies.md"
+    },
+    "mathjs": {
+      "repository": "https://github.com/josdejong/mathjs",
+      "source": "docs/dependencies.md"
+    },
+    "opentype.js": {
+      "repository": "https://github.com/opentypejs/opentype.js",
+      "source": "docs/dependencies.md"
+    },
+    "pg": {
+      "repository": "https://github.com/brianc/node-postgres",
+      "source": "docs/dependencies.md"
+    },
+    "playwright-core": {
+      "repository": "https://github.com/microsoft/playwright",
+      "source": "docs/dependencies.md"
+    },
+    "react": {
+      "repository": "https://github.com/react/react",
+      "source": "docs/dependencies.md"
+    },
+    "react-aria-components": {
+      "repository": "https://github.com/adobe/react-spectrum",
+      "source": "docs/dependencies.md"
+    },
+    "react-dom": {
+      "repository": "https://github.com/react/react",
+      "source": "docs/dependencies.md"
+    },
+    "replicad": {
+      "repository": "https://github.com/sgenoud/replicad",
+      "source": "docs/dependencies.md"
+    },
+    "replicad-opencascadejs": {
+      "repository": "https://github.com/sgenoud/replicad",
+      "status": "pending owner decision (ADR-0021)",
+      "adr": "ADR-0021",
+      "obligations": "LGPL-2.1 with the OCCT exception: keep the WASM binary a separate replaceable file, ship the licence text and OCCT notice (apps/workspace/public/THIRD_PARTY_NOTICES.txt), state use of Open CASCADE Technology, point to the exact source, allow reverse engineering for debugging the library.",
+      "notes": "Whether LGPL-2.1 suits the product is the owner decision in ADR-0021. Not approved by this register.",
+      "distribution": "browser-or-shared",
+      "localModifications": "none"
+    },
+    "tailwindcss": {
+      "repository": "https://github.com/tailwindlabs/tailwindcss",
+      "source": "docs/dependencies.md"
+    },
+    "three": {
+      "repository": "https://github.com/mrdoob/three.js",
+      "source": "docs/dependencies.md"
+    },
+    "tsx": {
+      "repository": "https://github.com/privatenumber/tsx",
+      "source": "docs/dependencies.md"
+    },
+    "typescript": {
+      "repository": "https://github.com/microsoft/TypeScript",
+      "source": "docs/dependencies.md"
+    },
+    "vite": {
+      "repository": "https://github.com/vitejs/vite",
+      "source": "docs/dependencies.md"
+    },
+    "vitest": {
+      "repository": "https://github.com/vitest-dev/vitest",
+      "source": "docs/dependencies.md"
+    },
+    "webgl-constants": {
+      "repository": "https://github.com/timvanscherpenzeel/webgl-constants",
+      "status": "pending review: no licence field in package metadata",
+      "notes": "package.json and the lockfile have no licence field; the package ships a LICENSE file with MIT text (verified in node_modules, copyright Tim van Scherpenzeel). Transitive of @react-three/drei via detect-gpu. Not approved by this register; the coordinator should confirm or ask upstream to add the field.",
+      "obligations": "Keep the MIT notice if bundled."
+    },
+    "xmllint-wasm": {
+      "repository": "https://github.com/noppa/xmllint-wasm",
+      "source": "docs/dependencies.md"
+    },
+    "zustand": {
+      "repository": "https://github.com/pmndrs/zustand",
+      "source": "docs/dependencies.md"
+    }
+  }
+}
