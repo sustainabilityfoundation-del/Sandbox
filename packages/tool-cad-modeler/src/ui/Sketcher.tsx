@@ -54,7 +54,7 @@ export function Sketcher({ sketch, result, selected, onToggle, draw }: Props) {
   // Bounds in sketch coordinates. While drawing, a working area of at least 60 x 40 mm from the origin is shown.
   const xs: number[] = [0]
   const ys: number[] = [0]
-  if (draw) xs.push(60), ys.push(40)
+  if (draw || sketch.entities.length === 0) xs.push(60), ys.push(40)
   for (const e of sketch.entities) {
     if (e.type === 'point') {
       const p = pts.get(e.id)!

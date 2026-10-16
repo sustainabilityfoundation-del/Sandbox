@@ -130,6 +130,8 @@ export class OcctKernel implements GeometryKernel {
         }
       } finally {
         builder.delete()
+        ca.delete()
+        cb.delete()
       }
     } catch (e) {
       throw new KernelError('boolean-failed', `The ${kind === 'fuse' ? 'join' : 'cut'} failed in the kernel: ${message(e)}`)
@@ -190,6 +192,7 @@ export class OcctKernel implements GeometryKernel {
         if (out && out.faces.length > 0 && sameOrder(shape, clone)) history = inheritNames(oc, builder, [{ source: clone.faces, names }], out.faces)
       } finally {
         builder.delete()
+        clone.delete()
       }
     } catch (e) {
       throw new KernelError('blend-failed', `The ${req.kind} of ${req.size} mm failed in the kernel (${message(e)}). Typical causes: the size is larger than an adjacent face allows, or edges meet at a vertex the ${req.kind} cannot resolve.`)

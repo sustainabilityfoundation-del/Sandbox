@@ -1,6 +1,6 @@
 import type { CadEngine, SketchFeature, SketchResult } from '@ews/cad-core'
-import { Badge, Button, Checkbox, SegmentedControl, TextField, useToasts } from '@ews/design-system'
-import { useState } from 'react'
+import { Badge, Button, SegmentedControl, TextField, useToasts } from '@ews/design-system'
+import { useRef, useState } from 'react'
 import type { CadModelerViewState } from '../viewState'
 import { SKETCH_STATUS, makeRun } from './common'
 import { Sketcher } from './Sketcher'
@@ -25,12 +25,24 @@ type Mode = 'select' | DrawTool
 export function SketchStage({ engine, sketch, result, vs, update }: Props) {
   const run = makeRun(engine)
   const [mode, setMode] = useState<Mode>('select')
-  const [options, setOptions] = useState<DrawOptions>(DEFAULT_DRAW_OPTIONS)
+  const options: DrawOptions = { ...DEFAULT_DRAW_OPTIONS, ...vs.drawOptions }
   const [sidesText, setSidesText] = useState(String(DEFAULT_DRAW_OPTIONS.sides))
-  const [pending, setPending] = useState<SnapTarget | null>(null)
-  const [firstId, setFirstId] = useState<string | null>(null)
+  const [pending, setPendingState] = useState<SnapTarget | null>(null)
+  const [firstId, setFirstIdState] = useState<string | null>(null)
   const [cursor, setCursor] = useState<SnapTarget | null>(null)
-  const [busy, setBusy] = useState(false)
+  // Placements run one after the other (a command may still be regenerating when the next tap arrives),
+  // against the latest gesture state, which the refs hold.
+  const pendingRef = useRef<SnapTarget | null>(null)
+  const firstRef = useRef<string | null>(null)
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const setPending = (t: SnapTarget | null) => {
+    pendingRef.current = t
+    setPendingState(t)
+  }
+  const setFirstId = (id: string | null) => {
+    firstRef.current = id
+    setFirstIdState(id)
+  }
   const sol = result?.solution
   const status = SKETCH_STATUS[sol?.status ?? 'not-regenerated']
   const sides = Math.round(Number(sidesText)) || DEFAULT_DRAW_OPTIONS.sides
@@ -47,35 +59,34 @@ export function SketchStage({ engine, sketch, result, vs, update }: Props) {
     reset()
   }
 
-  const place = async (target: SnapTarget, step: number) => {
-    if (!tool || busy) return
-    if (!pending) {
+  const placeNow = async (target: SnapTarget, step: number) => {
+    if (!tool) return
+    const first = pendingRef.current
+    if (!first) {
       setPending(target)
       if (tool === 'line') setFirstId(target.id ?? null)
       return
     }
-    const out = commandsFor(tool, sketch.id, pending, { ...target }, { ...options, sides }, step)
+    const out = commandsFor(tool, sketch.id, first, { ...target }, { ...options, sides }, step)
     if ('error' in out) {
       useToasts.getState().push({ tone: 'warning', title: 'Nothing drawn', body: out.error })
       return
     }
-    setBusy(true)
-    try {
-      const r = await run(out.commands, out.label)
-      if (!r?.ok) return
-      if (tool === 'line') {
-        const created = r.results[0].result as { start: string; end: string }
-        const first = firstId ?? created.start
-        // Clicking the first point of the chain closes the shape and ends it; otherwise the chain continues from the new end.
-        if (created.end === first) reset()
-        else {
-          setFirstId(first)
-          setPending({ point: target.point, kind: created.end === 'origin' ? 'origin' : 'point', id: created.end })
-        }
-      } else reset()
-    } finally {
-      setBusy(false)
-    }
+    const r = await run(out.commands, out.label)
+    if (!r?.ok) return
+    if (tool === 'line') {
+      const created = r.results[0].result as { start: string; end: string }
+      const chainStart = firstRef.current ?? created.start
+      // Clicking the first point of the chain closes the shape and ends it; otherwise the chain continues from the new end.
+      if (created.end === chainStart) reset()
+      else {
+        setFirstId(chainStart)
+        setPending({ point: target.point, kind: created.end === 'origin' ? 'origin' : 'point', id: created.end })
+      }
+    } else reset()
+  }
+  const place = (target: SnapTarget, step: number) => {
+    queue.current = queue.current.then(() => placeNow(target, step)).catch(() => undefined)
   }
   const cancel = () => {
     if (pending) reset()
@@ -95,14 +106,6 @@ export function SketchStage({ engine, sketch, result, vs, update }: Props) {
         {mode === 'polygon' && <TextField className="cadm-draw-sides" aria-label="Polygon sides" label="Sides" value={sidesText} onChange={setSidesText} />}
         {tool && (
           <>
-            <Checkbox isSelected={options.dimensions} onChange={(v) => setOptions((o) => ({ ...o, dimensions: v }))}>
-              Dimension new shapes
-            </Checkbox>
-            {tool === 'line' && (
-              <Checkbox isSelected={options.infer} onChange={(v) => setOptions((o) => ({ ...o, infer: v }))}>
-                Make near-horizontal and vertical lines exact
-              </Checkbox>
-            )}
             <Button size="sm" variant="outlined" icon="close" onPress={cancel}>
               {pending ? 'Cancel shape' : 'Stop drawing'}
             </Button>

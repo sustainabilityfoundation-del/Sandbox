@@ -28,10 +28,11 @@ of grid steps; the polygon rotation is in steps of 15 degrees.
   again closes the chain, and the profile can be extruded.
 - A rectangle whose first corner is clicked on an existing point, or on the origin, gets a **Coincident** constraint
   to it.
-- **Dimension new shapes** (on by default) gives a rectangle its width and height and a circle its diameter as driving
+- **Dimension new rectangles and circles** (Edit tab, *Drawing by clicking*; on by default) gives a rectangle its width and height and a circle its diameter as driving
   dimensions. A polygon is always fully constrained.
-- **Make near-horizontal and vertical lines exact** adds **Horizontal** or **Vertical** to a line whose grid end points
-  line up. A line between two existing points keeps its shape.
+- **Make aligned lines horizontal or vertical** (same place; on by default) adds **Horizontal** or **Vertical** to a line whose end points
+  line up exactly, including the closing line of a chain, so a rectangle drawn with four clicks stays a rectangle. A line that is
+  not aligned keeps its shape.
 
 The badge in the bar shows the sketch status and the remaining **degrees of freedom**, so you see how much is still
 open after each shape. Add constraints or edit the dimensions in the **Edit** tab until it reads *Fully constrained*.

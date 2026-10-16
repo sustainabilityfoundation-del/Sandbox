@@ -1,4 +1,7 @@
-import { CadEngine, createDocument, failures, referenceRepairs, type CommandCall } from '@ews/cad-core'
+import { CadEngine, createDocument, failures, parseDocument, referenceRepairs, type CommandCall } from '@ews/cad-core'
+import { readFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { sharedNodeKernel, type OcctKernel } from './node'
 
@@ -8,6 +11,7 @@ import { sharedNodeKernel, type OcctKernel } from './node'
  * the slot count removes the last strips, so edges and faces on them are lost.
  */
 
+const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 let kernel: OcctKernel
 beforeAll(async () => {
   kernel = await sharedNodeKernel()
@@ -122,6 +126,23 @@ describe('repair_reference: the person picks the replacement', () => {
     expect(result(e, sk.id).status).toBe('ok')
     // The strip ~3 is 10 mm wide (x 24 to 34 at n=2? it spans to the block end); the sketch moved with it.
     expect(result(e, boss.id).status).toBe('ok')
+  })
+
+  it('the browser-flow fixture (tests/e2e/fixtures/cad/slotted-block.ewscad) regenerates, loses its fillet edge at n = 2 and is repaired by a chosen candidate', async () => {
+    const text = readFileSync(join(repo, 'tests/e2e/fixtures/cad/slotted-block.ewscad'), 'utf8')
+    const e = new CadEngine({ kernel, document: parseDocument(text) })
+    await e.regenerate()
+    expect(failures(e.regeneration)).toEqual([])
+    const part = e.document.parts[0]
+    const fil = part.features.find((f) => f.type === 'fillet')!.id
+    await setN(e, 2)
+    const repairs = referenceRepairs(e.document, e.regeneration)
+    expect(repairs).toHaveLength(1)
+    expect(repairs[0].lost.map((l) => l.name)).toEqual(['edge(ext-19/cap-end~4|ext-19/side:ln-8)'])
+    expect(repairs[0].lost[0].candidates.map((c) => c.name)).toContain('edge(ext-19/cap-end~3|ext-19/side:ln-8)')
+    const r = await e.execute({ commands: [{ command: 'repair_reference', input: { featureId: fil, from: repairs[0].lost[0].name, to: 'edge(ext-19/cap-end~3|ext-19/side:ln-8)' } }] })
+    expect(r.ok).toBe(true)
+    expect(failures(e.regeneration)).toEqual([])
   })
 
   it('chains keep naming the root cause', async () => {

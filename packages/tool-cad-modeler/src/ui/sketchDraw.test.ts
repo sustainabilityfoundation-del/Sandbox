@@ -106,13 +106,16 @@ describe('clicks become typed sketch commands', () => {
     expect(s.solution.dof).toBeGreaterThan(0)
   })
 
-  it('line: inference can be switched off, and is not applied between two existing points', () => {
+  it('line: inference can be switched off, and only aligned lines get a constraint (also between existing points)', () => {
     const off = draw(start(), 'line', grid(0, 0), grid(30, 0), { infer: false })
     expect(sketchOf(off.doc).constraints).toHaveLength(0)
     const first = draw(start(), 'line', grid(0, 0), grid(30, 5))
+    expect(sketchOf(first.doc).constraints).toHaveLength(0) // not aligned: keeps its shape
     const [p0, p1] = [first.results[0].result.start as string, first.results[0].result.end as string]
     const second = draw(first.doc, 'line', at(p1, 30, 5), at(p0, 0, 0))
     expect(sketchOf(second.doc).constraints).toHaveLength(0)
+    const third = draw(second.doc, 'line', at(p1, 30, 5), grid(30, 25))
+    expect(sketchOf(third.doc).constraints.map((c) => c.type)).toEqual(['vertical'])
   })
 
   it('circle: the radius is a multiple of the grid step, the diameter is dimensioned; an origin centre is made coincident', () => {

@@ -38,3 +38,4 @@ topological reference stability.
 - A probe is a set of sample points (`FaceProbe.points`, `packages/cad-core/src/kernel.ts:45`), with no expected-normal check.
 - The unstable fallback name is `face#<n>` with no `<featureId>/` prefix (`packages/cad-kernel/src/occt/OcctKernel.ts:356`).
 - Vertex naming is not implemented.
+- Sprint C1 (ADR-0075, Proposed): kernel shape history (`BRepBuilderAPI_MakeShape::Modified/IsDeleted`) is now the first naming signal for faces that Booleans and fillets split or trim; probes remain the fallback. Pieces of a split face are named `<name>`, `<name>~2`, `<name>~3` … Repairing a lost reference is an explicit command (`repair_reference`), never a silent re-bind.

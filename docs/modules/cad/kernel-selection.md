@@ -47,16 +47,15 @@ with OCCT on booleans and blends). manifold remains a candidate for robust mesh 
 | Mesh | triangles with per-face groups; groups reference faces by OCCT hash code (mapped to indices in our adapter) |
 | Booleans with coplanar caps | the `sameFace` optimisation produced a solid with an internal void (2 shells, 9 faces); plain booleans plus `simplify()` give the correct result. Regression test added. |
 | Bindings present | STEPControl_Reader/Writer, STEPCAFControl_Writer, XCAF tools, Interface_Static, BRepCheck_Analyzer, BRepAlgoAPI, BRepFilletAPI, BRepOffsetAPI (thick solid, pipe shell, thru sections), ShapeFix (Shape, Solid, Face, Wire) |
+| Shape history | `BRepBuilderAPI_MakeShape::Modified/Generated/IsDeleted` are bound (with `NCollection_List_TopoDS_Shape`); used for face naming (ADR-0075). `ShapeUpgrade_UnifySameDomain::History()` returns an opaque handle (unusable), so the Boolean builders merge faces through `SimplifyResult` instead |
 | Bindings absent | STEPCAFControl_Reader (names/colours on import), IGESControl_*, RWGltf_*, RWObj_*, TNaming/OCAF; TopExp map helpers |
 
 ## 4. Limitations carried into the product
 
-1. **OCCT version not stated by the package.** The survey infers OCCT 7.6.x from the build image
-   (March 2023); the bindings contain 7.6-era APIs. OCCT 8.0.1 is current upstream. Upgrading means
-   owning a WASM build pipeline (estimate 3–6 weeks). Risk R-CAD-01.
+1. **OCCT version: 8.0 (verified in sprint C1; risk R-CAD-01 closed).** The package does not state it and the research survey inferred 7.6.x, which was wrong. The linked library stamps `Open CASCADE STEP processor 8.0` into every STEP file it writes (the WASM also carries the strings `Open CASCADE 8.0`); `packages/cad-kernel/src/version.test.ts` asserts it and the kernel info string, so a dependency update that changes it fails the test. The patch level (8.0.x) is not exposed by the build. A custom build is still needed only for the missing readers and writers (backlog 7).
 2. Booleans and fillets fail on some degenerate inputs; every failure is reported per feature and
    validity is checked with BRepCheck after regeneration.
-3. No persistent naming in the kernel; ours is generative with probes (ADR-0024).
+3. No persistent naming in the kernel; ours is generative with probes (ADR-0024) plus OCCT shape history for the pieces of split faces (ADR-0075).
 4. Missing readers (XCAF STEP, IGES, glTF, OBJ) need a custom build (still LGPL, no approval).
 5. 23 MB WASM (7.3 MB gzip) downloaded once; wasm32 limit of 4 GB; single-threaded build in Phase 1
    (multi-threaded build needs COOP/COEP headers).
@@ -76,6 +75,6 @@ with OCCT on booleans and blends). manifold remains a candidate for robust mesh 
 
 ## 6. Alternatives kept open
 
-- `@salusoft89/planegcs` (LGPL WASM): sketch-solver test oracle and possible Phase 2 solver (ADR-0025).
+- `@salusoft89/planegcs` (LGPL WASM): in use as a development-time sketch-solver test oracle since sprint C1 (ADR-0076); a run-time solver would need a new ADR and approval.
 - Native OCCT 8 (C++) for desktop and server jobs behind the same interface.
 - manifold-3d (Apache-2.0) for mesh-level operations.

@@ -29,7 +29,7 @@ export interface SnapTarget {
 export interface DrawOptions {
   /** Add driving dimensions to rectangles (width, height) and circles (diameter). */
   dimensions: boolean
-  /** Make nearly horizontal or vertical lines exactly horizontal or vertical. */
+  /** Constrain lines whose end points are exactly aligned to be horizontal or vertical. */
   infer: boolean
   /** Sides of a polygon. */
   sides: number
@@ -97,9 +97,9 @@ export function commandsFor(tool: DrawTool, sketchId: string, a: SnapTarget, b: 
     const start = a.kind === 'origin' ? 'origin' : input(a)
     const end = b.kind === 'origin' ? 'origin' : input(b)
     const commands: CommandCall[] = [{ command: 'add_line', input: { sketchId, start, end, ref: '$l' } }]
-    // Nearly horizontal or vertical lines drawn from the grid are made exact. A line between two existing points keeps its shape.
-    const existing = (t: SnapTarget) => t.kind !== 'grid'
-    if (options.infer && !(existing(a) && existing(b))) {
+    // A line that is exactly horizontal or vertical on the grid (or between aligned points) is made so by a constraint, which
+    // closes a rectangle drawn as a chain. A line that is not aligned keeps its shape.
+    if (options.infer) {
       if (Math.abs(dy) < EPS) commands.push({ command: 'apply_constraint', input: { sketchId, type: 'horizontal', entities: ['$l'] } })
       else if (Math.abs(dx) < EPS) commands.push({ command: 'apply_constraint', input: { sketchId, type: 'vertical', entities: ['$l'] } })
     }

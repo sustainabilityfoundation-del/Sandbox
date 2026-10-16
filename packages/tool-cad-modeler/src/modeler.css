@@ -108,6 +108,9 @@
     .cadm-stage { grid-row: 1; }
     .cadm-side { grid-row: 2; border-right: 0; border-top: 1px solid var(--ws-border); }
     .cadm-view-tools { max-width: calc(100% - 2 * var(--ws-space-2)); }
+    /* The stage scrolls so the sketch keeps a usable size under the drawing bar. */
+    .cadm-sketch-stage { overflow: auto; }
+    .cadm-sketch { flex: none; height: 300px; min-height: 260px; }
     .cadm-param-row { grid-template-columns: minmax(56px, auto) minmax(0, 1fr) auto; }
     .cadm-param-row > .cadm-param-value { grid-column: 2; }
   }

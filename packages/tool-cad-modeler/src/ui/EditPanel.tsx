@@ -126,6 +126,17 @@ function SketchTools({ engine, state, sketchId, vs, update }: { engine: CadEngin
         <GeometryForm kind={kind} sketchId={sketchId} run={run} />
       </section>
 
+      <section className="cadm-section" data-help-id="cad-modeler.sketch.draw-options" aria-label="Drawing options">
+        <h4 className="cadm-subtitle">Drawing by clicking</h4>
+        <Checkbox isSelected={vs.drawOptions?.dimensions ?? true} onChange={(v) => update({ drawOptions: { ...vs.drawOptions, dimensions: v } })}>
+          Dimension new rectangles (width, height) and circles (diameter)
+        </Checkbox>
+        <Checkbox isSelected={vs.drawOptions?.infer ?? true} onChange={(v) => update({ drawOptions: { ...vs.drawOptions, infer: v } })}>
+          Make aligned lines horizontal or vertical
+        </Checkbox>
+        <p className="cadm-hint">Choose Line, Rectangle, Circle or Polygon in the bar above the sketch, then click or tap two points. These options apply to what you draw next.</p>
+      </section>
+
       <section className="cadm-section" data-help-id="cad-modeler.sketch.constrain" aria-label="Constrain">
         <h4 className="cadm-subtitle">Constrain the selection</h4>
         <ConstraintForm sketch={sketch} selected={selected} run={run} onDone={() => update({ selection: vs.selection.filter((s) => s.kind !== 'sketch-entity') })} />

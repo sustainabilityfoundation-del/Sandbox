@@ -2,11 +2,11 @@
 
 ## Status (one page; initial block by the context-optimization agent, 16 Oct 2026, main d146f22; the module agent keeps it current)
 
-- **State:** phases 0-1 done, modeling depth (fillet, chamfer, datum planes, sketches on faces) implemented; concept handoff items 1-4 done
-- **Branch:** feature/cad @ 08341f3, level with main
-- **Done:** see the Phase status table
-- **Next actions:** coordinator review of phase 1 and the concept handoff; next items are in the Phase status table
-- **Blockers:** none recorded
+- **State:** phases 0-1 done, modeling depth and D1-CAD implemented; **sprint C1 (sketching and reliability, items 1-7 of the brief plus the D1 pocket-width item) is implemented on `cad/c1-sketching-reliability` and awaits coordinator review**; see [Sprint C1](#sprint-c1-sketching-and-reliability-16-oct-2026)
+- **Branch:** `cad/c1-sketching-reliability`, based on `d1/oss9-cad-check-kernel` 7b447ff (main ff42d74 plus OSS-9); merge after OSS-9. Worktree `.claude/worktrees/agent-a573de00390080b59`
+- **Done:** click-to-draw sketching; OCCT shape history naming (ADR-0075); Repair reference; root-cause failure messages; redo and document switcher for the assistant and the view; `SketchSolver` interface and planegcs oracle (ADR-0076); OCCT version verified (8.0); D1 pocket width reported by parameter and kernel width. Earlier work: see the Phase status table
+- **Next actions:** coordinator review and merge of C1 after OSS-9; sprint C2 part features (hole, mirror, circular pattern, shell, draft, combine); owner decisions listed in the C1-C3 brief
+- **Blockers:** none. Check that ADR numbers 0075 and 0076 are still free at merge (taken on this branch only)
 - **Archive:** the sections below are the detailed record and are read on demand, not at session start. Format and the archive split: [handoff template](../agents/handoff-template.md#2-status-block-top-of-every-module-progress-file-kept-current-at-each-checkpoint).
 
 Maintained by the CAD agent. Brief: [cad-program.md](cad-program.md) (do not edit).
@@ -104,6 +104,32 @@ Settings implemented (`@ews/cad-client` `CAD_SETTINGS`, help `cad-modeler.settin
 
 Not exposed, by design: the solver and naming tolerances. A per-user value would make regeneration of
 a stored revision depend on the viewer (C4).
+
+## Sprint C1: sketching and reliability (16 Oct 2026)
+
+Brief: [cad-sprints-c1-c3.md](cad-sprints-c1-c3.md). Branch `cad/c1-sketching-reliability`, based on OSS-9 (7b447ff). Item 8 is the D1
+pocket-width request from the coordinator.
+
+| # | Item | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | Click-to-draw sketching (line, rectangle, circle, polygon) with snapping and automatic coincident constraints | **Done.** Tools bar above the sketch (Select, Line, Rectangle, Circle, Polygon), grid and point snapping, line chains that close on the first point, rectangle corners joined to the point they were clicked on (coincident), optional dimensions and horizontal/vertical inference (Edit tab → Drawing by clicking), DOF badge in the bar. Mouse, touch (tap, tap) and keyboard (arrow keys, Enter, Escape); no hover or dragging needed. Clicks run `add_line`, `add_rectangle`, `add_circle`, `add_regular_polygon`, `apply_constraint`; the forms remain the path for exact values | `ui/sketchDraw.test.ts` (11); e2e `cad-modeler` (click, tap on a phone, keyboard; closed profile area 800 mm², DOF, extrude 8000 mm³, undo) |
+| 2 | OCCT shape history as the second naming signal | **Done** ([ADR-0075](../decisions/0075-cad-occt-shape-history-naming.md)). `Modified/IsDeleted` of the Boolean and fillet builders name the pieces of split faces (`name`, `name~2`, …); probes stay the fallback; `GeometryKernel.boolean` takes an optional `BooleanHint` | `cad-kernel/src/history.test.ts`: strips keep their names for slot counts 2 to 6, no `face#n`; a fillet on strip edges survives counts 4, 5, 2, 6, 3 with exact volume; all earlier naming tests unchanged |
+| 3 | Repair reference on `reference-lost` | **Done.** Diagnostics → Repair reference: lost names, candidates (best name match first, suggestion only), Preview (dry run), Repair. Command `repair_reference { featureId, from, to }` and query `get_reference_repairs`; fillet, chamfer, sketch and datum plane. No default and no silent re-bind | `cad-kernel/src/repair.test.ts` (5, including the browser fixture); e2e `cad-modeler` (Repair reference section) |
+| 4 | Actionable failure messages naming the upstream cause | **Done.** A blocked feature's message names the feature it needs, whether it failed or is suppressed, and the root cause (`details.cause`); Diagnostics shows it with a **Show** button; reference-lost messages say how to repair | `repair.test.ts` (blocked extrude, chain through a pattern); e2e |
+| 5 | AI coverage for redo; document switcher | **Done.** `cad-modeler.redo` (proposal with preview; refused when nothing was undone; saved as a revision headless). Header **Switch document** list. Capability entries `cad-modeler.redo` (shared), `cad-modeler.documents` (equivalent) | `assistant.headless.test.ts`; e2e `ai-headless` lists the operation |
+| 6 | `SketchSolver` interface with planegcs oracle tests (OSS-11) | **Done** ([ADR-0076](../decisions/0076-cad-sketch-solver-planegcs-oracle.md)). `SketchSolver`, `builtInSketchSolver`; 17 sketches solved by both solvers (status, DOF, positions to 1e-6) plus one recorded difference. `@salusoft89/planegcs` 1.3.0 is a devDependency of `@ews/cad-core` only (LGPL-2.0-or-later, dev-only in the register) | `cad-core/src/sketch/planegcsOracle.test.ts` (18) |
+| 7 | Verify and record the OCCT version | **Done.** OCCT **8.0** (STEP writer stamp `Open CASCADE STEP processor 8.0`); R-CAD-01 closed; kernel info string and `docs/modules/cad/kernel-selection.md` updated | `cad-kernel/src/version.test.ts` |
+| 8 | D1 pocket width: bound parameter and kernel-measured `pattern-width` | **Done.** The recorded script `tests/e2e/fixtures/fake-scripts/d1-plumbing.json` requests `pattern-width` beside the bound parameter in "D1 check" and "D1 recheck" and reports both; the kernel checks that two flat faces bound the occurrence along the direction (`pattern.occurrenceWidthFlats`). With corners facing the direction the check says so (`not-checkable`, reason) instead of failing. Existing field names unchanged. `apps/workspace/fixtures/demo-plans` holds no CAD check | `assistant.d1.test.ts` (two new tests), e2e `demo-d1` |
+
+New commands and queries (catalogue 1.4.0, `docs/modules/cad/commands.json`): command `repair_reference`; query `get_reference_repairs`.
+New assistant operation: `cad-modeler.redo`. New capability entries: `cad-modeler.sketch-draw`, `cad-modeler.repair-reference`,
+`cad-modeler.documents`; `cad-modeler.redo` is no longer `none`. New help pages: `cad-modeler.sketch-draw`, `cad-modeler.repair-reference`
+(plus changes to sketch, edges, regeneration, troubleshooting, history, document, commands, ai, checks, shortcuts, overview).
+
+Known limits: the piece of a split face that keeps the name is the one with the smallest centre (x, then y, then z), a convention that depends
+on the model axes; names that used `face#n` fallbacks are not portable to this version; the sketch view has no zoom or pan (it re-fits to the
+geometry, with a working area of at least 60 × 40 mm while drawing); arcs are not drawn by clicking; the planegcs oracle covers lines, circles and
+points (no arcs).
 
 ## Integration milestone 1 (binding, docs/specifications/integration-milestone-1.md)
 
@@ -380,11 +406,11 @@ All CAD dependencies fall within contracts §3. **Nothing needs approval.** The 
 
 | ID | Risk | Mitigation |
 | --- | --- | --- |
-| R-CAD-01 | The OCCT version inside the WASM build is not stated; the survey infers 7.6.x (2023), while upstream is 8.0.1 | Owning a custom WASM build pipeline (backlog #7, about 3–6 weeks) |
+| R-CAD-01 | **Closed (C1).** The OCCT version in the WASM build is 8.0 (read from the STEP writer stamp; asserted by `version.test.ts`); the survey had inferred 7.6.x. The patch level is not exposed | A custom build is needed only for the missing readers and writers (backlog #7) |
 | R-CAD-02 | OCCT boolean and fillet robustness on hard inputs | Per-feature failures, BRepCheck after regeneration, no `sameFace` optimisation, regression models |
-| R-CAD-03 | Probe-based naming can be ambiguous with coincident geometry from different features | Aliases and flags already in place; kernel history signal and a "needs repair" state in Phase 2 |
+| R-CAD-03 | Probe-based naming can be ambiguous with coincident geometry from different features | Aliases and flags; **kernel shape history is the first signal for split and trimmed faces (C1, ADR-0075)** and Repair reference is the repair state (C1) |
 | R-CAD-04 | In file mode (demo), documents are lost if the window closes without saving | API mode stores revisions in the project; file mode keeps the unsaved-change guard |
-| R-CAD-05 | Fillets on edges whose names changed upstream fail with `reference-lost` (by design) | The failure lists the available edges; edit the feature to choose again |
+| R-CAD-05 | Fillets on edges whose names changed upstream fail with `reference-lost` (by design) | The failure lists the available edges; **Diagnostics → Repair reference lets the person choose the replacement (C1)** |
 | R-CAD-09 | `req:test:db` sprint002 (Requirements) flaked once under load and passed in isolation; it is not a CAD test | Reported to the coordinator |
 | R-CAD-06 | 23 MB WASM download and the wasm32 4 GB memory limit | Cached once; native desktop kernel later |
 | R-CAD-07 | Most competitive research rests on search summaries (12 sources read in full, 99 summaries) | Treat vendor specifics as provisional; verify before relying on them |
@@ -397,7 +423,7 @@ The top items are below; the full list is in [backlog.md](../modules/cad/backlog
 1. Switch to `PlatformServices.cad` when SDK 1.6 lands; settings contribution.
 2. Show CAD links in other modules, and validate product-element IDs (needs a Project Management client).
 3. ADR-0027 phase 2, after approval: convert mock representations into parametric parts.
-4. Drag-drawing in the sketcher, with constraint inference.
+4. Drag-to-move and arcs in the sketcher (click-to-draw with snapping and automatic coincident constraints is done, C1).
 5. Variable-radius fillets, unequal chamfers, shell and draft.
 6. Workspace deep links into documents and parts.
 7. Custom OCCT 8 WASM build with the XCAF reader and IGES.
@@ -419,3 +445,4 @@ The top items are below; the full list is in [backlog.md](../modules/cad/backlog
 | 2026-10-15 | Sprint 3. ADR-0027 answers (8ef547d). C13 view (cc2d107), deep link (d35b8bc), both merged by the coordinator in 34b868f. Merged main (129db68). Settings (64f03b1 + COORDINATOR REVIEW 5685337), product-reference validation (49e292f), C9 target fix (7d94782), e2e flow (d46aa4b). |
 | 2026-10-15 | D1-CAD. Merged main (14b0f9f). Items 1–3 (0382b7f), 4–5 (1b3c05b, plus COORDINATOR REVIEW d9bf061 for the capability inventory and AI catalogue), 6–7 (e5569f8). |
 | 2026-10-15 | D1 follow-up. run_commands title and saved-revision result (2e4c924); real-stack check and evidence test (c5402d9); evidence arguments and gateway provenance (earlier commit); declarative proposals (2d65adb, plus COORDINATOR REVIEW 8b75df9); ai-headless covers CAD (7076e7f). |
+| 2026-10-16 | Sprint C1 on `cad/c1-sketching-reliability` (based on OSS-9 7b447ff): shape history naming (935f2c9), repair_reference and root-cause messages (671aafc), planegcs oracle (SketchSolver), ADRs 0075 and 0076, D1 pocket width, click-to-draw, redo, document switcher. See Sprint C1 above. |

@@ -45,6 +45,7 @@ export const cadModelerHelp: HelpManifest = {
     { control: 'cad-modeler.sketch.edit', helpId: 'cad-modeler.sketch' },
     { control: 'cad-modeler.sketch.canvas', helpId: 'cad-modeler.sketch' },
     { control: 'cad-modeler.sketch.draw', helpId: 'cad-modeler.sketch-draw' },
+    { control: 'cad-modeler.sketch.draw-options', helpId: 'cad-modeler.sketch-draw' },
     { control: 'cad-modeler.repair-reference', helpId: 'cad-modeler.repair-reference' },
     { control: 'cad-modeler.documents.switcher', helpId: 'cad-modeler.document' },
     { control: 'cad-modeler.sketch.geometry', helpId: 'cad-modeler.sketch' },

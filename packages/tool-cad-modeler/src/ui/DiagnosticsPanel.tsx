@@ -60,6 +60,15 @@ export function DiagnosticsPanel({ engine, state, session, update }: { engine: C
           Full regeneration
         </Button>
       </section>
+      {repairs.length > 0 && (
+        <section className="cadm-section" aria-label="Repair reference" data-help-id="cad-modeler.repair-reference">
+          <h4 className="cadm-subtitle">Repair reference ({repairs.length})</h4>
+          <p className="cadm-hint">A face or edge that a feature used no longer exists after an upstream change. Nothing is re-bound for you: choose the replacement, preview it, then repair. Candidates are ordered by name similarity only.</p>
+          {repairs.map((r) => (
+            <RepairCard key={r.featureId} engine={engine} repair={r} />
+          ))}
+        </section>
+      )}
       <section className="cadm-section" aria-label="Failures">
         <h4 className="cadm-subtitle">Failures and warnings ({issues.length})</h4>
         {issues.length === 0 ? (
@@ -87,15 +96,6 @@ export function DiagnosticsPanel({ engine, state, session, update }: { engine: C
           })
         )}
       </section>
-      {repairs.length > 0 && (
-        <section className="cadm-section" aria-label="Repair reference" data-help-id="cad-modeler.repair-reference">
-          <h4 className="cadm-subtitle">Repair reference ({repairs.length})</h4>
-          <p className="cadm-hint">A face or edge that a feature used no longer exists after an upstream change. Nothing is re-bound for you: choose the replacement, preview it, then repair. Candidates are ordered by name similarity only.</p>
-          {repairs.map((r) => (
-            <RepairCard key={r.featureId} engine={engine} repair={r} />
-          ))}
-        </section>
-      )}
       {exp && (
         <section className="cadm-section" aria-label="Last STEP export">
           <h4 className="cadm-subtitle">Last STEP export</h4>
@@ -143,7 +143,7 @@ function RepairCard({ engine, repair }: { engine: CadEngine; repair: ReferenceRe
   const noun = repair.referenceKind === 'edge' ? 'edge' : 'face'
   return (
     <Notice tone="warning" title={`${repair.featureName} (${repair.featureId}): ${noun} reference lost`}>
-      <span className="cadm-block">{repair.message}</span>
+      <span className="cadm-block">{repair.message.replace(/ Available:.*$/s, '')}</span>
       {repair.lost.map((l) => (
         <div key={l.name} className="cadm-repair" data-testid="repair-row">
           <span className="cadm-mono cadm-repair-lost">{l.name}</span>
