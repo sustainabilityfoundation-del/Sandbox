@@ -100,6 +100,10 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   'conceptualize.revise_constraint': 'propose',
   'conceptualize.record_evidence': 'propose',
   'conceptualize.review_flags': 'read',
+  'conceptualize.list_constraints': 'read',
+  // CR-C8 (appended by the Conceptualize agent, COORDINATOR REVIEW)
+  'conceptualize.evaluate_calculation': 'calculate',
+  'conceptualize.record_calculation': 'propose',
   'sysml-modeler.describe_commands': 'read',
   'sysml-modeler.matrix': 'read',
   'sysml-modeler.coverage': 'read',

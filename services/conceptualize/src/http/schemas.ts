@@ -426,6 +426,11 @@ export const CriterionUpdate = Type.Object(
   { id: Uuid, name: Type.Optional(Text(200, 1)), description: Type.Optional(Text(2000)), weight: Type.Optional(Type.Number({ minimum: 0, maximum: 1000 })), direction: Type.Optional(L('maximize', 'minimize')) },
   { $id: 'CriterionUpdate', additionalProperties: false },
 )
+/** C11: a score taken from calculated evidence keeps that output's qualification unchanged. */
+export const ScoreQualification = Type.Object(
+  { source: Type.Literal('calculation'), evidenceId: Uuid, symbol: Type.String(), kind: L('point', 'sampled-range', 'bounds'), quality: Type.Optional(L('exact', 'enclosure')) },
+  { $id: 'ScoreQualification' },
+)
 export const Score = Type.Object(
   {
     criterionId: Uuid,
@@ -438,6 +443,8 @@ export const Score = Type.Object(
     rationale: Type.String(),
     evidenceId: Nullable(Uuid),
     enteredUnit: Nullable(Type.String()),
+    evidenceOutput: Nullable(Type.String()),
+    qualification: Nullable(ScoreQualification),
     studyRevision: Type.Integer(),
     createdAt: Timestamp,
     createdBy: Type.String(),
@@ -457,6 +464,8 @@ export const ScoreInput = Type.Object(
     basis: Basis,
     rationale: Type.Optional(Text(4000)),
     evidenceId: Type.Optional(Nullable(Uuid)),
+    evidenceOutput: Type.Optional(Type.String({ maxLength: 60, description: 'Output symbol of the calculated evidence the score is taken from; value (and low/high) must equal it' })),
+    qualification: Type.Optional(Type.Unknown({ description: 'Ignored: copied from the evidence by the service' })),
     clear: Type.Optional(Type.Boolean({ description: 'Remove the score (recorded as a new cleared row)' })),
   },
   { $id: 'ScoreInput', additionalProperties: false },
@@ -487,7 +496,13 @@ export const TradeStudy = Type.Object(
     criteria: Type.Array(Criterion),
     options: Type.Array(Uuid),
     scores: Type.Array(Score),
-    result: Type.Object({ options: Type.Array(OptionResult), ranking: L('robust', 'uncertain', 'incomplete'), preliminary: Type.Boolean(), method: Type.String() }),
+    result: Type.Object({
+      options: Type.Array(OptionResult),
+      ranking: L('robust', 'uncertain', 'incomplete'),
+      preliminary: Type.Boolean(),
+      method: Type.String(),
+      qualifications: Type.Object({ points: Type.Integer(), exactBounds: Type.Integer(), enclosures: Type.Integer(), sampledRanges: Type.Integer(), statedRanges: Type.Integer(), robustnessNote: Type.Optional(Type.String()) }, { description: 'C11: how the score ranges are qualified; a sampled range is not a bound and cannot make the ranking robust' }),
+    }),
     createdAt: Timestamp,
     createdBy: Type.String(),
     updatedAt: Timestamp,
@@ -835,6 +850,8 @@ export const ConceptsEvent = Type.Object(
       'decision.invalidated',
       'link.created',
       'link.removed',
+      'calculation-model.created',
+      'calculation-model.revised',
     ),
     projectId: Type.String(),
     entityId: Type.String(),

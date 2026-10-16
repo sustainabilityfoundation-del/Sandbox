@@ -140,7 +140,7 @@ function TradeStudyTable({ study, concepts }: { study: TradeStudy; concepts: Map
     <Section title={`${study.key} ${study.title}`} helpId="conceptualize.tradestudy">
       {study.result.preliminary && (
         <Notice tone="warning" title="Preliminary comparison">
-          Scores are estimates, assumptions or AI hypotheses, not verified results. Ranking: {study.result.ranking === 'robust' ? 'robust (ranges do not overlap)' : study.result.ranking === 'uncertain' ? 'uncertain (ranges overlap)' : 'incomplete (missing scores)'}.
+          Scores are estimates, assumptions or AI hypotheses, not verified results. Ranking: {study.result.ranking === 'robust' ? 'robust (ranges do not overlap)' : study.result.ranking === 'uncertain' ? (study.result.qualifications?.robustnessNote ?? 'uncertain (ranges overlap)') : 'incomplete (missing scores)'}.
         </Notice>
       )}
       <div className="con-table-wrap">
@@ -166,6 +166,12 @@ function TradeStudyTable({ study, concepts }: { study: TradeStudy; concepts: Map
                   return (
                     <td key={o}>
                       <span>{scoreText(c, s)}</span> {s && <BasisBadge basis={s.basis} />}
+                      {s?.qualification && (
+                        <Badge tone="neutral" title={`Taken from calculated evidence (output ${s.qualification.symbol})`}>
+                          {s.qualification.kind === 'point' ? 'point value' : s.qualification.kind === 'sampled-range' ? 'sampled values (not a bound)' : s.qualification.quality === 'exact' ? 'exact bounds' : 'enclosure'}
+                        </Badge>
+                      )}
+                      {s && !s.qualification && s.low != null && s.high != null && s.low !== s.high && <span className="con-muted" title="A range entered as a score, not computed">stated range</span>}
                       {can('author') && (
                         <Button size="sm" variant="text" onPress={() => setEditing({ criterion: c, conceptId: o })}>
                           {s ? 'Edit' : 'Score'}

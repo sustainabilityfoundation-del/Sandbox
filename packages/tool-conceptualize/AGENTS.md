@@ -32,5 +32,5 @@ npm run concept:test:db                          # service and adapter tests on 
 
 ## Help and documentation
 
-`help/*.md` (21 topics) and `src/help.ts`: every toolbar item, assistant operation and marked control
+`help/*.md` (22 topics) and `src/help.ts`: every toolbar item, assistant operation and marked control
 (`data-help-id="conceptualize.…"`) is mapped. Update the pages with every feature change.

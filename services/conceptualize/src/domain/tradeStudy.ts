@@ -31,6 +31,7 @@ export interface ScoreInput {
   high?: number | null
   qualitative?: number | null
   basis: Basis
+  qualification?: { kind: 'point' | 'sampled-range' | 'bounds'; quality?: 'exact' | 'enclosure' } | null
 }
 
 export interface OptionResult {
@@ -50,6 +51,8 @@ export interface StudyResult {
   ranking: 'robust' | 'uncertain' | 'incomplete'
   preliminary: boolean
   method: string
+  /** C11 (Q6): how the score ranges are qualified. */
+  qualifications: { points: number; exactBounds: number; enclosures: number; sampledRanges: number; statedRanges: number; robustnessNote?: string }
 }
 
 export const TRADE_METHOD =
@@ -127,13 +130,24 @@ export function evaluateStudy(criteria: CriterionInput[], optionIds: string[], s
   })
   const ranked = options.filter((o) => o.score !== null).sort((a, b) => b.score! - a.score!)
   ranked.forEach((o, i) => (o.rank = i + 1))
+  // C11 (Q6): a sampled range is not a bound, so it cannot make a ranking robust; enclosures can (sound bounds).
+  const q = { points: 0, exactBounds: 0, enclosures: 0, sampledRanges: 0, statedRanges: 0 }
+  for (const s of scores) {
+    if (s.qualification?.kind === 'sampled-range') q.sampledRanges++
+    else if (s.qualification?.kind === 'bounds') s.qualification.quality === 'exact' ? q.exactBounds++ : q.enclosures++
+    else if (s.low != null && s.high != null && s.low !== s.high) q.statedRanges++
+    else q.points++
+  }
   let ranking: StudyResult['ranking'] = 'incomplete'
+  let robustnessNote: string | undefined
   if (ranked.length >= 2 && options.every((o) => o.coverage === 1)) {
     const [best, ...rest] = ranked
-    ranking = rest.every((o) => best.low! > o.high!) ? 'robust' : 'uncertain'
+    const separate = rest.every((o) => best.low! > o.high!)
+    ranking = separate && q.sampledRanges === 0 ? 'robust' : 'uncertain'
+    if (separate && q.sampledRanges) robustnessNote = 'The score ranges separate, but some are sampled ranges (not bounds), so robustness is not proven.'
   }
   const preliminary = !scores.length || scores.some((s) => s.basis !== 'evidence')
-  return { options, ranking, preliminary, method: TRADE_METHOD }
+  return { options, ranking, preliminary, method: TRADE_METHOD, qualifications: { ...q, ...(robustnessNote ? { robustnessNote } : {}) } }
 }
 
 const round = (n: number) => Math.round(n * 1000) / 1000

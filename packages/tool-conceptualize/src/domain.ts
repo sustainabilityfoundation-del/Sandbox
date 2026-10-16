@@ -25,13 +25,14 @@ export interface ConceptualizeViewState {
   readOnly?: boolean
 }
 
-export type DesignRecordType = 'function' | 'constraint' | 'assumption'
-export type RecordsFilter = 'concepts' | 'functions' | 'constraints' | 'assumptions'
+export type DesignRecordType = 'function' | 'constraint' | 'assumption' | 'calculation'
+export type RecordsFilter = 'concepts' | 'functions' | 'constraints' | 'assumptions' | 'calculations'
 export const RECORDS: { value: RecordsFilter; label: string; type?: DesignRecordType }[] = [
   { value: 'concepts', label: 'Concepts' },
   { value: 'functions', label: 'Functions', type: 'function' },
   { value: 'constraints', label: 'Constraints', type: 'constraint' },
   { value: 'assumptions', label: 'Assumptions', type: 'assumption' },
+  { value: 'calculations', label: 'Calculations', type: 'calculation' },
 ]
 
 export const INITIAL_VIEW_STATE: ConceptualizeViewState = { page: 'explorer', conceptId: null, explorerMode: 'tree', search: '', maturity: 'all', setId: null, dialog: null, tab: 'intent', records: 'concepts', record: null }

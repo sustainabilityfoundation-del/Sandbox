@@ -410,10 +410,12 @@ export async function decisionRationale(db: Queryable, projectId: string, id: st
     const o = d.outcomes.find((x) => x.conceptId === cid)
     return { ref: { module: 'conceptualize' as const, type: 'concept' as const, id: cid }, key: c?.key ?? '', name: c?.name ?? '', outcome: o?.outcome ?? null, outcomeRationale: o?.rationale ?? '', memberStatus: set?.members.find((m) => m.conceptId === cid)?.status ?? null }
   })
-  const ev = d.support.length ? (await db.query<{ id: string; key: string; title: string; basis: string; outcome: string | null }>(`SELECT e.id::text, e.key, e.title, e.basis, (SELECT r.outcome FROM conceptualize.evidence_reviews r WHERE r.evidence_id = e.id ORDER BY r.reviewed_at DESC LIMIT 1) AS outcome FROM conceptualize.evidence e WHERE e.id = ANY($1::uuid[])`, [d.support.map((x) => x.ref.id)])).rows : []
+  const ev = d.support.length ? (await db.query<{ id: string; key: string; title: string; basis: string; outcome: string | null; qualifications: { checks: unknown[]; limits: unknown } | null; calculation: { manifest: unknown } | null }>(`SELECT e.id::text, e.key, e.title, e.basis, e.qualifications, e.calculation, (SELECT r.outcome FROM conceptualize.evidence_reviews r WHERE r.evidence_id = e.id ORDER BY r.reviewed_at DESC LIMIT 1) AS outcome FROM conceptualize.evidence e WHERE e.id = ANY($1::uuid[])`, [d.support.map((x) => x.ref.id)])).rows : []
+  const { qualifyManifest } = await import('@ews/engineering-calc')
   const support = d.support.map((x) => {
     const e = ev.find((r) => r.id === x.ref.id)
-    return { ref: x.ref, key: e?.key ?? '', title: e?.title ?? '', role: x.role, basis: e?.basis ?? '', validationStatus: e?.outcome ?? 'unreviewed' }
+    const q = e?.qualifications ?? (e?.calculation ? (qualifyManifest(e.calculation.manifest as never) as unknown as { checks: unknown[]; limits: unknown }) : null)
+    return { ref: x.ref, key: e?.key ?? '', title: e?.title ?? '', role: x.role, basis: e?.basis ?? '', validationStatus: e?.outcome ?? 'unreviewed', ...(q ? { checks: q.checks, limits: q.limits } : {}) }
   })
   const infos = await describeRefs(db, projectId, [...d.assumptionIds, ...d.constraintIds])
   const { rows: texts } = await db.query<{ id: string; text: string }>(

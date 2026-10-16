@@ -18,6 +18,7 @@ const SOURCES: Record<Exclude<DesignEntityType, 'statement'>, { from: string; ke
   implementation: { from: 'conceptualize.implementations e', key: 'e.key', label: 'e.name', revision: 'e.revision', status: 'e.status', created: 'e.created_at' },
   'alternative-set': { from: 'conceptualize.alternative_sets e', key: 'e.key', label: 'e.name', revision: 'e.record_version', status: "'open'", created: 'e.created_at' },
   'trade-study': { from: 'conceptualize.trade_studies e', key: 'e.key', label: 'e.title', revision: 'e.revision', status: "'open'", created: 'e.created_at' },
+  'calculation-model': { from: 'conceptualize.calculation_models e JOIN conceptualize.calculation_model_revisions v ON v.model_id = e.id AND v.revision = e.current_revision', key: 'e.key', label: 'v.name', revision: 'e.current_revision', status: 'e.validation_status', created: 'e.created_at' },
   exploration: { from: 'conceptualize.explorations e', key: "'EXP-' || substr(e.id::text, 1, 8)", label: 'e.objective', revision: '1', status: "CASE WHEN e.undone THEN 'undone' ELSE 'open' END", created: 'e.created_at' },
 }
 

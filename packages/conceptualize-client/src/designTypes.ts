@@ -4,7 +4,7 @@
  */
 import type { ArtifactRefInput, Basis, ProvenanceInfo, Quantity, RevisionSummary, Statement, StatementInput } from './types'
 
-export type DesignEntityType = 'concept' | 'function' | 'constraint' | 'assumption' | 'evidence' | 'decision' | 'implementation' | 'exploration'
+export type DesignEntityType = 'concept' | 'function' | 'constraint' | 'assumption' | 'evidence' | 'decision' | 'implementation' | 'exploration' | 'calculation-model'
 
 /** Reference to a Conceptualize record (local until the SDK DesignRef, CR-S1). */
 export interface DesignRef {
@@ -401,3 +401,104 @@ export interface SearchResult {
   total: number
 }
 export type DesignRevisionSummary = RevisionSummary
+
+// ---- calculation models (CR-C8) and C11 qualifications (stored exactly as @ews/engineering-calc types them) ----
+export interface CalculationParameter {
+  symbol: string
+  name: string
+  role: 'input' | 'output' | 'constant' | 'design-variable'
+  unit: string
+  value?: number
+  min?: number
+  max?: number
+  description?: string
+  defaultBinding?: { ref: AnyRef; property: string }
+}
+export interface CalculationRelation {
+  id: string
+  kind: 'assignment' | 'constraint' | 'objective'
+  expression: string
+  direction?: 'minimize' | 'maximize'
+  description?: string
+}
+export interface CalculationModel {
+  id: string
+  key: string
+  projectId: string
+  revision: number
+  name: string
+  description: string
+  grammar: string
+  parameters: CalculationParameter[]
+  relations: CalculationRelation[]
+  validity: { text: string; conditions: string[] } | null
+  basis: Basis
+  validationStatus: 'unvalidated' | 'validated' | 'deprecated'
+  assumptions: DesignRef[]
+  sources: ArtifactRefInput[]
+  libraryId: string | null
+  digest: string
+  changeReason: string
+  provenance: ProvenanceInfo
+  revisionCreatedAt: string
+  revisionCreatedBy: string
+  createdAt: string
+  createdBy: string
+  updatedAt: string
+  updatedBy: string
+}
+export interface CalculationModelCreate {
+  name?: string
+  description?: string
+  grammar?: string
+  parameters?: CalculationParameter[]
+  relations?: CalculationRelation[]
+  validity?: { text: string; conditions: string[] } | null
+  basis?: Basis
+  validationStatus?: 'unvalidated' | 'validated'
+  assumptions?: DesignRef[]
+  sources?: ArtifactRefInput[]
+  fromLibrary?: string
+  reason?: string
+}
+export type SampledRange = { kind: 'sampled-range'; min: number; max: number; method: string; samples: number; note: string }
+export type ResultRange = { kind: 'point' } | SampledRange | { kind: 'bounds'; quality: 'exact' | 'enclosure'; min: number; max: number; sampled?: SampledRange; note?: string }
+export type StatusBasis = 'point' | 'exact-bounds' | 'enclosure' | 'sampled'
+export interface CalculationQualifications {
+  manifestVersion: 1 | 2 | 3
+  uncertainty: 'point' | 'interval' | 'interval-vertices'
+  outputs: { symbol: string; unit: string; value: number; range: ResultRange }[]
+  checks: { relationId: string; text: string; unit: string; margin: number; nominalSatisfied: boolean; status: 'satisfied' | 'violated' | 'uncertain'; statusBasis: StatusBasis; marginRange: ResultRange }[]
+  validity: { satisfied: boolean; violated: string[]; uncertain: string[]; over: 'point' | 'range' }
+  limits: { establishesModelValidity: false; establishesRequirementSatisfaction: false; modelValidationStatus: string; modelBasis: string }
+}
+export interface CalculationInput {
+  value?: number | null
+  min?: number
+  max?: number
+  unit: string
+  source?: Record<string, unknown>
+}
+export interface EvaluateResult {
+  model: { id: string; key: string; revision: number }
+  inputs: Record<string, CalculationInput>
+  manifest: Record<string, unknown>
+  qualifications: CalculationQualifications
+  basis: 'calculated' | 'estimate'
+  warnings: string[]
+}
+export interface CalculationLibraryEntry {
+  id: string
+  version: string
+  title: string
+  assumptions: string[]
+  limitations: string[]
+  sources: { citation: string; scope: string }[]
+  parameters: unknown[]
+}
+export interface EvidenceCalculation {
+  modelId: string
+  modelRevision: number
+  manifest: Record<string, unknown>
+  verification?: { verifiedAt: string; engineVersion: string; manifestVersion: number; ok: true; exactDigestMatch?: boolean }
+}

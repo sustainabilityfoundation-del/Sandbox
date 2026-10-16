@@ -3,7 +3,7 @@
  * /api/concepts/v1/openapi.json (source: services/conceptualize/src/http/schemas.ts).
  */
 import type { ArtifactModule, ConceptAbstraction, ConceptMaturity } from '@ews/platform-sdk'
-import type { AnyRef, DecisionValidity, DesignRef, EvidenceResult, EvidenceResultInput, EvidenceReview, InvalidationCondition, PinRef, ReviewFlagRecord, SupportRef, ToolInfo } from './designTypes'
+import type { AnyRef, CalculationQualifications, DecisionValidity, DesignRef, EvidenceCalculation, EvidenceResult, EvidenceResultInput, EvidenceReview, InvalidationCondition, PinRef, ReviewFlagRecord, SupportRef, ToolInfo } from './designTypes'
 export type * from './designTypes'
 
 /** Basis ladder (ADR-0043), lowest to highest: ai-hypothesis, assumption / user-assertion, assessment, estimate, calculated, evidence, decision. */
@@ -370,6 +370,8 @@ export interface Score {
   rationale: string
   evidenceId: string | null
   enteredUnit: string | null
+  evidenceOutput?: string | null
+  qualification?: { source: 'calculation'; evidenceId: string; symbol: string; kind: 'point' | 'sampled-range' | 'bounds'; quality?: 'exact' | 'enclosure' } | null
   studyRevision: number
   createdAt: string
   createdBy: string
@@ -387,6 +389,8 @@ export interface ScoreInput {
   basis: Basis
   rationale?: string
   evidenceId?: string | null
+  /** Output symbol of calculated evidence; the value must equal it and the qualification is copied. */
+  evidenceOutput?: string
   clear?: boolean
 }
 
@@ -412,7 +416,7 @@ export interface TradeStudy {
   criteria: Criterion[]
   options: string[]
   scores: Score[]
-  result: { options: OptionResult[]; ranking: 'robust' | 'uncertain' | 'incomplete'; preliminary: boolean; method: string }
+  result: { options: OptionResult[]; ranking: 'robust' | 'uncertain' | 'incomplete'; preliminary: boolean; method: string; qualifications?: { points: number; exactBounds: number; enclosures: number; sampledRanges: number; statedRanges: number; robustnessNote?: string } }
   createdAt: string
   createdBy: string
   updatedAt: string
@@ -472,6 +476,10 @@ export interface Evidence {
   /** D1: tool that produced the results (ADR-0070) and the results with their C11 qualification. */
   tool?: ToolInfo | null
   results?: EvidenceResult[]
+  /** CR-C8: the verified calculation and its C11 qualifications (derived by the service). */
+  calculation?: EvidenceCalculation | null
+  qualifications?: CalculationQualifications | null
+  qualificationsSource?: 'stored' | 'computed-on-read' | null
 }
 
 export type EvidenceBasis = 'ai-hypothesis' | 'assumption' | 'assessment' | 'estimate' | 'calculated' | 'evidence'
@@ -495,6 +503,8 @@ export interface EvidenceCreate {
   assumptionIds?: string[]
   tool?: ToolInfo
   results?: EvidenceResultInput[]
+  /** Re-verified by the service; basis calculated needs it. */
+  calculation?: { modelId: string; modelRevision: number; manifest: Record<string, unknown> }
 }
 
 export interface ImplementationArtifact {

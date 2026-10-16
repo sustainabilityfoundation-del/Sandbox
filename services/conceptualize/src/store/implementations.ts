@@ -1,3 +1,5 @@
+import { qualifyManifest } from '@ews/engineering-calc'
+import { verifyEvidenceCalculation } from './calculations'
 import type { BoundLike } from '../domain/checks'
 import { randomUUID } from 'node:crypto'
 import { conflict, forbidden, invalid, notFound } from '../errors'
@@ -50,6 +52,7 @@ export function artifactProblem(a: ArtifactRefDto): string | null {
   const kind = a.kind ?? (a.id.includes('/') && (a.module === 'sysml' || a.module === 'cad') ? (a.module === 'sysml' ? 'sysml-model-element' : 'cad-modeler-entity') : undefined)
   if (a.module === 'sysml' && kind === 'sysml-model-element') return SYSML_ELEMENT.test(a.id) ? null : 'a SysML Modeler element is referenced as <projectId>/<elementId>'
   if (a.module === 'cad' && kind === 'cad-modeler-entity') return CAD_ENTITY.test(a.id) ? null : 'a CAD Modeler entity is referenced as <documentUuid>/<entityId>'
+  if (a.module === 'cad' && kind === 'cad-document') return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.id) ? null : 'a CAD document is referenced by its document UUID'
   if (!ID_PATTERN[a.module].test(a.id)) {
     return a.module === 'requirements' ? 'a requirement is referenced by its canonical UUID (resolve keys such as REQ-001 first)' : a.module === 'product' || a.module === 'projects' ? `${a.module} artifacts are referenced by their UUID` : `"${a.id}" is not a valid ${a.module} identifier`
   }
@@ -83,6 +86,8 @@ interface EvidenceRow {
   applicability: Record<string, unknown>
   tool: { name: string; version: string } | null
   results: EvidenceDto['results']
+  calculation: EvidenceDto['calculation']
+  qualifications: EvidenceDto['qualifications']
   manifest: Record<string, unknown> | null
   source: EvidenceDto['source']
   assumption_ids: string[]
@@ -126,6 +131,10 @@ async function toEvidenceDtos(db: Queryable, rows: EvidenceRow[]): Promise<Evide
       manifest: r.manifest,
       tool: r.tool ?? null,
       results: r.results ?? [],
+      calculation: r.calculation ?? null,
+      // C11 storage contract §2: stored at insert; for older rows with a calculation, computed on read.
+      qualifications: r.qualifications ?? (r.calculation ? (qualifyManifest(r.calculation.manifest as never) as unknown as Record<string, unknown>) : null),
+      qualificationsSource: r.qualifications ? ('stored' as const) : r.calculation ? ('computed-on-read' as const) : null,
       source: r.source,
       assumptionIds: r.assumption_ids,
       reviews: rv.map((x) => ({ id: x.id, outcome: x.outcome, method: x.method, note: x.note, reviewer: x.reviewer, reviewedAt: isoRequired(x.reviewed_at) })),
@@ -217,9 +226,11 @@ export async function createEvidence(ctx: Ctx, input: EvidenceCreateDto): Promis
   const errors: Record<string, string> = {}
   if (ctx.provenance.sourceKind === 'assistant' && input.basis === 'evidence') errors.basis = 'the assistant cannot record verified evidence; it records estimates or hypotheses'
   if (input.basis === 'evidence' && !input.artifact) errors.artifact = 'verified evidence references the authoritative result (artifact) in its owning module'
-  // Finding D6: a manifest the service cannot re-verify could be forged, so basis calculated is refused until
-  // calculation models (CR-C8) let the service re-evaluate it. Record the result as estimate or assessment.
-  if (input.basis === 'calculated') errors.basis = 'calculated evidence needs a calculation the service can re-verify (calculation models, CR-C8, are not available yet); record it as estimate or assessment'
+  // Finding D6 / CR-C8 Q1: basis calculated needs a calculation that the service re-verifies against the stored
+  // model revision (a bare manifest could be forged). Q2: qualifications are derived here, never taken from the body.
+  if (input.basis === 'calculated' && !input.calculation) errors.basis = 'calculated evidence needs a calculation (model revision and manifest) that the service can re-verify; record other results as estimate or assessment'
+  let verified: Awaited<ReturnType<typeof verifyEvidenceCalculation>> | undefined
+  if (input.calculation && !errors.basis) verified = await verifyEvidenceCalculation(ctx, input.calculation, input.basis)
   if (ctx.provenance.sourceKind === 'assistant' && !['ai-hypothesis', 'assumption', 'assessment', 'estimate', 'calculated'].includes(input.basis)) errors.basis = 'the assistant records evidence as ai-hypothesis, assumption, assessment or estimate'
   // ADR-0070 item 3: results identify the revision and tool they were produced with.
   const results = await checkResults(ctx, input.results ?? [], errors)
@@ -258,8 +269,8 @@ export async function createEvidence(ctx: Ctx, input: EvidenceCreateDto): Promis
   const key = await nextKey(ctx, KEY_PREFIX.evidence, 'evidence')
   const [sourceKind, conversationId, proposalId] = prov(ctx)
   await ctx.db.query(
-    `INSERT INTO conceptualize.evidence (id, project_id, key, concept_id, concept_revision, kind, title, summary, basis, method, inputs, outputs, assumptions, artifact, supersedes_id, created_at, created_by, source_kind, conversation_id, proposal_id, applicability, manifest, source, assumption_ids, tool, results)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+    `INSERT INTO conceptualize.evidence (id, project_id, key, concept_id, concept_revision, kind, title, summary, basis, method, inputs, outputs, assumptions, artifact, supersedes_id, created_at, created_by, source_kind, conversation_id, proposal_id, applicability, manifest, source, assumption_ids, tool, results, calculation, qualifications)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
     [
       id,
       ctx.projectId,
@@ -287,6 +298,8 @@ export async function createEvidence(ctx: Ctx, input: EvidenceCreateDto): Promis
       input.assumptionIds ?? [],
       input.tool ? JSON.stringify(input.tool) : null,
       JSON.stringify(results),
+      verified ? JSON.stringify(verified.calculation) : null,
+      verified ? JSON.stringify(verified.qualifications) : null,
     ],
   )
   for (const s of subjects) {

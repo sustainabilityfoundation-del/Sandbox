@@ -42,7 +42,7 @@ export const REAL_MODULE_KINDS: Record<string, string[]> = {
   product: ['product-element'],
   projects: ['document', 'task', 'issue', 'risk', 'milestone', 'project-baseline'],
   sysml: ['sysml-model-element'],
-  cad: ['cad-modeler-entity'],
+  cad: ['cad-modeler-entity', 'cad-document'],
 }
 
 /** Default kind for a module and id: scoped ids (`a/b`) of sysml and cad are the real modelers' entities. */
@@ -157,10 +157,12 @@ export function createCadServicePort(cad: CadService): ReferencePort {
   return {
     name: 'CAD Modeler (SDK read client)',
     adapter: false,
-    supports: (ref) => ref.module === 'cad' && referenceKind(ref) === 'cad-modeler-entity',
+    supports: (ref) => ref.module === 'cad' && (referenceKind(ref) === 'cad-modeler-entity' || referenceKind(ref) === 'cad-document'),
     async resolve(projectId, ref) {
       try {
-        const r = await cad.summary(projectId, { module: 'cad', kind: 'cad-modeler-entity', id: ref.id, ...(ref.revision ? { revision: ref.revision } : {}) })
+        // A whole document is read as '<documentUuid>/<documentUuid>' (SDK 1.8 CadArtifactRefInput).
+        const id = referenceKind(ref) === 'cad-document' ? `${ref.id}/${ref.id}` : ref.id
+        const r = await cad.summary(projectId, { module: 'cad', kind: 'cad-modeler-entity', id, ...(ref.revision ? { revision: ref.revision } : {}) })
         if (r.status === 'missing') return { state: 'missing', detail: r.message }
         if (r.status === 'unavailable') return { state: 'unavailable', detail: r.message }
         const v = r.value

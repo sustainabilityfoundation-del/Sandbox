@@ -108,7 +108,7 @@ export const iso = (d: Date | string | null | undefined): string | null => (d ==
 export const isoRequired = (d: Date | string): string => new Date(d).toISOString()
 
 export interface AuditInput {
-  entityType: 'concept' | 'relationship' | 'decomposition' | 'alternative-set' | 'decision' | 'trade-study' | 'evidence' | 'implementation' | 'link' | 'exploration' | 'realization-request' | 'function' | 'constraint' | 'assumption' | 'design-link' | 'link-type' | 'batch'
+  entityType: 'concept' | 'relationship' | 'decomposition' | 'alternative-set' | 'decision' | 'trade-study' | 'evidence' | 'implementation' | 'link' | 'exploration' | 'realization-request' | 'function' | 'constraint' | 'assumption' | 'design-link' | 'link-type' | 'batch' | 'calculation-model'
   entityId: string
   conceptIds?: string[]
   action: string
@@ -129,7 +129,7 @@ export async function audit(ctx: Ctx, input: AuditInput): Promise<void> {
 
 /** Writes a committed-change notification to the outbox in the current transaction. */
 /** Event types: the SDK ConceptsEventType plus the design-knowledge events of CR-C12 (SDK addition requested, CR-S3). */
-export type ConceptsOutboxType = ConceptsEventType | 'function.created' | 'function.revised' | 'function.retired' | 'constraint.created' | 'constraint.revised' | 'constraint.status-changed' | 'assumption.created' | 'assumption.revised' | 'assumption.validation-changed' | 'evidence.recorded' | 'evidence.reviewed' | 'decision.review-flagged' | 'decision.invalidated' | 'link.created' | 'link.removed'
+export type ConceptsOutboxType = ConceptsEventType | 'function.created' | 'function.revised' | 'function.retired' | 'constraint.created' | 'constraint.revised' | 'constraint.status-changed' | 'assumption.created' | 'assumption.revised' | 'assumption.validation-changed' | 'evidence.recorded' | 'evidence.reviewed' | 'decision.review-flagged' | 'decision.invalidated' | 'link.created' | 'link.removed' | 'calculation-model.created' | 'calculation-model.revised'
 
 export async function emit(ctx: Ctx, type: ConceptsOutboxType, entityId: string, committedRevision: number): Promise<string> {
   const eventId = randomUUID()

@@ -348,6 +348,33 @@ export class ConceptsModuleClient {
     return this.get<T.AuditEvent[]>('/entity-history', { entityId })
   }
 
+  // ---- calculation models (CR-C8) ---------------------------------------------------------------------------------
+  calculationModels(q: { text?: string; status?: string } = {}) {
+    return this.get<T.CalculationModel[]>('/calculation-models', q)
+  }
+  calculationModel(id: string, revision?: number) {
+    return this.get<T.CalculationModel>(`/calculation-models/${id}`, { revision })
+  }
+  createCalculationModel(input: T.CalculationModelCreate, opts: WriteOpts = {}) {
+    return this.create<T.CalculationModel>('/calculation-models', input, opts)
+  }
+  reviseCalculationModel(id: string, patch: Omit<T.CalculationModelCreate, 'fromLibrary' | 'validationStatus'>, opts: WriteOpts & { expectedRevision: number }) {
+    return this.send<T.CalculationModel>('PATCH', `/calculation-models/${id}`, { ...patch, expectedRevision: opts.expectedRevision }, opts)
+  }
+  setCalculationValidation(id: string, status: T.CalculationModel['validationStatus'], opts: WriteOpts & { reason: string; expectedRevision?: number }) {
+    return this.send<T.CalculationModel>('POST', `/calculation-models/${id}/validate`, { status, reason: opts.reason, ...(opts.expectedRevision ? { expectedRevision: opts.expectedRevision } : {}) }, opts)
+  }
+  calculationModelRevisions(id: string) {
+    return this.get<T.RevisionSummary[]>(`/calculation-models/${id}/revisions`)
+  }
+  /** Read-only: the engine's manifest and C11 qualifications; record them with createEvidence({ calculation }). */
+  evaluateCalculation(id: string, request: { revision?: number; inputs?: Record<string, T.CalculationInput>; uncertainty?: 'point' | 'interval' } = {}) {
+    return this.send<T.EvaluateResult>('POST', `/calculation-models/${id}/evaluate`, request)
+  }
+  calculationLibrary() {
+    return this.get<T.CalculationLibraryEntry[]>('/calculation-library')
+  }
+
   // ---- utilities ------------------------------------------------------------------------------------------------------------------------
   permissions() {
     return this.get<T.MyPermissions>('/me/permissions')

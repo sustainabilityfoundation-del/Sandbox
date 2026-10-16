@@ -3,11 +3,12 @@ import { BASIS_MEANING, GATED_MATURITIES, LINK_MEANING, MATURITY_MEANING, PERMIS
 import { TRADE_METHOD } from '../domain/tradeStudy'
 import { COMMON_UNITS } from '../domain/units'
 import { CROSS_MODULE_ENTITLEMENTS, ENTITLEMENT, type RouteSpec } from './route'
+import { CALC_SCHEMAS } from './calcSchemas'
 import { DESIGN_SCHEMAS } from './designSchemas'
 import { SCHEMAS as BASE_SCHEMAS } from './schemas'
 
 const REPLACED = new Set(['Decision', 'DecisionCreate', 'Evidence', 'EvidenceCreate'])
-const SCHEMAS = [...BASE_SCHEMAS.filter((s) => !REPLACED.has(s.$id as string)), ...DESIGN_SCHEMAS]
+const SCHEMAS = [...BASE_SCHEMAS.filter((s) => !REPLACED.has(s.$id as string)), ...DESIGN_SCHEMAS, ...CALC_SCHEMAS]
 
 /** Strips TypeBox symbols and replaces named sub-schemas by `$ref`s to components. */
 /**
@@ -33,6 +34,7 @@ export const R1_OPERATION: Record<string, string> = {
   flagDecisionForReview: 'flagDecisionForReview',
   createImplementation: 'createImplementation',
   traverseGraph: 'traverse',
+  createCalculationModel: 'createCalculationModel',
   decisionRationale: 'decisionRationale',
   listLinkTypes: 'linkTypes',
   listDesignLinks: 'links',
