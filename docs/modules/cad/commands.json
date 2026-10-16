@@ -2187,6 +2187,54 @@
       "transactional": true
     },
     {
+      "name": "repair_reference",
+      "category": "reference",
+      "summary": "Replace one lost face or edge reference of a feature (fillet or chamfer edge, or the face or datum a sketch or datum plane sits on) by a replacement chosen by the person or an approved proposal. Nothing is re-bound automatically: the replacement is given explicitly (see query get_reference_repairs for the lost names and the candidates).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "featureId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Feature ID of the fillet, chamfer, sketch or datum plane with the lost reference"
+          },
+          "from": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "The lost reference, exactly as stored in the feature (an edge name, or a face name)."
+          },
+          "to": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "The replacement: an existing edge name (fillet, chamfer) or face name (sketch, datum plane). It is checked when the model regenerates; use a dry run to preview."
+          }
+        },
+        "required": [
+          "featureId",
+          "from",
+          "to"
+        ],
+        "additionalProperties": false
+      },
+      "output": "{ featureId, from, to }",
+      "preconditions": [
+        "The feature stores the reference “from” (fillet, chamfer: in its edge list; sketch, datum plane: as its face).",
+        "“to” differs from “from” and is not already in the feature.",
+        "The replacement is checked at regeneration; if it does not resolve, the feature reports reference-lost again."
+      ],
+      "errors": [
+        "not-found",
+        "invalid-input",
+        "precondition-failed"
+      ],
+      "undo": "Restores the previous reference.",
+      "effect": "mutation",
+      "transactional": true
+    },
+    {
       "name": "add_reference",
       "category": "reference",
       "summary": "Link a CAD entity to an artifact of another module (Project Management product element, twin component, requirement, SysML element, Concept). The target is referenced, never copied.",
@@ -2420,6 +2468,17 @@
     {
       "name": "get_failures",
       "summary": "Regeneration failures, blocked features, warnings and parameter errors.",
+      "input": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "query"
+    },
+    {
+      "name": "get_reference_repairs",
+      "summary": "Features with a lost face or edge reference (reference-lost): the lost names and candidate replacements, best name matches first. Candidates are suggestions; repair_reference applies only the replacement a person or an approved proposal names.",
       "input": {
         "type": "object",
         "properties": {},

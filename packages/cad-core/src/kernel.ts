@@ -161,10 +161,13 @@ export interface GeometryKernel {
 
 export class KernelError extends Error {
   readonly code: string
-  constructor(code: 'kernel-failure' | 'invalid-profile' | 'boolean-failed' | 'empty-result' | 'invalid-shape' | 'not-found' | 'import-failed' | (string & {}), message: string) {
+  /** Structured facts about the failure (for example the lost names and the names that exist). */
+  readonly details?: Record<string, unknown>
+  constructor(code: 'kernel-failure' | 'invalid-profile' | 'boolean-failed' | 'empty-result' | 'invalid-shape' | 'not-found' | 'import-failed' | (string & {}), message: string, details?: Record<string, unknown>) {
     super(message)
     this.name = 'KernelError'
     this.code = code
+    this.details = details
   }
 }
 

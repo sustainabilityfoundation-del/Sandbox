@@ -1223,6 +1223,41 @@ define<{ features: string[]; direction: [number, number, number] | string; count
       return {}
     },
   }),
+  define<{ featureId: string; from: string; to: string }>({
+    name: 'repair_reference',
+    category: 'reference',
+    summary: 'Replace one lost face or edge reference of a feature (fillet or chamfer edge, or the face or datum a sketch or datum plane sits on) by a replacement chosen by the person or an approved proposal. Nothing is re-bound automatically: the replacement is given explicitly (see query get_reference_repairs for the lost names and the candidates).',
+    input: obj(
+      {
+        featureId: id('Feature ID of the fillet, chamfer, sketch or datum plane with the lost reference'),
+        from: { type: 'string', minLength: 1, maxLength: 400, description: 'The lost reference, exactly as stored in the feature (an edge name, or a face name).' },
+        to: { type: 'string', minLength: 1, maxLength: 400, description: 'The replacement: an existing edge name (fillet, chamfer) or face name (sketch, datum plane). It is checked when the model regenerates; use a dry run to preview.' },
+      },
+      ['featureId', 'from', 'to'],
+    ),
+    output: '{ featureId, from, to }',
+    preconditions: ['The feature stores the reference “from” (fillet, chamfer: in its edge list; sketch, datum plane: as its face).', '“to” differs from “from” and is not already in the feature.', 'The replacement is checked at regeneration; if it does not resolve, the feature reports reference-lost again.'],
+    errors: ['not-found', 'invalid-input', 'precondition-failed'],
+    undo: 'Restores the previous reference.',
+    apply(ctx, i) {
+      const { feature } = findFeature(ctx.doc, i.featureId)
+      if (i.from === i.to) throw new CadError('invalid-input', 'The replacement is the same as the lost reference.')
+      if (feature.type === 'fillet' || feature.type === 'chamfer') {
+        const at = feature.edges.indexOf(i.from)
+        if (at < 0) throw new CadError('precondition-failed', `${feature.name} (${feature.id}) does not use the edge ${i.from}. Its edges: ${feature.edges.join(', ')}.`, { edges: feature.edges })
+        if (feature.edges.includes(i.to)) throw new CadError('precondition-failed', `${feature.name} (${feature.id}) already uses the edge ${i.to}; remove ${i.from} with edit_feature instead.`)
+        if (!/^edge\(.+\)(#\d+)?$/.test(i.to)) throw new CadError('invalid-input', `“${i.to}” is not an edge name (edge(<face>|<face>)).`)
+        feature.edges = feature.edges.map((e) => (e === i.from ? i.to : e))
+      } else if (feature.type === 'sketch' || feature.type === 'datum-plane') {
+        if (feature.plane.kind !== 'face' || feature.plane.face !== i.from) throw new CadError('precondition-failed', `${feature.name} (${feature.id}) is not placed on the face ${i.from}.`)
+        feature.plane = { ...feature.plane, face: i.to }
+      } else {
+        throw new CadError('invalid-input', `${feature.type} features hold no face or edge references that can be repaired (fillet, chamfer, sketch and datum plane do).`)
+      }
+      ctx.modified(feature.id)
+      return { featureId: feature.id, from: i.from, to: i.to }
+    },
+  }),
   define<{ subject: string; role: ReferenceRole; target: { module: ReferenceModule; id: string; revision?: number; kind?: string; label?: string }; ref?: string }>({
     name: 'add_reference',
     category: 'reference',

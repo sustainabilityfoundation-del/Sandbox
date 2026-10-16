@@ -26,6 +26,15 @@ export interface SketchResult {
   lines: Record<string, { start: string; end: string; construction: boolean }>
 }
 
+/** The feature whose own failure blocks others (named in blocked features' messages, shown in Diagnostics). */
+export interface FailureCause {
+  featureId: string
+  name: string
+  status: string
+  message: string
+  reason?: string
+}
+
 export interface FeatureResult {
   featureId: string
   type: Feature['type']
@@ -244,7 +253,17 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
   const upstream = (id: string, what: string): never => {
     const r = byId.get(id)
     if (!r) throw new CadError('not-found', `${what} ${id} does not exist earlier in the history.`, { reason: 'missing-reference', reference: id })
-    throw new CadError('precondition-failed', r.status === 'suppressed' ? `${what} ${id} is suppressed.` : `${what} ${id} failed to regenerate.`, { reason: r.status === 'suppressed' ? 'upstream-suppressed' : 'upstream-failed', upstream: id })
+    if (r.status === 'suppressed') {
+      throw new CadError('precondition-failed', `${what} “${r.name}” (${id}) is suppressed, so this feature cannot be built. Unsuppress it, or edit this feature to use something else.`, { reason: 'upstream-suppressed', upstream: id, cause: { featureId: id, name: r.name, status: r.status, message: 'The feature is suppressed.' } })
+    }
+    // Name the root cause: the first feature in the chain that failed on its own.
+    const inherited = r.error?.details?.cause as FailureCause | undefined
+    const cause: FailureCause = inherited ?? { featureId: id, name: r.name, status: r.status, message: r.error?.message ?? 'The feature failed to regenerate.', ...(typeof r.error?.details?.reason === 'string' ? { reason: r.error.details.reason } : {}) }
+    throw new CadError(
+      'precondition-failed',
+      `${what} “${r.name}” (${id}) ${r.status === 'blocked' ? 'is blocked' : 'failed'}, so this feature cannot be built. Root cause in “${cause.name}” (${cause.featureId}): ${cause.message} Fix that feature first.`,
+      { reason: 'upstream-failed', upstream: id, cause },
+    )
   }
 
   /** Resolves a plane reference at this point of the history (datums and faces of the current bodies). */
@@ -268,7 +287,7 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
       if (face.surfaceType !== 'PLANE' || !face.normal) throw new CadError('regeneration-failed', `Face ${ref.face} is not planar (${face.surfaceType}); sketches need a planar face.`, { reason: 'face-not-planar', face: ref.face })
       return offsetPlane(faceFrame(face.center, face.normal), offset)
     }
-    throw new CadError('regeneration-failed', `Face ${ref.face} no longer exists at this point of the history. Choose another face. Planar faces: ${planar.slice(0, 12).join(', ') || 'none'}.`, { reason: 'reference-lost', face: ref.face, available: planar.slice(0, 50) })
+    throw new CadError('regeneration-failed', `Face ${ref.face} no longer exists at this point of the history. Use Repair reference in Diagnostics (or the repair_reference command) to choose another face. Planar faces: ${planar.slice(0, 12).join(', ') || 'none'}.`, { reason: 'reference-lost', referenceKind: 'face', face: ref.face, lost: [ref.face], available: planar.slice(0, 300) })
   }
 
   for (const feature of part.features) {
@@ -475,7 +494,7 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
         }
       }
     } catch (e) {
-      r.error = e instanceof KernelError ? { code: 'regeneration-failed', message: e.message, details: { reason: e.code } } : toErrorInfo(e)
+      r.error = e instanceof KernelError ? { code: 'regeneration-failed', message: e.message, details: { reason: e.code, ...e.details } } : toErrorInfo(e)
       r.status = blockedReason(r.error) ? 'blocked' : 'failed'
     }
     finish(r)

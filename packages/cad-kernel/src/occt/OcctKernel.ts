@@ -160,8 +160,12 @@ export class OcctKernel implements GeometryKernel {
       else selected.push(edges[i])
     }
     if (missing.length) {
-      const available = naming.edgeNames.filter((n) => !n.includes('face#')).slice(0, 16)
-      throw new KernelError('reference-lost', `Edge${missing.length > 1 ? 's' : ''} ${missing.join(', ')} no longer exist${missing.length > 1 ? '' : 's'} on the body. Choose edges again. Available: ${available.join(', ')}${naming.edgeNames.length > 16 ? ' …' : ''}`)
+      const stable = naming.edgeNames.filter((n) => !n.includes('face#'))
+      throw new KernelError(
+        'reference-lost',
+        `Edge${missing.length > 1 ? 's' : ''} ${missing.join(', ')} no longer exist${missing.length > 1 ? '' : 's'} on the body. Use Repair reference in Diagnostics (or the repair_reference command) to choose the replacement. Available: ${stable.slice(0, 16).join(', ')}${stable.length > 16 ? ' …' : ''}`,
+        { referenceKind: 'edge', lost: missing, available: stable.slice(0, 300) },
+      )
     }
     const midpoints = selected.map((e) => {
       const p = e.pointAt(0.5)

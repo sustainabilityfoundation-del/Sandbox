@@ -14,7 +14,7 @@ export { solveSketch, checkConstraintReferences, constraintSignatures, type Sket
 export { extractProfile, polygon, signedArea, type Profile, type ProfileRegion, type ProfileLoop, type ProfileSegment, type ProfileIssue } from './sketch/profile'
 export * from './kernel'
 export { STANDARD_PLANES, planeOf, extrudeProbes, revolveProbes } from './regen/geometry'
-export { regenerate, solveSketchFeature, faceFrame, RegenerationCache, type RegenerateOptions, type RegenerationResult, type PartResult, type FeatureResult, type BodyResult, type SketchResult, type FeatureStatus } from './regen/engine'
+export { regenerate, solveSketchFeature, faceFrame, RegenerationCache, type RegenerateOptions, type RegenerationResult, type PartResult, type FeatureResult, type BodyResult, type SketchResult, type FeatureStatus, type FailureCause } from './regen/engine'
 export * from './commands/types'
 export { COMMANDS, COMMAND_INDEX } from './commands/registry'
 export { applyTransaction, type TransactionOutcome, type CommandResult } from './commands/executor'
