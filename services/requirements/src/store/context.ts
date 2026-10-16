@@ -12,6 +12,8 @@ export interface Ctx {
   now: Date
   /** Configuration context of the request, recorded with events. */
   configurationId?: string
+  /** Assistant proposal the write executes (`<conversationId>/<key>`, header x-ews-proposal), recorded in the audit trail. */
+  proposal?: string
 }
 
 export type Queryable = Pick<PoolClient, 'query'>
@@ -109,7 +111,7 @@ export async function audit(ctx: Ctx, input: AuditInput): Promise<void> {
   await ctx.db.query(
     `INSERT INTO requirements.audit_events (project_id, entity_type, entity_id, action, revision, actor, occurred_at, reason, details)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [ctx.projectId, input.entityType, input.entityId, input.action, input.revision ?? null, ctx.actor, ctx.now, input.reason ?? '', JSON.stringify(input.details ?? {})],
+    [ctx.projectId, input.entityType, input.entityId, input.action, input.revision ?? null, ctx.actor, ctx.now, input.reason || (ctx.proposal ? `Assistant proposal ${ctx.proposal}` : ''), JSON.stringify({ ...(input.details ?? {}), ...(ctx.proposal ? { source: 'assistant', proposal: ctx.proposal } : {}) })],
   )
 }
 

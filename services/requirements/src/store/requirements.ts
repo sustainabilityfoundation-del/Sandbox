@@ -351,7 +351,7 @@ export async function createRequirement(ctx: Ctx, input: RequirementCreateDto, o
   const id = options.id ?? randomUUID()
   const key = options.key ?? (await nextKey(ctx))
   const status = options.status ?? 'draft'
-  const reason = (input.reason ?? options.reason ?? '').trim()
+  const reason = (input.reason ?? options.reason ?? '').trim() || (ctx.proposal ? `Assistant proposal ${ctx.proposal}` : '')
   await ctx.db.query(
     `INSERT INTO requirements.requirements (id, project_id, key, current_revision, status, created_at, created_by, updated_at, updated_by)
      VALUES ($1, $2, $3, 1, $4, $5, $6, $5, $6)`,
@@ -401,7 +401,7 @@ export interface UpdateOptions {
 export async function updateRequirement(ctx: Ctx, id: string, patch: RequirementPatchDto, expectedRevision: number, options: UpdateOptions): Promise<{ requirement: RequirementDto; changed: boolean }> {
   const current = await lockRequirement(ctx, id)
   checkRevision(current, expectedRevision)
-  const reason = (patch.reason ?? options.reason ?? '').trim()
+  const reason = (patch.reason ?? options.reason ?? '').trim() || (ctx.proposal ? `Assistant proposal ${ctx.proposal}` : '')
   let changed = false
 
   if (patch.key !== undefined && patch.key !== current.key) {

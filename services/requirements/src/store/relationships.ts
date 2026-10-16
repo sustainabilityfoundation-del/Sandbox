@@ -133,7 +133,8 @@ export async function createRelationship(ctx: Ctx, twin: TwinDirectory, input: R
   let toRevision: number | null = null
   let targetKind: 'twin' | 'sysml-model-element' = 'twin'
   let toTargetRevision: number | null = null
-  const targetId = input.toTwinId ?? input.toSysmlElement
+  // The stored target: the canonical ID the directory returns (a product element alias becomes its UUID).
+  let targetId = input.toTwinId ?? input.toSysmlElement
   if (rule.to === 'requirement') {
     if (!input.toRequirementId || input.toTwinId) throw invalid(`A “${input.type}” relationship goes from a requirement to a requirement.`, { toRequirementId: 'required', toTwinId: 'not allowed' })
     if (input.toRequirementId === input.fromId) throw invalid('A requirement cannot be related to itself.', { toRequirementId: 'same as fromId' })
@@ -166,6 +167,7 @@ export async function createRelationship(ctx: Ctx, twin: TwinDirectory, input: R
     const found = (await twin.lookup(ctx.projectId, [input.toTwinId])).get(input.toTwinId)
     if (!found) throw invalid(`${input.toTwinId} is not a known component or product element in this project (${twin.description}).`, { toTwinId: 'unknown twin object' })
     if (!ALLOCATABLE_TYPES.includes(found.type)) throw invalid(`${input.toTwinId} is a ${found.type}; requirements are allocated to components (assembly or part) or product elements.`, { toTwinId: `type ${found.type}` })
+    if (found.id) targetId = found.id
   }
   const existing = await ctx.db.query<{ id: string }>(
     `SELECT id FROM requirements.relationships WHERE type = $1 AND from_requirement_id = $2 AND coalesce(to_requirement_id::text, to_twin_id) = $3 AND NOT deleted`,
