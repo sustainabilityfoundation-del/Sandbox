@@ -100,9 +100,9 @@ pilot) after M6 and F. Owner decisions: how much planned scope to show; inventor
 research feeds OSS-3). D1 keeps priority.
 
 ## Owner focus (16 October 2026)
-Owner: "focus on getting the cad working better woth more functionality". CAD Modeler work takes priority after D1: a CAD sprint plan
-(architect, read-only, from docs/research/cad and the CAD backlog, open-source first, new commands in the capability registry) is
-running; OSS-9 (D1 check via the OCCT kernel) is running. M6 and CT-2a are in their combined integration run.
+Owner: "focus on getting the cad working better woth more functionality". CAD Modeler work takes priority after D1: a CAD sprint plan is recorded in
+[cad-sprints-c1-c3.md](../specifications/cad-sprints-c1-c3.md): C1 sketching by clicks and reliability (after OSS-9 merges), C2 part features
+(holes, mirror, circular pattern, shell, draft, body booleans), C3 measurement, STEP import, STL, loft and sweep. Owner decisions listed there.
 
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
