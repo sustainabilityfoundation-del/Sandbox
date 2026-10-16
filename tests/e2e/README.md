@@ -24,7 +24,9 @@ concurrency, edge features, deep link, units setting), `cad-d1` (regular polygon
 UI, volumes checked analytically), `ai-headless` (every engineering operation with all tool tabs closed; modules
 still tied to a view are listed as known-failing), `ai-fake-provider` (needs the API started with the fake provider:
 `npm run ai:dev:fake`; connect, ask, proposal reopened in a fresh session, access policy and refusals, audit,
-disconnect, drill bit holder demo), `projects` (Project Home, new project, switcher, reopen). Several flows change the
+disconnect, drill bit holder demo), `projects` (Project Home, new project, switcher, reopen), `demo-d1` (plumbing test of demonstration D1: the fake
+provider replays the recorded script in `fixtures/fake-scripts/d1-plumbing.json`; start with `npm run ai:dev:fake`;
+not D1 acceptance). Several flows change the
 development database (the seeded `PRJ-ACT100` project); run them against a development database, not one
 holding real work.
 

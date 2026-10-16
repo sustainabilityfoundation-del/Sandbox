@@ -103,6 +103,8 @@ model gateway, CR-A3) use `AssistantBackend.complete()`; `ApiServer.assistant()`
 | CR-AI-5 | Coordinator (root docs) | Update the root rule "do not claim real ChatGPT access" at integration: the product now offers "connect your own OpenAI account" (help and UI say exactly that) |
 | CR-AI-6 | Coordinator / Requirements | In API mode requirements are projected from the Requirements service, so `propose_changes` on a requirement's status cannot apply (existing coverage finding 1); a model will try it. The real-model path is `requirements.update` |
 | CR-AI-7 | Coordinator | `docs/roadmap.md` and `docs/architecture.md` §6: AI development-plan sprint 4 (backend provider integration) is delivered by this sprint |
+| CR-AI-9 | Conceptualize | No assistant operation returns a constraint's UUID and revision: `search_design` and `traverse` return keys, while `getConstraint`, the constraints route and the CAD `bind_parameter` / `check` references need `{id: UUID, revision}`. A real model therefore cannot bind a CAD parameter or check against a constraint. Proposal: return `id` and `revision` with each constraint in `search_design` / `traverse` (or add `conceptualize.get_constraint` accepting a key). The D1 plumbing script works around it by passing the UUID and revision in the person's message (`${user.N}`), labelled as such |
+| CR-AI-10 | Requirements | `services/requirements/src/events/hub.ts` `close()` is not idempotent: a second call runs `UNLISTEN` and `listener.release()` on an already released client ("Release called on client which has already been released"). Proposal: return early when `closed` is already true and clear `listener` after release. It is in the Requirements package, so I have not edited it |
 
 ## 5. Settings seen in module code (suggestions for module agents; not implemented)
 
@@ -212,8 +214,7 @@ Status vocabulary per [integration-milestone-1.md](integration-milestone-1.md): 
   their agents).
 - Declarative undo (compensating operations), multi-module atomicity (reported and resumable instead), and the
   SDK 1.7 `confirmation` prompt in the card (the server enforces it; the card has no input for the phrase yet).
-- Observation for the Requirements agent: its event hub `close()` is not idempotent (a second call releases the
-  same client twice).
+- Requirements event hub `close()` is not idempotent: filed as CR-AI-10.
 
 ### Verification (this sprint)
 
@@ -229,5 +230,37 @@ Brief: [demo-ai-engineering.md](demo-ai-engineering.md) §3 D1-AI. Boundaries: A
 | 2 | Generic engineering-workflow instructions; multi-step budget | implemented, tested | `services/assistant/src/wire.ts` `INSTRUCTIONS` (material questions only, explicit assumptions, origin labels user constraint / AI-proposed / derived, read before proposing, previewed proposals, checks as measured or computed, never compliance or adequacy); defaults 24 operations per answer (max 60), 4000 output tokens, 90 s, 12 history items, all with project limits; `policy.test.ts` checks the rules and that no example content is in the instructions |
 | 3 | Persisted declarative proposals, revalidation at Apply; survive reload and restart | implemented, tested | §8; `proposals.api.test.ts` (server restart), `ai-fake-provider` flow (fresh browser session) |
 | 4 | Drill example isolated | implemented, tested | `apps/workspace/fixtures/demo-plans/drill-bit-holder.json` read by the generic `scriptedPlans.ts`; `exampleIsolation.test.ts` scans product source (workspace, assistant and settings services) for the example's vocabulary |
-| 5 | `tests/e2e/flows/demo-d1.mjs` (fake provider replaying a recorded tool-call script; plumbing only, not D1 acceptance) | in progress | |
-| 6 | Live-run guide with transcript and tool-call evidence capture | in progress | |
+| 5 | `tests/e2e/flows/demo-d1.mjs` (fake provider replaying a recorded tool-call script; plumbing only, not D1 acceptance) | implemented, tested (passes against main f68369c services) | Script `tests/e2e/fixtures/fake-scripts/d1-plumbing.json` (fake provider `replay.ts`: `${user.N}`, `[field=value]` selectors; `replay.test.ts`). It applies 26 previews against the real services: `projects.create` and `open` (the window reloads into the new project); Concept, function, two constraints and an assumption; `requirements.create` (stakeholder, ai-proposed) and `allocate` to a product element; `projects.create_product_element`; `sysml-modeler.create_project` and `link_product_element`; alternatives; CAD `run_commands` with a regular polygon, pocket cut, linear pattern and `bind_parameter`, with the CAD view closed; `cad-modeler.check` (measured 6.6 mm and 2.4 mm, satisfied) and `conceptualize.record_evidence`; `revise_constraint`, then `check_bindings` (revision 1 superseded by 2), update and re-bind, check again (6.8 mm against revision 2); STEP export with read-back (1 solid, valid, 0 differences) and download; the transcript; read-back from the services in a fresh browser session. PENDING lines: CR-AI-9 (constraint UUIDs typed by the person), CR-AI-1, CR-PM-SDK-4 |
+| 6 | Live-run guide with transcript and tool-call evidence capture; D1 spec §5 How to run | implemented | [d1-live-run.md](../modules/ai-interface/d1-live-run.md) (updated for the new project, headless CAD and the CR-AI-9 gap); [demo-ai-engineering.md](demo-ai-engineering.md) §5 (plumbing test and live run); panel **Export transcript**; audit with stored prompts. The live run itself needs the owner's account and is **not done** |
+
+### D1-AI fixes and findings (checkpoint after main f68369c)
+
+- (a) A refusal caused by the AI access policy names the access settings and the policy reason, not the subscription
+  (`DemoAssistantService.notInSubscription`, `scriptedPlans.ts`; test in `connection.test.ts`).
+- (b) Requirements event hub `close()` is in the Requirements package: filed as CR-AI-10 instead of editing it.
+- (c) Leftover open proposals from earlier sessions: **Dismiss all** in the panel's earlier-proposals section. Each
+  one is recorded as rejected on the server (`proposalSync.test.ts`).
+- Large operation results: strings longer than 2000 characters are shortened before the 24000-character cut, so a
+  STEP export returned to the model keeps its read-back report as valid JSON. It also sends less data
+  (`wire.test.ts`).
+- Findings from the plumbing run:
+  - `conceptualize.record_evidence` accepts a CAD source only as `cad-modeler-entity` (`<document>/<part>`), not as
+    the registered `cad-document` kind. The script uses the part.
+  - `run_commands` saves the document revision on Apply when the document is stored, so a following
+    `save_document` reports "No changes".
+  - Documents created by `run_commands` are titled "Untitled 1".
+  - In the dev server, the first CAD use makes Vite optimise `replicad` and reload the page, which interrupts the
+    running reply. Proposal to the coordinator: add `replicad` and `replicad-opencascadejs` to
+    `optimizeDeps.include` of the workspace Vite config.
+
+### Verification (checkpoint after main f68369c)
+
+- `npm run check`: typecheck clean; 1107 tests passed, 1 skipped.
+- `npm run build` and `npm run build:harnesses`: pass.
+- `npm run req:test:db`: 380 passed, 2 failed.
+  - `services/projects/test/acceptance.i1.test.ts` passes when run alone: timing (artifact registry confirmation).
+  - `services/api/test/sprint002.test.ts` "requirements.collection-changed is emitted after commit…" times out, also
+    when run alone. This branch has no changes in `services/api`, `services/requirements` or the Requirements
+    packages compared with main f68369c. I have not checked whether it also fails on main.
+- Browser flows against my stack (API 8801 with the fake provider, PostgreSQL 54343, workspace 5202): all 14 pass,
+  including `demo-d1` and `ai-headless`. `platform` failed once with a search-option timeout and passed on the rerun.

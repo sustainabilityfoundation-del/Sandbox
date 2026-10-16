@@ -45,7 +45,7 @@ describe('scripted demonstration plans (fixtures, demo assistant only)', () => {
 
   it('explains instead of acting when operations are not offered, and ignores unrelated prompts', () => {
     const r = run(req('Start the drill bit holder example', [], []))!
-    expect(r.type === 'final' && r.text).toMatch(/do not offer/)
+    expect(r.type === 'final' && r.text).toMatch(/subscription does not include/)
     expect(run(req('Change the rod diameter to 28 mm'))).toBeNull()
   })
 

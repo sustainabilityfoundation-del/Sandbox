@@ -8,6 +8,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   // The browser talks only to the application backend (services/api); it never reaches PostgreSQL.
   server: { proxy: { '/api': `http://localhost:${process.env.API_PORT ?? 8787}` } },
+  // Pre-bundle the CAD kernel at start-up: discovering it on first CAD use made Vite reload the page in
+  // development, interrupting work in progress (for example an assistant reply).
+  optimizeDeps: { include: ['replicad', 'replicad-opencascadejs'] },
   build: {
     outDir: '../../dist/workspace',
     emptyOutDir: true,
