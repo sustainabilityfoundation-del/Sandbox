@@ -84,6 +84,8 @@ interface ConversationState {
   reopenedIds: string[]
   /** Loads open proposals of the project from the assistant service (after a reload, restart or new session). */
   reopen: () => Promise<void>
+  /** Rejects every open proposal from earlier sessions that this conversation does not show (recorded in the service). */
+  dismissReopened: () => void
   conversationId: string
   startedAt: string
   messages: ChatMessage[]
@@ -307,6 +309,19 @@ export const useConversation = create<ConversationState>()((set, get) => {
     service: null,
     projectId: PROJECT_ID,
     reopenedIds: [],
+    dismissReopened: () => {
+      const s = get()
+      const shown = new Set(s.messages.flatMap((m) => (m.role === 'assistant' ? m.proposalIds : m.role === 'event' && m.cardProposalId ? [m.cardProposalId] : [])))
+      const ids = s.reopenedIds.filter((id) => !shown.has(id) && s.proposals[id])
+      for (const id of ids) {
+        const p = s.proposals[id]
+        if (['pending', 'conflict', 'failed'].includes(p.status)) void recordOutcome(p.server?.id, 'rejected', 'Dismissed from earlier sessions')
+      }
+      set((st) => ({
+        reopenedIds: st.reopenedIds.filter((id) => !ids.includes(id)),
+        proposals: Object.fromEntries(Object.entries(st.proposals).filter(([id]) => !ids.includes(id))),
+      }))
+    },
     reopen: async () => {
       const projectId = get().projectId
       const list = await openProposals(projectId)

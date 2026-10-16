@@ -236,7 +236,12 @@ function ReopenedProposals() {
   if (!open.length) return null
   return (
     <section className="as-reopened" aria-label="Proposals from earlier sessions" data-testid="reopened-proposals">
-      <div className="as-note">Proposals from earlier sessions in this project, saved by the assistant service. Nothing has been applied.</div>
+      <div className="as-note">
+        Proposals from earlier sessions in this project, saved by the assistant service. Nothing has been applied.{' '}
+        <Button size="sm" variant="text" icon="close" onPress={() => useConversation.getState().dismissReopened()} data-testid="dismiss-reopened">
+          Dismiss all
+        </Button>
+      </div>
       {open.map((id) => (
         <ChangeCard key={id} proposalId={id} />
       ))}

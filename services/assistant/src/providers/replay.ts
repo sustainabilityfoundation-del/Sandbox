@@ -6,7 +6,8 @@ import type { ProviderMessage, RespondOutput } from './types'
  * Replay of recorded tool-call scripts by the FAKE provider (tests and plumbing flows only; never a model).
  * A script is a list of turns; a turn whose `user` pattern matches the person's message is replayed step by step:
  * each step is either operation calls or a final answer. Arguments may refer to results of earlier calls of the same
- * turn with `${<operation>.<path>}`, e.g. `${conceptualize.search.data.concepts.0.key}`.
+ * turn with `${<operation>.<path>}`, e.g. `${conceptualize.search.data.concepts.0.key}`, and to capture groups of the
+ * turn pattern (values the person gave in the message) with `${user.1}`.
  *
  * Scripts are data in test fixtures (for example tests/e2e/fixtures/fake-scripts/*.json), loaded from the directory
  * named by EWS_ASSISTANT_FAKE_SCRIPTS. The format matches a transcript exported from the assistant panel, so a
@@ -74,11 +75,14 @@ let seq = 0
 export function replay(scripts: ReplayScript[], userText: string, messages: ProviderMessage[], model: string): RespondOutput | null {
   const turn = scripts.flatMap((s) => s.turns).find((t) => new RegExp(t.user, 'i').test(userText))
   if (!turn) return null
-  const results = turnResults(messages)
+  // Capture groups of the turn pattern are available as ${user.1}, ${user.2} …: values the person gave.
+  const groups = new RegExp(turn.user, 'i').exec(userText) ?? []
+  const done = turnResults(messages)
+  const results = [...done, { name: 'user', output: Object.fromEntries(groups.map((g, i) => [String(i), g])) }]
   let consumed = 0
   for (const step of turn.steps) {
     if ('final' in step) return { type: 'final', text: String(fill(step.final, results)), model }
-    if (consumed + step.calls.length <= results.length) {
+    if (consumed + step.calls.length <= done.length) {
       consumed += step.calls.length
       continue
     }

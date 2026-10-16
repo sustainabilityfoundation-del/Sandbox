@@ -1,3 +1,4 @@
+import { clientDecision } from './aiPolicy'
 import type { AssistantRequest, AssistantResponse, ToolCallResult } from './types'
 
 /**
@@ -95,7 +96,11 @@ export function runScriptedPlan(request: AssistantRequest, available: readonly S
   const failed = results.find((r) => !r.ok)
   if (failed) return final(`The step “${failed.name}” did not work: ${failed.error ?? 'unknown error'} Nothing was changed.`)
   const missing = stage.requires.filter((n) => !request.tools.some((t) => t.name === n))
-  if (missing.length) return final(`This step needs ${missing.join(', ')}, which your subscription or AI access settings (Settings → AI and reasoning) do not offer right now. Nothing was changed.`)
+  if (missing.length) {
+    const policy = missing.map((n) => clientDecision(n)).find((d) => !d.ok)
+    if (policy && !policy.ok) return final(`${policy.reason} This step needs ${missing.join(', ')}; nothing was changed. You can change what the assistant may do in Settings → AI and reasoning.`)
+    return final(`This step needs ${missing.join(', ')}, which your subscription does not include. Nothing was changed.`)
+  }
 
   const vars: Record<string, string> = {}
   let done = results

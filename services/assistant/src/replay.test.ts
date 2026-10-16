@@ -37,6 +37,11 @@ describe('fake provider: replay of recorded tool-call scripts', () => {
     expect(replay([script], 'something else', [user('something else')], 'fake')).toBeNull()
   })
 
+  it('fills capture groups of the turn pattern as ${user.N}', () => {
+    const s: ReplayScript = { id: 'g', turns: [{ user: '^use (\\S+) rev (\\d+)', steps: [{ calls: [{ name: 'x.bind', arguments: { id: '${user.1}', label: 'rev ${user.2}' } }] }] }] }
+    expect(replay([s], 'use abc-1 rev 3', [user('use abc-1 rev 3')], 'fake')).toMatchObject({ calls: [{ arguments: { id: 'abc-1', label: 'rev 3' } }] })
+  })
+
   it('loads scripts from a directory and the fake provider uses them before its built-in script', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'replay-'))
     writeFileSync(join(dir, 'generic.json'), JSON.stringify(script))
