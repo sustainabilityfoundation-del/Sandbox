@@ -53,5 +53,6 @@ describe('refusal wording', () => {
     const r = await service.respond({ history: [], turn: { text: 'Create a concept for a compact gripper that holds 2 kg', context: { selection: [] } as never, toolResults: [] }, tools: [] }, new AbortController().signal)
     expect(r.type === 'final' && r.text).toMatch(/AI access to Conceptualize is off/)
     expect(r.type === 'final' && r.text).not.toMatch(/subscription/)
-  })
+    // Importing the whole tool registry (CAD kernel included) can exceed the default 5 s under parallel load.
+  }, 30_000)
 })
