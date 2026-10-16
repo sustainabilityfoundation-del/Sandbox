@@ -13,7 +13,7 @@ import type { ClientModule, ModuleHostEnv } from '@ews/platform-sdk/react'
 import type { AnyToolDefinition } from '@ews/platform-sdk/react'
 import type { CapabilityEntry, PlatformModuleContribution } from '@ews/platform-sdk'
 import { cadTool } from '@ews/tool-cad'
-import { createCadModelerTool } from '@ews/tool-cad-modeler'
+import { cadModelerModule } from '@ews/tool-cad-modeler'
 import { conceptualizeModule } from '@ews/tool-conceptualize'
 import { requirementsTool } from '@ews/tool-requirements'
 import { sysmlTool } from '@ews/tool-sysml'
@@ -24,7 +24,6 @@ import { switchProject } from '../projects/currentProject'
 import { platformModuleHelpSource, toolHelpSource } from './helpSources'
 import {
   CAD_CAPABILITIES,
-  CAD_MODELER_CAPABILITIES,
   REQUIREMENTS_CAPABILITIES,
   SYSML_CAPABILITIES,
 } from './installedCapabilities'
@@ -47,13 +46,8 @@ export const INSTALLED_MODULES: ClientModule[] = [
   { manifest: manifest('sysml', 'SysML', SYSML_CAPABILITIES, { entitlement: 'tool:sysml', defaultOpen: true }), tool: () => sysmlTool },
   { manifest: manifest('cad', 'CAD', CAD_CAPABILITIES, { entitlement: 'tool:cad', defaultOpen: true }), tool: () => cadTool },
   conceptualizeModule(),
-  {
-    // CAD Modeler (CAD program), separate from the mock CAD tool (cad-program-contracts.md §1). Until the SDK offers
-    // PlatformServices.cad the tool builds its client: API mode follows the Requirements service mode
-    // (API → /api/cad/v1 as the development user; demo → files only).
-    manifest: manifest('cad-modeler', 'CAD Modeler', CAD_MODELER_CAPABILITIES, { entitlement: 'tool:cad' }),
-    tool: (env) => createCadModelerTool(env.requirementsMode === 'demo' ? { mode: 'files' } : { mode: 'api', baseUrl: '/api/cad/v1', devUser: env.devUser }),
-  },
+  // CAD Modeler (cad-program-contracts.md §1): API → /api/cad/v1; demo → files only. Lives in @ews/tool-cad-modeler (M4).
+  cadModelerModule(),
   // SysML Modeler (sysml-program-contracts.md §1, §7): API → /api/sysml/v1; demo → explicit in-browser repository. Lives in @ews/tool-sysml-modeler (M3).
   sysmlModelerModule(),
   // Project Management is a platform module, not a tool: its assistant operations work headless (milestone C9). It lives in

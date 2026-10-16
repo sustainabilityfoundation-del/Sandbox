@@ -48,7 +48,6 @@ export { SAMPLE_TWIN }
  */
 const PROPOSAL_APIS: Record<string, { entitlement: string; projectParam?: string }> = {
   requirements: { entitlement: 'tool:requirements', projectParam: 'projectId' },
-  'cad-modeler': { entitlement: 'tool:cad', projectParam: 'projectId' },
 }
 
 export interface ServerOptions {
