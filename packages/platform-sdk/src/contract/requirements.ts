@@ -1,4 +1,5 @@
 import type { ConceptsService } from './concepts'
+import type { FilesService } from './files'
 import type { HelpService } from './help'
 import type { ProjectsService } from './projects'
 import type { CadService } from './cad'
@@ -193,4 +194,6 @@ export interface PlatformServices {
   cad?: CadService
   /** SysML Modeler read service (SDK 1.8): projects, element resolution and search. */
   sysml?: SysmlModelService
+  /** File hand-off between modules and the platform (SDK 1.9, CR-PM-SDK-4). */
+  files?: FilesService
 }

@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createTestEnv, type TestEnv } from '../../api/test/helpers'
 import { createHttpCadClient } from '../../../packages/cad-client/src'
 import { createHttpConceptsService, getConceptsModuleClient } from '../../../packages/conceptualize-client/src'
-import { cadModelerTool, configureConceptHandoffs, type ConceptHandoffPort } from '../../../packages/tool-cad-modeler/src/index'
+import { cadModelerTool } from '../../../packages/tool-cad-modeler/src/index'
 import { cadSession } from '../../../packages/tool-cad-modeler/src/session'
 
 /**
@@ -26,28 +26,26 @@ const idem = () => ({ 'idempotency-key': randomBytes(8).toString('hex') })
 const action = (name: string) => cadModelerTool.assistant!.actions.find((a) => a.name === name)!
 const ctx = (): AssistantActionContext => ({ model: sampleModel(), artifacts: [], captured: { projectId: P, configurationId: 'CFG', scenarioId: 'SCN', modelRevision: 1, selectionIds: [] }, services: { concepts } as PlatformServices })
 
-/** The interim port the workspace registers until SDK 1.9 (same adapter as apps/workspace services.ts). */
-function interimPort(service: NonNullable<PlatformServices['concepts']>): ConceptHandoffPort {
+/** The SDK 1.9 members the workspace host attaches (same delegation as apps/workspace services.ts). */
+function withSdk19Members(service: NonNullable<PlatformServices['concepts']>): NonNullable<PlatformServices['concepts']> {
   const client = (projectId: string) => getConceptsModuleClient(service, projectId)!
   const notFound = (e: unknown) => ((e as { status?: number }).status === 404 ? undefined : Promise.reject(e))
-  return {
-    getHandoff: (id, { projectId }) => client(projectId).handoff(id).then((h) => h as never, notFound),
-    revisionStaleness: (conceptId, revision, { projectId, purpose }) => client(projectId).revisionStaleness(conceptId, revision, purpose ?? 'downstream').then((s) => s as never, notFound),
-  }
+  return Object.assign(service, {
+    getHandoff: (id: string, { projectId }: { projectId: string }) => client(projectId).handoff(id).then((h) => h as never, notFound),
+    revisionStaleness: (conceptId: string, revision: number, { projectId, purpose }: { projectId: string; purpose?: 'downstream' | 'handoff' | 'layout' | 'illustration' }) => client(projectId).revisionStaleness(conceptId, revision, purpose ?? 'downstream').then((s) => s as never, notFound),
+  })
 }
 
 beforeAll(async () => {
   env = await createTestEnv()
   const origin = await env.listen()
-  concepts = createHttpConceptsService({ baseUrl: `${origin}/api/concepts/v1`, devUser: 'eli' })
-  configureConceptHandoffs(interimPort(concepts!))
+  concepts = withSdk19Members(createHttpConceptsService({ baseUrl: `${origin}/api/concepts/v1`, devUser: 'eli' }))
   const kernel = await sharedNodeKernel()
   cadSession.configureKernel(() => kernel)
   await cadSession.reset()
   cadSession.configureStore(createHttpCadClient({ baseUrl: `${origin}/api/cad/v1`, devUser: 'eli' }))
 }, 180_000)
 afterAll(async () => {
-  configureConceptHandoffs(null)
   cadSession.configureStore(null)
   await env?.close()
 })
@@ -105,8 +103,6 @@ describe('concept handoff → CAD document (real Conceptualize, CAD service and 
 
   it('reports a missing handoff and a host without handoff reads', async () => {
     await expect(action('cad-modeler.start_from_handoff').run({ handoffId: '00000000-0000-4000-8000-000000000000' }, ctx())).rejects.toMatchObject({ code: 'not-found' })
-    configureConceptHandoffs(null)
     await expect(action('cad-modeler.start_from_handoff').run({ handoffId: 'x' }, { ...ctx(), services: {} as PlatformServices })).rejects.toMatchObject({ code: 'unavailable' })
-    configureConceptHandoffs(interimPort(concepts!))
   })
 })

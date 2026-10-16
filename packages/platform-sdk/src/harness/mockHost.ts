@@ -1,5 +1,6 @@
 import { createMemorySettingsService, type SettingValue } from '../contract/settings'
 import type { PlatformServices } from '../contract/requirements'
+import { createMemoryFilesService } from '../contract/files'
 import {
   DemoRepository,
   PROJECT_ID,
@@ -55,7 +56,8 @@ export interface MockHostOptions {
 }
 
 export function createMockHost(tool: AnyToolDefinition, options: MockHostOptions = {}): MockHost {
-  const services: PlatformServices = options.services ?? {}
+  // The file hand-off service (SDK 1.9) is in memory in the harness unless the caller provides one.
+  const services: PlatformServices = { files: createMemoryFilesService(), ...(options.services ?? {}) }
   const settings = createMemorySettingsService(tool.settings?.definitions ?? [], options.settings)
   const repository = new DemoRepository({
     storage: browserStorage(),

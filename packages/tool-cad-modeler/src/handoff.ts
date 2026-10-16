@@ -5,9 +5,8 @@ import type { AssistantActionContext, ConceptsService } from '@ews/platform-sdk'
  * Concept → CAD handoff (visual concept exploration, concept-visualization-contracts.md §1).
  *
  * The CAD Modeler reads Conceptualize's revision-pinned handoff package ('conceptualize.cad-handoff/1') and the
- * staleness of a concept revision through `ConceptHandoffPort`. The port is taken from the SDK 1.9 members of
- * `ConceptsService` (getHandoff, revisionStaleness) when the host provides them; until then from an interim port
- * the host registers with `configureConceptHandoffs`. Switching to SDK 1.9 is removing that registration.
+ * staleness of a concept revision through `ConceptHandoffPort`, taken from the SDK 1.9 members of
+ * `ConceptsService` (getHandoff, revisionStaleness).
  */
 
 export interface HandoffParameter {
@@ -57,17 +56,13 @@ export interface ConceptHandoffPort {
   revisionStaleness(conceptId: string, revision: number, scope: { projectId: string; purpose?: 'downstream' | 'handoff' }): Promise<ConceptRevisionStaleness | undefined>
 }
 
-let interim: ConceptHandoffPort | null = null
-/** Interim (until SDK 1.9): the host registers how handoffs and concept staleness are read. */
-export function configureConceptHandoffs(port: ConceptHandoffPort | null) {
-  interim = port
-}
-
-/** SDK 1.9 members when present, else the interim port. */
+/** The SDK 1.9 members of `ConceptsService`, or undefined when the host does not provide them. */
 export function handoffPort(services: { concepts?: ConceptsService } | undefined): ConceptHandoffPort | undefined {
-  const c = services?.concepts as (ConceptsService & Partial<ConceptHandoffPort>) | undefined
-  if (c?.getHandoff && c.revisionStaleness) return { getHandoff: c.getHandoff.bind(c), revisionStaleness: c.revisionStaleness.bind(c) }
-  return interim ?? undefined
+  const c = services?.concepts
+  if (c?.getHandoff && c.revisionStaleness) {
+    return { getHandoff: c.getHandoff.bind(c) as ConceptHandoffPort['getHandoff'], revisionStaleness: c.revisionStaleness.bind(c) as ConceptHandoffPort['revisionStaleness'] }
+  }
+  return undefined
 }
 export const portOf = (ctx: AssistantActionContext) => handoffPort(ctx.services)
 

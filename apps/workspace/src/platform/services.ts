@@ -1,9 +1,9 @@
-import type { CadService, ConceptsService, PlatformServices, ProjectsService, RequirementsService, SysmlModelService } from '@ews/platform-sdk'
+import { createMemoryFilesService, type CadService, type ConceptsService, type PlatformServices, ProjectsService, RequirementsService, SysmlModelService } from '@ews/platform-sdk'
 import { createHttpProjectsService } from '@ews/projects-client'
 import { createDemoConceptsService, createHttpConceptsService, getConceptsModuleClient } from '@ews/conceptualize-client'
 import { createDemoRequirementsService, createHttpRequirementsService } from '@ews/requirements-client'
 import { createHttpSysmlClient, createSysmlModelService } from '@ews/sysml-client'
-import { configureConceptHandoffs, createWorkspaceCadService } from '@ews/tool-cad-modeler'
+import { createWorkspaceCadService } from '@ews/tool-cad-modeler'
 import { registerVisualizationPort } from '@ews/tool-conceptualize'
 import { createVisualizationClient } from '@ews/visualization-client'
 import { create } from 'zustand'
@@ -102,21 +102,44 @@ export const workspaceServices: PlatformServices = {
   concepts: createConcepts(serviceSettings),
   sysml: createSysml(serviceSettings),
   projects: createProjects(serviceSettings),
+  files: createMemoryFilesService(),
 }
 
-// Interim until SDK 1.9 adds ConceptsService.getHandoff / revisionStaleness: the CAD Modeler reads Conceptualize's
-// CAD handoff packages and concept revision staleness through the Conceptualize module client. Remove this block
-// when the SDK members exist (the CAD Modeler prefers them automatically).
+// SDK 1.9 ConceptsService members (definition, handoffs, revision staleness) delegate to the Conceptualize module
+// client behind the HTTP service (same service object, so getConceptsModuleClient keeps working). Demo mode has no
+// module client: the members then answer "not found" (undefined / empty).
 {
   const concepts = workspaceServices.concepts
-  const sdk19 = concepts as (ConceptsService & { getHandoff?: unknown; revisionStaleness?: unknown }) | undefined
-  if (concepts && !(sdk19?.getHandoff && sdk19?.revisionStaleness)) {
+  if (concepts) {
     const client = (projectId: string) => getConceptsModuleClient(concepts, projectId)
     const notFound = (e: unknown) => ((e as { status?: number }).status === 404 ? undefined : Promise.reject(e))
-    configureConceptHandoffs({
-      getHandoff: async (id, { projectId }) => (client(projectId) ? client(projectId)!.handoff(id).then((h) => h as never, notFound) : undefined),
-      revisionStaleness: async (conceptId, revision, { projectId, purpose }) => (client(projectId) ? client(projectId)!.revisionStaleness(conceptId, revision, purpose ?? 'downstream').then((x) => x as never, notFound) : undefined),
-    })
+    Object.assign(concepts, {
+      getDefinition: async (id, { projectId, revision }) => {
+        const c = client(projectId)
+        if (!c) return undefined
+        const concept = await c.concept(id, revision).then((x) => x, notFound)
+        const d = concept?.definition
+        if (!d) return undefined
+        return {
+          intent: d.intent,
+          components: d.components.map((x) => ({ id: x.id, name: x.name, kind: x.kind, basis: x.basis })),
+          interfaces: d.interfaces.map((x) => ({ id: x.id, name: x.name, kind: x.kind, between: x.between, parameterIds: x.parameterIds })),
+          parameters: d.parameters.map((x) => ({ id: x.id, symbol: x.symbol, name: x.name, value: x.value, min: x.min, max: x.max, unit: x.unit, basis: x.basis, componentId: x.componentId, constraintId: x.constraintId })),
+        }
+      },
+      getHandoff: async (id, { projectId }) => {
+        const c = client(projectId)
+        return c ? c.handoff(id).then((h) => h as never, notFound) : undefined
+      },
+      listHandoffs: async (conceptId, { projectId }) => {
+        const c = client(projectId)
+        return c ? c.handoffs(conceptId).then((h) => h as never, () => [] as never) : []
+      },
+      revisionStaleness: async (conceptId, revision, { projectId, purpose }) => {
+        const c = client(projectId)
+        return c ? c.revisionStaleness(conceptId, revision, purpose ?? 'downstream').then((x) => x as never, notFound) : undefined
+      },
+    } satisfies Pick<ConceptsService, 'getDefinition' | 'getHandoff' | 'listHandoffs' | 'revisionStaleness'>)
   }
 }
 
