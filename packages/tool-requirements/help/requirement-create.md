@@ -42,6 +42,7 @@ new requirement within about a second.
 The assistant can prepare a new requirement (`requirements.create`) with its origin. You see a preview
 in the conversation (each field, and whether it is your statement or the assistant's proposal) and
 nothing is created until you choose **Apply**. Applying makes the same request as this form, so the
-same rules apply; the change history records the proposal and conversation. Undo archives the
-requirement. Creating through the assistant needs the Requirements API (not the demo service), and
+same rules apply; the change history records the proposal and conversation. The proposal is stored by
+the platform, so it is still there after a reload; applying it twice creates one requirement. To take
+it back, archive the requirement. Creating through the assistant needs the Requirements API (not the demo service), and
 works with the Requirements tab closed.

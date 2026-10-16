@@ -16,14 +16,18 @@ Requirements Management tool. Owner: the Requirements module (see
 - Assistant (`src/assistant.ts`): **headless** (integration milestone 1, C9). Operations take the
   service from `AssistantActionContext.services.requirements` and the project from
   `ctx.captured.projectId`, never from a mounted view; the module client comes from
-  `getModuleClient(service, projectId)` (API mode only). `requirements.update` returns a
-  `service-proposal` (platform preview, Apply, Undo) whose Apply makes the editor's own write
-  (`saveRequirementEdit`: module client in API mode, SDK service in demo mode) with the base revision,
-  so the server refuses the same input identically on both paths. `requirements.search` works in
-  both modes; `requirements.explain_quality` needs API mode. Without a service the twin-based
-  behaviour of `read_for_component` and `update` is unchanged. Tests:
-  `src/assistant.test.ts` (demo, no view), `services/api/test/assistant.test.ts` (real API: every
-  operation headless, validation parity, cross-project writes refused).
+  `getModuleClient(service, projectId)` (API mode only).
+  - Writes are **declarative proposals** (SDK 1.8, CR-AI-8). `requirements.update`, `create` and
+    `allocate` return `kind: 'declarative-proposal'`: Requirements API calls (`updateOperation`,
+    `createOperation`, `allocateOperation`, `deallocateOperation`) plus the expected requirement
+    revision (`requirementExpected`).
+  - The platform stores them (they reopen after a restart), re-reads the expected revisions and executes
+    the calls as the person, with idempotency keys and the `x-ews-proposal` header. The service records
+    that header in the audit trail and in the revision's change reason.
+  - The calls are the requests the UI makes, so the server refuses the same input identically.
+  - In demo mode `requirements.update` falls back to a closure `service-proposal`; `create` and `allocate` need the API.
+  - Without a service, the twin-based behaviour of `read_for_component` and `update` is unchanged.
+  - Tests: `src/assistant.test.ts` (demo, no view); `services/api/test/assistant.test.ts` and `d1.test.ts` (real API through the assistant service's store and Apply: headless, parity, C13).
 - Verification records stay twin artifacts (ADR-0007), shown for requirements with a twin object.
 
 Not here: persistence (server), subscriptions, navigation, other tools' data.

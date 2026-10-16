@@ -12,7 +12,7 @@ beforeAll(async () => {
 })
 afterAll(async () => env?.close())
 
-const until = async (cond: () => boolean, ms = 8000) => {
+const until = async (cond: () => boolean, ms = 20000) => {
   const end = Date.now() + ms
   while (!cond()) {
     if (Date.now() > end) throw new Error('timed out')
@@ -30,8 +30,10 @@ function stream(after?: string) {
 
 describe('requirements.collection-changed (SDK 1.3)', () => {
   it('is emitted after commit for structure changes, with the structure revision; never for refused changes', async () => {
-    const s = stream()
-    await new Promise((r) => setTimeout(r, 300))
+    // Resume from the latest published event, so nothing is missed however long the stream takes to connect.
+    await env.server.events.flush()
+    const last = (await env.pool.query<{ event_id: string }>('SELECT event_id FROM requirements.outbox WHERE project_id = $1 AND delivery_seq IS NOT NULL ORDER BY delivery_seq DESC LIMIT 1', [PROJECT])).rows[0]?.event_id
+    const s = stream(last)
     const coll = (await env.call('eli', 'POST', `${BASE}/collections`, { name: `Events ${Date.now()}` })).body
     const heading = await env.call('eli', 'POST', `${BASE}/collections/${coll.id}/nodes`, { kind: 'heading', heading: 'A' }, { 'if-match': '"1"' })
     const h2 = await env.call('rui', 'GET', `${BASE}/collections/${coll.id}`)

@@ -9,6 +9,9 @@ import {
   type AssistantActionContext,
   type AssistantContribution,
   type AssistantActionResult,
+  type DeclarativeProposal,
+  type ExpectedRevision,
+  type ModuleOperation,
   type RequirementPatch,
   type RequirementsService,
   type ServiceProposal,
@@ -17,7 +20,7 @@ import {
   type ModelIndex,
 } from '@ews/platform-sdk'
 import { sysmlTrace } from './domain'
-import { getModuleClient, newIdempotencyKey, type RequirementCreate, type RequirementOrigin, type RequirementsModuleClient } from '@ews/requirements-client'
+import { getModuleClient, type Relationship, type RequirementCreate, type RequirementOrigin, type RequirementsModuleClient } from '@ews/requirements-client'
 import { allocationRequest, allocationTargetLabel, type AllocationTarget, type AllocationTargetKind } from './allocations'
 
 /**
@@ -299,7 +302,43 @@ async function readForComponentApi(conn: Connection & { client: RequirementsModu
   }
 }
 
-async function proposeApiEdit(conn: Connection, idOrKey: string, args: Record<string, unknown>): Promise<ServiceProposal> {
+// ---- proposals as data (SDK 1.8 DeclarativeProposal, CR-AI-8) ------------------------------------------
+// In API mode every write the assistant prepares is a list of Requirements API calls with the revisions the
+// preview was based on. The platform stores the proposal (it reopens after a reload or restart), checks the
+// expected revisions again and executes the calls through this module's API as the person, with
+// idempotency keys and the proposal recorded as provenance (header x-ews-proposal → audit trail). The calls
+// are the same the Requirements UI makes, so the server refuses the same input identically (C9).
+
+const MODULE = 'requirements'
+const projectPath = (projectId: string) => `/projects/${encodeURIComponent(projectId)}`
+const etag = (revision: number) => `"${revision}"`
+
+/** The requirement revision the preview was based on, re-read with getRequirement at Apply. */
+export function requirementExpected(projectId: string, r: { id: string; key: string; title: string; revision: number }): ExpectedRevision {
+  return { module: MODULE, kind: 'requirement', id: r.id, label: `${r.key} ${r.title}`, revision: r.revision, read: { operationId: 'getRequirement', path: `${projectPath(projectId)}/requirements/${r.id}`, field: 'revision' } }
+}
+
+/** The editor's save (PATCH with If-Match). */
+export function updateOperation(projectId: string, id: string, patch: RequirementPatch, expectedRevision: number): ModuleOperation {
+  return { module: MODULE, operationId: 'updateRequirement', method: 'PATCH', path: `${projectPath(projectId)}/requirements/${id}`, body: patch, ifMatch: etag(expectedRevision) }
+}
+
+/** The editor's create (the platform supplies the idempotency key). */
+export function createOperation(projectId: string, input: RequirementCreate): ModuleOperation {
+  return { module: MODULE, operationId: 'createRequirement', method: 'POST', path: `${projectPath(projectId)}/requirements`, body: input }
+}
+
+/** The Trace tab's allocation (same request builder as the UI). */
+export function allocateOperation(projectId: string, r: { id: string; revision: number }, target: AllocationTarget, extra: { rationale?: string } = {}): ModuleOperation {
+  return { module: MODULE, operationId: 'createRelationship', method: 'POST', path: `${projectPath(projectId)}/relationships`, body: allocationRequest(r, target, extra) }
+}
+
+/** The Trace tab's removal (DELETE with the relationship revision). */
+export function deallocateOperation(projectId: string, rel: Pick<Relationship, 'id' | 'revision'>): ModuleOperation {
+  return { module: MODULE, operationId: 'deleteRelationship', method: 'DELETE', path: `${projectPath(projectId)}/relationships/${rel.id}`, ifMatch: etag(rel.revision) }
+}
+
+async function proposeApiEdit(conn: Connection, idOrKey: string, args: Record<string, unknown>): Promise<DeclarativeProposal | ServiceProposal> {
   if (args.status !== undefined) {
     throw new ActionError('not-allowed', 'Lifecycle status changes are review decisions and transitions; open the requirement in Requirements to request review, approve or retire it.')
   }
@@ -315,20 +354,26 @@ async function proposeApiEdit(conn: Connection, idOrKey: string, args: Record<st
     const raw = args[field]
     if (raw === undefined || raw === null) continue
     if (typeof raw !== 'string') throw new ActionError('invalid-arguments', `“${field}” must be a string.`)
-    const proposed = raw
-    if (proposed === r[field]) continue
-    patch[field] = proposed
-    preview.push({ targetId: r.id, label: `${r.key} ${label}`, ...(r[field] !== undefined ? { current: r[field] } : {}), proposed, basis: 'user-statement' })
+    if (raw === r[field]) continue
+    patch[field] = raw
+    preview.push({ targetId: r.id, label: `${r.key} ${label}`, ...(r[field] !== undefined ? { current: r[field] } : {}), proposed: raw, basis: 'user-statement' })
   }
   if (!preview.length) throw new ActionError('no-op', 'Give a new statement or rationale that differs from the current text.')
-  let applied: number | undefined
-  return {
-    kind: 'service-proposal',
-    module: 'requirements',
+  const common = {
+    module: MODULE,
     title: `Edit ${r.key} ${r.title}`,
     explanation: `Creates revision ${r.revision + 1} of ${r.key} if it is still at revision ${r.revision} when you apply; otherwise nothing changes and the conflict is explained.`,
     preview,
     inspected: [{ id: r.key, detail: `rev ${r.revision}` }],
+  }
+  if (conn.client) {
+    return { kind: 'declarative-proposal', ...common, projectId: conn.projectId, operations: [updateOperation(conn.projectId, r.id, patch, r.revision)], expected: [requirementExpected(conn.projectId, r)] }
+  }
+  // Demo service (in the browser, no module API): the labelled closure fallback, applicable in this window only.
+  let applied: number | undefined
+  return {
+    kind: 'service-proposal',
+    ...common,
     async apply({ proposalId }) {
       const saved = await saveRequirementEdit(conn, r.id, patch, { expectedRevision: r.revision, reason: `Assistant proposal ${proposalId}` })
       applied = saved.revision
@@ -366,17 +411,7 @@ const optionalText = (args: Record<string, unknown>, key: string): string | unde
 /** Who wrote the content: the person, or the assistant (hypothesis until the person applies it). */
 const basisOf = (origin: RequirementOrigin): 'user-statement' | 'ai-hypothesis' => (origin === 'stakeholder' ? 'user-statement' : 'ai-hypothesis')
 
-const provenanceReason = (p: { conversationId: string; proposalId: string }) => `Assistant proposal ${p.proposalId} (conversation ${p.conversationId})`
-
-/**
- * The request the editor sends for a new requirement (ui/Editor.tsx: `client.create`), so both paths are
- * validated by the same server rules. Text is passed as given.
- */
-export function createRequest(input: Omit<RequirementCreate, 'reason'>, reason: string): RequirementCreate {
-  return { ...input, reason }
-}
-
-async function proposeCreate(conn: Connection & { client: RequirementsModuleClient }, args: Record<string, unknown>): Promise<ServiceProposal> {
+async function proposeCreate(conn: Connection & { client: RequirementsModuleClient }, args: Record<string, unknown>): Promise<DeclarativeProposal> {
   const origin = args.origin as RequirementOrigin
   if (!ORIGINS.includes(origin)) throw new ActionError('invalid-arguments', `“origin” must be one of ${ORIGINS.join(', ')}.`)
   const title = optionalText(args, 'title') ?? ''
@@ -388,7 +423,7 @@ async function proposeCreate(conn: Connection & { client: RequirementsModuleClie
   if (methods !== undefined && (!Array.isArray(methods) || methods.some((m) => typeof m !== 'string'))) throw new ActionError('invalid-arguments', '“verificationMethods” must be a list of strings.')
   const parentRef = optionalText(args, 'derivesFrom')
   const parent = parentRef ? await resolveApi(conn, parentRef) : undefined
-  const input: Omit<RequirementCreate, 'reason'> = {
+  const input: RequirementCreate = {
     title,
     statement,
     origin,
@@ -399,43 +434,31 @@ async function proposeCreate(conn: Connection & { client: RequirementsModuleClie
     ...(parent ? { derivesFrom: parent.id } : {}),
   }
   const basis = basisOf(origin)
-  const preview: ServiceProposal['preview'] = [
-    { label: 'New requirement: title', proposed: title, basis },
-    { label: 'Statement', proposed: statement, basis },
-    ...(rationale !== undefined ? [{ label: 'Rationale', proposed: rationale, basis }] : []),
-    ...(type !== undefined ? [{ label: 'Type', proposed: type, basis }] : []),
-    ...(methods !== undefined ? [{ label: 'Verification methods', proposed: (methods as string[]).join(', ') || 'none', basis }] : []),
-    ...(acceptanceCriteria !== undefined ? [{ label: 'Acceptance criteria', proposed: acceptanceCriteria, basis }] : []),
-    { label: 'Origin', proposed: ORIGIN_LABEL[origin], basis: origin === 'stakeholder' ? ('user-statement' as const) : ('ai-hypothesis' as const) },
-    ...(parent ? [{ targetId: parent.id, label: 'Derives from', current: `${parent.key} ${parent.title} (rev ${parent.revision})`, proposed: `derives-from link to ${parent.key}`, basis }] : []),
-  ]
-  // One idempotency key per proposal: applying twice (or retrying after a lost response) creates one requirement.
-  const idempotencyKey = newIdempotencyKey()
-  let created: { id: string; key: string; revision: number } | undefined
   return {
-    kind: 'service-proposal',
-    module: 'requirements',
+    kind: 'declarative-proposal',
+    module: MODULE,
+    projectId: conn.projectId,
     title: `New requirement: ${title || '(no title)'}`,
     explanation: `Creates a draft requirement in ${conn.projectId} with origin “${ORIGIN_LABEL[origin]}”${parent ? ` and a derives-from link to ${parent.key}` : ''}. The server applies the same validation as the Requirements editor.`,
-    preview,
+    preview: [
+      { label: 'New requirement: title', proposed: title, basis },
+      { label: 'Statement', proposed: statement, basis },
+      ...(rationale !== undefined ? [{ label: 'Rationale', proposed: rationale, basis }] : []),
+      ...(type !== undefined ? [{ label: 'Type', proposed: type, basis }] : []),
+      ...(methods !== undefined ? [{ label: 'Verification methods', proposed: (methods as string[]).join(', ') || 'none', basis }] : []),
+      ...(acceptanceCriteria !== undefined ? [{ label: 'Acceptance criteria', proposed: acceptanceCriteria, basis }] : []),
+      { label: 'Origin', proposed: ORIGIN_LABEL[origin], basis },
+      ...(parent ? [{ targetId: parent.id, label: 'Derives from', current: `${parent.key} ${parent.title} (rev ${parent.revision})`, proposed: `derives-from link to ${parent.key}`, basis }] : []),
+    ],
     ...(origin !== 'stakeholder' ? { assumptions: ['The content was drafted by the assistant; check it before applying.'] } : {}),
     inspected: parent ? [{ id: parent.key, detail: `rev ${parent.revision}` }] : [],
-    async apply(p) {
-      const r = await conn.client.create(createRequest(input, provenanceReason(p)), idempotencyKey)
-      created = r
-      return { summary: `Created ${r.key} (${ORIGIN_LABEL[origin]})${parent ? `, derived from ${parent.key}` : ''}`, createdIds: [r.id] }
-    },
-    async undo() {
-      if (!created) throw new Error('Nothing to undo.')
-      const r = await conn.client.archive(created.id, { expectedRevision: created.revision, reason: 'Undo assistant proposal' })
-      return { summary: `Archived ${r.key}` }
-    },
+    operations: [createOperation(conn.projectId, input)],
   }
 }
 
 const KINDS: AllocationTargetKind[] = ['product-element', 'component', 'sysml-model-element']
 
-async function proposeAllocate(conn: Connection & { client: RequirementsModuleClient }, args: Record<string, unknown>): Promise<ServiceProposal> {
+async function proposeAllocate(conn: Connection & { client: RequirementsModuleClient }, args: Record<string, unknown>): Promise<DeclarativeProposal> {
   const r = await resolveApi(conn, argString(args, 'requirementId'))
   const add = (Array.isArray(args.add) ? args.add : args.add === undefined ? [] : null) as AllocationTarget[] | null
   if (!add || add.some((t) => !t || typeof t !== 'object' || !KINDS.includes(t.kind) || typeof t.id !== 'string' || !t.id.trim())) {
@@ -454,37 +477,18 @@ async function proposeAllocate(conn: Connection & { client: RequirementsModuleCl
   const additions = add.filter((t) => !current.some((x) => x.toTwinId === t.id.trim()))
   if (!additions.length && !removals.length) throw new ActionError('no-op', `${r.key} already has these allocations.`)
   const label = (t: AllocationTarget) => (t.kind === 'sysml-model-element' ? `SysML ${t.id}` : t.kind === 'product-element' ? `product element ${t.id}` : `component ${t.id}`)
-  const preview: ServiceProposal['preview'] = [
-    ...additions.map((t) => ({ targetId: r.id, label: `${r.key} allocated to`, proposed: label(t) })),
-    ...removals.map((rel) => ({ targetId: r.id, label: `${r.key} allocation removed`, current: allocationTargetLabel(rel), proposed: '(none)' })),
-  ]
-  const keys = additions.map(() => newIdempotencyKey())
-  const createdRels: { id: string; revision: number }[] = []
-  const removedTargets: AllocationTarget[] = []
   return {
-    kind: 'service-proposal',
-    module: 'requirements',
+    kind: 'declarative-proposal',
+    module: MODULE,
+    projectId: conn.projectId,
     title: `Allocations of ${r.key} ${r.title}`,
-    explanation: `Changes the allocations of ${r.key} if it is still at revision ${r.revision}; targets are checked by the server (product structure, shared twin, SysML Modeler).`,
-    preview,
+    explanation: `Changes the allocations of ${r.key} if it is still at revision ${r.revision}; targets are checked by the server (product structure, shared twin, SysML Modeler). Operations run in order; a refusal stops the rest, and applying again resumes.`,
+    preview: [
+      ...removals.map((rel) => ({ targetId: r.id, label: `${r.key} allocation removed`, current: allocationTargetLabel(rel), proposed: '(none)' })),
+      ...additions.map((t) => ({ targetId: r.id, label: `${r.key} allocated to`, proposed: label(t) })),
+    ],
     inspected: [{ id: r.key, detail: `rev ${r.revision}, ${current.length} allocation(s)` }],
-    async apply(p) {
-      const reason = provenanceReason(p)
-      for (const rel of removals) {
-        await conn.client.deleteRelationship(rel.id, rel.revision, reason)
-        removedTargets.push({ kind: rel.targetKind === 'sysml-model-element' ? 'sysml-model-element' : 'component', id: rel.toTwinId! })
-      }
-      for (const [i, t] of additions.entries()) {
-        const rel = await conn.client.createRelationship(allocationRequest(r, t, { rationale, reason }), keys[i])
-        createdRels.push({ id: rel.id, revision: rel.revision })
-      }
-      return { summary: `${r.key}: ${additions.length} allocation(s) added, ${removals.length} removed`, createdIds: createdRels.map((x) => x.id) }
-    },
-    async undo() {
-      for (const rel of createdRels) await conn.client.deleteRelationship(rel.id, rel.revision, 'Undo assistant proposal')
-      const latest = await resolveApi(conn, r.id)
-      for (const t of removedTargets) await conn.client.createRelationship(allocationRequest(latest, t, { reason: 'Undo assistant proposal' }))
-      return { summary: `Restored the allocations of ${r.key}` }
-    },
+    operations: [...removals.map((rel) => deallocateOperation(conn.projectId, rel)), ...additions.map((t) => allocateOperation(conn.projectId, r, t, { rationale }))],
+    expected: [requirementExpected(conn.projectId, r)],
   }
 }

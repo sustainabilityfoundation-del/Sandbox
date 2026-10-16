@@ -2,6 +2,7 @@ import { Type, type Static } from '@sinclair/typebox'
 import type { FastifyInstance } from 'fastify'
 import { forbidden, invalid, notFound } from '../errors'
 import { PERMISSIONS, RELATIONSHIP_RULES, RELATIONSHIP_TYPES, roleAllows, type Permission } from '../domain/rules'
+import { withCanonicalTargets } from '../twin'
 import { impact, traceMatrix, traceLinks } from '../store/analysis'
 import { createAttributeDefinition, getConventions, listAttributeDefinitions, putConventions, updateAttributeDefinition } from '../store/attributes'
 import { compareBaselines, createBaseline, getBaseline, listBaselines } from '../store/baselines'
@@ -101,7 +102,11 @@ export function registerRequirementRoutes(app: FastifyInstance, services: HostSe
     permission: 'read',
     crossModule: true,
     responses: { 200: { description: 'A page of requirements', schema: S.RequirementPage }, ...READ_ERRORS },
-    handler: async (rc) => ({ body: await rc.read((ctx) => listRequirements(ctx.db, rc.projectId, rc.query as S.RequirementListQueryDto)) }),
+    handler: async (rc) => {
+      const q = { ...(rc.query as S.RequirementListQueryDto) }
+      if (q.allocatedTo) q.allocatedTo = (await withCanonicalTargets(services.twin, rc.projectId, q.allocatedTo.split(','))).join(',')
+      return { body: await rc.read((ctx) => listRequirements(ctx.db, rc.projectId, q)) }
+    },
   })
   route({
     method: 'POST',

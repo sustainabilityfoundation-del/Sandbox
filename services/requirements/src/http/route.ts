@@ -127,7 +127,10 @@ export function registerRoute(app: FastifyInstance, services: HostServices, spec
       if (spec.idempotency === 'required' && !key) throw invalid('This operation needs an Idempotency-Key header so retries are safe.', { 'Idempotency-Key': 'required' }, 400)
       if (key && (key.length > 200 || !/^[\x21-\x7e]+$/.test(key))) throw invalid('Idempotency-Key must be 1–200 visible ASCII characters.', { 'Idempotency-Key': 'malformed' }, 400)
       const configurationHeader = request.headers['x-configuration-id']
-      const base = { projectId, actor: principal.userId, configurationId: typeof configurationHeader === 'string' && configurationHeader ? configurationHeader : undefined }
+      // Provenance of writes the platform executes for an applied assistant proposal (label only; identity and permissions are the caller's).
+      const proposalHeader = request.headers['x-ews-proposal']
+      const proposal = typeof proposalHeader === 'string' && /^[!-~]{1,200}$/.test(proposalHeader) ? proposalHeader : undefined
+      const base = { projectId, actor: principal.userId, configurationId: typeof configurationHeader === 'string' && configurationHeader ? configurationHeader : undefined, proposal }
       const ifMatch = parseIfMatch(request.headers['if-match'] as string | undefined)
 
       const rc: RequestContext = {

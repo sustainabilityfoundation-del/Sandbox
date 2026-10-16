@@ -73,3 +73,15 @@ export function staticTwinDirectory(objects: Record<string, TwinObjectInfo[]>, d
     },
   }
 }
+
+/**
+ * Allocation targets are stored by the canonical ID the directory returns (a product element alias such as
+ * ROD-120 becomes the element UUID). Filters by target therefore match the given IDs and their canonical IDs,
+ * so older allocations stored by alias and newer ones stored by UUID are both found.
+ */
+export async function withCanonicalTargets(twin: TwinDirectory, projectId: string, ids: string[]): Promise<string[]> {
+  const wanted = [...new Set(ids.map((x) => x.trim()).filter(Boolean))]
+  if (!wanted.length) return wanted
+  const found = await twin.lookup(projectId, wanted).catch(() => new Map<string, TwinObjectInfo>())
+  return [...new Set([...wanted, ...[...found.values()].map((o) => o.id)])]
+}

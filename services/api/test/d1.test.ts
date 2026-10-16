@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AssistantActionContext, ServiceProposal } from '@ews/platform-sdk'
+import type { AssistantActionContext, DeclarativeProposal } from '@ews/platform-sdk'
 import { sampleModel } from '@ews/platform-sdk/testing'
 import { SysmlRepository, createSysmlArtifactSource, type SysmlEventHub } from '@ews/sysml-service'
 import { composeTwinDirectory, createRequirementsArtifactSource, staticTwinDirectory } from '@ews/requirements-service'
@@ -9,6 +9,7 @@ import { allocationRequest, type AllocationTarget } from '../../../packages/tool
 import { requirementsAssistant } from '../../../packages/tool-requirements/src/assistant'
 import { SAMPLE_TWIN } from '../src/server'
 import { BASE, PROJECT, REQ1, createTestEnv, type TestEnv } from './helpers'
+import { applyProposal, storeAndApply, storeProposal, type PlatformApply } from './platformApply'
 
 /**
  * Demonstration D1 (requirements.create, requirements.allocate) on the real API and PostgreSQL, with the
@@ -38,17 +39,29 @@ const ctxFor = (user: string): AssistantActionContext => ({
 })
 const ui = (user: string) => getModuleClient(service(user), PROJECT)!
 const action = (name: string) => requirementsAssistant.actions.find((a) => a.name === name)!
-const provenance = () => ({ conversationId: `conv-${randomUUID().slice(0, 8)}`, proposalId: `p-${randomUUID().slice(0, 8)}`, messageId: 'm-1' })
-const propose = async (name: string, user: string, args: Record<string, unknown>) => (await action(name).run(args, ctxFor(user))) as ServiceProposal
+const propose = async (name: string, user: string, args: Record<string, unknown>) => (await action(name).run(args, ctxFor(user))) as DeclarativeProposal
+/** Apply through the platform (assistant service), as the person; returns the created IDs, or throws the refusal. */
+const applied = async (user: string, p: DeclarativeProposal) => {
+  const r = await storeAndApply(env, user, p, PROJECT)
+  if (r.status >= 400) throw Object.assign(new Error(r.body.error!.message), { platform: r })
+  return r.body.proposal!.createdIds ?? []
+}
+/** A refusal as the person sees it through the platform: the module's HTTP status and message. */
+const viaPlatform = (r: PlatformApply) => {
+  if (r.status < 400) return undefined
+  const err = r.body.error as { message: string; details?: { proposal?: { results?: { status: string; httpStatus: number; summary: string }[] } } }
+  const failed = err.details?.proposal?.results?.find((x) => x.status === 'failed')
+  return { status: failed?.httpStatus ?? r.status, message: (failed?.summary ?? err.message).replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, '<id>').replace(/\bREQ-\d+/g, '<key>') }
+}
 const refusal = (e: unknown) => {
   const x = e as { name: string; code: string; status?: number; message: string }
   return { name: x.name, code: x.code, status: x.status, message: x.message.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, '<id>').replace(/\bREQ-\d+/g, '<key>') }
 }
-const outcome = (p: Promise<unknown>) => p.then(() => undefined, refusal)
+const outcome = (p: Promise<unknown>) => p.then(() => undefined, (e) => ({ status: e.status as number, message: refusal(e).message }))
 const get = async (id: string) => (await env.call('eli', 'GET', `${BASE}/requirements/${id}`)).body
 
-describe('requirements.create (headless service proposal)', () => {
-  it('creates with origin and provenance; nothing before Apply; applying twice creates one; Undo archives', async () => {
+describe('requirements.create (headless declarative proposal)', () => {
+  it('creates with origin and provenance; nothing before Apply; applying twice creates one', async () => {
     const title = `Bit count ${randomUUID().slice(0, 6)}`
     const p = await propose('requirements.create', 'eli', {
       title,
@@ -59,31 +72,32 @@ describe('requirements.create (headless service proposal)', () => {
       acceptanceCriteria: 'Count the pockets.',
       origin: 'stakeholder',
     })
-    expect(p).toMatchObject({ kind: 'service-proposal', module: 'requirements' })
+    expect(p).toMatchObject({ kind: 'declarative-proposal', module: 'requirements', projectId: PROJECT })
+    expect(p.operations).toEqual([expect.objectContaining({ operationId: 'createRequirement', method: 'POST', path: `/projects/${PROJECT}/requirements` })])
     expect(p.preview.find((i) => i.label === 'Origin')).toMatchObject({ proposed: 'User constraint', basis: 'user-statement' })
     const count = async () => (await env.call('eli', 'GET', `${BASE}/requirements?text=${encodeURIComponent(title)}`)).body.items.length
+    const id = await storeProposal(env, 'eli', p, PROJECT)
     expect(await count()).toBe(0)
-    const pv = provenance()
-    const applied = await p.apply(pv)
-    await p.apply(pv) // a repeated Apply (or a retry after a lost response) does not duplicate
+    const first = await applyProposal(env, 'eli', id, PROJECT)
+    const again = await applyProposal(env, 'eli', id, PROJECT) // a repeated Apply does not duplicate
+    expect(again.body).toMatchObject({ alreadyApplied: true })
     expect(await count()).toBe(1)
-    const r = await get(applied.createdIds![0])
+    const r = await get(first.body.proposal!.createdIds![0])
     expect(r).toMatchObject({ title, origin: 'stakeholder', rationale: 'Stated by the user.', verificationMethods: ['inspection'], acceptanceCriteria: 'Count the pockets.', revision: 1, createdBy: 'eli' })
+    expect(r.changeReason).toMatch(/^Assistant proposal C-REQ-[0-9a-f]+\/RQ-\d+$/)
     const history = (await env.call('eli', 'GET', `${BASE}/requirements/${r.id}/history`)).body
-    expect(history.find((h: { action: string }) => h.action === 'created')).toMatchObject({ actor: 'eli', reason: `Assistant proposal ${pv.proposalId} (conversation ${pv.conversationId})` })
-    await p.undo!({})
-    expect((await get(r.id)).archived).toBe(true)
+    expect(history.find((h: { action: string }) => h.action === 'created')).toMatchObject({ actor: 'eli', reason: r.changeReason })
   })
 
   it('ai-proposed content is labelled as a hypothesis; derived creates the derives-from link in the same write', async () => {
     const ai = await propose('requirements.create', 'eli', { title: 'Wall thickness', statement: 'The wall between pockets shall be at least 2 mm.', origin: 'ai-proposed' })
     expect(ai.preview.every((i) => i.basis === 'ai-hypothesis')).toBe(true)
     expect(ai.assumptions?.length).toBeGreaterThan(0)
-    const parent = (await ai.apply(provenance())).createdIds![0]
+    const parent = (await applied('eli', ai))[0]
     const parentKey = (await get(parent)).key
     const derived = await propose('requirements.create', 'eli', { title: 'Pocket pitch', statement: 'Pocket pitch shall be at least 13.4 mm.', origin: 'derived', derivesFrom: parentKey })
     expect(derived.preview.find((i) => i.label === 'Derives from')).toMatchObject({ targetId: parent })
-    const child = (await derived.apply(provenance())).createdIds![0]
+    const child = (await applied('eli', derived))[0]
     expect((await get(child)).origin).toBe('derived')
     const rels = (await env.call('eli', 'GET', `${BASE}/requirements/${child}/relationships`)).body
     expect(rels.map((x: { type: string; toRequirementId: string }) => [x.type, x.toRequirementId])).toEqual([['derives-from', parent]])
@@ -99,17 +113,23 @@ describe('requirements.create (headless service proposal)', () => {
     ]
     for (const [name, user, input] of cases) {
       const viaUi = await outcome(ui(user).create(input as never))
-      const viaAi = await outcome(propose('requirements.create', user, input).then((p) => p.apply(provenance())))
+      const platform = await storeAndApply(env, user, await propose('requirements.create', user, input), PROJECT)
+      const viaAi = viaPlatform(platform)
       expect({ name, refused: !!viaUi }).toEqual({ name, refused: true })
-      expect({ name, ...viaAi }).toEqual({ name, ...viaUi })
+      if (!platform.id) {
+        // Refused when the proposal is stored: the platform checks the body against the module's OpenAPI schema
+        // (the same rule, reported with the platform's wording), so an invalid proposal is never offered for Apply.
+        expect({ name, status: viaAi?.status }).toEqual({ name, status: viaUi?.status })
+        expect(viaAi?.message).toMatch(/title/)
+      } else expect({ name, ...viaAi }).toEqual({ name, ...viaUi })
     }
   })
 })
 
-describe('requirements.allocate (headless service proposal)', () => {
+describe('requirements.allocate (headless declarative proposal)', () => {
   const newReq = async (title: string) => (await ui('eli').create({ title, statement: 'The holder shall mount to the tool.', type: 'functional', origin: 'stakeholder' })) as { id: string; key: string; revision: number }
 
-  it('allocates to a product element, a component and a SysML element; removes; Undo restores; relations reported with C3 refs', async () => {
+  it('allocates to a product element, a component and a SysML element; removes; relations reported with C3 refs', async () => {
     const r = await newReq('Mounting')
     const p = await propose('requirements.allocate', 'eli', {
       requirementId: r.key,
@@ -120,10 +140,16 @@ describe('requirements.allocate (headless service proposal)', () => {
       ],
     })
     expect(p.preview).toHaveLength(3)
+    expect(p.operations.map((o) => o.operationId)).toEqual(['createRelationship', 'createRelationship', 'createRelationship'])
+    expect(p.expected).toEqual([expect.objectContaining({ id: r.id, revision: 1 })])
     expect((await env.call('eli', 'GET', `${BASE}/requirements/${r.id}/relationships`)).body).toEqual([])
-    await p.apply(provenance())
+    await applied('eli', p)
     const rels = (await env.call('eli', 'GET', `${BASE}/requirements/${r.id}/relationships`)).body as { toTwinId: string; targetKind: string; toTargetRevision: number | null }[]
-    expect(rels.map((x) => [x.toTwinId, x.targetKind]).sort()).toEqual([[PRODUCT_ELEMENT, 'twin'], ['HSG-110', 'twin'], [sysmlElement, 'sysml-model-element']].sort())
+    // HSG-110 is an alias of a product element in PRJ-ACT100 (Project Management seed): the canonical element UUID is stored.
+    const hsg = (await env.pool.query<{ id: string }>(`SELECT element_id::text AS id FROM projects.product_element_aliases WHERE project_id = $1 AND alias = 'HSG-110'`, [PROJECT])).rows[0]?.id ?? 'HSG-110'
+    expect(rels.map((x) => [x.toTwinId, x.targetKind]).sort()).toEqual([[PRODUCT_ELEMENT, 'twin'], [hsg, 'twin'], [sysmlElement, 'sysml-model-element']].sort())
+    // Filters by the twin ID still find it.
+    expect((await env.call('eli', 'GET', `${BASE}/requirements?allocatedTo=HSG-110`)).body.items.map((x: { id: string }) => x.id)).toContain(r.id)
     expect(rels.find((x) => x.targetKind === 'sysml-model-element')!.toTargetRevision).toBeGreaterThanOrEqual(1)
 
     const source = createRequirementsArtifactSource(env.pool, env.server.events, { twin: TWIN })
@@ -134,17 +160,17 @@ describe('requirements.allocate (headless service proposal)', () => {
         { type: 'allocated-to', to: { module: 'sysml', kind: 'sysml-model-element', id: sysmlElement }, toRevision: expect.any(Number) },
       ]),
     )
-    expect(d.relations).toHaveLength(2) // the sample-twin component has no native module
+    expect(d.relations).toHaveLength(hsg === 'HSG-110' ? 2 : 3) // a sample-twin ID has no native module; a product element does
 
-    const removal = await propose('requirements.allocate', 'eli', { requirementId: r.id, remove: ['HSG-110'] })
-    await removal.apply(provenance())
+    const removal = await propose('requirements.allocate', 'eli', { requirementId: r.id, remove: [hsg] })
+    expect(removal.operations).toEqual([expect.objectContaining({ operationId: 'deleteRelationship', method: 'DELETE', ifMatch: '"1"' })])
+    await applied('eli', removal)
     expect(((await env.call('eli', 'GET', `${BASE}/requirements/${r.id}/relationships`)).body as unknown[]).length).toBe(2)
-    await removal.undo!({})
-    expect(((await env.call('eli', 'GET', `${BASE}/requirements/${r.id}/relationships`)).body as unknown[]).length).toBe(3)
     await expect(propose('requirements.allocate', 'eli', { requirementId: r.id, remove: ['ROD-120'] })).rejects.toMatchObject({ code: 'not-found' })
   })
 
   it('UI path and assistant path refuse the same allocation identically (unknown targets, wrong type, stale revision, reader)', async () => {
+    // Stale: the UI's expectedFromRevision is refused by the module; the platform re-reads the expected revision first.
     const cases: [string, string, AllocationTarget, boolean][] = [
       ['unknown product element', 'eli', { kind: 'product-element', id: randomUUID() }, false],
       ['a SysML element of the twin is not a component', 'eli', { kind: 'component', id: 'SYS-003' }, false],
@@ -156,14 +182,18 @@ describe('requirements.allocate (headless service proposal)', () => {
       const a = await newReq(`Alloc UI ${name}`)
       const b = await newReq(`Alloc AI ${name}`)
       const p = await propose('requirements.allocate', user, { requirementId: b.id, add: [target] })
+      const stored = await storeProposal(env, user, p, PROJECT)
       if (stale) {
         await env.call('eli', 'PATCH', `${BASE}/requirements/${a.id}`, { expectedRevision: 1, statement: 'Changed meanwhile.' })
         await env.call('eli', 'PATCH', `${BASE}/requirements/${b.id}`, { expectedRevision: 1, statement: 'Changed meanwhile.' })
       }
       const viaUi = await outcome(ui(user).createRelationship(allocationRequest(a, target)))
-      const viaAi = await outcome(p.apply(provenance()))
+      const viaAi = viaPlatform(await applyProposal(env, user, stored, PROJECT))
       expect({ name, refused: !!viaUi }).toEqual({ name, refused: true })
-      expect({ name, ...viaAi }).toEqual({ name, ...viaUi })
+      if (stale) {
+        expect({ name, ui: viaUi?.status, ai: viaAi?.status }).toEqual({ name, ui: 409, ai: 409 })
+        expect(viaAi?.message).toMatch(/changed since the preview: revision 1 → 2/)
+      } else expect({ name, ...viaAi }).toEqual({ name, ...viaUi })
     }
     // REQ1 is unchanged by any of this.
     expect((await get(REQ1)).revision).toBeGreaterThanOrEqual(1)
