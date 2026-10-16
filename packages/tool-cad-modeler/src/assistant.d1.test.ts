@@ -160,6 +160,32 @@ describe('D1-CAD: check against bound constraints', () => {
     expect(by('parameter af').method).toMatch(/not measured on geometry/)
   })
 
+  it('D1 pocket width: the bound parameter and the kernel-measured width are reported side by side where the flats face the pattern direction', async () => {
+    const { pat } = await model()
+    const report = await check({ checks: [{ measure: { kind: 'pattern-width', featureId: pat }, constraint: { id: 'c-af' } }] })
+    const param = report.results.find((r) => r.quantity === 'parameter af')!
+    const kernelWidth = report.results.find((r) => r.quantity.endsWith('occurrence width'))!
+    expect(param).toMatchObject({ status: 'satisfied', provenance: { source: 'model' } })
+    expect(kernelWidth).toMatchObject({ status: 'satisfied', provenance: { source: 'kernel' } })
+    expect(kernelWidth.measured!.value).toBeCloseTo(param.measured!.value, 6)
+  })
+
+  it('D1 pocket width: with corners facing the pattern direction the kernel width is reported as not applicable, not as a failure', async () => {
+    await apply('cad-modeler.run_commands', { commands: MODEL.map((c) => (c.command === 'add_regular_polygon' ? { ...c, input: { ...c.input, rotation: 0 } } : c)), label: 'Block, corners facing x' })
+    const d = cadSession.openDocuments()[0]
+    const pat = d.engine.document.parts[0].features.find((f) => f.type === 'pattern-linear')!.id
+    const r = d.engine.regeneration!.parts[0].features.find((f) => f.featureId === pat)!
+    expect(r.pattern!.occurrenceWidthFlats).toBe(false)
+    expect(r.pattern!.occurrenceWidth).toBeCloseTo(7 * (2 / Math.sqrt(3)), 6) // across corners
+    const report = await check({ checks: [{ measure: { kind: 'pattern-width', featureId: pat }, constraint: { id: 'c-af' } }] })
+    const w = report.results.find((x) => x.quantity.endsWith('occurrence width'))!
+    expect(w.status).toBe('not-checkable')
+    expect(w.reason).toMatch(/corners or curved faces/)
+    expect(w.reason).toMatch(/bound parameter value is unaffected/)
+    // The bound parameter is still checked, and the report does not fail.
+    expect(report.results.find((x) => x.quantity === 'parameter af')).toMatchObject({ status: 'satisfied' })
+  })
+
   it('a change regenerates and the rerun check reflects it; mass is checked once a material is set', async () => {
     await model()
     await apply('cad-modeler.run_commands', { commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'af', expression: '6.5' } }, { command: 'set_material', input: { partId: 'part-1', name: 'Aluminium', density: 2700 } }] })

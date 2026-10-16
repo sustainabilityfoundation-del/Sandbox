@@ -51,7 +51,7 @@ export interface FeatureResult {
   /** Solid features: the body this feature created or modified. */
   bodyId?: string
   /** Linear patterns: evaluated count and spacing, and the measured gap between neighbouring occurrences (mm; null when not measurable). */
-  pattern?: { count: number; spacing: number; direction: Vec3; gap: number | null; occurrenceWidth?: number | null }
+  pattern?: { count: number; spacing: number; direction: Vec3; gap: number | null; occurrenceWidth?: number | null; occurrenceWidthFlats?: boolean | null }
   /** Sketches and datum planes: the resolved plane. */
   plane?: KernelPlane
 }
@@ -443,19 +443,26 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
         }
         // Width of occurrence 1 along the pattern direction: the kernel bounding box of its tool solids
         // (only when the direction is a coordinate axis, where the box extent is the exact extent).
+        // The extent is the distance between two flat faces (across flats for a hexagon) only when the tool has a planar
+        // face at each end whose normal is the pattern direction; otherwise corners or curved faces bound it.
         let occurrenceWidth: number | null = null
+        let occurrenceWidthFlats: boolean | null = null
         const axis = direction.findIndex((c) => Math.abs(Math.abs(c) - 1) < 1e-9)
         if (axis >= 0 && direction.every((c, k) => k === axis || Math.abs(c) < 1e-9)) {
           const widthKey = hashOf({ width: tools[0].map((t) => t.id), axis })
-          const cachedWidth = cache.getMeta<number>(widthKey, gen)
-          if (cachedWidth !== undefined) occurrenceWidth = cachedWidth
+          const cachedWidth = cache.getMeta<{ width: number; flats: boolean }>(widthKey, gen)
+          if (cachedWidth !== undefined) ({ width: occurrenceWidth, flats: occurrenceWidthFlats } = cachedWidth)
           else {
-            const boxes = await Promise.all(tools[0].map(async (t) => (await kernel.analyze(t, [])).boundingBox))
-            occurrenceWidth = Math.max(...boxes.map((b) => b.max[axis])) - Math.min(...boxes.map((b) => b.min[axis]))
-            cache.putMeta(widthKey, occurrenceWidth, gen)
+            const analyses = await Promise.all(tools[0].map((t) => kernel.analyze(t, [])))
+            const lo = Math.min(...analyses.map((a) => a.boundingBox.min[axis]))
+            const hi = Math.max(...analyses.map((a) => a.boundingBox.max[axis]))
+            occurrenceWidth = hi - lo
+            const flatAt = (at: number) => analyses.some((a) => a.faces.some((f) => f.surfaceType === 'PLANE' && f.normal && Math.abs(Math.abs(f.normal[axis]) - 1) < 1e-6 && Math.abs(f.center[axis] - at) < 1e-6))
+            occurrenceWidthFlats = flatAt(lo) && flatAt(hi)
+            cache.putMeta(widthKey, { width: occurrenceWidth, flats: occurrenceWidthFlats }, gen)
           }
         }
-        r.pattern = { count, spacing, direction, gap, occurrenceWidth }
+        r.pattern = { count, spacing, direction, gap, occurrenceWidth, occurrenceWidthFlats }
         r.rebuilt = rebuilt
         r.bodyId = target.bodyId
         r.key = target.key

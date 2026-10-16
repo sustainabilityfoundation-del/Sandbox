@@ -219,6 +219,8 @@ function measure(doc: CadDocument, regen: RegenerationResult, partId: string, sp
       if (spec.kind === 'pattern-spacing') return { value: r.pattern.spacing, dim: 'length', quantity: label, method: 'evaluated pattern spacing (centre to centre along the direction)', source: 'model', measuredOn: 'evaluated pattern feature' }
       if (spec.kind === 'pattern-width') {
         if (r.pattern.occurrenceWidth == null) return { reason: 'The occurrence width is measured only for patterns along a coordinate axis.', quantity: label }
+        // Not a failure: the extent equals an across-flats size only when flat faces bound the pocket along the direction.
+        if (r.pattern.occurrenceWidthFlats === false) return { reason: `The kernel extent of one occurrence along the pattern direction is ${r.pattern.occurrenceWidth.toFixed(3)} mm, but it is bounded by corners or curved faces, not by two flat faces facing the direction, so it is not an across-flats width. Rotate the pocket so its flats face the pattern direction to measure the pocket width this way; the bound parameter value is unaffected.`, quantity: label }
         return { value: r.pattern.occurrenceWidth, dim: 'length', quantity: label, method: 'kernel bounding-box extent of one pattern occurrence (its tool solid) along the pattern direction; for a hexagonal pocket whose flats face the direction this is the across-flats size', source: 'kernel', measuredOn: 'tool solid of pattern occurrence 1 (kernel analysis)' }
       }
       if (r.pattern.gap === null) return { reason: 'The kernel did not provide a distance measurement.', quantity: label }
