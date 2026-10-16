@@ -141,9 +141,8 @@ try {
   // Step 6: native CAD with a hexagon, a pocket, a linear pattern and a binding, saved to the CAD service.
   // No CAD view is opened: the operations are headless.
   reply = await ask(`D1 CAD ${af.id}`)
+  // Apply saves the revision in the CAD service (no separate save step; a repeated save is refused as no-op).
   await applyAll(reply, 'CAD commands (polygon, pocket, pattern, binding)', 1)
-  reply = await ask('D1 save')
-  await applyAll(reply, 'save the CAD document', 1)
 
   // Step 7: check against the constraint bounds, then evidence in Conceptualize.
   reply = await ask(`D1 check ${wall.id}`)
@@ -158,8 +157,6 @@ try {
   const bindings = await answer(reply)
   check(/bound to \S+ revision 1; the latest is revision 2/.test(bindings), `check_bindings reports the superseded revision: ${bindings.slice(0, 200)}`)
   await applyAll(reply, 'update af and re-bind', 1)
-  reply = await ask('D1 save')
-  await applyAll(reply, 'save the changed document', 1)
   reply = await ask(`D1 recheck ${wall.id}`)
   const rechecked = await answer(reply)
   check(/pocket width 6\.8 mm against \S+ revision 2 \(satisfied\)/.test(rechecked) && near(/gap ([\d.]+) mm \(satisfied\)/.exec(rechecked)?.[1], 2.2) && /Outdated bindings: 0\./.test(rechecked), `the rerun check reflects the change: ${rechecked.slice(0, 220)}`)

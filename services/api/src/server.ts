@@ -15,7 +15,7 @@ import {
   type TwinDirectory,
   createRequirementsArtifactSource,
 } from '@ews/requirements-service'
-import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsEventHub, migrateConcepts, seedConcepts, type ConceptsEventHub } from '@ews/conceptualize-service'
+import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsArtifactSource, createConceptsEventHub, migrateConcepts, seedConcepts, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { identity, migratePlatform, registerPlatformRoutes, seedPlatform } from './platform/identity'
 import { registerApiDocs } from './apiDocs'
 import { sysmlElementDirectory } from './sysmlDirectory'
@@ -215,12 +215,13 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   }
   // Module artifact sources (ADR-0062, CR-PM-REG-1/3/4): read-only adapters over each module's own tables and outbox.
   // SysML and CAD share the hubs their plugins opened (no extra database connections).
-  // Conceptualize has no ArtifactSource yet (CR-PM-REG-2): its artifacts are not indexed.
   if (!sysml || !cadEvents) throw new Error('The SysML and CAD plugins did not report their services (onReady).')
   const artifactSources: ArtifactSource[] = [
     createRequirementsArtifactSource(options.pool, events),
     createSysmlArtifactSource(sysml.repo, sysml.events),
     createCadArtifactSource(options.pool, cadEvents),
+    // Conceptualize (CR-PM-REG-2): concepts, functions, constraints, decisions, evidence and the rest are indexed.
+    createConceptsArtifactSource(options.pool, conceptEvents),
   ]
   // Provisioning uses each module's own provision() where it has an ArtifactSource.
   const installedModules: ProvisioningModule[] = INSTALLED_MODULES.map((m) => {

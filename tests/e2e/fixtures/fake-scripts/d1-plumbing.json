@@ -13,19 +13,34 @@
                 "name": "Drill bit holder (D1 plumbing ${user.1})",
                 "key": "${user.1}",
                 "description": "Holder block for six hex-shank bits on a cordless drill. Created by the D1 plumbing test.",
-                "disciplines": ["mechanical"]
+                "disciplines": [
+                  "mechanical"
+                ]
               }
             }
           ]
         },
-        { "final": "I prepared a new, empty project ${user.1}. Apply it, then I can open it." }
+        {
+          "final": "I prepared a new, empty project ${user.1}. Apply it, then I can open it."
+        }
       ]
     },
     {
       "user": "^D1 open (\\S+)",
       "steps": [
-        { "calls": [{ "name": "projects.open", "arguments": { "project": "${user.1}" } }] },
-        { "final": "Apply to switch this window to ${user.1}; it reloads into the project." }
+        {
+          "calls": [
+            {
+              "name": "projects.open",
+              "arguments": {
+                "project": "${user.1}"
+              }
+            }
+          ]
+        },
+        {
+          "final": "Apply to switch this window to ${user.1}; it reloads into the project."
+        }
       ]
     },
     {
@@ -49,12 +64,26 @@
     {
       "user": "^D1 functions and constraints",
       "steps": [
-        { "calls": [{ "name": "conceptualize.search", "arguments": { "text": "Drill bit holder block" } }] },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Drill bit holder block"
+              }
+            }
+          ]
+        },
         {
           "calls": [
             {
               "name": "conceptualize.create_function",
-              "arguments": { "name": "Hold the bits", "performedBy": ["${conceptualize.search.data.concepts.0.key}"] }
+              "arguments": {
+                "name": "Hold the bits",
+                "performedBy": [
+                  "${conceptualize.search.data.concepts.0.key}"
+                ]
+              }
             },
             {
               "name": "conceptualize.create_constraint",
@@ -108,7 +137,9 @@
                 "statement": "The bit holder shall hold six bits with a 1/4 in (6.35 mm) hex shank.",
                 "origin": "stakeholder",
                 "type": "functional",
-                "verificationMethods": ["inspection"],
+                "verificationMethods": [
+                  "inspection"
+                ],
                 "acceptanceCriteria": "Six 1/4 in hex-shank bits can be inserted and are held."
               }
             },
@@ -120,7 +151,10 @@
                 "rationale": "6.35 mm hex shank plus 0.15 mm clearance (AI-proposed clearance).",
                 "origin": "ai-proposed",
                 "type": "performance",
-                "verificationMethods": ["analysis", "inspection"]
+                "verificationMethods": [
+                  "analysis",
+                  "inspection"
+                ]
               }
             }
           ]
@@ -137,7 +171,11 @@
           "calls": [
             {
               "name": "projects.create_product_element",
-              "arguments": { "name": "Bit holder block", "elementKind": "part", "description": "Machined or printed block with six hex pockets." }
+              "arguments": {
+                "name": "Bit holder block",
+                "elementKind": "part",
+                "description": "Machined or printed block with six hex pockets."
+              }
             },
             {
               "name": "sysml-modeler.create_project",
@@ -149,7 +187,9 @@
             }
           ]
         },
-        { "final": "I prepared the product element and a SysML project with the part definition HolderBlock. Apply both." }
+        {
+          "final": "I prepared the product element and a SysML project with the part definition HolderBlock. Apply both."
+        }
       ]
     },
     {
@@ -157,8 +197,18 @@
       "steps": [
         {
           "calls": [
-            { "name": "projects.list_artifacts", "arguments": { "category": "product-element" } },
-            { "name": "requirements.search", "arguments": { "text": "six" } }
+            {
+              "name": "projects.list_artifacts",
+              "arguments": {
+                "category": "product-element"
+              }
+            },
+            {
+              "name": "requirements.search",
+              "arguments": {
+                "text": "six"
+              }
+            }
           ]
         },
         {
@@ -167,13 +217,21 @@
               "name": "requirements.allocate",
               "arguments": {
                 "requirementId": "${requirements.search.data.requirements.0.id}",
-                "add": [{ "kind": "product-element", "id": "${projects.list_artifacts.data.0.ref.id}" }],
+                "add": [
+                  {
+                    "kind": "product-element",
+                    "id": "${projects.list_artifacts.data.0.ref.id}"
+                  }
+                ],
                 "rationale": "The holder block holds the bits."
               }
             },
             {
               "name": "sysml-modeler.link_product_element",
-              "arguments": { "element": "BitHolder::HolderBlock", "productElement": "${projects.list_artifacts.data.0.ref.id}" }
+              "arguments": {
+                "element": "BitHolder::HolderBlock",
+                "productElement": "${projects.list_artifacts.data.0.ref.id}"
+              }
             }
           ]
         },
@@ -187,10 +245,18 @@
       "steps": [
         {
           "calls": [
-            { "name": "conceptualize.develop_alternatives", "arguments": { "text": "Bit holder block: compare pocket layouts for six bits", "count": 2 } }
+            {
+              "name": "conceptualize.develop_alternatives",
+              "arguments": {
+                "text": "Bit holder block: compare pocket layouts for six bits",
+                "count": 2
+              }
+            }
           ]
         },
-        { "final": "I prepared two alternative layouts as AI hypotheses for comparison. Recording a decision on named alternatives needs CR-AI-1." }
+        {
+          "final": "I prepared two alternative layouts as AI hypotheses for comparison. Recording a decision on named alternatives needs CR-AI-1."
+        }
       ]
     },
     {
@@ -203,22 +269,128 @@
               "arguments": {
                 "label": "Holder block with six hexagonal pockets in a linear pattern",
                 "commands": [
-                  { "command": "create_part", "input": { "name": "Bit holder block", "ref": "$p" } },
-                  { "command": "create_parameter", "input": { "partId": "$p", "name": "af", "expression": "6.6" } },
-                  { "command": "create_parameter", "input": { "partId": "$p", "name": "pitch", "expression": "9" } },
-                  { "command": "create_parameter", "input": { "partId": "$p", "name": "n", "expression": "6", "unit": "none" } },
-                  { "command": "create_sketch", "input": { "partId": "$p", "plane": "XY", "name": "Base sketch", "ref": "$s" } },
-                  { "command": "add_rectangle", "input": { "sketchId": "$s", "width": 60, "height": 20 } },
-                  { "command": "extrude_profile", "input": { "sketchId": "$s", "distance": 20, "name": "Base" } },
-                  { "command": "create_sketch", "input": { "partId": "$p", "plane": "XY", "offset": 20, "name": "Pocket sketch", "ref": "$h" } },
-                  { "command": "add_regular_polygon", "input": { "sketchId": "$h", "center": [7.5, 10], "sides": 6, "size": { "acrossFlats": "af" }, "rotation": 30 } },
-                  { "command": "extrude_profile", "input": { "sketchId": "$h", "distance": 12, "direction": "reverse", "operation": "cut", "name": "Pocket", "ref": "$pocket" } },
-                  { "command": "pattern_linear", "input": { "features": ["$pocket"], "direction": "x", "count": "n", "spacing": "pitch", "name": "Pockets", "ref": "$pat" } },
+                  {
+                    "command": "create_part",
+                    "input": {
+                      "name": "Bit holder block",
+                      "ref": "$p"
+                    }
+                  },
+                  {
+                    "command": "create_parameter",
+                    "input": {
+                      "partId": "$p",
+                      "name": "af",
+                      "expression": "6.6"
+                    }
+                  },
+                  {
+                    "command": "create_parameter",
+                    "input": {
+                      "partId": "$p",
+                      "name": "pitch",
+                      "expression": "9"
+                    }
+                  },
+                  {
+                    "command": "create_parameter",
+                    "input": {
+                      "partId": "$p",
+                      "name": "n",
+                      "expression": "6",
+                      "unit": "none"
+                    }
+                  },
+                  {
+                    "command": "create_sketch",
+                    "input": {
+                      "partId": "$p",
+                      "plane": "XY",
+                      "name": "Base sketch",
+                      "ref": "$s"
+                    }
+                  },
+                  {
+                    "command": "add_rectangle",
+                    "input": {
+                      "sketchId": "$s",
+                      "width": 60,
+                      "height": 20
+                    }
+                  },
+                  {
+                    "command": "extrude_profile",
+                    "input": {
+                      "sketchId": "$s",
+                      "distance": 20,
+                      "name": "Base"
+                    }
+                  },
+                  {
+                    "command": "create_sketch",
+                    "input": {
+                      "partId": "$p",
+                      "plane": "XY",
+                      "offset": 20,
+                      "name": "Pocket sketch",
+                      "ref": "$h"
+                    }
+                  },
+                  {
+                    "command": "add_regular_polygon",
+                    "input": {
+                      "sketchId": "$h",
+                      "center": [
+                        7.5,
+                        10
+                      ],
+                      "sides": 6,
+                      "size": {
+                        "acrossFlats": "af"
+                      },
+                      "rotation": 30
+                    }
+                  },
+                  {
+                    "command": "extrude_profile",
+                    "input": {
+                      "sketchId": "$h",
+                      "distance": 12,
+                      "direction": "reverse",
+                      "operation": "cut",
+                      "name": "Pocket",
+                      "ref": "$pocket"
+                    }
+                  },
+                  {
+                    "command": "pattern_linear",
+                    "input": {
+                      "features": [
+                        "$pocket"
+                      ],
+                      "direction": "x",
+                      "count": "n",
+                      "spacing": "pitch",
+                      "name": "Pockets",
+                      "ref": "$pat"
+                    }
+                  },
                   {
                     "command": "bind_parameter",
-                    "input": { "partId": "$p", "name": "af", "ref": { "module": "conceptualize", "kind": "constraint", "id": "${user.1}", "revision": 1 }, "quantity": "pocket width across flats" }
+                    "input": {
+                      "partId": "$p",
+                      "name": "af",
+                      "ref": {
+                        "module": "conceptualize",
+                        "kind": "constraint",
+                        "id": "${user.1}",
+                        "revision": 1
+                      },
+                      "quantity": "pocket width across flats"
+                    }
                   }
-                ]
+                ],
+                "title": "Bit holder block"
               }
             }
           ]
@@ -229,19 +401,20 @@
       ]
     },
     {
-      "user": "^D1 save",
-      "steps": [
-        { "calls": [{ "name": "cad-modeler.save_document", "arguments": { "message": "D1 plumbing: holder block" } }] },
-        { "final": "I prepared saving the CAD document to the project (a new immutable revision in the CAD service)." }
-      ]
-    },
-    {
       "user": "^D1 check (\\S+)",
       "steps": [
         {
           "calls": [
-            { "name": "cad-modeler.describe_model", "arguments": {} },
-            { "name": "conceptualize.search", "arguments": { "text": "Drill bit holder block" } }
+            {
+              "name": "cad-modeler.describe_model",
+              "arguments": {}
+            },
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Drill bit holder block"
+              }
+            }
           ]
         },
         {
@@ -251,8 +424,13 @@
               "arguments": {
                 "checks": [
                   {
-                    "measure": { "kind": "pattern-gap", "featureId": "${cad-modeler.describe_model.data.tree.parts.0.features.[type=pattern-linear].id}" },
-                    "constraint": { "id": "${user.1}" }
+                    "measure": {
+                      "kind": "pattern-gap",
+                      "featureId": "${cad-modeler.describe_model.data.tree.parts.0.features.[type=pattern-linear].id}"
+                    },
+                    "constraint": {
+                      "id": "${user.1}"
+                    }
                   }
                 ]
               }
@@ -265,7 +443,9 @@
               "name": "conceptualize.record_evidence",
               "arguments": {
                 "title": "CAD check of the holder block",
-                "subjects": ["${conceptualize.search.data.concepts.0.key}"],
+                "subjects": [
+                  "${conceptualize.search.data.concepts.0.key}"
+                ],
                 "source": {
                   "module": "cad",
                   "kind": "cad-modeler-entity",
@@ -273,7 +453,10 @@
                   "revision": "${cad-modeler.check.data.documentRevision}",
                   "label": "Bit holder block (CAD part)"
                 },
-                "tool": { "name": "${cad-modeler.check.data.kernel.name}", "version": "${cad-modeler.check.data.kernel.version}" },
+                "tool": {
+                  "name": "${cad-modeler.check.data.kernel.name}",
+                  "version": "${cad-modeler.check.data.kernel.version}"
+                },
                 "results": [
                   {
                     "name": "pocket width across flats",
@@ -304,17 +487,32 @@
           "calls": [
             {
               "name": "conceptualize.revise_constraint",
-              "arguments": { "constraintId": "${user.1}", "reason": "Coated bit shanks need more clearance", "operator": ">=", "value": 6.7, "unit": "mm" }
+              "arguments": {
+                "constraintId": "${user.1}",
+                "reason": "Coated bit shanks need more clearance",
+                "operator": ">=",
+                "value": 6.7,
+                "unit": "mm"
+              }
             }
           ]
         },
-        { "final": "I prepared revision 2 of ${user.1} (pocket width at least 6.7 mm). Apply it; then I will look for CAD parameters bound to the old revision." }
+        {
+          "final": "I prepared revision 2 of ${user.1} (pocket width at least 6.7 mm). Apply it; then I will look for CAD parameters bound to the old revision."
+        }
       ]
     },
     {
       "user": "^D1 bindings",
       "steps": [
-        { "calls": [{ "name": "cad-modeler.check_bindings", "arguments": {} }] },
+        {
+          "calls": [
+            {
+              "name": "cad-modeler.check_bindings",
+              "arguments": {}
+            }
+          ]
+        },
         {
           "calls": [
             {
@@ -322,13 +520,25 @@
               "arguments": {
                 "label": "Widen the pockets and re-bind af to the new constraint revision",
                 "commands": [
-                  { "command": "set_parameter", "input": { "partId": "${cad-modeler.check_bindings.data.outdated.0.partId}", "name": "af", "expression": "6.8" } },
+                  {
+                    "command": "set_parameter",
+                    "input": {
+                      "partId": "${cad-modeler.check_bindings.data.outdated.0.partId}",
+                      "name": "af",
+                      "expression": "6.8"
+                    }
+                  },
                   {
                     "command": "bind_parameter",
                     "input": {
                       "partId": "${cad-modeler.check_bindings.data.outdated.0.partId}",
                       "name": "af",
-                      "ref": { "module": "conceptualize", "kind": "constraint", "id": "${cad-modeler.check_bindings.data.outdated.0.binding.ref.id}", "revision": "${cad-modeler.check_bindings.data.outdated.0.latestRevision}" },
+                      "ref": {
+                        "module": "conceptualize",
+                        "kind": "constraint",
+                        "id": "${cad-modeler.check_bindings.data.outdated.0.binding.ref.id}",
+                        "revision": "${cad-modeler.check_bindings.data.outdated.0.latestRevision}"
+                      },
                       "quantity": "pocket width across flats"
                     }
                   }
@@ -345,7 +555,14 @@
     {
       "user": "^D1 recheck (\\S+)",
       "steps": [
-        { "calls": [{ "name": "cad-modeler.describe_model", "arguments": {} }] },
+        {
+          "calls": [
+            {
+              "name": "cad-modeler.describe_model",
+              "arguments": {}
+            }
+          ]
+        },
         {
           "calls": [
             {
@@ -353,13 +570,21 @@
               "arguments": {
                 "checks": [
                   {
-                    "measure": { "kind": "pattern-gap", "featureId": "${cad-modeler.describe_model.data.tree.parts.0.features.[type=pattern-linear].id}" },
-                    "constraint": { "id": "${user.1}" }
+                    "measure": {
+                      "kind": "pattern-gap",
+                      "featureId": "${cad-modeler.describe_model.data.tree.parts.0.features.[type=pattern-linear].id}"
+                    },
+                    "constraint": {
+                      "id": "${user.1}"
+                    }
                   }
                 ]
               }
             },
-            { "name": "cad-modeler.check_bindings", "arguments": {} }
+            {
+              "name": "cad-modeler.check_bindings",
+              "arguments": {}
+            }
           ]
         },
         {
@@ -370,7 +595,17 @@
     {
       "user": "^D1 export",
       "steps": [
-        { "calls": [{ "name": "cad-modeler.export", "arguments": { "format": "step", "return": true } }] },
+        {
+          "calls": [
+            {
+              "name": "cad-modeler.export",
+              "arguments": {
+                "format": "step",
+                "return": true
+              }
+            }
+          ]
+        },
         {
           "final": "STEP read-back: ok ${cad-modeler.export.data.readBack.ok}, ${cad-modeler.export.data.readBack.imported.solids} solid(s), valid ${cad-modeler.export.data.readBack.imported.valid}, differences ${cad-modeler.export.data.readBack.differences.length}; file ${cad-modeler.export.data.file.name} (${cad-modeler.export.data.file.size} bytes, sha256 ${cad-modeler.export.data.file.sha256})."
         }
@@ -379,8 +614,19 @@
     {
       "user": "^D1 download",
       "steps": [
-        { "calls": [{ "name": "cad-modeler.export", "arguments": { "format": "step" } }] },
-        { "final": "I prepared a STEP export of the active document for download (geometry only; the native model keeps the feature history)." }
+        {
+          "calls": [
+            {
+              "name": "cad-modeler.export",
+              "arguments": {
+                "format": "step"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared a STEP export of the active document for download (geometry only; the native model keeps the feature history)."
+        }
       ]
     }
   ]
