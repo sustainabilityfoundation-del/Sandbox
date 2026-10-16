@@ -110,6 +110,31 @@ describe('I1 acceptance (steps 1, 2, 5, 6) on real services', () => {
     // A second revision, so the history has something to keep.
     const reqV2 = ok(await call('ada', 'PATCH', `${REQ}/requirements/${requirement.id}`, { statement: 'The bracket shall deflect less than 0.4 mm under a 200 N load.' }, { 'if-match': `"${requirement.revision}"` }))
 
+    // The artifact registry is eventually consistent by design (ADR-0062): module events are polled and applied by the
+    // registry consumer. Wait for the documented eventual state (every artifact registered at its latest revision)
+    // before taking the reference snapshot; otherwise `project.counts.artifacts` and the artifact list depend on how far
+    // the consumer has got when the snapshot is taken (observed under load). The comparison itself stays strict.
+    const expectedArtifacts = new Map<string, number | undefined>([
+      [requirement.id, reqV2.revision],
+      [fn.id, undefined],
+      [parent.id, undefined],
+      ...candidates.map((c) => [c.id, undefined] as [string, undefined]),
+      [decision.id, decision.revision],
+      [product.id, undefined],
+      [bracket.id, undefined],
+      [task.id, undefined],
+    ])
+    let registered = 0
+    for (let i = 0; i < 150; i++) {
+      await server!.events.flush()
+      await server!.projectsRegistry()?.idle()
+      const listed = ok(await call('ada', 'GET', `${PM}/${id}/artifacts?limit=200`)).items as { ref: { id: string }; version: { value: number } }[]
+      registered = listed.filter((a) => expectedArtifacts.has(a.ref.id) && (expectedArtifacts.get(a.ref.id) === undefined || expectedArtifacts.get(a.ref.id) === a.version.value)).length
+      if (registered === expectedArtifacts.size && listed.length === expectedArtifacts.size) break
+      await new Promise((r) => setTimeout(r, 200))
+    }
+    expect(registered).toBe(expectedArtifacts.size)
+
     const snapshot = async () => ({
       project: ok(await call('ada', 'GET', `${PM}/${id}`)),
       requirement: ok(await call('ada', 'GET', `${REQ}/requirements/${requirement.id}`)),
