@@ -183,10 +183,12 @@ describe('contract probes: real service versus adapter', () => {
     expect(res).toEqual({ real: 'not-implemented', adapter: 'ok' })
   })
 
-  it('differs: calculation models (D6, CR-C8)', async () => {
+  it('calculation models (CR-C8) are implemented by the real service', async () => {
     const res: Record<string, string> = {}
     for (const s of sides) res[s.name] = await outcome(() => s.k.batch({ idempotencyKey: key(), items: [{ op: 'createCalculationModel', body: { name: 'M', schema: 'ews-expr/1', parameters: [], outputs: [], relations: [], basis: 'user-assertion', validationStatus: 'unvalidated' } as never }] }, s.ctx))
-    expect(res.real).toBe('not-implemented')
+    // CR-C8 landed in Conceptualize (6a52ac7). The adapter's capability flags stay conservative until a probe of the
+    // full calculated-evidence path switches them (package AGENTS.md).
+    expect(res.real).not.toBe('not-implemented')
     expect(res.adapter).not.toBe('not-implemented')
   })
 
