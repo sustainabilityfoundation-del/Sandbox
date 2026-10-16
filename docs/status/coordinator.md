@@ -45,7 +45,7 @@ Next work (start as new agents, at most 2-3 implementers at once):
 | Open item 1, increment I1: SDK 1.10 module manifest types | task-worker role (Sonnet) | branch feature/manifests-i1, 5372578 | implemented (check, build pass in worktree); confirmation run (typecheck, unit, build) running before merge; notes for I2/I3 in module-registration.md |
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
-2. **D1 owner acceptance**: ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.
+2. **D1 owner acceptance** (16 October 2026: the owner has no time now and will review D1 later; keep working on the other items meanwhile, do not ask again until the owner returns): ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.
 3. ~~SDK 1.9~~ merged 16 October 2026. Was: **SDK 1.9**: Conceptualize's ConceptsService additions (definition, getHandoff, listHandoffs, revisionStaleness; exact TypeScript in conceptualize-progress.md, "Visual concept exploration") and CR-PM-SDK-4 FilesService (exact TypeScript in project-management-progress.md). Then remove the interim handoff port block in apps/workspace/src/platform/services.ts.
 4. ~~Fix ai-fake-provider last step~~: done (75c9919).
 5. **Codex tasks** CX-001..004 in [docs/codex](../codex/README.md): review and merge the owner's Codex pull requests; add new isolated tasks there.
