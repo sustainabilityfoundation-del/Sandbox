@@ -42,7 +42,6 @@ import { SAMPLE_TWIN } from './sampleTwin'
 
 export { SAMPLE_TWIN }
 
-
 export interface ServerOptions {
   pool: Pool
   storage: ObjectStorage
