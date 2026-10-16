@@ -51,6 +51,19 @@ For Project Management, a STEP export in a project document should keep `documen
 `documentRevision`, `modelVersion` and the read-back next to the file. The export result carries
 all of them.
 
+### D1 follow-up (after main 5565018)
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| `run_commands` title; Apply result states the saved revision | **Done.** `title` names a created document. When Apply saves, the result reads "saved as revision N of document … (no separate save needed)". `save_document` on a current document is refused with no-op ("Already saved") | assistant.headless.test |
+| check against the real Conceptualize | **Done.** Constraints are created and read through the real API and `getConstraint`. A stored CAD revision is checked, the check's `evidence` arguments are recorded through the real evidence API (basis estimate), and Conceptualize's independently computed statuses agree. After a constraint revision, the check uses the new revision and reports the outdated binding | `services/cad/test/d1.real.test.ts` |
+| Declarative proposals (CR-AI-8) | **Done for run_commands (including bind_parameter) and save_document** with no view mounted and the platform CAD API. The resulting document is computed with the same commands; Apply goes through `createDocument` or `saveRevision` with If-Match and an expected revision. Closures remain the labelled fallback for local stores, file sessions and documents with unsaved local changes. new_document, undo and open_document stay closures: they act on this window's session. COORDINATOR REVIEW 8b75df9 registers `cad-modeler` with the gateway. The CAD service accepts the gateway's X-Ews-Source / X-Ews-Proposal provenance | `services/cad/test/declarative.test.ts` (create, revise, stale refusal, save); demo-d1: CAD proposals applied "through the cad-modeler API" |
+| ai-headless | **Done.** CAD Modeler is removed from KNOWN_FAILING; all 11 operations pass with all tabs closed | `npm run e2e -- ai-headless` |
+
+For the AI agent:
+- **demo-d1 fixture.** `d1-plumbing.json` calls `cad-modeler.save_document` right after a run_commands Apply that already saved. Those two steps now get "Already saved … (nothing to save)" and the flow counts them as failures. The steps should be dropped, or "already saved" accepted.
+- **CR-AI-9.** Still open on Conceptualize's side: the flow fixture reads the constraint UUID from the Conceptualize API.
+
 ## Sprint 3 (after the I1 merge, main 34b868f)
 
 | Item | Status | Evidence |
@@ -387,3 +400,4 @@ The top items are below; the full list is in [backlog.md](../modules/cad/backlog
 | 2026-10-15 | Integration milestone 1. Merged main (ccb5e61; conflicts in the services/api registration, root scripts and boundaries, both sides kept). C4/C13 tests (f454872), C5 read client (a271119), C9 headless operations (c8dca69). The sprint2 browser flow passed 20/20 on the merged code after an API restart; one run timed out on Vite's cold compile, and the rerun passed. |
 | 2026-10-15 | Sprint 3. ADR-0027 answers (8ef547d). C13 view (cc2d107), deep link (d35b8bc), both merged by the coordinator in 34b868f. Merged main (129db68). Settings (64f03b1 + COORDINATOR REVIEW 5685337), product-reference validation (49e292f), C9 target fix (7d94782), e2e flow (d46aa4b). |
 | 2026-10-15 | D1-CAD. Merged main (14b0f9f). Items 1–3 (0382b7f), 4–5 (1b3c05b, plus COORDINATOR REVIEW d9bf061 for the capability inventory and AI catalogue), 6–7 (e5569f8). |
+| 2026-10-15 | D1 follow-up. run_commands title and saved-revision result (2e4c924); real-stack check and evidence test (c5402d9); evidence arguments and gateway provenance (earlier commit); declarative proposals (2d65adb, plus COORDINATOR REVIEW 8b75df9); ai-headless covers CAD (7076e7f). |
