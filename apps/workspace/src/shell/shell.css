@@ -260,6 +260,7 @@
 .ws-side-right,
 .ws-side-assistant { border-left: 1px solid var(--ws-border); }
 .ws-side-assistant { background: var(--ws-surface); }
+.ws-assistant-provider { color: var(--ws-text-2); font-size: var(--ws-font-size-xs); font-weight: var(--ws-weight-regular); }
 
 .ws-side-body {
   display: flex;
@@ -737,32 +738,163 @@
 .ws-validation-title { font-weight: var(--ws-weight-medium); }
 .ws-validation-reason { flex: 1; min-width: 0; overflow: hidden; color: var(--ws-text-2); text-overflow: ellipsis; white-space: nowrap; }
 
-/* ---- Assistant panel (bottom dock or right column) ------------------------------------------------ */
+/* ---- AI Assistant panel (right column or bottom panel): conversational presentation ----------------- */
 
-.as-input-row { display: flex; align-items: flex-end; gap: var(--ws-space-2); }
+.as-root { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--ws-surface); }
+.as-chat[data-inert],
+.as-side-panel[data-inert] { display: none; }
+.as-tabs { flex: none; padding: 0 var(--ws-space-2); border-bottom: 1px solid var(--ws-border); }
+.as-tabs > [role='tab'] { min-height: var(--ws-tabs-h); }
+
+.as-chat { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.as-side-panel { flex: 1; min-height: 0; overflow: auto; }
+
+.as-conversation { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+
+.as-banner {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px var(--ws-space-2);
+  padding: var(--ws-space-1) var(--ws-space-3);
+  border-bottom: 1px solid var(--ws-border);
+  background: var(--ws-surface-2);
+  color: var(--ws-text-2);
+  font-size: var(--ws-font-size-xs);
+}
+
+.as-banner-text { min-width: 0; flex: 1 1 260px; }
+.as-banner-actions { display: flex; flex: none; gap: 2px; }
+
+.as-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+  min-height: 0;
+  padding: var(--ws-space-3);
+  overflow: auto;
+}
+
+.as-empty { display: flex; gap: var(--ws-space-2); align-items: flex-start; max-width: 560px; color: var(--ws-text-2); }
+.as-empty p { margin: 2px 0; }
+
+.as-row { display: flex; align-items: flex-start; gap: var(--ws-space-2); min-width: 0; }
+.as-row.is-user { justify-content: flex-end; }
+.as-row.is-user .as-avatar-user { margin-top: 2px; }
+
+.as-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  border-radius: var(--ws-radius-full);
+  background: var(--ws-accent);
+  color: var(--ws-on-accent);
+}
+
+.as-msg {
+  min-width: 0;
+  max-width: min(100%, 760px);
+  padding: var(--ws-space-2) var(--ws-space-3);
+  border: 1px solid var(--ws-border);
+  border-radius: 12px;
+  background: var(--ws-surface);
+  transition: box-shadow var(--ws-motion-medium);
+}
+
+.as-user {
+  align-self: flex-end;
+  border-color: transparent;
+  border-top-right-radius: var(--ws-radius-sm);
+  background: var(--ws-accent-surface);
+  box-shadow: inset 0 0 0 1px var(--ws-accent-border);
+}
+
+.as-assistant { flex: 1; border-top-left-radius: var(--ws-radius-sm); border-left: 1px solid var(--ws-border); }
+.as-msg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ws-space-2); margin-bottom: 2px; font-size: var(--ws-font-size-xs); }
+.as-user-text { white-space: pre-wrap; }
+.as-msg.is-focused,
+.as-event.is-focused { box-shadow: 0 0 0 2px var(--ws-accent); }
+
+.as-event { margin-left: 36px; border-radius: var(--ws-radius); }
+.as-steps li { flex-wrap: wrap; row-gap: 0; }
+.as-steps li > span:last-child { min-width: 0; flex: 1 1 160px; }
+
+/* Composer: a rounded box with the message, the plus menu, attach, voice and send. */
+.as-composer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  padding: var(--ws-space-2) var(--ws-space-3) var(--ws-space-3);
+  border-top: 1px solid var(--ws-border);
+  background: var(--ws-surface);
+  min-height: 0;
+}
+
+.as-composer-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--ws-space-1) var(--ws-space-2) var(--ws-space-1) var(--ws-space-3);
+  border: 1px solid var(--ws-border-strong);
+  border-radius: 16px;
+  background: var(--ws-surface);
+  transition: border-color var(--ws-motion-short), box-shadow var(--ws-motion-short);
+}
+
+.as-composer-box:focus-within { border-color: var(--ws-accent); box-shadow: 0 0 0 1px var(--ws-accent); }
 .as-input { flex: 1; }
-.as-input textarea { min-height: 56px; max-height: 30vh; }
-.as-actions { display: flex; flex: none; flex-direction: column; gap: var(--ws-space-2); }
+.as-composer-box .as-input textarea {
+  min-height: 44px;
+  max-height: 30vh;
+  padding: var(--ws-space-2) 0 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  resize: none;
+  font-size: var(--ws-font-size);
+}
+
+.as-composer-bar { display: flex; align-items: center; gap: 2px; }
+.as-send.as-send { border-radius: var(--ws-radius-full); }
+.as-stop.as-stop { border-radius: var(--ws-radius-full); }
+.as-plus button,
+.as-plus.as-plus { border-radius: var(--ws-radius-full); }
+
+.as-composer-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-1) var(--ws-space-2); }
+.as-model { max-width: 280px; }
+.as-model-static { display: inline-flex; align-items: center; gap: var(--ws-space-1); color: var(--ws-text-2); font-size: var(--ws-font-size-xs); }
+
 .as-suggestion { height: auto; min-height: var(--ws-control-h-sm); white-space: normal; text-align: left; }
 .as-chip-attach { min-height: 0; gap: var(--ws-space-1); cursor: pointer; }
 .as-chip-attach.is-on { border-color: var(--ws-accent-border); background: var(--ws-accent-soft); }
+.as-examples { flex-wrap: nowrap; margin-top: 0; overflow-x: auto; padding-bottom: 2px; }
+.as-examples .as-suggestion { white-space: nowrap; }
 
-/* Stacks when the panel's container is narrow (phone sheet, right column, narrow window, small dock). */
-@container panel (max-width: 720px) {
-  .as-root { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
-  .as-composer { overflow: visible; border-top: 1px solid var(--ws-border); border-left: 0; }
-  .as-examples { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
-  .as-examples .as-suggestion { white-space: nowrap; }
-}
+/* Context and Tools tabs */
+.as-pane { display: flex; flex-direction: column; gap: var(--ws-space-3); padding: var(--ws-space-3); font-size: var(--ws-font-size-sm); }
+.as-pane-intro { margin: 0; color: var(--ws-text-2); }
+.as-kv { display: grid; grid-template-columns: minmax(110px, auto) minmax(0, 1fr); gap: var(--ws-space-2) var(--ws-space-3); margin: 0; }
+.as-kv > div { display: contents; }
+.as-kv dt { color: var(--ws-text-3); }
+.as-kv dd { margin: 0; overflow-wrap: anywhere; }
+.as-tools-group h3 { display: flex; align-items: center; gap: var(--ws-space-2); margin: 0 0 var(--ws-space-1); font-size: var(--ws-font-size-sm); font-weight: var(--ws-weight-strong); }
+.as-tools-group ul { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.as-tools-group li { display: flex; gap: var(--ws-space-2); align-items: baseline; color: var(--ws-text-2); }
 
 /* Very short viewports (e.g. phone with the on-screen keyboard open): keep the input and Send visible. */
 @media (max-height: 520px) {
   .as-examples,
   .as-banner,
-  .as-context { display: none; }
+  .as-composer-meta { display: none; }
   .as-composer { gap: var(--ws-space-1); padding: var(--ws-space-1) var(--ws-space-2); }
-  .as-input textarea { min-height: 44px; }
-  .as-actions { flex-direction: row; }
+  .as-composer-box .as-input textarea { min-height: 36px; }
 }
 
 /* ---- Maximized canvas ------------------------------------------------------------------------------ */
