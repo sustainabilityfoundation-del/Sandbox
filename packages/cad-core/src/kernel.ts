@@ -132,10 +132,20 @@ export interface EdgeBlendResult {
   probes: FaceProbe[]
 }
 
+/**
+ * Optional naming context for a boolean (ADR-0024 amendment, kernel history): the probes that name
+ * the faces of the target and of the tool. With them a kernel that records shape history can give
+ * every piece of a split face a deterministic name; without them names come from probes only.
+ */
+export interface BooleanHint {
+  targetProbes: FaceProbe[]
+  toolProbes: FaceProbe[]
+}
+
 export interface GeometryKernel {
   readonly info: KernelInfo
   makeSolid: (request: SolidRequest) => Promise<ShapeHandle>
-  boolean: (kind: 'fuse' | 'cut', target: ShapeHandle, tool: ShapeHandle) => Promise<ShapeHandle>
+  boolean: (kind: 'fuse' | 'cut', target: ShapeHandle, tool: ShapeHandle, hint?: BooleanHint) => Promise<ShapeHandle>
   /** Fillets or chamfers named edges; fails with code `reference-lost` when a name does not resolve. */
   blendEdges: (request: EdgeBlendRequest) => Promise<EdgeBlendResult>
   analyze: (shape: ShapeHandle, probes: FaceProbe[]) => Promise<ShapeAnalysis>

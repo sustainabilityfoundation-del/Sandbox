@@ -396,7 +396,7 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
             const key = hashOf({ op, target: target.key, tool: built.key, pattern: feature.id })
             let shape = cache.getShape(key, gen)
             if (!shape) {
-              shape = await kernel.boolean(op, target.shape, built.shape)
+              shape = await kernel.boolean(op, target.shape, built.shape, { targetProbes: target.probes, toolProbes: probes })
               cache.putShape(key, shape, gen)
               rebuilt = true
             }
@@ -464,7 +464,7 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
           const key = hashOf({ op: feature.operation, target: target.key, tool: built.key })
           let shape = cache.getShape(key, gen)
           if (!shape) {
-            shape = await kernel.boolean(feature.operation === 'cut' ? 'cut' : 'fuse', target.shape, built.shape)
+            shape = await kernel.boolean(feature.operation === 'cut' ? 'cut' : 'fuse', target.shape, built.shape, { targetProbes: target.probes, toolProbes: built.probes })
             cache.putShape(key, shape, gen)
             r.rebuilt = true
           }

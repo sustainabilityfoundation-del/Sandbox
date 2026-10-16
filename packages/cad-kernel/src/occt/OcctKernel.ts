@@ -1,5 +1,6 @@
 import {
   KernelError,
+  type BooleanHint,
   type EdgeBlendRequest,
   type EdgeBlendResult,
   type EdgeInfo,
@@ -35,6 +36,8 @@ const PROBE_TOLERANCE = 1e-4
 export class OcctKernel implements GeometryKernel {
   readonly info: KernelInfo
   private readonly shapes = new Map<string, Shape3D>()
+  /** Face names recorded from shape history (ADR-0024 amendment), aligned to `shape.faces`; '' = none. */
+  private readonly lineage = new Map<string, string[]>()
   private counter = 0
 
   constructor(
@@ -101,27 +104,54 @@ export class OcctKernel implements GeometryKernel {
     }
   }
 
-  async boolean(kind: 'fuse' | 'cut', target: ShapeHandle, tool: ShapeHandle): Promise<ShapeHandle> {
+  async boolean(kind: 'fuse' | 'cut', target: ShapeHandle, tool: ShapeHandle, hint?: BooleanHint): Promise<ShapeHandle> {
     const a = this.get(target)
     const b = this.get(tool)
+    const oc = this.oc
     let out: Shape3D
+    let history: string[] | undefined
+    // Names of the arguments before the operation (history overlay, then probes).
+    const namesA = hint ? this.stableNames(target, hint.targetProbes) : undefined
+    const namesB = hint ? this.stableNames(tool, hint.toolProbes) : undefined
     try {
       // Clones keep cached inputs intact. No "sameFace" optimisation: with coplanar caps it
       // produced a solid with an internal void instead of a through hole (regression test).
-      out = (kind === 'fuse' ? a.clone().fuse(b.clone()) : a.clone().cut(b.clone())) as Shape3D
-      out = out.simplify() as Shape3D
+      const ca = a.clone()
+      const cb = b.clone()
+      const builder = kind === 'fuse' ? new oc.BRepAlgoAPI_Fuse(ca.wrapped, cb.wrapped) : new oc.BRepAlgoAPI_Cut(ca.wrapped, cb.wrapped)
+      try {
+        builder.Build()
+        if (builder.HasErrors()) throw new Error('the Boolean algorithm reported errors')
+        // Merges coplanar faces and collinear edges; the builder's history includes this step.
+        builder.SimplifyResult(true, true, 0.001)
+        out = r.cast(builder.Shape()) as Shape3D
+        if (hint && out && out.faces.length > 0 && sameOrder(a, ca) && sameOrder(b, cb)) {
+          history = inheritNames(oc, builder, [{ source: ca.faces, names: namesA! }, { source: cb.faces, names: namesB! }], out.faces)
+        }
+      } finally {
+        builder.delete()
+      }
     } catch (e) {
       throw new KernelError('boolean-failed', `The ${kind === 'fuse' ? 'join' : 'cut'} failed in the kernel: ${message(e)}`)
     }
     if (!out || out.faces.length === 0) throw new KernelError('empty-result', kind === 'cut' ? 'The cut removed the whole body.' : 'The join produced no geometry.')
-    return this.store(out)
+    const handle = this.store(out)
+    if (history) this.lineage.set(handle.id, history)
+    return handle
+  }
+
+  /** Stable face names of a stored shape (history names first, then probes); '' for unnamed faces. */
+  private stableNames(handle: ShapeHandle, probes: FaceProbe[]): string[] {
+    const shape = this.get(handle)
+    const naming = topologyNames(shape.faces, shape.edges, probes, this.lineage.get(handle.id))
+    return naming.faceNames.map((n, i) => (naming.faceStable[i] ? n : ''))
   }
 
   async blendEdges(req: EdgeBlendRequest): Promise<EdgeBlendResult> {
     const shape = this.get(req.target)
     if (!(req.size > 0)) throw new KernelError('invalid-value', `The ${req.kind} size must be greater than zero.`)
     const edges = shape.edges
-    const naming = topologyNames(shape.faces, edges, req.probes)
+    const naming = topologyNames(shape.faces, edges, req.probes, this.lineage.get(req.target.id))
     const selected: Edge[] = []
     const missing: string[] = []
     for (const name of req.edges) {
@@ -140,16 +170,30 @@ export class OcctKernel implements GeometryKernel {
       return out
     })
     let out: Shape3D
+    let history: string[] | undefined
+    const names = this.stableNames(req.target, req.probes)
     try {
-      const pick = (e: Edge) => (selected.some((s) => s.isSame(e)) ? req.size : null)
-      out = (req.kind === 'fillet' ? shape.clone().fillet(pick) : shape.clone().chamfer(pick)) as Shape3D
+      const oc = this.oc
+      const clone = shape.clone()
+      const builder = req.kind === 'fillet' ? new oc.BRepFilletAPI_MakeFillet(clone.wrapped, oc.ChFi3d_FilletShape.ChFi3d_Rational) : new oc.BRepFilletAPI_MakeChamfer(clone.wrapped)
+      try {
+        // Edges come from the clone, by the index they have on the original (same order, checked below).
+        const cloneEdges = clone.edges
+        for (const e of selected) builder.Add(req.size, cloneEdges[edges.findIndex((x) => x.isSame(e))].wrapped)
+        builder.Build()
+        if (!builder.IsDone()) throw new Error('the algorithm did not finish')
+        out = r.cast(builder.Shape()) as Shape3D
+        if (out && out.faces.length > 0 && sameOrder(shape, clone)) history = inheritNames(oc, builder, [{ source: clone.faces, names }], out.faces)
+      } finally {
+        builder.delete()
+      }
     } catch (e) {
       throw new KernelError('blend-failed', `The ${req.kind} of ${req.size} mm failed in the kernel (${message(e)}). Typical causes: the size is larger than an adjacent face allows, or edges meet at a vertex the ${req.kind} cannot resolve.`)
     }
     if (!out || out.faces.length === 0) throw new KernelError('empty-result', `The ${req.kind} produced no geometry.`)
     // Name each generated face after the edge it replaces: project the old edge midpoint onto the
     // nearest face that no existing probe names, and use that surface point as the probe.
-    const after = topologyNames(out.faces, out.edges, req.probes)
+    const after = topologyNames(out.faces, out.edges, req.probes, history)
     const probes: FaceProbe[] = []
     req.edges.forEach((name, k) => {
       const m = midpoints[k]
@@ -178,7 +222,9 @@ export class OcctKernel implements GeometryKernel {
         /* the face keeps a fallback name */
       }
     })
-    return { shape: this.store(out), probes }
+    const handle = this.store(out)
+    if (history) this.lineage.set(handle.id, history)
+    return { shape: handle, probes }
   }
 
   async analyze(handle: ShapeHandle, probes: FaceProbe[]): Promise<ShapeAnalysis> {
@@ -192,7 +238,7 @@ export class OcctKernel implements GeometryKernel {
     const bounds = shape.boundingBox.bounds as [Vec3, Vec3]
 
     // Probe-based naming (ADR-0024), shared with blendEdges so both see the same names.
-    const naming = topologyNames(faces, edges, probes)
+    const naming = topologyNames(faces, edges, probes, this.lineage.get(handle.id))
 
     const faceInfos: FaceInfo[] = faces.map((f, index) => {
       const center = f.center
@@ -303,6 +349,7 @@ export class OcctKernel implements GeometryKernel {
       const s = this.shapes.get(h.id)
       if (!s) continue
       this.shapes.delete(h.id)
+      this.lineage.delete(h.id)
       try {
         s.delete()
       } catch {
@@ -328,11 +375,19 @@ type Edge = Shape3D['edges'][number]
  * Stable names of faces (first probe whose point lies on the face; later ones are aliases; unmatched
  * faces get flagged fallback names) and of edges (sorted adjacent face names, `#n` for repeats).
  */
-function topologyNames(faces: Face[], edges: Edge[], probes: FaceProbe[]) {
+function topologyNames(faces: Face[], edges: Edge[], probes: FaceProbe[], inherited?: string[]) {
   const names: string[][] = faces.map(() => [])
+  // Names recorded by the shape history win; a probe may not take a name that history gave to a face.
+  const claimed = new Set<string>()
+  inherited?.forEach((n, i) => {
+    if (!n || i >= faces.length) return
+    names[i].push(n)
+    claimed.add(n)
+  })
   const vertexCache = new Map<string, r.Vertex>()
   const faceBoxes = faces.map((f) => f.boundingBox.bounds as [Vec3, Vec3])
   for (const probe of probes) {
+    if (claimed.has(probe.name)) continue
     let assigned = false
     for (const p of probe.points) {
       for (let i = 0; i < faces.length && !assigned; i++) {
@@ -373,6 +428,98 @@ function topologyNames(faces: Face[], edges: Edge[], probes: FaceProbe[]) {
     return `${b}#${n}`
   })
   return { faceNames, faceAliases: names.map((own) => own.slice(1)), faceStable: names.map((own) => own.length > 0), edgeNames, edgeFaces }
+}
+
+/** True when two shapes list faces and edges in the same order (a clone keeps it); history is used only then. */
+type Vec = { x: number; y: number; z: number; delete: () => void }
+function sameOrder(a: Shape3D, b: Shape3D): boolean {
+  const close = (p: Vec, q: Vec) => {
+    const d = Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z)
+    p.delete()
+    q.delete()
+    return d < 1e-7
+  }
+  const fa = a.faces
+  const fb = b.faces
+  const ea = a.edges
+  const eb = b.edges
+  if (fa.length !== fb.length || ea.length !== eb.length) return false
+  return fa.every((f, i) => close(f.center, fb[i].center)) && ea.every((e, i) => close(e.pointAt(0.5), eb[i].pointAt(0.5)))
+}
+
+/** The part of the builder's history this module needs (BRepBuilderAPI_MakeShape). */
+interface ShapeHistory {
+  Modified(s: never): unknown
+  IsDeleted(s: never): boolean
+}
+
+/** Indices (in `outFaces`) of the faces a source face became: its modified pieces, itself when unchanged, none when deleted. */
+function descendants(oc: OpenCascadeInstance, builder: ShapeHistory, face: Face, outFaces: Face[]): number[] {
+  if (builder.IsDeleted(face.wrapped as never)) return []
+  const pieces: number[] = []
+  // Copy the builder's list (a reference into the builder) and consume the copy.
+  const list = new oc.NCollection_List_TopoDS_Shape(builder.Modified(face.wrapped as never) as never)
+  try {
+    while (!list.IsEmpty()) {
+      const first = list.First()
+      const j = outFaces.findIndex((f) => f.wrapped.IsSame(first))
+      if (j >= 0 && !pieces.includes(j)) pieces.push(j)
+      list.RemoveFirst()
+    }
+  } finally {
+    list.delete()
+  }
+  if (!pieces.length) {
+    const j = outFaces.findIndex((f) => f.wrapped.IsSame(face.wrapped))
+    if (j >= 0) pieces.push(j)
+  }
+  return pieces
+}
+
+/**
+ * Shape history as a naming signal (ADR-0024 amendment). Every named face of the arguments passes its
+ * name to the faces it became. When a face is split, the piece with the smallest centre (x, then y,
+ * then z) keeps the name and the other pieces are numbered \`<name>~2\`, \`~3\`, … in that order, continuing
+ * the numbers already used for that name, so earlier pieces keep their names when later operations add
+ * pieces. Returns names aligned to \`outFaces\` ('' = no history name; probes decide).
+ */
+function inheritNames(oc: OpenCascadeInstance, builder: ShapeHistory, sources: { source: Face[]; names: string[] }[], outFaces: Face[]): string[] {
+  const out = outFaces.map(() => '')
+  const known = new Set(sources.flatMap((s) => s.names).filter(Boolean))
+  const centre = (j: number) => {
+    const c = outFaces[j].center
+    const v = [c.x, c.y, c.z].map((x) => Math.round(x * 1e6) / 1e6)
+    c.delete?.()
+    return v
+  }
+  const next = (root: string) => {
+    let max = 1
+    for (const n of known) if (n.startsWith(`${root}~`)) max = Math.max(max, Number.parseInt(n.slice(root.length + 1), 10) || 1)
+    return max + 1
+  }
+  for (const src of sources) {
+    src.source.forEach((face, i) => {
+      const name = src.names[i]
+      if (!name) return
+      const pieces = descendants(oc, builder, face, outFaces).filter((j) => !out[j])
+      if (!pieces.length) return
+      const cs = new Map(pieces.map((j) => [j, centre(j)]))
+      pieces.sort((p, q) => {
+        const a = cs.get(p)!
+        const b = cs.get(q)!
+        return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]
+      })
+      pieces.forEach((j, k) => {
+        let n = name
+        if (k > 0 || out.includes(name)) {
+          n = `${name.split('~')[0]}~${next(name.split('~')[0])}`
+        }
+        out[j] = n
+        known.add(n)
+      })
+    })
+  }
+  return out
 }
 
 function loopDrawing(segments: KernelSegment[]): Drawing {
