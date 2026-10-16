@@ -1,6 +1,6 @@
 import type { CredentialVault } from './crypto'
 import { stableJson } from './crypto'
-import { decide, type AiPolicy } from './policy'
+import { DEFAULT_POLICY, type AiPolicy, type Policy } from './policy'
 import type { ProviderMessage, ProviderTool, RespondOutput } from './providers/types'
 
 /**
@@ -203,14 +203,14 @@ export class ForgedResultError extends Error {}
  * Builds the provider request: verifies every returned result was issued by the server for this user,
  * filters the offered tools by policy and entitlements, applies data-sharing settings and limits.
  */
-export function prepareRequest(request: WireRequest, policy: AiPolicy, entitlements: string[], vault: CredentialVault, userId: string): PreparedRequest {
+export function prepareRequest(request: WireRequest, policy: AiPolicy, entitlements: string[], vault: CredentialVault, userId: string, rules: Policy = DEFAULT_POLICY): PreparedRequest {
   const removed: { name: string; reason: string }[] = []
   const tools: ProviderTool[] = []
   const seen = new Set<string>()
   for (const t of request.tools) {
     if (seen.has(t.name)) continue
     seen.add(t.name)
-    const d = decide(t.name, policy, entitlements)
+    const d = rules.decide(t.name, policy, entitlements)
     if (!d.ok) removed.push({ name: t.name, reason: d.reason })
     else tools.push({ name: t.name, description: t.description, parameters: t.parameters as Record<string, unknown>, group: d.classified.module.id })
   }
@@ -229,7 +229,7 @@ export function prepareRequest(request: WireRequest, policy: AiPolicy, entitleme
     const v = verifyCall(vault, userId, r)
     if (!v.ok) throw new ForgedResultError(`The result for “${r.name}” does not answer an operation this server issued to you.`)
     messages.push({ type: 'tool_call', callId: v.providerCallId, name: r.name, arguments: r.arguments ?? {} })
-    const d = decide(r.name, policy, entitlements)
+    const d = rules.decide(r.name, policy, entitlements)
     messages.push({ type: 'tool_result', callId: v.providerCallId, name: r.name, output: d.ok ? resultOutput(r, policy.sharing) : JSON.stringify({ ok: false, error: `Withheld: ${d.reason}` }) })
   }
   const callsSoFar = request.turn.toolResults.length
@@ -245,12 +245,12 @@ export function prepareRequest(request: WireRequest, policy: AiPolicy, entitleme
 }
 
 /** Splits the model's calls into allowed (offered and permitted) and refused ones. */
-export function screenCalls(output: Extract<RespondOutput, { type: 'tool_calls' }>, offered: ProviderTool[], policy: AiPolicy, entitlements: string[], remaining: number) {
+export function screenCalls(output: Extract<RespondOutput, { type: 'tool_calls' }>, offered: ProviderTool[], policy: AiPolicy, entitlements: string[], remaining: number, rules: Policy = DEFAULT_POLICY) {
   const offeredNames = new Set(offered.map((t) => t.name))
   const allowed: typeof output.calls = []
   const refused: { callId: string; name: string; arguments: Record<string, unknown>; reason: string }[] = []
   for (const c of output.calls) {
-    const d = decide(c.name, policy, entitlements)
+    const d = rules.decide(c.name, policy, entitlements)
     if (!d.ok) refused.push({ ...c, reason: d.reason })
     else if (!offeredNames.has(c.name)) refused.push({ ...c, reason: `“${c.name}” was not offered with this request.` })
     else if (allowed.length >= remaining) refused.push({ ...c, reason: 'The operation limit for this answer is reached.' })

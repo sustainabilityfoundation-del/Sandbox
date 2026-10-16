@@ -4,6 +4,7 @@ import {
   SDK_VERSION,
   isSdkCompatible,
   type AiModuleDescriptor,
+  type ArtifactSource,
   type CapabilityEntry,
   type ModuleManifest,
   type OperationClass,
@@ -31,9 +32,9 @@ const manifest: ModuleManifest = {
   defaultOpen: false,
 }
 
-describe('SDK 1.10 module manifests', () => {
+describe('SDK 1.11 module manifests', () => {
   it('is an additive minor version', () => {
-    expect(SDK_VERSION).toBe('1.10.0')
+    expect(SDK_VERSION).toBe('1.11.0')
     expect(isSdkCompatible('^1.9.0')).toBe(true)
   })
 
@@ -56,6 +57,7 @@ describe('SDK 1.10 module manifests', () => {
 
   it('types the server manifest with a structural host', async () => {
     const calls: string[] = []
+    const source = { module: 'demo' } as ArtifactSource
     const server: ServerModuleManifest = {
       id: 'demo',
       name: 'Demo',
@@ -64,13 +66,32 @@ describe('SDK 1.10 module manifests', () => {
       aiModule,
       register: (host: ServerModuleHost) => {
         calls.push(String(host.app))
-        return { artifactSource: {} }
+        return { artifactSource: source }
       },
     }
     const host: ServerModuleHost = { app: 'app' }
-    expect(await server.register(host)).toEqual({ artifactSource: {} })
+    expect(await server.register(host)).toEqual({ artifactSource: source })
     expect(calls).toEqual(['app'])
     expectTypeOf(server.register).parameter(0).toEqualTypeOf<ServerModuleHost>()
+  })
+
+  it('lets a host extend ServerModuleHost and type its manifests with it', async () => {
+    interface TestHost extends ServerModuleHost {
+      app: { name: string }
+      pool: string
+    }
+    const server: ServerModuleManifest<TestHost> = {
+      id: 'typed',
+      name: 'Typed',
+      basePath: '/api/typed/v1',
+      docs: 'Typed API',
+      settings: { page: { id: 'typed', title: 'Typed' }, definitions: [] },
+      provisioning: { module: 'typed-legacy', lazyReason: 'Created on first write.' },
+      register: (host) => ({ artifactSource: { module: `${host.app.name}:${host.pool}` } as ArtifactSource }),
+    }
+    const result = await server.register({ app: { name: 'a' }, pool: 'p', production: false })
+    expect(result?.artifactSource?.module).toBe('a:p')
+    expectTypeOf(server.register).parameter(0).toEqualTypeOf<TestHost>()
   })
 
   it('types the client module', () => {

@@ -16,6 +16,21 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.11.0 (2026-10-16)
+
+Type: additive
+
+What changed:
+- `ServerModuleHost` gains optional `production` and `eventPollMs`; the manifest is generic: `ServerModuleManifest<H extends ServerModuleHost = ServerModuleHost>`
+  (`register`, `migrate` and `seed` take `H`), so a host types its manifests with its own host object (Fastify, pool, services) without the SDK importing them.
+- `ServerModuleRegistration.artifactSource` is now `ArtifactSource` (was `unknown`).
+- New `ServerModuleSettings` (`{ page, definitions: SettingDefinition[] }`) and `ServerModuleProvisioning` (`{ module?, lazyReason }`); `settings`
+  and `provisioning` of the manifest use them (were `unknown`). `docs` is the title of the page served at `<basePath>/docs`.
+
+Why: the API host adopts the server manifests (module registration I3). All changes are type-level; nothing used the `unknown` fields before.
+Migration for tools: none (tools do not use server manifests).
+Validated with: npm run check
+
 ## 1.10.0 (2026-10-16)
 
 Type: additive

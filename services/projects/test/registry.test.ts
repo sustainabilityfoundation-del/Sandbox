@@ -69,7 +69,7 @@ describe('registry fed by the modules', () => {
 
     // Reconciliation is idempotent and reports per module.
     const report = (await env.call('eli', 'POST', `${P(p.id)}/reconcile`)).body
-    expect(report.modules.map((m: { module: string; status: string }) => `${m.module}:${m.status}`)).toEqual(['requirements:reconciled', 'sysml:reconciled', 'cad:reconciled', 'conceptualize:reconciled'])
+    expect(report.modules.map((m: { module: string; status: string }) => `${m.module}:${m.status}`).sort()).toEqual(['cad:reconciled', 'conceptualize:reconciled', 'requirements:reconciled', 'sysml:reconciled'])
     expect(report.modules.every((m: { upserted: number; missing: number }) => m.upserted === 0 && m.missing === 0)).toBe(true)
 
     // Project Management links can now reach module artifacts: a task about the CAD document.

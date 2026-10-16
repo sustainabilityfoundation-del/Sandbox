@@ -90,3 +90,29 @@ I1 (SDK 1.10.0, branch feature/manifests-i1, 5372578): types in `packages/platfo
    I3 defines what the host exposes and tightens these shapes additively (SDK minor bump if exported shapes change).
 4. `ModuleHostEnv` is `{ requirementsMode: 'demo' | 'api'; devUser }`; the CAD ('files' | 'api') and SysML ('local' | 'api')
    factories map the env to their own option shapes inside their `tool(env)` factory.
+
+### I3 result (16 October 2026)
+I3 (SDK 1.11.0, branch feature/manifests-i3): `services/api/src/modules.ts` holds `INSTALLED_SERVER_MODULES` (`ServerModuleManifest<ApiModuleHost>[]`:
+requirements, conceptualize, sysml-modeler, cad-modeler, visualization) and replaces `INSTALLED_MODULES`; `buildServer` loops over it (docs page, then `register`),
+collects artifact sources, provisioning and settings, then composes projects, settings and assistant as before. `services/assistant` has
+`createPolicy(extraModules, extraCatalogue)` returning a `Policy` (`modules`, `catalogue`, `settingDefinitions`, `classify`, `policyFromSettings`, `decide`);
+the host passes it to `assistantPlugin({ policy })`. Duplicate AI module IDs or operation names throw. The policy completeness test moved to
+`services/api/src/modules.test.ts`; `services/api/test/modules.test.ts` (DB suite) checks that every manifest base path serves `/openapi.json` and `/docs`.
+
+What `ServerModuleHost` now exposes (SDK 1.11, additive, types only): `app: unknown`, `production?`, `eventPollMs?`, `context?`. The manifest is generic,
+`ServerModuleManifest<H extends ServerModuleHost>`, so the host types its own host object: `ApiModuleHost` (services/api) adds `app: FastifyInstance`, `pool`,
+`auth` (authenticate, roleOf), `options` (`ServerOptions`), the requirements and Conceptualize event hubs, the blob store and `assistant()`.
+`artifactSource` is `ArtifactSource`; `settings` is `{ page, definitions }`; `provisioning` is `{ module?, lazyReason }` (`module` defaults to the manifest `id`;
+SysML and CAD keep their provisioning IDs `sysml` and `cad` while their manifest IDs are the AI module IDs `sysml-modeler` and `cad-modeler`).
+
+Changes from the plan and notes for the M-steps:
+1. The I3 manifests declare no `operations` or `aiModule` yet: the existing entries stay in `AI_MODULES` and `OPERATION_CATALOGUE` (legacy) and an M-step moves
+   a module's entries into its manifest in the same change as deleting the legacy ones (a duplicate fails `createPolicy`, tested). The platform-owned entries
+   (workspace, illustrative, projects, reasoning, help) stay in policy.ts.
+2. Visualization is a manifest in the list, so it now registers with the other leaf modules before projects, settings and the assistant (it was last); it reads the
+   assistant lazily through `host.assistant()`. Artifact sources are now ordered requirements, conceptualize, sysml, cad (was requirements, sysml, cad, conceptualize); `services/projects/test/registry.test.ts` compares the reconcile report order-insensitively.
+3. Kept in the host as the plan's Risks list says: the requirements twin (`composeTwinDirectories(productTwinDirectory, options.twin ?? SAMPLE_TWIN)`) and SysML
+   directory sit inside the requirements adapter; the SysML/CAD `onReady` services stay inside their adapters; `prepareDatabase` (migration and seed order) is unchanged,
+   so `migrate`/`seed` of the manifest are not used yet. `SAMPLE_TWIN` moved to `services/api/src/sampleTwin.ts` (still exported from `server.ts`).
+4. The assistant proposal APIs (entitlement and project parameter per module) are a small table in `server.ts` (`PROPOSAL_APIS`); the manifest has no field for them yet.
+5. `@ews/platform-sdk` ranges of `services/api` and `services/assistant` are now `^1.11.0`.
