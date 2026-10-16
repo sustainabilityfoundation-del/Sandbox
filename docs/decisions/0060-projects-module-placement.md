@@ -1,6 +1,6 @@
 # ADR-0060: Project Management as a service-backed module that indexes, not copies
 
-Status: Proposed (2026-10-15)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -16,8 +16,8 @@ implicit today: a `project_id` string in every service and a single hard-wired p
   SSE), `packages/projects-client` (`@ews/projects-client`), and shell-level UI in `apps/workspace/src/projects`.
 - It owns the project registry and lifecycle, templates, membership *management* (written through a platform
   membership port so `platform.project_memberships` stays the single authorization source), the artifact
-  registry, links no module owns, work items, milestones, documents and attachments, project baselines,
-  activity and audit, export/import and integrity checks.
+  registry, links no module owns, work items, milestones, documents and attachments, project baselines
+  (planned, ADR-0067), activity and audit, export/import (planned, ADR-0064) and integrity checks (planned).
 - It stores references and summary metadata only. Module content stays in modules.
 - Every operation is a typed API command used by the UI and the assistant alike; assistant changes are
   service proposals with dry-run previews; destructive operations need explicit confirmation.
@@ -37,3 +37,7 @@ implicit today: a `project_id` string in every service and a single hard-wired p
 - *A universal project database holding all module data*: rejected (vision §5, contracts §2.2).
 - *Project registry inside `services/api/src/platform`*: rejected; the platform host should stay a host, and
   the registry has its own lifecycle, API, events and tests.
+
+## Amendments on acceptance
+
+- Project baselines (ADR-0067), export/import (ADR-0064) and integrity checks are marked as planned.

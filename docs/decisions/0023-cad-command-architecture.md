@@ -1,6 +1,6 @@
 # ADR-0023: One typed command layer for people, the assistant and scripts
 
-Status: Proposed (2026-10-14, CAD agent). Number provisional. Extends ADR-0010 and ADR-0013 for CAD.
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -29,15 +29,25 @@ checks, determinism and approval.
   statuses and mass-property changes without committing. The assistant uses it for previews.
 - Reads are **queries** (feature tree, parameters, sketch status and DOF, entities with stable names,
   mass properties, dependency graph, failures, operation log, native document), also catalogued.
-- Assistant integration (contracts §5): read actions return query data; mutations return an SDK 1.5
-  **service proposal** (module `cad-modeler`) listing the commands and the dry-run prediction. On
+- Assistant integration (contracts §5): read actions return query data; mutations return a
+  **DeclarativeProposal** (SDK 1.8: `saveRevision` / `createDocument` with `If-Match`) when the CAD
+  service is connected. The closure-based SDK 1.5 **service proposal** (module `cad-modeler`) listing
+  the commands and the dry-run prediction is only the fallback (documents with unsaved local changes,
+  local stores, file-only sessions; `packages/tool-cad-modeler/src/assistant.ts` ~367-402). On
   Apply the same executor runs the commands with the captured `expectedVersion`; Undo reverts only if
   nothing else changed since.
 - The UI never mutates the document directly: buttons and dialogs build the same command objects.
 
 ## Consequences
 
-- Human and AI coverage is equal by construction; the capability inventory lists one shared operation
-  (`cad-modeler.run_commands`) plus queries.
+- Human and AI coverage is equal by construction; the capability inventory lists about 13
+  `cad-modeler.*` operations (12 actions in `assistant.ts` at 186db1c, among them `run_commands`,
+  `query`, `describe_model`, `new_document`, `open_document`, `save_document`, `export`, `undo`,
+  `check`), not one shared operation plus queries.
 - Snapshot undo is simple and exact for Phase 1 documents; very large documents will need
   structural sharing or inverse commands (Phase 6).
+
+## Amendments on acceptance
+
+- Mutations return a DeclarativeProposal when the CAD service is connected; the closure service proposal is the fallback only.
+- The inventory has about 13 `cad-modeler.*` operations, not "one shared operation plus queries".

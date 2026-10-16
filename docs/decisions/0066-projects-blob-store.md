@@ -1,6 +1,6 @@
 # ADR-0066: Content-addressed blob store behind an interface
 
-Status: Proposed (2026-10-15)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -11,7 +11,7 @@ for development, an optional S3-compatible adapter later, and no paid service. R
 
 ## Decision
 
-- `BlobStore { put(bytes | stream) → { key, sha256, byteSize }, get(key), has(key), description }` in
+- `BlobStore { put(bytes) → { key, sha256, byteSize }, get(key), has(key), description }` in
   `services/projects/src/blob`, keys `sha256/<2>/<hash>` (no user input in keys), atomic write by temporary
   file and rename, optional hash verification on read.
 - Adapters: `localBlobStore(root)` (default `STORAGE_DIR`, `.data/objects`, git-ignored, shared directory with
@@ -19,9 +19,13 @@ for development, an optional S3-compatible adapter later, and no paid service. R
   adapter is backlog B-08.
 - PostgreSQL holds the catalogue (`projects.blobs`) and the meaning (document versions). Bytes are never
   deleted while any row references them.
-- Upload limit 200 MB per version (configurable); streaming upload for large files.
+- Upload limit 200 MB per version (configurable); uploads are buffered up to the limit; streaming is backlog.
 
 ## Consequences
 
 - Deduplication across versions and projects; integrity verifiable by hash.
 - Same scheme as Requirements, so a later shared storage package can merge both without moving bytes.
+
+## Amendments on acceptance
+
+- `put(bytes)` only, no stream (`services/projects/src/blob`); uploads are buffered up to the limit; streaming is backlog.

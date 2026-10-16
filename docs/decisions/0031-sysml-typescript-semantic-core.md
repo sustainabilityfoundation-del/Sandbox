@@ -1,6 +1,6 @@
 # ADR-0031: SysML Modeler — TypeScript semantic core with a hand-written parser
 
-Status: Proposed (2026-10-14, SysML agent)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -15,13 +15,14 @@ Python tooling.
 - Implement the KerML/SysML v2 semantic core in TypeScript (`@ews/sysml-core`), framework-free, so the
   same engine runs in the service (Node) and in the browser (local adapter, editors).
 - Hand-write a recursive-descent lexer/parser for a documented subset of the textual notation, producing
-  abstract-syntax elements directly (no intermediate CST library). Rationale: no maintained, permissively
+  a hand-written syntax tree (`syntax/ast.ts`) that `syntax/build.ts` maps to abstract-syntax elements
+  (no third-party parser or CST library). Rationale: no maintained, permissively
   licensed TypeScript parser that produces the abstract syntax could be confirmed (see the research
   landscape for each candidate's licence and maintenance status); Langium would add a large
   framework and its own AST we would still have to map; a hand-written parser gives precise error
   recovery and source ranges for the editor.
-- Use the OMG pilot implementation, if its licence allows, only as an **external conformance oracle**
-  (not shipped; allowed by contracts §2).
+- The conformance oracle is the official release corpus (tags 2026-04 and later, EPL-2.0), run by
+  `npm run sysml:conformance`; it is not shipped. The pilot implementation is not used.
 
 ## Consequences
 
@@ -34,3 +35,8 @@ Python tooling.
 - JVM pilot implementation as a service: new shipped runtime (approval), heavy, LGPL/EPL questions.
 - SysON as the editor: Java backend, different persistence; would not integrate with platform services.
 - Langium grammar from scratch: comparable effort to a hand-written parser, plus framework weight.
+
+## Amendments on acceptance
+
+- The parser produces a hand-written syntax tree (`syntax/ast.ts`) mapped by `syntax/build.ts`; no third-party parser or CST library.
+- The oracle is the official release corpus run by `npm run sysml:conformance`; the pilot implementation is not used.

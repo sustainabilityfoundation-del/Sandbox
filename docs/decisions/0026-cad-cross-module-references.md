@@ -1,6 +1,6 @@
 # ADR-0026: References between CAD Modeler entities and other modules
 
-Status: Proposed (2026-10-14, CAD agent). Number provisional. Item 2 approved with a change by the
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below). Earlier notes: item 2 approved with a change by the coordinator (CR-CAD-1, 2026-10-15; see *Decision on CR-CAD-1*); product-structure references decided by the coordinator (CR-PM-CAD-1, 2026-10-15; see *Product structure*)
 coordinator (CR-CAD-1, 2026-10-15; see *Decision on CR-CAD-1*); items 1 and 3 remain proposed. Product-structure
 references decided by the coordinator (CR-PM-CAD-1, 2026-10-15; see *Product structure*).
 
@@ -16,7 +16,8 @@ SysML elements in the twin; CAD never copies them.
 1. **Outbound references** (owned by CAD, stored in the native document, `references[]`): a subject
    (part, feature, parameter, face name) points to a target `{ module, id, revision?, kind? }` with a
    role: `represents` (twin component), `satisfies` / `verifies` (requirement UUID in the Requirements
-   service), `realizes` (Concept UUID), `traces` (SysML element). Targets are validated through the
+   service), `realizes` (Concept UUID), `traces` (SysML element), `related`. Target modules are `twin`,
+   `requirements`, `sysml`, `conceptualize`, `product` and `external`. Targets are validated through the
    owning module's API when available and are never copied.
 2. **Inbound references** (`ArtifactRef` from other modules to CAD Modeler entities), CR-CAD-1. The
    original proposal used `id: "cadm:<documentUuid>/<entityId>"` with one kind per entity type. It is
@@ -76,3 +77,7 @@ SysML elements in the twin; CAD never copies them.
 ## Open
 
 - Twin projection (item 3) is deferred (CR-CAD-3).
+
+## Amendments on acceptance
+
+- Item 1: added the role `related` and the target modules `product` and `external` (`packages/cad-core/src/model/types.ts:126-127`).

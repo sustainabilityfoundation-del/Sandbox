@@ -2,6 +2,8 @@
 
 Status: Proposed (2026-10-14, SysML agent); parts need coordinator approval (CR-SYSML-01/02/03)
 
+Review note (16 October 2026): not accepted. It conflicts with AGENTS.md "Model identity and revision rules": SysML-to-product links use metadata instead of `represents`. It needs an architecture decision before acceptance.
+
 ## Context
 
 Requirements stay authoritative (contracts §5); Conceptualize links concepts to artifacts with

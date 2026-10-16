@@ -2,6 +2,8 @@
 
 Status: Proposed (2026-10-14, CAD agent). Number provisional.
 
+Review note (16 October 2026): not accepted yet. Technically accepted, but it waits for the owner on LGPL-2.1 suitability, the shipped notice and WASM hosting cost.
+
 ## Context
 
 Brief §5 asks for an exact B-rep kernel (booleans, NURBS, trimming, fillets, offsets, intersections,

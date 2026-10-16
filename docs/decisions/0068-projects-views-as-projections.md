@@ -1,6 +1,6 @@
 # ADR-0068: Project views are projections; no maintained copies
 
-Status: Proposed (2026-10-15)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -16,8 +16,14 @@ not independently maintained copies. SysML already treats diagrams as projection
 - Edits from a view are commands to the owning module.
 - Caches are in memory, keyed by source revisions, never persisted, never authoritative.
 - Missing modules produce explicit gaps, never substitute data.
+- Built today: the artifact browser and the breakdown tree. Planned: the other views, the views API
+  (sources, freshness, gaps), the derived link index and the caches.
 
 ## Consequences
 
 - No synchronisation problems between views; one artifact can appear in several hierarchies.
 - View performance depends on the registry and the link index; module calls are limited to details.
+
+## Amendments on acceptance
+
+- Marked the other views, the views API (sources, freshness, gaps), the derived link index and the caches as planned; built today are the artifact browser and the breakdown tree.

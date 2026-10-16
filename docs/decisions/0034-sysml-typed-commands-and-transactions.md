@@ -1,6 +1,6 @@
 # ADR-0034: SysML Modeler — typed commands and transactions are the only write path
 
-Status: Proposed (2026-10-14, SysML agent)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -27,3 +27,7 @@ ADR-0010, contracts §6).
 
 - The UI, the assistant, the local adapter and API clients share one implementation and one set of rules.
 - Undo works across sessions and users (it is a commit, not a client-side stack).
+
+## Amendments on acceptance
+
+- None.

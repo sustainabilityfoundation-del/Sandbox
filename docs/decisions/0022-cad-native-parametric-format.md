@@ -1,6 +1,6 @@
 # ADR-0022: Open, versioned native parametric format (`ews-cad`, JSON)
 
-Status: Proposed (2026-10-14, CAD agent). Number provisional.
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -10,7 +10,7 @@ design intent; STEP AP242 is the neutral exchange target but does not carry feat
 ## Decision
 
 - The authoritative representation of a CAD Modeler document is a JSON document with
-  `"format": "ews-cad"` and a semantic `formatVersion` (`1.0.0` now), media type
+  `"format": "ews-cad"` and a semantic `formatVersion` (`1.0.0` at introduction; 1.3.0 at 186db1c, minor versions additive), media type
   `application/vnd.ews.cad+json`, file extension `.ewscad`.
 - It stores design intent, not kernel output: parts, parameters with expressions and units, sketches
   (entities, constraints, driving/driven dimensions, the drawn seed geometry), features in history
@@ -33,3 +33,7 @@ design intent; STEP AP242 is the neutral exchange target but does not carry feat
 - Any party can read and write models without our code; diffs are human-readable.
 - Large models will need a chunked or binary companion encoding (Phase 6); the JSON stays the open
   reference encoding.
+
+## Amendments on acceptance
+
+- `formatVersion` note corrected: `1.0.0` at introduction, 1.3.0 at 186db1c (`FORMAT_VERSION` in `packages/cad-core/src/model/types.ts:10`).

@@ -1,6 +1,6 @@
 # ADR-0030: SysML Modeler — placement, packages and tool identity
 
-Status: Proposed (2026-10-14, SysML agent; needs coordinator acceptance)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -17,9 +17,10 @@ repository or as an isolated module, favouring independent development and deplo
 - The tool imports only `@ews/platform-sdk`, `@ews/design-system`, `@ews/sysml-client` and
   `@ews/sysml-core` (types and pure functions for projections and text). It never imports another
   tool or the illustrative `tool-sysml`.
-- The illustrative tool stays unchanged; replacement is a later coordinator decision (contracts §1).
-- Until the SDK offers a SysML service (CR-SYSML-01), the tool package exports a factory
-  `createSysmlModelerTool({ mode, devUser })` that builds its client; the workspace registers it.
+- The illustrative `tool-sysml` stays registered and unchanged. Whether, when and how it is retired, and how its twin data (SysML elements, `represents` links) migrate, is left to a separate future ADR (compare ADR-0027 for the mock CAD tool); this ADR does not decide it.
+- The SDK now offers a read-only `PlatformServices.sysml` (SDK 1.8); the tool still builds its own
+  client through `createSysmlModelerTool({ mode, baseUrl, devUser, storage, client })`, which the
+  workspace registers.
 
 ## Consequences
 
@@ -32,3 +33,8 @@ repository or as an isolated module, favouring independent development and deplo
 
 - Separate repository now: rejected; platform contracts still change daily.
 - Extending `tool-sysml`: rejected by contracts §1 (keep the illustrative tool working unchanged).
+
+## Amendments on acceptance
+
+- Retirement of `tool-sysml` and migration of its twin data are left to a separate future ADR.
+- `PlatformServices.sysml` exists (SDK 1.8, read-only); the factory signature is `createSysmlModelerTool({ mode, baseUrl, devUser, storage, client })` (`packages/tool-sysml-modeler/src/index.ts:31`).

@@ -1,6 +1,6 @@
 # ADR-0049: Persisted declarative proposals, server-side Apply gateway and headless contributions
 
-Status: Proposed (2026-10-15, AI connection agent)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 Implements [ADR-0042](0042-declarative-service-proposals.md) and integration milestone 1 C9 / C13
 ([integration-milestone-1.md](../specifications/integration-milestone-1.md) §4). Related: ADR-0047.
@@ -41,3 +41,7 @@ Project Management and design reasoning have operations but no tool view (CR-PM-
   resumable. Multi-record changes should use one atomic module operation where the module offers it.
 - Modules move to declarative proposals at their own pace; until then their changes stay closure fallbacks.
 - Declarative undo (compensating operations) is not defined yet.
+
+## Amendments on acceptance
+
+- None.

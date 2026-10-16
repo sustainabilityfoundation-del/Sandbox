@@ -1,6 +1,6 @@
 # ADR-0032: SysML Modeler — the stored model is the KerML/SysML abstract syntax
 
-Status: Proposed (2026-10-14, SysML agent)
+Status: Accepted (16 October 2026, coordinator, after review against main 186db1c; amendments recorded below)
 
 ## Context
 
@@ -21,7 +21,11 @@ stored model must preserve the semantics of SysML and KerML."
 
 ## Consequences
 
-- Exchange with the Systems Modeling API and other tools does not need a semantic mapping layer.
+- Exchange with the Systems Modeling API and other tools does not need a semantic mapping layer for the supported metaclasses; others are kept opaquely.
 - More elements per modelling concept (a typed part usage is 3 elements: usage, membership, typing):
   storage and indexes are sized for that (head index, reference index).
 - Commands hide the relationship plumbing from users and the AI (ADR-0034).
+
+## Amendments on acceptance
+
+- Consequence limited to the supported metaclasses; others are kept opaquely.

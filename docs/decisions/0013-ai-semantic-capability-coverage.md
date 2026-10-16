@@ -2,6 +2,8 @@
 
 Status: Proposed (2026-10-14)
 
+Review note (16 October 2026): not accepted. The core decision (a typed registry running UI and AI through the same handlers) is not built; only the coverage inventory exists.
+
 ## Context
 
 The owner wants freeform conversations to produce concrete engineering implementations, with AI
