@@ -298,6 +298,19 @@ export class CadSession {
 
   // ---- CAD document service (CR-CAD-2) ------------------------------------------------------
 
+  /** Declarative saves prepared here and not applied yet: document → model version and base revision (0: not stored). */
+  private pendingSaves = new Map<string, { version: number; baseRevision: number }>()
+  /** Called when a declarative proposal will store this document's current version (see watchProject). */
+  expectDeclarativeSave(id: string, baseRevision: number, projectId: string) {
+    const d = this.require(id)
+    this.pendingSaves.set(id, { version: d.engine.document.version, baseRevision })
+    this.watchProject(projectId)
+  }
+  /** The document as it is sent to the CAD service: writer and modification time stamped. */
+  stampForStore(doc: CadDocument): CadDocument {
+    return { ...doc, metadata: { ...doc.metadata, modifiedAt: new Date().toISOString(), writer: WRITER } }
+  }
+
   private store: CadClient | null = null
   private storeEvents: (() => void) | null = null
   private storeProject: string | null = null
@@ -322,7 +335,28 @@ export class CadSession {
     this.storeProject = projectId
     this.storeEvents = this.store.subscribe(projectId, (e) => {
       const d = this.docs.get(e.documentId)
-      if (!d || e.revision === undefined || !d.stored || e.revision <= d.stored.revision) return
+      if (!d || e.revision === undefined) return
+      // A declarative save prepared in this window (SDK 1.8) was applied by the platform: adopt it.
+      const pending = this.pendingSaves.get(d.id)
+      if (pending && e.revision === pending.baseRevision + 1 && d.engine.document.version === pending.version) {
+        this.pendingSaves.delete(d.id)
+        d.stored = { projectId, revision: e.revision }
+        d.projectId = projectId
+        d.savedVersion = pending.version
+        d.remoteRevision = undefined
+        this.emit()
+        return
+      }
+      if (!d.stored || e.revision <= d.stored.revision) return
+      // Assistant changes applied by the platform (declarative proposals) are followed when there are no local
+      // changes; anything else, or local changes, shows the notice and replaces nothing.
+      if (!this.isDirty(d) && e.sourceKind === 'assistant') {
+        void this.openFromStore(projectId, d.id, undefined, { activate: false }).catch(() => {
+          d.remoteRevision = e.revision
+          this.emit()
+        })
+        return
+      }
       d.remoteRevision = e.revision
       this.emit()
     })
@@ -370,6 +404,7 @@ export class CadSession {
   /** Opens a stored document (the current or a given revision) and regenerates it. */
   async openFromStore(projectId: string, documentId: string, revision?: number, options: { activate?: boolean } = {}): Promise<OpenDocument> {
     if (!this.store) throw new CadError('unsupported', 'No CAD document service is connected.')
+    const wasActive = this.activeId
     const got = await this.store.get(projectId, documentId, revision)
     const existing = this.docs.get(documentId)
     if (existing && this.isDirty(existing)) throw new CadError('precondition-failed', `“${existing.engine.document.metadata.title}” is open with unsaved changes. Save it to a file or close it first.`)
@@ -379,7 +414,8 @@ export class CadSession {
     const previous = this.activeId
     const d = this.add(engine, `${fileStem(got.document.metadata.title)}${FILE_EXTENSION}`, got.document.version, projectId)
     // Headless loads (assistant operations) keep the view's active document.
-    if (options.activate === false && previous && this.docs.has(previous)) this.activeId = previous
+    const keep = wasActive === documentId ? documentId : wasActive && this.docs.has(wasActive) ? wasActive : previous
+    if (options.activate === false && keep && this.docs.has(keep)) this.activeId = keep
     // An older revision opens as a read-back: saving it again needs the current revision as base.
     d.stored = { projectId, revision: got.summary.revision }
     this.watchProject(projectId)

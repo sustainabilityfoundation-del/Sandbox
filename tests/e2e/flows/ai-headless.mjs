@@ -16,7 +16,6 @@ const KNOWN_FAILING = {
   // check_bindings, export). This flow has no example arguments for them in the example project yet, because that
   // needs a SysML project and a stored CAD document there.
   'sysml-modeler': 'headless in demo-d1.mjs; no example arguments here yet',
-  'cad-modeler': 'headless in demo-d1.mjs; no example arguments here yet',
 }
 
 // Target of projects.open (the proposal is prepared, never applied): another active project of eli.
@@ -60,7 +59,7 @@ const mounted = await page.evaluate(async () => {
 check(mounted.open.length === 0 && mounted.views === 0, `all tool tabs are closed and no tool view is mounted (${mounted.open.length} open, ${mounted.views} views)`)
 await page.screenshot({ path: `${shots}/01-no-tools.png` })
 
-const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
+const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
   const { executeToolCall } = await import('/workspace/src/assistant/executor.ts')
   const { createWorkspaceEnvironment } = await import('/workspace/src/assistant/environment.ts')
   const { captureContext } = await import('/workspace/src/assistant/conversation.ts')
@@ -95,6 +94,36 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
   const stamp = Date.now() % 100000
   // A product element of the example project, found through the operations (ref.id is its UUID).
   const element = (await run('projects.list_artifacts', { category: 'product-element', q: 'ROD-120' })).data?.[0]?.ref?.id
+  // A stored CAD document of the example project for the cad-modeler operations, created through the CAD API
+  // (a block with a hexagonal pocket in a linear pattern; the parameter "af" is bound to a Conceptualize constraint).
+  const core = await import(`/workspace/@fs/${repoFs}/packages/cad-core/src/index.ts`)
+  // The constraint's UUID and revision come from the Conceptualize API (operation results give keys only, CR-AI-9).
+  const constraints = await (await fetch('/api/concepts/v1/projects/PRJ-ACT100/constraints', { headers: { 'x-dev-user': 'eli' } })).json()
+  const constraint = (Array.isArray(constraints) ? constraints : constraints.items ?? []).find((c) => c.key === 'CST-001')
+  const built = core.applyTransaction(core.createDocument({ title: `Headless CAD ${stamp}` }), {
+    commands: [
+      { command: 'create_part', input: { name: 'Block', ref: '$p' } },
+      { command: 'create_parameter', input: { partId: '$p', name: 'af', expression: '7' } },
+      { command: 'create_sketch', input: { partId: '$p', plane: 'XY', ref: '$s' } },
+      { command: 'add_rectangle', input: { sketchId: '$s', width: 60, height: 20 } },
+      { command: 'extrude_profile', input: { sketchId: '$s', distance: 20 } },
+      { command: 'create_sketch', input: { partId: '$p', plane: 'XY', offset: 20, ref: '$h' } },
+      { command: 'add_regular_polygon', input: { sketchId: '$h', center: [12, 10], sides: 6, size: { acrossFlats: 'af' }, rotation: 30 } },
+      { command: 'extrude_profile', input: { sketchId: '$h', distance: 12, direction: 'reverse', operation: 'cut', ref: '$pocket' } },
+      { command: 'pattern_linear', input: { features: ['$pocket'], direction: 'x', count: 3, spacing: 12, ref: '$pat' } },
+      ...(constraint?.id ? [{ command: 'bind_parameter', input: { partId: '$p', name: 'af', ref: { module: 'conceptualize', kind: 'constraint', id: constraint.id, revision: constraint.revision ?? 1 } } }] : []),
+    ],
+  })
+  if (!built.ok) throw new Error(`CAD fixture: ${built.error.message}`)
+  const cadDoc = built.doc
+  const stored = await fetch('/api/cad/v1/projects/PRJ-ACT100/documents', { method: 'POST', headers: { 'content-type': 'application/json', 'x-dev-user': 'eli', 'idempotency-key': `hl-cad-${stamp}-${Math.random()}` }, body: JSON.stringify({ document: cadDoc, message: 'ai-headless fixture' }) })
+  if (stored.status !== 201) throw new Error(`CAD fixture not stored: HTTP ${stored.status}`)
+  const cadId = cadDoc.documentId
+  const patternId = cadDoc.parts[0].features.find((x) => x.type === 'pattern-linear').id
+  // An unsaved local change in this window's CAD session (the same module the app uses), so undo and save have work.
+  const { cadSession } = await import(`/workspace/@fs/${repoFs}/packages/tool-cad-modeler/src/session.ts`)
+  const open = await cadSession.openFromStore('PRJ-ACT100', cadId, undefined, { activate: false })
+  await open.engine.execute({ commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'af', expression: '7.2' } }], label: 'Local edit', source: 'user' })
   const examples = {
     read_object: { id: 'ROD-120' },
     search_objects: { query: 'rod' },
@@ -144,6 +173,17 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
     'projects.open': { project: 'HL-OPEN' },
     'projects.create_product_element': { name: `Headless element ${stamp}`, elementKind: 'part' },
     'projects.add_breakdown_edge': { childId: 'ROD-120', parentId: 'ACT-100' },
+    'cad-modeler.list_documents': {},
+    'cad-modeler.describe_model': { documentId: cadId },
+    'cad-modeler.query': { documentId: cadId, query: 'get_feature_tree' },
+    'cad-modeler.run_commands': { documentId: cadId, label: 'Headless: wider pockets', commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'af', expression: '7.5' } }] },
+    'cad-modeler.undo': { documentId: cadId },
+    'cad-modeler.new_document': { title: `Headless new ${stamp}`, partName: 'Part' },
+    'cad-modeler.open_document': { documentId: cadId },
+    'cad-modeler.save_document': { documentId: cadId, message: 'headless (preview only)' },
+    'cad-modeler.export': { documentId: cadId, format: 'step', return: true },
+    'cad-modeler.check': { documentId: cadId, checks: constraint?.id ? [{ measure: { kind: 'pattern-gap', featureId: patternId }, constraint: { id: constraint.id } }] : [] },
+    'cad-modeler.check_bindings': { documentId: cadId },
     'projects.store_document': { title: 'Headless document', contentBase64: 'aGVhZGxlc3M=', fileName: 'headless.txt', mediaType: 'text/plain', documentKind: 'other' },
   }
   const ops = availableOperations().map((o) => o.name).filter((n) => !VIEW_CONTROLS.includes(n))
@@ -169,7 +209,7 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS }) => {
     }
   }
   return { results, applied, keys: { actuator, transmission, alternative, fn, decision } }
-}, { VIEW_CONTROLS })
+}, { VIEW_CONTROLS, repoFs: env.repoFs })
 
 check(!!report.keys.actuator && !!report.keys.transmission && !!report.keys.alternative && !!report.keys.fn && !!report.keys.decision, `seeded Conceptualize data found through the operations (${JSON.stringify(report.keys)})`)
 for (const r of report.results) {

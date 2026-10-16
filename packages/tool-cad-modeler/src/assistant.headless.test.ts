@@ -88,7 +88,7 @@ describe('C9: every cad-modeler operation with no view mounted', () => {
     expect(p.preview.find((i) => i.label === 'Saved to the project')?.proposed).toBe(`revision 2 of ${doc.documentId} in ${A}`)
     // Preview only: nothing stored yet.
     expect((await store.revisions(A, doc.documentId)).map((r) => r.revision)).toEqual([1])
-    expect((await p.apply(provenance)).summary).toMatch(/saved revision 2 in PRJ-HEADLESS-A$/)
+    expect((await p.apply(provenance)).summary).toMatch(/saved as revision 2 of document .* in PRJ-HEADLESS-A \(no separate save needed\)$/)
     const revs = await store.revisions(A, doc.documentId)
     expect(revs[0]).toMatchObject({ revision: 2, message: 'Assistant: Thicker', source: { sourceKind: 'assistant' } })
     expect((await store.get(A, doc.documentId)).document.parts[0].parameters[0].expression).toBe('8')
@@ -99,9 +99,10 @@ describe('C9: every cad-modeler operation with no view mounted', () => {
   })
 
   it('run_commands with no document creates and stores one; new_document stores one', async () => {
-    const p = await propose('cad-modeler.run_commands', { commands: [{ command: 'create_part', input: { name: 'Bracket' } }], label: 'New bracket' })
-    await p.apply(provenance)
-    expect((await store.list(A)).map((d) => d.parts.map((x) => x.name))).toEqual([['Bracket']])
+    const p = await propose('cad-modeler.run_commands', { commands: [{ command: 'create_part', input: { name: 'Bracket' } }], label: 'New bracket', title: 'Mounting bracket' })
+    expect(p.preview.find((i) => i.label === 'New document')?.proposed).toBe('Mounting bracket')
+    expect((await p.apply(provenance)).summary).toMatch(/saved as revision 1 .*no separate save needed/)
+    expect((await store.list(A)).map((d) => [d.title, d.parts.map((x) => x.name)])).toEqual([['Mounting bracket', ['Bracket']]])
     const n = await propose('cad-modeler.new_document', { title: 'Second', partName: 'Pin' }, B)
     expect((await n.apply(provenance)).summary).toMatch(/stored as revision 1$/)
     expect((await store.list(B)).map((d) => d.title)).toEqual(['Second'])
@@ -113,7 +114,7 @@ describe('C9: every cad-modeler operation with no view mounted', () => {
     await open.apply(provenance)
     expect(cadSession.document(doc.documentId)).toBeDefined()
     const save = await propose('cad-modeler.save_document', { documentId: doc.documentId, message: 'checkpoint' })
-    expect((await save.apply(provenance)).summary).toBe('No changes since revision 1')
+    expect((await save.apply(provenance)).summary).toBe('Already saved: revision 1 in PRJ-HEADLESS-A is current (nothing to save)')
     const ewscad = await propose('cad-modeler.export', { format: 'ewscad', documentId: doc.documentId })
     await ewscad.apply(provenance)
     const step = await propose('cad-modeler.export', { format: 'step', documentId: doc.documentId })

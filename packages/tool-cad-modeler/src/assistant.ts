@@ -1,7 +1,8 @@
-import { CadEngine, COMMANDS, MEDIA_TYPE, QUERIES, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, serializeDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
-import { ActionError, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
+import { CadEngine, COMMANDS, MEDIA_TYPE, QUERIES, applyTransaction, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, serializeDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
+import { ActionError, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DeclarativeProposal, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { cadSession, type OpenDocument } from './session'
 import { runChecks, type CheckRequest, type MeasureSpec } from './checks'
+import pkg from '../package.json'
 
 /**
  * Assistant operations for the CAD Modeler (contracts §5, ADR-0023). Reads return structured data
@@ -265,12 +266,13 @@ const actions: AssistantActionDefinition[] = [
     label: 'Prepare CAD modelling commands',
     description:
       `Propose a transaction of CAD commands (all apply or none). The commands are validated and the model is regenerated on a copy for the preview (predicted volumes, faces, failures); nothing changes until the user applies it. Commands: ${COMMANDS.map((c) => c.name).join(', ')}. ` +
-      'Each item is { "command": name, "input": {...} }; see cad-modeler.query list_commands for input schemas. Use "ref": "$name" on create commands and "$name" (or "$name.field.index") in later commands of the same transaction. Lengths in mm, angles in degrees; values may be expressions over part parameters. When no document is open, a new one is created.',
+      'Each item is { "command": name, "input": {...} }; see cad-modeler.query list_commands for input schemas. Use "ref": "$name" on create commands and "$name" (or "$name.field.index") in later commands of the same transaction. Lengths in mm, angles in degrees; values may be expressions over part parameters. When no document is open, a new one is created (name it with "title"). When no CAD Modeler view is open and the project has a CAD service, Apply also saves the result as a new revision (the result says which); cad-modeler.save_document is then not needed.',
     parameters: {
       type: 'object',
       properties: {
         commands: { type: 'array', items: { type: 'object' }, description: 'List of { command, input }.' },
         label: { type: 'string', description: 'Short description shown in the preview and the undo history.' },
+        title: { type: 'string', maxLength: 200, description: 'Title of the new document when the commands create one (ignored for an existing document).' },
         expectedVersion: { type: 'integer', description: 'Document version the commands were planned against (from describe_model); a mismatch is reported instead of applying.' },
         documentId,
       },
@@ -287,7 +289,42 @@ const actions: AssistantActionDefinition[] = [
         throw new ActionError(dry.error?.code === 'version-conflict' ? 'conflict' : dry.error?.code === 'not-found' ? 'not-found' : 'invalid-arguments', `${dry.error?.message ?? 'The commands are not valid.'}${where}`)
       }
       const label = (typeof args.label === 'string' && args.label.trim()) || (commands.length === 1 ? commands[0].command.replace(/_/g, ' ') : `${commands.length} CAD commands`)
-      const title = open ? `${label} in “${open.engine.document.metadata.title}”` : `${label} (new CAD document)`
+      const newTitle = typeof args.title === 'string' && args.title.trim() ? args.title.trim().slice(0, 200) : undefined
+      const title = open ? `${label} in “${open.engine.document.metadata.title}”` : `${label} (new CAD document${newTitle ? ` “${newTitle}”` : ''})`
+      // Declarative (SDK 1.8): with no view mounted and the CAD service as the platform API, the change is
+      // a new stored revision. The resulting document is computed here (same commands, same validation)
+      // and the platform applies it through the CAD API, with If-Match and the expected revision. Documents
+      // with local unsaved changes, local stores and file-only sessions keep the closure (labelled fallback).
+      if (persist && cadSession.storeClient?.mode === 'api' && (!open || (open.stored && !cadSession.isDirty(open)))) {
+        const baseDoc = open ? open.engine.document : createDocument({ title: newTitle ?? 'Untitled' })
+        const out = applyTransaction(baseDoc, { commands, expectedVersion: baseDoc.version, label: `Assistant: ${label}`, source: 'assistant' })
+        if (!out.ok) throw new ActionError('invalid-arguments', out.error.message)
+        const document = cadSession.stampForStore(out.doc)
+        const message = `Assistant: ${label}`
+        const docsPath = `/projects/${encodeURIComponent(projectId)}/documents`
+        const result: DeclarativeProposal = {
+          kind: 'declarative-proposal',
+          module: MODULE,
+          title,
+          explanation: `${commands.length} command${commands.length === 1 ? '' : 's'} in one transaction${open ? ` against revision ${open.stored!.revision} (model version ${version})` : ' in a new document'}. The preview shows the regenerated result predicted by the kernel; Apply stores the result as ${open ? `revision ${open.stored!.revision + 1}` : 'revision 1'} in ${projectId}.`,
+          preview: [
+            ...(open ? [] : [{ label: 'New document', proposed: newTitle ?? 'Untitled CAD Modeler document' }]),
+            ...commands.map((c, i) => ({ label: `${i + 1}. ${c.command}`, proposed: describeInput(c) })),
+            ...predictionItems(dry),
+            { targetId: open?.id ?? document.documentId, label: 'Saved to the project', proposed: open ? `revision ${open.stored!.revision + 1} of ${open.id} in ${projectId}` : `new document ${document.documentId} (revision 1) in ${projectId}` },
+          ],
+          assumptions: dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : undefined,
+          inspected: open ? [{ id: open.id, detail: `CAD document revision ${open.stored!.revision}, model version ${version}` }] : [],
+          operations: open
+            ? [{ module: MODULE, operationId: 'saveRevision', method: 'PUT', path: `${docsPath}/${open.id}`, body: { document, message }, ifMatch: `"${open.stored!.revision}"` }]
+            : [{ module: MODULE, operationId: 'createDocument', method: 'POST', path: docsPath, body: { document, message } }],
+          ...(open
+            ? { expected: [{ module: MODULE, kind: 'cad-document', id: open.id, label: open.engine.document.metadata.title, revision: open.stored!.revision, read: { operationId: 'getDocument', path: `${docsPath}/${open.id}`, field: 'summary.revision' } }] }
+            : {}),
+          projectId,
+        }
+        return result
+      }
       let before: CadDocument | undefined
       let appliedVersion: number | undefined
       let target = open?.id
@@ -297,7 +334,7 @@ const actions: AssistantActionDefinition[] = [
         title,
         explanation: `${commands.length} command${commands.length === 1 ? '' : 's'} in one transaction against version ${version}${open ? '' : ' of a new document'}. The preview shows the regenerated result predicted by the kernel.`,
         preview: [
-          ...(open ? [] : [{ label: 'New document', proposed: 'Untitled CAD Modeler document' }]),
+          ...(open ? [] : [{ label: 'New document', proposed: newTitle ?? 'Untitled CAD Modeler document' }]),
           ...commands.map((c, i) => ({ label: `${i + 1}. ${c.command}`, proposed: describeInput(c) })),
           ...predictionItems(dry),
           ...(persist ? [{ targetId: open?.id, label: 'Saved to the project', proposed: open?.stored ? `revision ${open.stored.revision + 1} of ${open.id} in ${projectId}` : `new stored document in ${projectId}` }] : []),
@@ -305,7 +342,7 @@ const actions: AssistantActionDefinition[] = [
         assumptions: dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : undefined,
         inspected: open ? [{ id: open.id, detail: `CAD document version ${version}` }] : [],
         async apply(provenance) {
-          const d = target ? cadSession.require(target) : await cadSession.newDocument({ source: 'assistant', empty: true, projectId })
+          const d = target ? cadSession.require(target) : await cadSession.newDocument({ source: 'assistant', empty: true, projectId, ...(newTitle ? { title: newTitle } : {}) })
           target = d.id
           before = d.engine.document
           const expected = open ? version : d.engine.document.version
@@ -317,7 +354,7 @@ const actions: AssistantActionDefinition[] = [
           if (persist) {
             try {
               const r = await cadSession.saveToStore(projectId, d.id, { message: `Assistant: ${label}`, provenance: { sourceKind: 'assistant', ...provenance } })
-              saved = `; saved revision ${r.revision} in ${projectId}`
+              saved = r.unchanged ? `; already stored as revision ${r.revision} in ${projectId}` : `; saved as revision ${r.revision} of document ${d.id} in ${projectId} (no separate save needed)`
             } catch (e) {
               // Not durable: put the in-memory model back so nothing diverges from the project.
               await d.engine.restore(before, `Revert assistant: ${label}`, 'assistant', result.version)
@@ -469,6 +506,25 @@ const actions: AssistantActionDefinition[] = [
       const projectId = ctx.captured.projectId
       const message = typeof args.message === 'string' ? args.message : ''
       const base = d.stored?.revision
+      if (store.mode === 'api' && (!d.stored || d.stored.projectId === projectId)) {
+        if (d.stored && !cadSession.isDirty(d)) throw new ActionError('no-op', `Already saved: revision ${d.stored.revision} in ${projectId} is current (nothing to save).`)
+        const document = cadSession.stampForStore(d.engine.document)
+        const docsPath = `/projects/${encodeURIComponent(projectId)}/documents`
+        cadSession.expectDeclarativeSave(d.id, base ?? 0, projectId)
+        const result: DeclarativeProposal = {
+          kind: 'declarative-proposal',
+          module: MODULE,
+          title: `Save “${d.engine.document.metadata.title}” to ${projectId}`,
+          explanation: base ? `Creates revision ${base + 1} (based on revision ${base}).` : 'Stores the document in the project as revision 1.',
+          preview: [{ targetId: d.id, label: 'Revision', current: base ? `revision ${base}` : 'not stored', proposed: `${base ? `revision ${base + 1}` : 'revision 1'}${message ? `: ${message}` : ''} (model version ${d.engine.document.version})` }],
+          operations: base
+            ? [{ module: MODULE, operationId: 'saveRevision', method: 'PUT', path: `${docsPath}/${d.id}`, body: { document, message }, ifMatch: `"${base}"` }]
+            : [{ module: MODULE, operationId: 'createDocument', method: 'POST', path: docsPath, body: { document, message } }],
+          ...(base ? { expected: [{ module: MODULE, kind: 'cad-document', id: d.id, label: d.engine.document.metadata.title, revision: base, read: { operationId: 'getDocument', path: `${docsPath}/${d.id}`, field: 'summary.revision' } }] } : {}),
+          projectId,
+        }
+        return result
+      }
       return {
         kind: 'service-proposal',
         module: MODULE,
@@ -477,7 +533,7 @@ const actions: AssistantActionDefinition[] = [
         preview: [{ targetId: d.id, label: 'Revision', current: base ? `revision ${base}` : 'not stored', proposed: `${base ? `revision ${base + 1}` : 'revision 1'}${message ? `: ${message}` : ''} (model version ${d.engine.document.version})` }],
         async apply(provenance) {
           const r = await cadSession.saveToStore(projectId, d.id, { message, provenance: { sourceKind: 'assistant', ...provenance } })
-          return { summary: r.unchanged ? `No changes since revision ${r.revision}` : `Saved revision ${r.revision} in ${projectId}` }
+          return { summary: r.unchanged ? `Already saved: revision ${r.revision} in ${projectId} is current (nothing to save)` : `Saved revision ${r.revision} in ${projectId}` }
         },
       }
     },
@@ -567,6 +623,7 @@ const actions: AssistantActionDefinition[] = [
         bindings: args.bindings !== false,
         storedRevision: d.stored?.revision ?? null,
         unsavedChanges: !!d.stored && cadSession.isDirty(d),
+        toolVersion: pkg.version,
       })
       if (d.remoteRevision) report.assumptions.push(`A newer revision (${d.remoteRevision}) of this document was saved elsewhere; the results refer to revision ${d.stored?.revision}.`)
       const s = report.summary

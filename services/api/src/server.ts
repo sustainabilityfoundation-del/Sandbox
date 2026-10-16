@@ -279,6 +279,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
         { id: 'requirements', label: 'Requirements', basePath: BASE_PATH, entitlement: 'tool:requirements', projectParam: 'projectId' },
         { id: 'conceptualize', label: 'Conceptualize', basePath: CONCEPTS_BASE_PATH, entitlement: 'tool:conceptualize', projectParam: 'projectId' },
         { id: 'sysml-modeler', label: 'SysML Modeler', basePath: SYSML_BASE_PATH, entitlement: 'tool:sysml' },
+        { id: 'cad-modeler', label: 'CAD Modeler', basePath: CAD_BASE_PATH, entitlement: 'tool:cad', projectParam: 'projectId' },
       ],
       callModule: async ({ method, url, headers, body }) => {
         const res = await app.inject({ method: method as 'GET', url, headers: { ...headers, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, payload: body === undefined ? undefined : JSON.stringify(body) })
