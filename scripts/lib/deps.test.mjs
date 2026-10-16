@@ -114,6 +114,7 @@ describe('register', () => {
   it('the committed register matches the lockfile and policy', () => {
     const lock = JSON.parse(readFileSync(path.join(root, 'package-lock.json'), 'utf8'))
     const policy = JSON.parse(readFileSync(path.join(root, 'docs/dependencies/policy.json'), 'utf8'))
-    expect(readFileSync(path.join(root, 'docs/dependencies/register.json'), 'utf8')).toBe(serializeRegister(buildRegister(lock, policy)))
+    // Compare content, not line endings: Windows checkouts with core.autocrlf write CRLF.
+    expect(readFileSync(path.join(root, 'docs/dependencies/register.json'), 'utf8').replace(/\r\n/g, '\n')).toBe(serializeRegister(buildRegister(lock, policy)))
   })
 })
