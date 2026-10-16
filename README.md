@@ -328,3 +328,5 @@ These boundaries would need to change:
 `apps/glb-viewer` is the browser GLB viewer for SolidWorks exports built earlier (see its
 [README](./apps/glb-viewer/README.md)). `npm run build` still produces it at the site root and the
 workspace under `/workspace/`, so the AWS Amplify configuration (`amplify.yml`) is unchanged.
+
+CI runs checks, production and harness builds, and embedded PostgreSQL suites on pull requests and pushes to `main` (Node 24, satisfying `engines.node`).

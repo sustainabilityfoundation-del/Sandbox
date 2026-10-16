@@ -23,7 +23,7 @@ files in `docs/codex/tasks/`. Codex reads the repository's `AGENTS.md` automatic
 
 | Task | Title | Status |
 | --- | --- | --- |
-| [CX-001](tasks/CX-001-ci-workflow.md) | GitHub Actions: check, DB suites and builds | open |
+| [CX-001](tasks/CX-001-ci-workflow.md) | GitHub Actions: check, DB suites and builds | ready for review (CI verification pending) |
 | [CX-002](tasks/CX-002-api-reference-docs.md) | Generated API reference pages from OpenAPI | open |
 | [CX-003](tasks/CX-003-legacy-tool-help.md) | Help pages for the illustrative SysML and mock CAD tools | open |
 | [CX-004](tasks/CX-004-sysml-send-accept.md) | SysML parser: send and accept actions | open |
