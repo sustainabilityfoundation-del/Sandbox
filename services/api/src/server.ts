@@ -26,6 +26,7 @@ import {
   moduleEnablementDefinitions,
   projectState,
   projectsPlugin,
+  projectsServerManifest,
   seedLegacyProject,
   type BlobStore,
   type ProjectSettingsPort,
@@ -36,7 +37,7 @@ import { platformMemberships } from './platform/memberships'
 import { SETTINGS_BASE_PATH, SettingsRegistry, settingsPlugin, type SettingsStore } from '@ews/settings-service'
 import type { AdapterRegistry as VisualizationAdapters } from '@ews/visualization-service'
 import { AI_SETTINGS_PAGE, ASSISTANT_BASE_PATH, CredentialVault, ProviderRegistry, assistantPlugin, createFakeProvider, createOpenAIProvider, createPolicy, registerOAuthCallback, type AssistantBackend } from '@ews/assistant-service'
-import { INSTALLED_SERVER_MODULES, assertUniqueManifests, collectPolicyContributions, type ApiModuleHost } from './modules'
+import { ALL_SERVER_MANIFESTS, INSTALLED_SERVER_MODULES, assertUniqueManifests, collectPolicyContributions, type ApiModuleHost } from './modules'
 import { SAMPLE_TWIN } from './sampleTwin'
 
 export { SAMPLE_TWIN }
@@ -156,7 +157,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   const projectBlobs = options.blobs ?? memoryBlobStore()
   // Installed server modules (modules.ts), registered in list order: documentation page, then the plugin. Each may return
   // the artifact source of its module (ADR-0062, CR-PM-REG-1/3/4: read-only adapter over its own tables and outbox).
-  assertUniqueManifests(INSTALLED_SERVER_MODULES)
+  assertUniqueManifests(ALL_SERVER_MANIFESTS)
   const moduleHost: ApiModuleHost = {
     app,
     pool: options.pool,
@@ -193,7 +194,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     return source?.provision ? { ...base, provision: (req) => source.provision!(req) } : base
   })
   // Project Management (CR-PM-API-5). It reads raw membership roles and applies the record state itself.
-  registerApiDocs(app, { path: `${PROJECTS_BASE_PATH}/docs`, openapiUrl: `${PROJECTS_BASE_PATH}/openapi.json`, title: 'Project Management API' })
+  registerApiDocs(app, { path: `${projectsServerManifest.basePath}/docs`, openapiUrl: `${projectsServerManifest.basePath}/openapi.json`, title: projectsServerManifest.docs! })
   // Project settings live in the settings service (CR-PM-SET-1); the port writes them as the acting administrator.
   const projectSettings: ProjectSettingsPort = {
     description: 'settings service (/api/settings/v1, project scope)',
@@ -225,7 +226,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   // Settings (SDK 1.6) and the AI connection (docs/specifications/ai-connection.md §5, §5a).
   const settingsRegistry = new SettingsRegistry()
   // The AI policy: platform-owned entries plus what the server manifests declare (operations and AI modules).
-  const contributions = collectPolicyContributions(INSTALLED_SERVER_MODULES)
+  const contributions = collectPolicyContributions(ALL_SERVER_MANIFESTS)
   const policy = createPolicy(contributions.aiModules, contributions.operations)
   settingsRegistry.register(AI_SETTINGS_PAGE, policy.settingDefinitions)
   settingsRegistry.register(PROJECT_SETTINGS_PAGE, [...PROJECT_SETTING_DEFINITIONS, ...moduleEnablementDefinitions(installedModules.map((m) => ({ id: m.module, name: m.name })))])
@@ -260,7 +261,10 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
       onReady: (b) => (assistantBackend = b),
       // Declarative proposals (integration milestone 1 C9): the module APIs they may call, executed in-process
       // as the person (their identity headers are forwarded; each module enforces its own permissions).
-      modules: INSTALLED_SERVER_MODULES.flatMap((m) => (PROPOSAL_APIS[m.id] ? [{ id: m.id, label: m.name, basePath: m.basePath, ...PROPOSAL_APIS[m.id] }] : [])),
+      modules: INSTALLED_SERVER_MODULES.flatMap((m) => {
+        const proposals = m.proposals ?? PROPOSAL_APIS[m.id]
+        return proposals ? [{ id: m.id, label: m.name, basePath: m.basePath, ...proposals }] : []
+      }),
       policy,
       callModule: async ({ method, url, headers, body }) => {
         const res = await app.inject({ method: method as 'GET', url, headers: { ...headers, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, payload: body === undefined ? undefined : JSON.stringify(body) })

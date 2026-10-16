@@ -349,7 +349,7 @@ registry); Conceptualize ArtifactSource (CR-PM-REG-2, Conceptualize's).
 passing bytes through the model): `ToolApi.stageFile(file: { bytes: Uint8Array; fileName: string; mediaType: string;
 provenance?: { source?: { module: string; kind: string; id: string; revision?: number | string }; tool?: { name: string;
 version: string }; details?: Record<string, unknown> } }): string` returning a handle, and
-`PlatformServices.files?.get(handle)` for platform modules. Until then `apps/workspace/src/projects/assistant.ts`
+`PlatformServices.files?.get(handle)` for platform modules. Until then `packages/projects-client/src/assistant.ts`
 exports `stageFile` for platform code, and `projects.store_document` also accepts base64 for small files.
 
 Test-suite notes: `npm run req:test:db` is at the limit of the shared test PostgreSQL under parallel load
@@ -362,7 +362,7 @@ test server or fewer parallel DB files would make the run stable.
 | Item | State | Evidence |
 | --- | --- | --- |
 | A fresh browser reopens the person's most recently opened server project (coordinator answer); flows that need the example pass `?project=PRJ-ACT100` (`exampleUrl()` in `tests/e2e/lib/env.mjs`) | implemented, browser-tested | `tests/e2e/flows/projects.mjs` (fresh context without `?project=` lands in the new project) |
-| Help: overview, Project Home, New project wizard, overview panel and lifecycle, product structure, assistant operations, troubleshooting; tutorial "Create your first project"; every `projects.*` operation and the project controls mapped | implemented, tested | `apps/workspace/src/projects/help/*.md`, `help.ts`; `apps/workspace/src/help/help.test.ts` |
+| Help: overview, Project Home, New project wizard, overview panel and lifecycle, product structure, assistant operations, troubleshooting; tutorial "Create your first project"; every `projects.*` operation and the project controls mapped | implemented, tested | `packages/projects-client/help/*.md`, `src/help.ts`; `apps/workspace/src/help/help.test.ts` |
 | C12 "Demo" labels for the illustrative SysML and mock CAD tools (tabs, open-tools and second-view menus, palette) | implemented, browser-checked | all 14 committed flows pass |
 | Test PostgreSQL `max_connections=400` | done | `npm run req:test:db`: 47 files, 377 passed, 1 skipped |
 
@@ -416,5 +416,5 @@ export interface FilesService {
 
 Producers (for example `cad-modeler.export`) stage the exported file with its provenance and return the handle in
 their result summary; `projects.store_document` accepts `fileHandle` and reads the bytes through `services.files`.
-The workspace implements `FilesService` in memory (per window); `apps/workspace/src/projects/assistant.ts`'s local
+The workspace implements `FilesService` in memory (per window); `packages/projects-client/src/assistant.ts`'s local
 `stageFile` is then replaced by it.

@@ -5,7 +5,7 @@ import { BASE_PATH, createRequirementsArtifactSource, requirementsPlugin, type E
 import { CONCEPTS_BASE_PATH, conceptsPlugin, createConceptsArtifactSource, type ConceptsEventHub } from '@ews/conceptualize-service'
 import { SYSML_BASE_PATH, createSysmlArtifactSource, sysmlPlugin, type SysmlEventHub, type SysmlRepository } from '@ews/sysml-service'
 import { CAD_BASE_PATH, CAD_SETTINGS, cadPlugin, createCadArtifactSource, type CadEventHub } from '@ews/cad-service'
-import { composeTwinDirectories, productTwinDirectory, type BlobStore } from '@ews/projects-service'
+import { composeTwinDirectories, productTwinDirectory, projectsServerManifest, type BlobStore } from '@ews/projects-service'
 import { AdapterRegistry, VISUALIZATION_BASE_PATH, createFakeImageAdapter, createOpenAIImageAdapter, visualizationPlugin } from '@ews/visualization-service'
 import type { AssistantBackend } from '@ews/assistant-service'
 import type { identity } from './platform/identity'
@@ -148,6 +148,12 @@ export const INSTALLED_SERVER_MODULES: ApiServerModule[] = [
     },
   },
 ]
+
+/**
+ * Every server manifest the host knows: the installed modules plus the host-composed Project Management manifest (its
+ * docs page, operations and AI module come from `@ews/projects-service`; the host registers its plugin itself).
+ */
+export const ALL_SERVER_MANIFESTS: ServerModuleManifest<never>[] = [...INSTALLED_SERVER_MODULES, projectsServerManifest]
 
 /** What the manifests contribute to the AI access policy (`createPolicy(aiModules, operations)` in services/assistant). */
 export function collectPolicyContributions(modules: ServerModuleManifest<never>[]): { aiModules: AiModuleDescriptor[]; operations: Record<string, OperationClass> } {

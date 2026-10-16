@@ -33,7 +33,6 @@ export const AI_MODULES: AiModule[] = [
   { id: 'cad-modeler', label: 'CAD Modeler', description: 'Parametric CAD documents and exports.', entitlement: 'tool:cad', prefixes: ['cad-modeler.'] },
   { id: 'illustrative', label: 'Illustrative tools', description: 'The mock SysML diagram and mock CAD tools.', prefixes: ['sysml.', 'cad.'] },
   // Headless platform modules (SDK 1.8 registerPlatformModule). Their services enforce membership; no entitlement decided yet.
-  { id: 'projects', label: 'Project Management', description: 'Projects, members, work items and milestones (headless module).', prefixes: ['projects.'] },
   { id: 'reasoning', label: 'Design reasoning', description: 'Calculations and reasoning runs (headless module).', prefixes: ['reasoning.'] },
   { id: 'help', label: 'Help', description: 'Product documentation (read_help).', prefixes: [], names: ['read_help'] },
 ]

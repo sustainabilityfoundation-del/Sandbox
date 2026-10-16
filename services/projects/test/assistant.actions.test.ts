@@ -1,8 +1,7 @@
 import { applyTransaction, createDocument } from '@ews/cad-core'
 import type { AssistantActionContext, ServiceProposal } from '@ews/platform-sdk'
-import { createHttpProjectsService, getProjectsClient } from '@ews/projects-client'
+import { createHttpProjectsService, getProjectsClient, projectsAssistant } from '@ews/projects-client'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { projectsAssistant } from '../../../apps/workspace/src/projects/assistant'
 import { createTestEnv, idem, type TestEnv } from './helpers'
 
 /**
@@ -17,7 +16,7 @@ beforeAll(async () => {
 })
 afterAll(async () => env?.close())
 
-const actions = projectsAssistant().actions
+const actions = projectsAssistant({ switchProject: () => undefined }).actions
 const run = (name: string, args: Record<string, unknown>, ctx: AssistantActionContext) => actions.find((a) => a.name === name)!.run(args, ctx)
 const provenance = (n: number) => ({ conversationId: 'CONV-d1', proposalId: `PRP-${n}`, messageId: `MSG-${n}` })
 

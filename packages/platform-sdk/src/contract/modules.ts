@@ -107,6 +107,12 @@ export interface ServerModuleProvisioning {
   lazyReason: string
 }
 
+/** How the assistant may call a module's API for declarative proposals (`ServerModuleManifest.proposals`, SDK 1.12). */
+export interface ServerModuleProposals {
+  entitlement: string
+  projectParam?: string
+}
+
 export interface ServerModuleManifest<H extends ServerModuleHost = ServerModuleHost> {
   id: string
   name: string
@@ -122,6 +128,11 @@ export interface ServerModuleManifest<H extends ServerModuleHost = ServerModuleH
   phase?: 'modules' | 'after-host'
   operations?: Record<string, OperationClass>
   aiModule?: AiModuleDescriptor
+  /**
+   * The module's API as a target of the assistant's declarative proposals (SDK 1.12): the entitlement the person needs
+   * and the name of the project parameter in the module's URLs (omit when the module has none).
+   */
+  proposals?: ServerModuleProposals
   settings?: ServerModuleSettings
   provisioning?: ServerModuleProvisioning
   migrate?: (host: H) => void | Promise<void>

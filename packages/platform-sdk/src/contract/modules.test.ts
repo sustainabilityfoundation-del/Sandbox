@@ -32,9 +32,9 @@ const manifest: ModuleManifest = {
   defaultOpen: false,
 }
 
-describe('SDK 1.11 module manifests', () => {
+describe('SDK 1.12 module manifests', () => {
   it('is an additive minor version', () => {
-    expect(SDK_VERSION).toBe('1.11.0')
+    expect(SDK_VERSION).toBe('1.12.0')
     expect(isSdkCompatible('^1.9.0')).toBe(true)
   })
 
@@ -85,6 +85,7 @@ describe('SDK 1.11 module manifests', () => {
       name: 'Typed',
       basePath: '/api/typed/v1',
       docs: 'Typed API',
+      proposals: { entitlement: 'tool:typed', projectParam: 'projectId' },
       settings: { page: { id: 'typed', title: 'Typed' }, definitions: [] },
       provisioning: { module: 'typed-legacy', lazyReason: 'Created on first write.' },
       register: (host) => ({ artifactSource: { module: `${host.app.name}:${host.pool}` } as ArtifactSource }),
@@ -92,6 +93,8 @@ describe('SDK 1.11 module manifests', () => {
     const result = await server.register({ app: { name: 'a' }, pool: 'p', production: false })
     expect(result?.artifactSource?.module).toBe('a:p')
     expectTypeOf(server.register).parameter(0).toEqualTypeOf<TestHost>()
+    expectTypeOf<ServerModuleManifest['proposals']>().toEqualTypeOf<{ entitlement: string; projectParam?: string } | undefined>()
+    expect(server.proposals).toEqual({ entitlement: 'tool:typed', projectParam: 'projectId' })
   })
 
   it('types the client module', () => {

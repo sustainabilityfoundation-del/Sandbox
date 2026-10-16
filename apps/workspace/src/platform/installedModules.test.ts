@@ -1,10 +1,13 @@
-import { HELP_SCHEMA_VERSION, validateHelpManifest, type CapabilityEntry, type ToolApi } from '@ews/platform-sdk'
+import { HELP_SCHEMA_VERSION, validateHelpManifest, type CapabilityEntry } from '@ews/platform-sdk'
 import { defineTool, type ClientModule } from '@ews/platform-sdk/react'
-import { sampleModel } from '@ews/platform-sdk/testing'
 import { lazy } from 'react'
 import { describe, expect, it } from 'vitest'
 import { PLATFORM_CAPABILITIES, mergeCapabilities } from '../assistant/capabilities'
+import { honestyProblems, operationProblems, toolbarProblems } from '../assistant/capabilityChecks'
+import { PLATFORM_TOOLS } from '../assistant/toolSpecs'
+import { helpSources } from '../help/workspaceHelp'
 import { INSTALLED_MODULES, collect, hostEnv } from './installedModules'
+import { registerPlatformModule } from './platformModules'
 import { getTools, registerTool } from './registry'
 
 /**
@@ -64,12 +67,6 @@ const fixtureModule: ClientModule = {
   tool: () => fixtureTool,
 }
 
-function stubApi(): ToolApi<unknown> {
-  return new Proxy({ services: {}, toolId: 'stub', viewId: 'stub' } as unknown as ToolApi<unknown>, {
-    get: (target, key) => (key in target ? (target as unknown as Record<string | symbol, unknown>)[key] : () => undefined),
-  })
-}
-
 describe('collect()', () => {
   it('collects the installed modules in list order', () => {
     const c = collect()
@@ -107,22 +104,31 @@ describe('a module added to the list needs no shared-file edit', () => {
     expect(getTools().map((t) => t.id)).toEqual(c.tools.map((t) => t.id))
   })
 
-  it('passes the inventory checks: unique IDs, every toolbar item and assistant action listed', () => {
+
+  it('passes the real inventory checks on the collected list: unique IDs, every toolbar item and assistant action listed, honest coverage', () => {
     const ids = inventory.map((e) => e.id)
     expect(ids.length).toBe(new Set(ids).size)
-    const model = sampleModel()
-    const items = fixtureTool.toolbar({ api: stubApi() as never, viewState: {}, context: {} as never, model, selection: [] })
-    const listed = inventory.filter((e) => e.module === 'fixture' && e.toolbarItem).map((e) => e.toolbarItem)
-    expect(items.filter((i) => i.type !== 'separator').map((i) => i.id)).toEqual(listed)
-    const aiOperations = new Set(inventory.flatMap((e) => e.aiOperations ?? []))
-    for (const action of fixtureTool.assistant!.actions) expect(aiOperations.has(action.name)).toBe(true)
+    expect(toolbarProblems(c.tools, inventory)).toEqual([])
+    const existing = [...PLATFORM_TOOLS.map((t) => t.name), ...c.tools.flatMap((t) => t.assistant?.actions.map((a) => a.name) ?? []), ...c.platformModules.flatMap((m) => m.assistant?.actions.map((a) => a.name) ?? [])]
+    expect(existing).toContain('fixture.ping')
+    expect(operationProblems(existing, inventory)).toEqual([])
+    expect(honestyProblems(inventory)).toEqual([])
+    // The checks are not vacuous: an entry the fixture does not back is reported.
+    expect(toolbarProblems(c.tools, [...inventory, { ...fixtureCapabilities[0], id: 'fixture.ghost', toolbarItem: 'ghost' }])).toEqual(['fixture: inventory lists toolbar item "ghost" that does not exist'])
   })
 
-  it('passes the help checks: schema, order and source', () => {
+  it('passes the help checks: schema, order and source, and the Help Centre lists exactly what collect() builds', () => {
     expect(validateHelpManifest(fixtureTool.help!)).toEqual([])
     const ids = c.help.map((s) => s.moduleId)
     expect(ids).toEqual([...collect().help.map((s) => s.moduleId), 'fixture'])
     expect(c.help.find((s) => s.moduleId === 'fixture')?.manifest?.topics.every((t) => /\.md$/.test(t.source ?? ''))).toBe(true)
+    // The fixture is in the registry (registered above); the Help Centre builds its sources with the same functions as collect().
+    for (const module of c.platformModules) registerPlatformModule(module)
+    const listed = helpSources()
+    // The registry keeps tools and headless modules apart, so the Help Centre lists tools first, then platform modules.
+    expect(listed.map((s) => s.moduleId)).toEqual(['platform', ...c.tools.map((t) => t.id), ...c.platformModules.filter((m) => m.help).map((m) => m.id), 'ai'])
+    expect([...ids].sort()).toEqual(listed.slice(1, -1).map((s) => s.moduleId).sort())
+    expect(listed.find((s) => s.moduleId === 'fixture')).toBe(c.help.find((s) => s.moduleId === 'fixture'))
   })
 })
 

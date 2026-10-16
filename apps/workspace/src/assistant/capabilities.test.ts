@@ -1,21 +1,13 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { ToolApi } from '@ews/platform-sdk'
-import { sampleModel } from '@ews/platform-sdk/testing'
 import { describe, expect, it } from 'vitest'
 import { getTools } from '../platform/registry'
 import { assistantContributions } from './contributions'
 import '../platform/tools'
 import { collect } from '../platform/installedModules'
 import { PLATFORM_CAPABILITIES, PLATFORM_OPERATION_ENTRIES, kindOf, mergeCapabilities, summarize } from './capabilities'
+import { honestyProblems, operationProblems, toolbarProblems } from './capabilityChecks'
 import { PLATFORM_TOOLS } from './toolSpecs'
-
-/** A tool API stand-in: toolbars only read from it while building their items. */
-function stubApi(): ToolApi<unknown> {
-  return new Proxy({ services: {}, toolId: 'stub', viewId: 'stub' } as unknown as ToolApi<unknown>, {
-    get: (target, key) => (key in target ? (target as unknown as Record<string | symbol, unknown>)[key] : () => undefined),
-  })
-}
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -26,7 +18,6 @@ function files(dir: string): string[] {
 
 /** The inventory is derived from the installed modules' manifests plus the platform-owned entries (module-registration.md). */
 const CAPABILITIES = mergeCapabilities(PLATFORM_CAPABILITIES, collect().capabilities)
-const aiOperations = new Set(CAPABILITIES.flatMap((c) => c.aiOperations ?? []))
 
 describe('AI capability inventory', () => {
   it('has unique IDs', () => {
@@ -35,26 +26,13 @@ describe('AI capability inventory', () => {
   })
 
   it('lists every toolbar item of every tool', () => {
-    const model = sampleModel()
-    for (const tool of getTools()) {
-      const items = tool.toolbar({
-        api: stubApi(),
-        viewState: tool.initialViewState,
-        context: { projectId: model.snapshot.project.id, configurationId: 'CFG-BASE', scenarioId: 'SCN-NOM', selectedIds: [], modelRevision: model.revision } as never,
-        model,
-        selection: [],
-      })
-      const ids = items.filter((i) => i.type !== 'separator').map((i) => i.id)
-      const listed = CAPABILITIES.filter((c) => c.module === tool.id && c.toolbarItem).map((c) => c.toolbarItem)
-      expect({ tool: tool.id, missing: ids.filter((id) => !listed.includes(id)) }).toEqual({ tool: tool.id, missing: [] })
-      expect({ tool: tool.id, stale: listed.filter((id) => !ids.includes(id!)) }).toEqual({ tool: tool.id, stale: [] })
-    }
+    expect(getTools().length).toBeGreaterThan(5)
+    expect(toolbarProblems(getTools(), CAPABILITIES)).toEqual([])
   })
 
   it('accounts for every assistant operation, and maps only to operations that exist', () => {
     const existing = new Set([...PLATFORM_TOOLS.map((t) => t.name), ...assistantContributions().flatMap((t) => t.assistant.actions.map((a) => a.name))])
-    expect([...existing].filter((name) => !aiOperations.has(name))).toEqual([])
-    expect([...aiOperations].filter((name) => !existing.has(name))).toEqual([])
+    expect(operationProblems(existing, CAPABILITIES)).toEqual([])
     expect([...PLATFORM_OPERATION_ENTRIES].sort()).toEqual(PLATFORM_TOOLS.map((t) => t.name).sort())
   })
 
@@ -68,11 +46,7 @@ describe('AI capability inventory', () => {
   })
 
   it('is honest: coverage claims name operations, mock features are not "implemented"', () => {
-    for (const c of CAPABILITIES) {
-      if (c.coverage === 'shared' || c.coverage === 'equivalent' || c.coverage === 'partial') expect({ id: c.id, ops: c.aiOperations?.length ?? 0 }).not.toEqual({ id: c.id, ops: 0 })
-      if (c.coverage === 'partial' || c.coverage === 'restricted') expect({ id: c.id, note: !!c.note }).toEqual({ id: c.id, note: true })
-    }
-    expect(CAPABILITIES.filter((c) => c.module === 'cad').every((c) => c.status !== 'implemented')).toBe(true)
+    expect(honestyProblems(CAPABILITIES)).toEqual([])
     // A connected account answers with a real model; quality is not evaluated, so never "implemented".
     expect(CAPABILITIES.find((c) => c.id === 'assistant.conversation')?.status).toBe('experimental')
   })

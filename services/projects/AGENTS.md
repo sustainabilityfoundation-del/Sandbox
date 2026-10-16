@@ -26,3 +26,8 @@ npx vitest run --config services/projects/vitest.db.config.ts   # real PostgreSQ
 npx vitest run services/projects                                 # unit tests (domain, blob store)
 npm run typecheck -w @ews/projects-service
 ```
+
+## Module manifest
+
+`src/manifest.ts` exports `projectsServerManifest` (docs title, base path, AI module descriptor). The API host composes the plugin itself
+(it consumes the other modules' artifact sources) and reads the manifest for its docs page and the AI policy; `register` is not used.

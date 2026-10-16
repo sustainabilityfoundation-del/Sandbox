@@ -16,6 +16,17 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.12.0 (2026-10-16)
+
+Type: additive
+
+What changed:
+- `ServerModuleManifest.proposals?: ServerModuleProposals` (`{ entitlement: string; projectParam?: string }`): how the assistant may call the module's API for
+  declarative proposals (module-registration.md, M1). The host replaces its per-module table (`PROPOSAL_APIS` in services/api) with this field, module by module.
+Why: the table was the last shared place that listed a module's assistant entitlement and project parameter.
+Migration for tools: none. Server modules may declare `proposals`; modules without it keep the host's table row until their M-step.
+Validated with: npm run check.
+
 ## 1.11.0 (2026-10-16)
 
 Type: additive

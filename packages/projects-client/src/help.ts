@@ -6,7 +6,7 @@ import { projectsAssistant } from './assistant'
  * source for the Help Centre, F1 and the assistant's read_help. Every assistant operation and significant control
  * is mapped; keep help IDs stable when the interface changes.
  */
-const files = import.meta.glob('./help/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const files = import.meta.glob('../help/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
 /** Assistant operation → topic. Operations not listed here fall back to the operations reference. */
 const OPERATION_TOPICS: Record<string, string> = {
@@ -26,7 +26,7 @@ export const projectsHelp: HelpManifest = {
   docsVersion: '0.1.0',
   landingTopic: 'projects.overview',
   topics: Object.entries(files)
-    .map(([path, raw]) => parseHelpMarkdown(raw, `apps/workspace/src/projects/help/${path.split('/').pop()}`))
+    .map(([path, raw]) => parseHelpMarkdown(raw, `packages/projects-client/help/${path.split('/').pop()}`))
     .sort((a, b) => a.id.localeCompare(b.id)),
   contextMappings: [
     // Controls (marked with data-help-id).
@@ -36,7 +36,7 @@ export const projectsHelp: HelpManifest = {
     { control: 'projects.overview', helpId: 'projects.overview-panel' },
     { control: 'projects.explorer', helpId: 'projects.explorer' },
     // Every assistant operation.
-    ...projectsAssistant().actions.map((a) => ({ operation: a.name, helpId: OPERATION_TOPICS[a.name] ?? 'projects.assistant' })),
+    ...projectsAssistant({ switchProject: () => undefined }).actions.map((a) => ({ operation: a.name, helpId: OPERATION_TOPICS[a.name] ?? 'projects.assistant' })),
   ],
   tutorials: [
     {
