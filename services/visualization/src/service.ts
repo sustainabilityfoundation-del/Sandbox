@@ -53,7 +53,7 @@ export interface VisualizationServiceOptions {
   events: VisualizationEventHub
   /** Jobs run at the same time in this process (default 2). */
   concurrency?: number
-  /** Poll for pending jobs written by other processes (default 1000 ms). */
+  /** Poll for pending jobs written by other processes (default 2000 ms). */
   pollMs?: number
   /** A running job whose heartbeat is older than this is marked interrupted (default 90 s). */
   staleAfterMs?: number
@@ -177,8 +177,16 @@ export class VisualizationService {
 
   /** Starts the runner: marks stale running jobs interrupted, then polls for pending work. */
   start(): void {
+    let lastRecovery = Date.now()
     void this.recover().then(() => this.kick())
-    const poll = setInterval(() => void this.recover().then(() => this.kick()), this.o.pollMs ?? 1000)
+    // Cheap when idle: one indexed existence query per poll; recovery of stale jobs at most every third of staleAfterMs.
+    const poll = setInterval(() => {
+      if (Date.now() - lastRecovery > (this.o.staleAfterMs ?? 90_000) / 3) {
+        lastRecovery = Date.now()
+        void this.recover()
+      }
+      void this.kick()
+    }, this.o.pollMs ?? 2000)
     poll.unref?.()
     this.timers.push(poll)
   }
@@ -418,6 +426,8 @@ export class VisualizationService {
     if (this.closed) return
     const stale = Math.round((this.o.staleAfterMs ?? 90_000) / 1000)
     try {
+      const { rowCount } = await this.o.pool.query(`SELECT 1 FROM visualization.jobs WHERE state = 'running' AND updated_at < now() - make_interval(secs => $1) LIMIT 1`, [stale])
+      if (!rowCount) return
       await this.tx(async (db) => {
         const { rows } = await db.query<JobRow>(`SELECT * FROM visualization.jobs WHERE state = 'running' AND updated_at < now() - make_interval(secs => $1) FOR UPDATE SKIP LOCKED`, [stale])
         for (const r of rows) {
@@ -447,7 +457,9 @@ export class VisualizationService {
     return this.kicking
   }
 
-  private claim(): Promise<JobRow | null> {
+  private async claim(): Promise<JobRow | null> {
+    const { rowCount } = await this.o.pool.query(`SELECT 1 FROM visualization.jobs WHERE state = 'pending' LIMIT 1`)
+    if (!rowCount) return null
     return this.tx(async (db) => {
       const { rows } = await db.query<JobRow>(`SELECT * FROM visualization.jobs WHERE state = 'pending' ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED`)
       if (!rows[0]) return null
