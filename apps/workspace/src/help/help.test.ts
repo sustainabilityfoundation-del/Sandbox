@@ -3,6 +3,7 @@ import { sampleModel } from '@ews/platform-sdk/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useEntitlements } from '../platform/entitlements'
 import { getTools } from '../platform/registry'
+import { collect } from '../platform/installedModules'
 import '../platform/tools'
 import { createHelpService, type HelpModuleSource } from './helpService'
 import { aiHelp, platformHelp } from './manifests'
@@ -14,7 +15,8 @@ import { helpSources, useHelpCentre, workspaceHelp } from './workspaceHelp'
  */
 const KNOWN_DOCUMENTATION_GAPS: string[] = []
 
-const manifests = (): HelpManifest[] => [platformHelp, aiHelp, ...getTools().flatMap((t) => (t.help ? [t.help] : []))]
+const installedIds = () => collect().help.map((s) => s.moduleId)
+const manifests = (): HelpManifest[] => [platformHelp, ...collect().help.flatMap((s) => (s.manifest ? [s.manifest] : [])), aiHelp]
 
 function stubApi(): ToolApi<unknown> {
   return new Proxy({ services: {}, toolId: 'stub', viewId: 'stub' } as unknown as ToolApi<unknown>, {
@@ -124,7 +126,7 @@ describe('workspace help', () => {
   })
 
   it('follows the subscription: tools outside it are not listed', () => {
-    expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler', 'sysml-modeler', 'projects', 'ai'])
+    expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', ...installedIds(), 'ai'])
     useEntitlements.getState().setPlan('requirements')
     expect(workspaceHelp.modules().map((m) => m.moduleId)).toEqual(['platform', 'requirements', 'projects', 'ai'])
     expect(workspaceHelp.contextual({ moduleId: 'cad' }).map((r) => r.topic.id)).toEqual(['platform.getting-started'])
@@ -144,6 +146,6 @@ describe('workspace help', () => {
   })
 
   it('lists every registered tool, the platform modules with help, the workspace and AI interface', () => {
-    expect(helpSources().map((s) => s.moduleId)).toEqual(['platform', ...getTools().map((t) => t.id), 'projects', 'ai'])
+    expect(helpSources().map((s) => s.moduleId)).toEqual(['platform', ...installedIds(), 'ai'])
   })
 })
