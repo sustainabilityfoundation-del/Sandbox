@@ -1,6 +1,6 @@
 {
   "id": "d1-plumbing",
-  "description": "Recorded tool-call script for demonstration D1 (drill bit holder), replayed by the FAKE provider. Plumbing test only: it proves that the operations, previews, Apply and persistence of the real module services work end to end; it is not a model run and does not count as D1 acceptance. Values the person types (project key, constraint UUIDs) are read from the message with ${user.N}; constraint UUIDs are needed because no assistant operation returns them yet (CR-AI-9).",
+  "description": "Recorded tool-call script for demonstration D1 (drill bit holder), replayed by the FAKE provider. Plumbing test only: it proves that the operations, previews, Apply and persistence of the real module services work end to end; it is not a model run and does not count as D1 acceptance. Values the person types (the project key) are read from the message with ${user.N}; constraint IDs come from conceptualize.list_constraints.",
   "turns": [
     {
       "user": "^D1 project (\\S+)",
@@ -51,7 +51,9 @@
             {
               "name": "conceptualize.create",
               "arguments": {
-                "text": "Drill bit holder block for a Milwaukee-compatible cordless drill (compatibility description only). It holds 6 hex-shank bits with a 1/4 in hex shank of 6.35 mm and mounts to the drill's accessory interface. Assume the accessory interface uses two holes 25 mm apart; this spacing is an assumption, not a measurement. Should the bits be retained by friction or by magnets?"
+                "text": "Drill bit holder block for a Milwaukee-compatible cordless drill (compatibility description only). It holds 6 hex-shank bits with a 1/4 in hex shank of 6.35 mm and mounts to the drill's accessory interface. Assume the accessory interface uses two holes 25 mm apart; this spacing is an assumption, not a measurement. Should the bits be retained by friction or by magnets?",
+                "name": "Drill bit holder block",
+                "summary": "A block holding six 1/4 in hex-shank bits, mounted to a cordless drill."
               }
             }
           ]
@@ -246,22 +248,68 @@
         {
           "calls": [
             {
-              "name": "conceptualize.develop_alternatives",
+              "name": "conceptualize.search",
               "arguments": {
-                "text": "Bit holder block: compare pocket layouts for six bits",
-                "count": 2
+                "text": "Drill bit holder block"
               }
             }
           ]
         },
         {
-          "final": "I prepared two alternative layouts as AI hypotheses for comparison. Recording a decision on named alternatives needs CR-AI-1."
+          "calls": [
+            {
+              "name": "conceptualize.develop_alternatives",
+              "arguments": {
+                "text": "Bit holder block: compare ways to retain six bits",
+                "parentId": "${conceptualize.search.data.concepts.0.key}",
+                "alternatives": [
+                  {
+                    "name": "Friction-fit hex pockets",
+                    "summary": "Six hexagonal pockets sized for a light press fit hold the bits by friction."
+                  },
+                  {
+                    "name": "Magnet-backed pockets",
+                    "summary": "Loose-fit pockets with a small magnet at the bottom of each hold the bits."
+                  }
+                ],
+                "tradeStudy": {
+                  "criteria": [
+                    {
+                      "name": "Retention",
+                      "weight": 0.6,
+                      "direction": "maximize",
+                      "scale": "qualitative"
+                    },
+                    {
+                      "name": "Part count",
+                      "weight": 0.4,
+                      "direction": "minimize",
+                      "scale": "qualitative"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "final": "I recorded two alternatives as AI hypotheses under ${conceptualize.search.data.concepts.0.key}: friction-fit pockets and magnet-backed pockets. Apply to record them; the decision stays with you."
         }
       ]
     },
     {
-      "user": "^D1 CAD (\\S+)",
+      "user": "^D1 CAD",
       "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.list_constraints",
+              "arguments": {
+                "text": "Hex pocket width"
+              }
+            }
+          ]
+        },
         {
           "calls": [
             {
@@ -380,12 +428,7 @@
                     "input": {
                       "partId": "$p",
                       "name": "af",
-                      "ref": {
-                        "module": "conceptualize",
-                        "kind": "constraint",
-                        "id": "${user.1}",
-                        "revision": 1
-                      },
+                      "ref": "${conceptualize.list_constraints.data.constraints.0.bindingRef}",
                       "quantity": "pocket width across flats"
                     }
                   }
@@ -401,7 +444,7 @@
       ]
     },
     {
-      "user": "^D1 check (\\S+)",
+      "user": "^D1 check",
       "steps": [
         {
           "calls": [
@@ -413,6 +456,12 @@
               "name": "conceptualize.search",
               "arguments": {
                 "text": "Drill bit holder block"
+              }
+            },
+            {
+              "name": "conceptualize.list_constraints",
+              "arguments": {
+                "text": "Wall thickness"
               }
             }
           ]
@@ -429,7 +478,7 @@
                       "featureId": "${cad-modeler.describe_model.data.tree.parts.0.features.[type=pattern-linear].id}"
                     },
                     "constraint": {
-                      "id": "${user.1}"
+                      "id": "${conceptualize.list_constraints.data.constraints.0.id}"
                     }
                   }
                 ]
@@ -481,14 +530,24 @@
       ]
     },
     {
-      "user": "^D1 change (\\S+)",
+      "user": "^D1 change",
       "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.list_constraints",
+              "arguments": {
+                "text": "Hex pocket width"
+              }
+            }
+          ]
+        },
         {
           "calls": [
             {
               "name": "conceptualize.revise_constraint",
               "arguments": {
-                "constraintId": "${user.1}",
+                "constraintId": "${conceptualize.list_constraints.data.constraints.0.key}",
                 "reason": "Coated bit shanks need more clearance",
                 "operator": ">=",
                 "value": 6.7,
@@ -498,7 +557,7 @@
           ]
         },
         {
-          "final": "I prepared revision 2 of ${user.1} (pocket width at least 6.7 mm). Apply it; then I will look for CAD parameters bound to the old revision."
+          "final": "I prepared revision 2 of ${conceptualize.list_constraints.data.constraints.0.key} (pocket width at least 6.7 mm). Apply it; then I will look for CAD parameters bound to the old revision."
         }
       ]
     },
@@ -553,13 +612,19 @@
       ]
     },
     {
-      "user": "^D1 recheck (\\S+)",
+      "user": "^D1 recheck",
       "steps": [
         {
           "calls": [
             {
               "name": "cad-modeler.describe_model",
               "arguments": {}
+            },
+            {
+              "name": "conceptualize.list_constraints",
+              "arguments": {
+                "text": "Wall thickness"
+              }
             }
           ]
         },
@@ -575,7 +640,7 @@
                       "featureId": "${cad-modeler.describe_model.data.tree.parts.0.features.[type=pattern-linear].id}"
                     },
                     "constraint": {
-                      "id": "${user.1}"
+                      "id": "${conceptualize.list_constraints.data.constraints.0.id}"
                     }
                   }
                 ]

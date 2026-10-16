@@ -5,7 +5,7 @@ import type { AssistantRequest, ToolCallResult } from './types'
 
 /** The generic scripted-plan engine, exercised with the isolated drill bit holder fixture (test and tutorial data). */
 const plan = drill as ScriptedPlan
-const tools = ['conceptualize.create', 'conceptualize.search', 'conceptualize.decompose', 'conceptualize.propose_requirement'].map((name) => ({ name, description: '', parameters: { type: 'object' as const, properties: {} } }))
+const tools = ['conceptualize.create', 'conceptualize.search', 'conceptualize.decompose', 'conceptualize.develop_alternatives', 'conceptualize.propose_requirement'].map((name) => ({ name, description: '', parameters: { type: 'object' as const, properties: {} } }))
 const req = (text: string, toolResults: ToolCallResult[] = [], offered = tools): AssistantRequest => ({ history: [], turn: { text, context: {} as never, toolResults }, tools: offered })
 const ok = (name: string, data: unknown): ToolCallResult => ({ callId: 'c', name, ok: true, data })
 const run = (r: AssistantRequest) => runScriptedPlan(r, [plan])
@@ -31,15 +31,15 @@ describe('scripted demonstration plans (fixtures, demo assistant only)', () => {
     const found = ok('conceptualize.search', { concepts: [{ key: 'CON-007', name: 'Drill bit holder for a Milwaukee-compatible cordless drill/driver' }] })
     expect(run(req('Decompose the drill bit holder'))).toMatchObject({ calls: [{ name: 'conceptualize.search' }] })
     expect(run(req('Decompose the drill bit holder', [found]))).toMatchObject({ calls: [{ name: 'conceptualize.decompose', arguments: { conceptId: 'CON-007' } }] })
-    let results = [found]
-    for (let i = 0; i < 3; i++) {
-      const next = run(req('Propose alternatives for the drill bit holder', results))!
-      expect(next).toMatchObject({ calls: [{ name: 'conceptualize.create', arguments: { parentId: 'CON-007' } }] })
-      results = [...results, ok('conceptualize.create', { proposalId: `CP-${i + 2}` })]
-    }
-    const study = run(req('Propose alternatives for the drill bit holder', results))!
+    // One model-written alternative set with its trade study (conceptualize.develop_alternatives, CR-AI-1).
+    const next = run(req('Propose alternatives for the drill bit holder', [found]))!
+    expect(next).toMatchObject({ calls: [{ name: 'conceptualize.develop_alternatives', arguments: { parentId: 'CON-007', alternatives: [{ name: 'Magnetic clip at the belt-clip mount' }, { name: 'Sleeve on the battery foot' }, { name: 'Belt holster with a bit strip' }] } }] })
+    const args = next.type === 'tool_calls' ? (next.calls[0].arguments as { tradeStudy: { criteria: { weight: number }[]; scores: unknown[] } }) : undefined
+    expect(args?.tradeStudy.criteria.map((c) => c.weight)).toEqual([3, 2, 2, 1])
+    expect(args?.tradeStudy.scores).toHaveLength(12)
+    const study = run(req('Propose alternatives for the drill bit holder', [found, ok('conceptualize.develop_alternatives', { proposalId: 'CP-2' })]))!
     expect(study.type === 'final' && study.text).toMatch(/Weighted total\*\* \| \*\*31\*\* \| \*\*27\*\* \| \*\*31\*\*/)
-    expect(study.type === 'final' && study.text).toContain('**CP-2**, **CP-3**, **CP-4**')
+    expect(study.type === 'final' && study.text).toContain('**CP-2**')
     expect(run(req('Draft requirements for the drill bit holder', [found]))).toMatchObject({ calls: [{ name: 'conceptualize.propose_requirement', arguments: { conceptId: 'CON-007' } }] })
   })
 

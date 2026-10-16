@@ -24,6 +24,11 @@ const found = await (await fetch(`${env.api}/api/projects/v1/projects?q=HL-OPEN`
 if (!found.items?.some((p) => p.key === 'HL-OPEN')) {
   await fetch(`${env.api}/api/projects/v1/projects`, { method: 'POST', headers: { ...H, 'idempotency-key': `hl-open-${Date.now()}` }, body: JSON.stringify({ key: 'HL-OPEN', name: 'Headless flow: open target', description: 'Target of projects.open in tests/e2e/flows/ai-headless.mjs (never opened).', templateId: 'blank' }) })
 }
+// A calculation model of the example project for evaluate_calculation and record_calculation (from the engine library).
+const CALC = '/api/concepts/v1/projects/PRJ-ACT100/calculation-models'
+let calc = ((await (await fetch(`${env.api}${CALC}`, { headers: H })).json()) ?? []).find?.((m) => m.name === 'Headless flow: rod buckling')
+if (!calc) calc = await (await fetch(`${env.api}${CALC}`, { method: 'POST', headers: { ...H, 'idempotency-key': `hl-calc-${Date.now()}` }, body: JSON.stringify({ fromLibrary: 'lib.column.euler-round', name: 'Headless flow: rod buckling' }) })).json()
+const calcKey = calc?.key
 /** View controls (navigation, selection): measured as view-control coverage, not engineering operations. */
 const VIEW_CONTROLS = ['select_objects', 'open_tool']
 
@@ -59,7 +64,7 @@ const mounted = await page.evaluate(async () => {
 check(mounted.open.length === 0 && mounted.views === 0, `all tool tabs are closed and no tool view is mounted (${mounted.open.length} open, ${mounted.views} views)`)
 await page.screenshot({ path: `${shots}/01-no-tools.png` })
 
-const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
+const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs, calcKey }) => {
   const { executeToolCall } = await import('/workspace/src/assistant/executor.ts')
   const { createWorkspaceEnvironment } = await import('/workspace/src/assistant/environment.ts')
   const { captureContext } = await import('/workspace/src/assistant/conversation.ts')
@@ -92,6 +97,7 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
   const fn = (await designKey('a', 'function')) ?? (await designKey('e', 'function'))
   const decision = (await designKey('a', 'decision')) ?? (await designKey('e', 'decision'))
   const stamp = Date.now() % 100000
+  const CALC_INPUTS = [['F', 2, 'kN'], ['E', 200, 'GPa'], ['Sy', 350, 'MPa'], ['d', 25, 'mm'], ['L', 400, 'mm'], ['K', 1, '-'], ['n', 2, '-']].map(([symbol, value, unit]) => ({ symbol, value, unit }))
   // A product element of the example project, found through the operations (ref.id is its UUID).
   const element = (await run('projects.list_artifacts', { category: 'product-element', q: 'ROD-120' })).data?.[0]?.ref?.id
   // A stored CAD document of the example project for the cad-modeler operations, created through the CAD API
@@ -143,8 +149,11 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
     'cad.set_dimension': { objectId: 'CAD-120', parameter: 'diameter', value: 26, unit: 'mm' },
     'conceptualize.search': { text: 'actuator' },
     'conceptualize.read': { conceptId: actuator },
-    'conceptualize.create': { text: `Headless test concept ${stamp}: a bracket that holds 2 kg.` },
-    'conceptualize.develop_alternatives': { text: 'Linear actuator pushing 500 N over 100 mm', count: 2 },
+    'conceptualize.create': { text: `Headless test concept ${stamp}: a bracket that holds 2 kg.`, name: `Headless bracket ${stamp}` },
+    'conceptualize.develop_alternatives': { text: 'Linear actuator pushing 500 N over 100 mm', name: `Headless actuator options ${stamp}`, alternatives: [{ name: 'Ball screw', summary: 'A motor turns a ball screw that drives the rod.' }, { name: 'Belt drive', summary: 'A toothed belt moves the carriage.' }] },
+    'conceptualize.list_constraints': { subjectId: actuator },
+    'conceptualize.evaluate_calculation': { modelId: calcKey, inputs: CALC_INPUTS },
+    'conceptualize.record_calculation': { modelId: calcKey, subjects: [actuator], inputs: CALC_INPUTS },
     'conceptualize.decompose': { conceptId: actuator, children: ['Headless child A', 'Headless child B'] },
     'conceptualize.compare': { conceptId: transmission },
     'conceptualize.propose_decision': { conceptId: alternative, rationale: 'headless flow' },
@@ -209,7 +218,7 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
     }
   }
   return { results, applied, keys: { actuator, transmission, alternative, fn, decision } }
-}, { VIEW_CONTROLS, repoFs: env.repoFs })
+}, { VIEW_CONTROLS, repoFs: env.repoFs, calcKey })
 
 check(!!report.keys.actuator && !!report.keys.transmission && !!report.keys.alternative && !!report.keys.fn && !!report.keys.decision, `seeded Conceptualize data found through the operations (${JSON.stringify(report.keys)})`)
 for (const r of report.results) {

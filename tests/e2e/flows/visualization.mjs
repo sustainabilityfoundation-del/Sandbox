@@ -15,7 +15,7 @@ const shots = shotsDir('visualization')
 let failures = 0
 const check = (cond, msg) => (console.log(`[visualization] ${cond ? 'PASS' : 'FAIL'} ${msg}`), cond || failures++)
 const call = async (method, path, body) => {
-  const r = await fetch(`${V}${path}`, { method, headers: H, body: body === undefined ? undefined : JSON.stringify(body) })
+  const r = await fetch(`${V}${path}`, { method, headers: H, body: body === undefined ? (method === 'POST' ? '{}' : undefined) : JSON.stringify(body) })
   return { status: r.status, body: r.headers.get('content-type')?.includes('json') ? await r.json() : await r.text() }
 }
 const run = randomUUID()
