@@ -109,6 +109,11 @@ Owner: "focus on getting the cad working better woth more functionality". CAD Mo
 - "change the SysMl Menu to System Model, I think it's better to have it agnostic of the underlying language" (display name only;
   IDs unchanged). Same branch.
 - CAD name: "yes leave it CAD" (display "CAD", dropping "Modeler", after sprint C1 merges).
+- Toolbars: "That's what the toolbars shoul be like", referring to the No Magic user interface
+  (https://docs.nomagic.com/spaces/MD2021xR2/pages/82747994/Understanding+the+user+interface). Interpreted as structure and
+  completeness (main menu, main toolbar, contextual diagram palettes, browser, specification panel) in our design system; to be
+  confirmed if the look is also meant. Feeds CT-2b (CommandBar may need a menu bar and a vertical palette) and the per-module
+  inventories. Research for System Model and CAD running (docs/research/*/capability-research.md).
 - Module migration M1-M6 complete; next step F (cleanup), then CT-2b.
 
 ## Open items (priority order)
