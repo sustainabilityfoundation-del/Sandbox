@@ -1,6 +1,8 @@
 # Generated service API references
 
 Run `npm run docs:api` after installing the repository's locked dependencies.
+Use an ordinary non-root operating-system user: embedded PostgreSQL refuses
+to initialize as root. The script does not change users or system permissions.
 The generator reads OpenAPI from the in-process API host using Fastify injection;
 it never opens an HTTP listener. This fallback is necessary because Visualization's
 route list is private to its plugin. All references therefore use the real hosted
@@ -24,7 +26,3 @@ is sorted and has no dates or runtime identifiers. Do not edit generated pages.
 To check determinism, generate once, capture checksums of the generated Markdown,
 then generate again and compare checksums. Existing tracked output should also
 show no diff after regeneration without API changes.
-
-Initial generated pages are pending: dependency installation was blocked by the
-execution environment's external-services approval review. This branch must not
-be treated as acceptance-complete until generation and `npm run check` succeed.
