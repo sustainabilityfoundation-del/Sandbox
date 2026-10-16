@@ -155,7 +155,8 @@ const demo = new DemoAssistantService()
  */
 const forceDemo = import.meta.env.DEV && (() => {
   try {
-    return localStorage.getItem('ews.assistant.forceDemo') === '1'
+    // sessionStorage too: a flow may clear localStorage in its own setup before the app starts.
+    return localStorage.getItem('ews.assistant.forceDemo') === '1' || sessionStorage.getItem('ews.assistant.forceDemo') === '1'
   } catch {
     return false
   }

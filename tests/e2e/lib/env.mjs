@@ -44,6 +44,10 @@ export function exampleUrl(query = '') {
  */
 export async function demoAssistantContext(browser, options = {}) {
   const context = await browser.newContext(options)
-  await context.addInitScript(() => localStorage.setItem('ews.assistant.forceDemo', '1'))
+  // Both stores: some flows clear localStorage in their own init script, which runs after this one.
+  await context.addInitScript(() => {
+    localStorage.setItem('ews.assistant.forceDemo', '1')
+    sessionStorage.setItem('ews.assistant.forceDemo', '1')
+  })
   return context
 }

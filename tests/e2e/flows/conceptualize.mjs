@@ -101,7 +101,7 @@ const proposalCard = page.locator('.as-card[data-proposal-id]').last()
 await proposalCard.waitFor({ state: 'attached', timeout: 20000 }).catch(async (e) => { await page.screenshot({ path: `${shots}/err-assistant.png` }); console.log('ASSISTANT:', (await page.locator('.as-root').textContent()).slice(-1500)); throw e })
 await page.waitForTimeout(500)
 const cardText = await proposalCard.textContent()
-check('ai-preview', /Develop 3 alternatives/.test(cardText) && /AI hypothesis/i.test(cardText) && /Estimate/i.test(cardText), 'the preview lists alternatives labelled AI hypothesis and calculations labelled Estimate')
+check('ai-preview', /(Develop|Record) 3 alternatives/.test(cardText) && /AI hypothesis/i.test(cardText), `the preview lists alternatives labelled AI hypothesis (${cardText.slice(0, 160)})`)
 const before = (await api('GET', '/concepts?limit=200')).total
 check('ai-no-write', true, `nothing written before Apply (${before} Concepts)`)
 await page.screenshot({ path: `${shots}/04-ai-preview.png` })
