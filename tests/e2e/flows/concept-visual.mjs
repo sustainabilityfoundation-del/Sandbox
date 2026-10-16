@@ -175,9 +175,9 @@ check(pkg?.unresolved.some((u) => u.kind === 'open-question') && pkg.unresolved.
 const viaAi = await assistant('conceptualize.create_cad_handoff', { conceptId: A.concept.key })
 check(viaAi.ok && /HND-\d+ built from/.test(viaAi.summary ?? ''), `the assistant builds the same handoff (${viaAi.summary ?? viaAi.error})`)
 
-// Illustrations: refused with the reason when no visualization service is connected; then the FAKE TEST port.
+// Illustrations: refused with the service's reason (not connected, images off, Sign in with ChatGPT, no provider); then the FAKE TEST port.
 const refused = await assistant('conceptualize.request_illustration', { conceptId: A.concept.key }, false)
-check(!refused.ok && /not connected/.test(refused.error ?? ''), `an illustration is refused with the reason and no placeholder (${refused.error})`)
+check(!refused.ok && /not connected|off in Settings|image generation|API key|no image provider/i.test(refused.error ?? ''), `an illustration is refused with the reason and no placeholder (${refused.error})`)
 await page.evaluate(async (repoFs) => {
   const { registerVisualizationPort } = await import(`/workspace/@fs/${repoFs}/packages/tool-conceptualize/src/visualization.ts`)
   let n = 0
