@@ -1,5 +1,5 @@
 // Coordinator integration: workspace Requirements tool on the real API, service menu, demo mode, user switch.
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -17,10 +17,10 @@ page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && !/
 page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`))
 const shot = (name, p = page) => p.screenshot({ path: `${shots}/if-${name}.png` })
 
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.waitForSelector('.ws-app')
 await page.evaluate(() => localStorage.clear())
-await page.goto(`${base}?tool=requirements`)
+await page.goto(exampleUrl(`tool=requirements`))
 await page.waitForSelector('.ws-app')
 await page.waitForTimeout(2500)
 const body = await page.locator('body').textContent()

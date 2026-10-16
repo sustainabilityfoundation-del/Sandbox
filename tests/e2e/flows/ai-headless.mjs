@@ -8,7 +8,7 @@
 // Modules whose operations still depend on a mounted view are listed in KNOWN_FAILING with their change request.
 // The flow passes while they fail, reports when one starts passing (remove its entry), and FAILS if any other
 // operation fails: a module that already works headless cannot regress unnoticed.
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const KNOWN_FAILING = {
@@ -44,7 +44,7 @@ await ctx.addInitScript(() => {
 })
 const page = await ctx.newPage()
 page.on('pageerror', (e) => problems.push(e.message))
-await page.goto(env.base)
+await page.goto(exampleUrl())
 await page.waitForSelector('[data-testid="model-revision"]', { timeout: 60000 })
 
 // Close every tool tab: nothing of any tool is mounted.

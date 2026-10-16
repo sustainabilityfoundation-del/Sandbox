@@ -1,7 +1,7 @@
 // CAD Modeler inside the workspace (port 5199): open the tool, AI workflow through the demo assistant
 // (proposal card with kernel-predicted result → Apply → the view shows the body), then a human edit
 // and an assistant follow-up that respects the version, help (F1 content), capability inventory.
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const shots = shotsDir('cad-modeler')
@@ -28,9 +28,9 @@ async function ask(text) {
   return lastReply()
 }
 
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.evaluate(() => localStorage.clear())
-await page.goto(base)
+await page.goto(exampleUrl())
 await page.waitForSelector('.ws-app')
 await page.waitForTimeout(1500)
 

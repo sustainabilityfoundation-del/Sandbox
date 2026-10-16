@@ -3,7 +3,8 @@ import type { EngineeringRepository } from '@ews/model-service'
 import { PROJECT_ID } from '@ews/model-service'
 import type { CurrentProject, ProjectsService } from '@ews/platform-sdk'
 import { getProjectsClient, type ProjectContext } from '@ews/projects-client'
-import { currentProjectId, isLegacyProject } from './currentProject'
+import { currentProjectId, isLegacyProject, projectChoice, switchProject } from './currentProject'
+import { windowInfo } from '../session/windowSession'
 
 /**
  * Opening the window's project (CR-PM-WS-1). With Project Management available the project is opened through its
@@ -40,6 +41,16 @@ export async function openCurrentProject(options: { repository: EngineeringRepos
   const projectId = currentProjectId
   const legacy = isLegacyProject(projectId)
   const client = options.projects ? getProjectsClient(options.projects) : undefined
+  // A fresh browser (nothing chosen, nothing remembered) reopens the person's most recently opened project on the
+  // server. The window reloads into it, so no state of the default project is kept (C13).
+  if (projectChoice === 'default' && client && windowInfo.role === 'main') {
+    const recent = await client.recentProjects().catch(() => [])
+    const last = recent.find((p) => p.state === 'active')
+    if (last && last.id !== projectId) {
+      switchProject(last.id)
+      return new Promise<never>(() => undefined)
+    }
+  }
   let context: ProjectContext | null = null
   let warning: string | null = null
   if (client) {

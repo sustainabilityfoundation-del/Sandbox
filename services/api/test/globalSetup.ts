@@ -15,7 +15,9 @@ export default async function setup(project: TestProject) {
   }
   const dir = mkdtempSync(join(tmpdir(), 'ews-pg-test-'))
   const port = 55000 + Math.floor(Math.random() * 4000)
-  const handle = await startEmbedded({ port, dataDir: join(dir, 'data'), user: 'postgres', password: 'test-only', persistent: false }, () => undefined)
+  // Every test file runs a full API host (a pool of 15 plus event-hub listeners) in parallel; the default 100
+  // connections are not enough for the whole run under load.
+  const handle = await startEmbedded({ port, dataDir: join(dir, 'data'), user: 'postgres', password: 'test-only', persistent: false, postgresFlags: ['-c', 'max_connections=400'] }, () => undefined)
   project.provide('pgAdminUrl', handle.adminUrl)
   return async () => {
     await handle.stop()

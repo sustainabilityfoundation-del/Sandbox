@@ -27,16 +27,27 @@ function remember(projectId: string) {
 
 const VALID = /^[A-Za-z0-9_.-]{1,100}$/
 
+/**
+ * How the window's project was chosen: by the URL, by this browser's memory, or by default (nothing chosen yet; the
+ * bootstrap then opens the person's most recently opened project from the server, else the example project).
+ */
+export let projectChoice: 'url' | 'remembered' | 'default' = 'default'
+
 /** Resolved once per window at start. */
 export const currentProjectId: string = (() => {
   if (typeof location === 'undefined') return PROJECT_ID
   const fromUrl = new URLSearchParams(location.search).get('project')
   if (fromUrl && VALID.test(fromUrl)) {
     remember(fromUrl)
+    projectChoice = 'url'
     return fromUrl
   }
   const stored = read()
-  return stored && VALID.test(stored) ? stored : PROJECT_ID
+  if (stored && VALID.test(stored)) {
+    projectChoice = 'remembered'
+    return stored
+  }
+  return PROJECT_ID
 })()
 
 export const isLegacyProject = (projectId: string) => projectId === PROJECT_ID

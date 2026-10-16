@@ -8,6 +8,7 @@ import { PANEL_LIMITS, type ViewportMode } from './layout/viewport'
 import { ToolToolbar } from './ToolToolbar'
 import { ToolViewHost, UnsupportedSelectionNotice, ViewControls } from './WorkArea'
 import { canOpenTool, useEntitlements } from '../platform/entitlements'
+import { DEMO_TOOL_EXPLANATION, isDemoTool } from '../platform/demoTools'
 
 /**
  * Main tool pane: tool tabs (React Aria Tabs, arrow-key navigation), the active
@@ -61,6 +62,11 @@ function MainPane({
               <Tab key={tool.id} id={tool.id} data-tool-id={tool.id} className="ws-tool-tab">
                 <AppIcon name={tool.icon} size={18} />
                 <span>{tool.name}</span>
+                {isDemoTool(tool.id) && (
+                  <span className="ws-dock-demo" title={DEMO_TOOL_EXPLANATION}>
+                    Demo
+                  </span>
+                )}
                 {!canOpenTool(tool.id) && <AppIcon name="locked" size={16} label="Not in your subscription" className="text-fg-3" />}
               </Tab>
             ))}
@@ -79,7 +85,7 @@ function MainPane({
             </MenuItem>
             {openTools.map((t) => (
               <MenuItem key={t.id} id={`close:${t.id}`} icon="close" isDisabled={openTools.length === 1}>
-                {`Close ${t.name}`}
+                {`Close ${t.name}${isDemoTool(t.id) ? ' (Demo)' : ''}`}
               </MenuItem>
             ))}
           </MenuButton>
@@ -141,7 +147,7 @@ function SplitPane({ toolId, hidden }: { toolId: string; hidden: boolean }) {
           onChange={(id) => setLayout({ split: { toolId: id, ratio: 0.5 } })}
           options={getTools()
             .filter((t) => !t.singleInstance)
-            .map((t) => ({ id: t.id, label: canOpenTool(t.id) ? t.name : `${t.name} (not in subscription)`, isDisabled: !canOpenTool(t.id) }))}
+            .map((t) => ({ id: t.id, label: `${t.name}${isDemoTool(t.id) ? ' (Demo)' : ''}${canOpenTool(t.id) ? '' : ' (not in subscription)'}`, isDisabled: !canOpenTool(t.id) }))}
           className="min-w-40"
         />
         <span className="flex-1" />

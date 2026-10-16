@@ -28,3 +28,12 @@ export function shotsDir(name) {
   mkdirSync(dir, { recursive: true })
   return dir.split('\\').join('/')
 }
+
+/**
+ * The workspace opened on the example project PRJ-ACT100. A browser that remembers no project otherwise opens the
+ * person's most recently opened project from the server; flows that need the example name it explicitly.
+ * `query` is appended, e.g. exampleUrl('tool=requirements').
+ */
+export function exampleUrl(query = '') {
+  return `${env.base}?project=PRJ-ACT100${query ? `&${query}` : ''}`
+}

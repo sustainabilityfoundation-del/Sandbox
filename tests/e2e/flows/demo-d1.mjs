@@ -9,7 +9,7 @@
 // Run: `npm run e2e -- demo-d1` (E2E_BASE / E2E_API for other ports). Each run creates a new project (D1-xxxxx);
 // it resets the AI connection of development user eli.
 import { readFileSync, writeFileSync } from 'node:fs'
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 /** D1 steps that the replayed script cannot exercise yet (owners in demo-ai-engineering.md §3). Reported, not failed. */
@@ -95,13 +95,14 @@ const answer = async (reply) => (await reply.locator('.as-text').last().textCont
 
 try {
   // Step 1: a new project through Project Management, then open it (the window reloads into it).
-  await page.goto(env.base)
+  await page.goto(exampleUrl())
   await openAssistant()
   let reply = await ask(`D1 project ${KEY}`)
   check((await operations(reply)).includes('projects.create'), 'the model requested projects.create; nothing changed before Apply')
   await applyAll(reply, 'create the project', 1)
   reply = await ask(`D1 open ${KEY}`)
-  const navigated = page.waitForURL(/[?&]project=/, { timeout: 30000 })
+  // The window starts on the example (?project=PRJ-ACT100); wait until it has moved to another project.
+  const navigated = page.waitForURL((u) => { const id = new URL(u).searchParams.get('project'); return !!id && id !== 'PRJ-ACT100' }, { timeout: 30000 })
   await applyAll(reply, 'open the project', 1).catch(() => [])
   await navigated
   const projectId = new URL(page.url()).searchParams.get('project')
@@ -187,7 +188,7 @@ try {
   const fresh = await browser.newContext({ viewport: { width: 1600, height: 1000 } })
   await fresh.addInitScript(() => localStorage.setItem('ews.services.v1', JSON.stringify({ requirementsMode: 'api', devUser: 'eli' })))
   const page2 = await fresh.newPage()
-  await page2.goto(`${env.base}?project=${encodeURIComponent(P)}&tool=conceptualize`)
+  await page2.goto(exampleUrl(`project=${encodeURIComponent(P)}&tool=conceptualize`))
   await page2.waitForSelector('.ws-app', { timeout: 60000 })
   await page2.waitForTimeout(2000)
   await page2.screenshot({ path: `${shots}/03-fresh-session.png` })

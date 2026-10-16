@@ -1,4 +1,4 @@
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const shots = shotsDir('coverage')
@@ -9,7 +9,7 @@ const problems = []
 const page = await (await b.newContext({ viewport: { width: 1600, height: 1000 } })).newPage()
 page.on('pageerror', (e) => problems.push(e.message))
 page.on('console', (m) => m.type() === 'error' && !/favicon|DevTools/.test(m.text()) && problems.push(m.text().slice(0, 200)))
-await page.goto(base); await page.waitForSelector('.ws-app'); await page.evaluate(() => localStorage.clear()); await page.goto(base); await page.waitForSelector('.ws-app'); await page.waitForTimeout(1500)
+await page.goto(exampleUrl()); await page.waitForSelector('.ws-app'); await page.evaluate(() => localStorage.clear()); await page.goto(exampleUrl()); await page.waitForSelector('.ws-app'); await page.waitForTimeout(1500)
 await page.keyboard.press('Control+k'); await page.waitForSelector('.ws-launcher'); await page.keyboard.type('AI capability coverage'); await page.keyboard.press('Enter')
 await page.waitForSelector('[data-testid="ai-coverage"]')
 const summary = await page.locator('[data-testid="ai-coverage-summary"]').textContent()
@@ -33,7 +33,7 @@ check('panel', (await page.locator('[data-testid="ai-coverage"]').count()) === 1
 await page.keyboard.press('Escape')
 // Phone width
 const phone = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage()
-await phone.goto(base); await phone.waitForSelector('.ws-app'); await phone.waitForTimeout(1500)
+await phone.goto(exampleUrl()); await phone.waitForSelector('.ws-app'); await phone.waitForTimeout(1500)
 await phone.locator('.ws-mobile-nav').getByText('ChatGPT').click().catch((e) => console.log('phone nav', e.message))
 await phone.waitForTimeout(400)
 await phone.getByRole('button', { name: 'What can the assistant do?' }).click().catch((e) => console.log('phone open', e.message))

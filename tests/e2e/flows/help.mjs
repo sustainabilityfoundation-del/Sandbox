@@ -1,5 +1,5 @@
 // Unified help system: Help menu, dynamic module submenus, Help Centre, F1, tour, fallbacks, phone.
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 
 const base = env.base
@@ -14,8 +14,8 @@ const watch = (p) => {
 }
 const page = await (await b.newContext({ viewport: { width: 1600, height: 1000 } })).newPage()
 watch(page)
-await page.goto(base); await page.waitForSelector('.ws-app'); await page.evaluate(() => localStorage.clear())
-await page.goto(`${base}?tool=requirements`); await page.waitForSelector('.ws-app'); await page.waitForTimeout(2500)
+await page.goto(exampleUrl()); await page.waitForSelector('.ws-app'); await page.evaluate(() => localStorage.clear())
+await page.goto(exampleUrl(`tool=requirements`)); await page.waitForSelector('.ws-app'); await page.waitForTimeout(2500)
 const closeHelp = async () => { await page.locator('[data-testid="help-centre"]').locator('xpath=ancestor::*[@role="dialog"]').getByRole('button', { name: /^Close/ }).first().click(); await page.waitForTimeout(300) }
 
 // 1. Help button: visible, labelled, top right.
@@ -106,7 +106,7 @@ await page.keyboard.press('Escape')
 // 8. Phone.
 const phone = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage()
 watch(phone)
-await phone.goto(base); await phone.waitForSelector('.ws-app'); await phone.waitForTimeout(1500)
+await phone.goto(exampleUrl()); await phone.waitForSelector('.ws-app'); await phone.waitForTimeout(1500)
 await phone.getByRole('button', { name: 'Help', exact: true }).click()
 await phone.getByRole('menuitem', { name: 'Help Centre' }).click()
 await phone.waitForSelector('[data-testid="help-centre"]'); await phone.waitForTimeout(700)

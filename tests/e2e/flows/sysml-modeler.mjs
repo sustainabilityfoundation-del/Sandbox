@@ -1,6 +1,6 @@
 // SysML Modeler in the real workspace on the real API + PostgreSQL: human workflow and AI workflow
 // (demo assistant → service proposal → Apply → commit with provenance → explain → undo).
-import { env, launchOptions, shotsDir } from '../lib/env.mjs'
+import { env, launchOptions, shotsDir, exampleUrl } from '../lib/env.mjs'
 import { chromium } from 'playwright-core'
 const base = env.base
 const API = `${env.api}/api/sysml/v1`
@@ -19,7 +19,7 @@ await ctx.addInitScript(() => localStorage.setItem('ews.services.v1', JSON.strin
 const page = await ctx.newPage()
 page.on('pageerror', (e) => problems.push(e.message))
 page.on('console', (m) => m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text()) && problems.push(m.text().slice(0, 300)))
-await page.goto(`${base}?tool=sysml-modeler`)
+await page.goto(exampleUrl(`tool=sysml-modeler`))
 await page.waitForSelector('.smod-canvas', { timeout: 40000 })
 await page.waitForTimeout(800)
 check((await page.locator('.smod-statusbar', { hasText: 'API (PostgreSQL)' }).count()) === 1, 'workspace: SysML Modeler opened in API mode')
