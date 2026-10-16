@@ -40,3 +40,13 @@ The document title is edited in **Model → Document title**. It is a command, s
 from the current project's CAD service. Without `revision` it opens the current revision. Project
 Management uses the same link for CAD documents and parts. A document of another project does not
 open: you see "Cannot open the linked CAD document".
+
+**Source concept.** A document can record the Conceptualize concept it was started from, at an exact
+revision, and optionally the CAD handoff package. The header then shows **From … r<revision>**.
+
+- The source is set with the command `set_document_source { conceptId, revision, label?, handoff? }`,
+  usually by the assistant, and removed with `clear_document_source`.
+- It is provenance only: nothing is copied from the concept, and a later concept revision never changes
+  the model by itself.
+- The CAD service reports the source to Project Management as a `derived-from` relation pinned to that
+  revision.

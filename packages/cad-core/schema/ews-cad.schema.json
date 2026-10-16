@@ -148,6 +148,63 @@
         },
         "properties": {
           "$ref": "#/$defs/scalarMap"
+        },
+        "source": {
+          "type": "object",
+          "description": "Source concept and optional CAD handoff, revision-pinned (format 1.3). Provenance only.",
+          "required": [
+            "concept"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "concept": {
+              "type": "object",
+              "required": [
+                "module",
+                "kind",
+                "id",
+                "revision"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "module": {
+                  "const": "conceptualize"
+                },
+                "kind": {
+                  "const": "concept"
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            },
+            "handoff": {
+              "type": "object",
+              "required": [
+                "id",
+                "revision"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
         }
       }
     },

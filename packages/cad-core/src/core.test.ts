@@ -287,3 +287,21 @@ describe('stable entity UUIDs', () => {
     expect(entityUuid('00000000-0000-4000-8000-000000000002', 'part-1')).not.toBe(a)
   })
 })
+
+describe('document source concept (format 1.3)', () => {
+  it('records and clears a revision-pinned source concept; copies nothing', async () => {
+    const { applyTransaction, createDocument, validateDocument } = await import('./index')
+    const base = createDocument({ documentId: '00000000-0000-4000-8000-0000000000s1', title: 'Holder' })
+    const r = applyTransaction(base, { commands: [{ command: 'set_document_source', input: { conceptId: 'c-77', revision: 4, label: 'CON-007 Holder', handoff: { id: 'h-1', revision: 2 } } }] })
+    if (!r.ok) throw new Error(r.error.message)
+    expect(r.doc.metadata.source).toEqual({ concept: { module: 'conceptualize', kind: 'concept', id: 'c-77', revision: 4, label: 'CON-007 Holder' }, handoff: { id: 'h-1', revision: 2 } })
+    expect(r.doc.formatVersion).toBe('1.3.0')
+    expect(validateDocument(r.doc)).toEqual([])
+    const bad = applyTransaction(r.doc, { commands: [{ command: 'set_document_source', input: { conceptId: 'c-77', revision: 0 } }] })
+    expect(bad.ok).toBe(false)
+    const cleared = applyTransaction(r.doc, { commands: [{ command: 'clear_document_source', input: {} }] })
+    expect(cleared.ok && cleared.doc.metadata.source).toBeUndefined()
+    const twice = applyTransaction(base, { commands: [{ command: 'clear_document_source', input: {} }] })
+    expect(twice.ok).toBe(false)
+  })
+})

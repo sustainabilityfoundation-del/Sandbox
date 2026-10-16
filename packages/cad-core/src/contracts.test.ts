@@ -33,6 +33,8 @@ function sampleDocument(): CadDocument {
       { command: 'extrude_profile', input: { sketchId: '$hx', distance: 2, direction: 'reverse', operation: 'cut', ref: '$pk' } },
       { command: 'pattern_linear', input: { features: ['$pk'], direction: 'x', count: 3, spacing: 'w / 4' } },
       { command: 'bind_parameter', input: { partId: '$p', name: 'w', ref: { module: 'conceptualize', kind: 'constraint', id: 'c-1', revision: 1 }, quantity: 'width' } },
+      // Format 1.3: source concept (provenance).
+      { command: 'set_document_source', input: { conceptId: 'con-1', revision: 3, label: 'CON-001 Holder', handoff: { id: 'hand-1', revision: 1 } } },
       { command: 'add_semantic', input: { partId: '$p', kind: 'interface', name: 'Mount', targets: ['$e'] } },
       { command: 'add_reference', input: { subject: '$p', role: 'represents', target: { module: 'twin', id: 'HSG-110', revision: 3, kind: 'part' } } },
       { command: 'set_suppressed', input: { featureId: '$e', suppressed: true } },

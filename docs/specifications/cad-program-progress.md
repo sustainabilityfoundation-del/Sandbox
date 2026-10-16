@@ -51,6 +51,14 @@ For Project Management, a STEP export in a project document should keep `documen
 `documentRevision`, `modelVersion` and the read-back next to the file. The export result carries
 all of them.
 
+### Visual concept exploration (docs/specifications/concept-visualization-contracts.md)
+
+| Item | Status |
+| --- | --- |
+| 1. CAD documents record their source concept and revision | **Done.** Format 1.3 `metadata.source { concept: { module: 'conceptualize', kind: 'concept', id, revision, label? }, handoff?: { id, revision } }`. Set with `set_document_source`, removed with `clear_document_source`. Shown in the header badge and in `describe_model`. The artifact source reports `derived-from` → concept with `toRevision`. Tests: core, artifacts (DB), assistant |
+| 2. Start a part from a CAD handoff (map parameters to bound CAD parameters, report gaps) | **Waiting** for the Conceptualize handoff package and its SDK read |
+| 3. Possibly outdated when the source concept revises (no automatic regeneration) | **Waiting** for the handoff contract. The pinned `source.concept.revision` is the basis: compare it with the concept's latest revision, as `check_bindings` does for constraints |
+
 ### D1 follow-up (after main 5565018)
 
 | Item | Status | Evidence |
@@ -59,6 +67,7 @@ all of them.
 | check against the real Conceptualize | **Done.** Constraints are created and read through the real API and `getConstraint`. A stored CAD revision is checked, the check's `evidence` arguments are recorded through the real evidence API (basis estimate), and Conceptualize's independently computed statuses agree. After a constraint revision, the check uses the new revision and reports the outdated binding | `services/cad/test/d1.real.test.ts` |
 | Declarative proposals (CR-AI-8) | **Done for run_commands (including bind_parameter) and save_document** with no view mounted and the platform CAD API. The resulting document is computed with the same commands; Apply goes through `createDocument` or `saveRevision` with If-Match and an expected revision. Closures remain the labelled fallback for local stores, file sessions and documents with unsaved local changes. new_document, undo and open_document stay closures: they act on this window's session. COORDINATOR REVIEW 8b75df9 registers `cad-modeler` with the gateway. The CAD service accepts the gateway's X-Ews-Source / X-Ews-Proposal provenance | `services/cad/test/declarative.test.ts` (create, revise, stale refusal, save); demo-d1: CAD proposals applied "through the cad-modeler API" |
 | ai-headless | **Done.** CAD Modeler is removed from KNOWN_FAILING; all 11 operations pass with all tabs closed | `npm run e2e -- ai-headless` |
+| Re-bind gap (owner live run: pocket_count changed after CST-001 r2, binding left at r1) | **Done.** run_commands detects bound parameters whose value changes while the constraint has a newer revision. The preview shows an **Outdated binding** item (pinned and latest revision, with their bounds) and the same proposal re-binds to the latest revision; `rebind: false` only flags it. The run_commands and check_bindings descriptions say so | assistant.d1.test (re-bind applied, check_bindings clean; rebind false; unrelated change not flagged) |
 
 For the AI agent:
 - **demo-d1 fixture.** `d1-plumbing.json` calls `cad-modeler.save_document` right after a run_commands Apply that already saved. Those two steps now get "Already saved … (nothing to save)" and the flow counts them as failures. The steps should be dropped, or "already saved" accepted.

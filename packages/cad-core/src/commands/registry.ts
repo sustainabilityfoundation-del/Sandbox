@@ -214,6 +214,50 @@ export const COMMANDS: CommandSpec[] = [
       return {}
     },
   }),
+  define<{ conceptId: string; revision: number; label?: string; handoff?: { id: string; revision: number } }>({
+    name: 'set_document_source',
+    category: 'document',
+    summary:
+      'Record the Conceptualize concept (and optionally the CAD handoff package) this document was started from, at an exact revision. Provenance only: nothing is copied; when the concept is revised later the document can be reported as possibly outdated, and it is never regenerated automatically.',
+    input: obj(
+      {
+        conceptId: { type: 'string', minLength: 1, maxLength: 300, description: 'Concept ID (UUID) in Conceptualize.' },
+        revision: { type: 'integer', minimum: 1, description: 'Concept revision the document is based on.' },
+        label: { type: 'string', maxLength: 200, description: 'Display text captured now (not authoritative), e.g. "CON-012 Bit holder".' },
+        handoff: obj({ id: { type: 'string', minLength: 1, maxLength: 300 }, revision: { type: 'integer', minimum: 1 } }, ['id', 'revision']),
+      },
+      ['conceptId', 'revision'],
+    ),
+    output: '{}',
+    preconditions: ['revision is a positive integer.'],
+    errors: ['invalid-input'],
+    undo: 'Restores the previous source (or none).',
+    apply(ctx, i) {
+      if (!Number.isInteger(i.revision) || i.revision < 1) throw new CadError('invalid-input', 'revision must be a positive integer.')
+      ctx.doc.metadata.source = {
+        concept: { module: 'conceptualize', kind: 'concept', id: i.conceptId, revision: i.revision, ...(i.label ? { label: i.label } : {}) },
+        ...(i.handoff ? { handoff: { id: i.handoff.id, revision: i.handoff.revision } } : {}),
+      }
+      ctx.modified(ctx.doc.documentId)
+      return {}
+    },
+  }),
+  define<Record<string, never>>({
+    name: 'clear_document_source',
+    category: 'document',
+    summary: 'Remove the recorded source concept of the document.',
+    input: obj({}, []),
+    output: '{}',
+    preconditions: ['A source is recorded.'],
+    errors: ['precondition-failed'],
+    undo: 'Restores the source.',
+    apply(ctx) {
+      if (!ctx.doc.metadata.source) throw new CadError('precondition-failed', 'The document has no recorded source concept.')
+      delete ctx.doc.metadata.source
+      ctx.modified(ctx.doc.documentId)
+      return {}
+    },
+  }),
   define<{ name: string; ref?: string; material?: { name: string; density: number } }>({
     name: 'create_part',
     category: 'part',

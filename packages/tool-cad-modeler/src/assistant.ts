@@ -189,6 +189,58 @@ async function exportForReturn(d: OpenDocument, format: 'step' | 'ewscad', partI
   }
 }
 
+const fmtBound = (b: { operator: string; quantity: { value?: number | null; min?: number | null; max?: number | null; unit: string } } | null | undefined) =>
+  !b ? 'no quantitative bound' : b.operator === 'in-range' ? `${b.quantity.min ?? '…'}–${b.quantity.max ?? '…'} ${b.quantity.unit}` : `${b.operator} ${b.quantity.value} ${b.quantity.unit}`
+
+/**
+ * Bound parameters (Conceptualize constraints, pinned revision) whose value the commands change while the
+ * constraint has a newer revision. Returns the re-bind commands (to the latest revision) and preview items.
+ */
+async function outdatedBindings(doc: CadDocument | undefined, requested: CommandCall[], ctx: AssistantActionContext) {
+  const none = { commands: [] as CommandCall[], items: (_rebind: boolean): ServiceProposalItem[] => [], assumptions: (_rebind: boolean): string[] => [] }
+  const getConstraint = ctx.services?.concepts?.getConstraint
+  if (!doc || !getConstraint) return none
+  const out = applyTransaction(doc, { commands: requested, expectedVersion: doc.version, source: 'assistant' })
+  if (!out.ok) return none
+  const found: { partId: string; name: string; before?: number; after?: number; ref: NonNullable<CadDocument['parts'][number]['parameters'][number]['binding']>; key: string; latest: number; oldBound: string; newBound: string }[] = []
+  for (const part of out.doc.parts) {
+    const beforeValues = doc.parts.some((p) => p.id === part.id) ? parameterTable(doc, part.id) : []
+    const afterValues = parameterTable(out.doc, part.id)
+    for (const p of part.parameters) {
+      const b = p.binding
+      if (!b || b.ref.module !== 'conceptualize' || b.ref.kind !== 'constraint' || b.ref.revision === undefined) continue
+      // A binding set in this transaction is the caller's explicit choice.
+      if (requested.some((c) => c.command === 'bind_parameter' && (c.input as { name?: string }).name === p.name)) continue
+      const before = beforeValues.find((x) => x.name === p.name)
+      const after = afterValues.find((x) => x.name === p.name)
+      if (before && before.value === after?.value && before.expression === after?.expression) continue
+      const latest = await getConstraint(b.ref.id, { projectId: ctx.captured.projectId }).catch(() => undefined)
+      if (!latest || latest.latestRevision <= b.ref.revision) continue
+      const pinned = await getConstraint(b.ref.id, { projectId: ctx.captured.projectId, revision: b.ref.revision }).catch(() => undefined)
+      found.push({ partId: part.id, name: p.name, before: before?.value, after: after?.value, ref: b, key: latest.key, latest: latest.latestRevision, oldBound: fmtBound(pinned?.bound), newBound: fmtBound(latest.bound) })
+    }
+  }
+  if (!found.length) return none
+  return {
+    commands: found.map((x) => ({ command: 'bind_parameter', input: { partId: x.partId, name: x.name, ref: { ...x.ref.ref, revision: x.latest }, ...(x.ref.quantity ? { quantity: x.ref.quantity } : {}), ...(x.ref.note ? { note: x.ref.note } : {}) } })),
+    items: (rebind: boolean): ServiceProposalItem[] =>
+      found.map((x) => ({
+        label: `Outdated binding: ${x.name}`,
+        current: `${x.name} = ${x.before ?? '—'}, bound to ${x.key} revision ${x.ref.ref.revision} (${x.oldBound})`,
+        proposed: rebind
+          ? `${x.name} = ${x.after ?? '—'}, re-bound to ${x.key} revision ${x.latest} (${x.newBound})`
+          : `${x.name} = ${x.after ?? '—'}, still bound to revision ${x.ref.ref.revision}; ${x.key} is at revision ${x.latest} (${x.newBound})`,
+        basis: 'assumption',
+      })),
+    assumptions: (rebind: boolean): string[] =>
+      found.map((x) =>
+        rebind
+          ? `Re-binding ${x.name} records that its new value implements ${x.key} revision ${x.latest}; run cad-modeler.check to confirm it against that bound.`
+          : `${x.name} changes but stays bound to ${x.key} revision ${x.ref.ref.revision} although revision ${x.latest} exists.`,
+      ),
+  }
+}
+
 function validateCalls(raw: unknown): CommandCall[] {
   if (!Array.isArray(raw) || !raw.length) throw new ActionError('invalid-arguments', '“commands” must be a non-empty list of { command, input }.')
   return raw.map((c, i) => {
@@ -223,7 +275,7 @@ const actions: AssistantActionDefinition[] = [
         data: {
           documents: snap.documents,
           kernel: snap.kernel.info ?? null,
-          document: { id: doc.documentId, title: doc.metadata.title, version: doc.version, regeneratedVersion: regen?.documentVersion ?? null, dirty: snap.documents.find((d) => d.id === doc.documentId)?.dirty ?? false, stored: open.stored ?? null },
+          document: { id: doc.documentId, title: doc.metadata.title, version: doc.version, regeneratedVersion: regen?.documentVersion ?? null, dirty: snap.documents.find((d) => d.id === doc.documentId)?.dirty ?? false, stored: open.stored ?? null, source: doc.metadata.source ?? null },
           regeneration: { location: regen?.location ?? null },
           tree: featureTree(doc, regen),
           parameters: Object.fromEntries(doc.parts.map((p) => [p.id, parameterTable(doc, p.id)])),
@@ -266,7 +318,7 @@ const actions: AssistantActionDefinition[] = [
     label: 'Prepare CAD modelling commands',
     description:
       `Propose a transaction of CAD commands (all apply or none). The commands are validated and the model is regenerated on a copy for the preview (predicted volumes, faces, failures); nothing changes until the user applies it. Commands: ${COMMANDS.map((c) => c.name).join(', ')}. ` +
-      'Each item is { "command": name, "input": {...} }; see cad-modeler.query list_commands for input schemas. Use "ref": "$name" on create commands and "$name" (or "$name.field.index") in later commands of the same transaction. Lengths in mm, angles in degrees; values may be expressions over part parameters. When no document is open, a new one is created (name it with "title"). When no CAD Modeler view is open and the project has a CAD service, Apply also saves the result as a new revision (the result says which); cad-modeler.save_document is then not needed.',
+      'Each item is { "command": name, "input": {...} }; see cad-modeler.query list_commands for input schemas. Use "ref": "$name" on create commands and "$name" (or "$name.field.index") in later commands of the same transaction. Lengths in mm, angles in degrees; values may be expressions over part parameters. When no document is open, a new one is created (name it with "title"). When no CAD Modeler view is open and the project has a CAD service, Apply also saves the result as a new revision (the result says which); cad-modeler.save_document is then not needed. If a command changes a parameter bound to a constraint that has a newer revision than the binding pins (see cad-modeler.check_bindings), the preview flags it and the same proposal re-binds the parameter to the latest revision (rebind: false to only flag it); run cad-modeler.check afterwards to confirm the new value against that revision.',
     parameters: {
       type: 'object',
       properties: {
@@ -274,15 +326,21 @@ const actions: AssistantActionDefinition[] = [
         label: { type: 'string', description: 'Short description shown in the preview and the undo history.' },
         title: { type: 'string', maxLength: 200, description: 'Title of the new document when the commands create one (ignored for an existing document).' },
         expectedVersion: { type: 'integer', description: 'Document version the commands were planned against (from describe_model); a mismatch is reported instead of applying.' },
+        rebind: { type: 'boolean', description: 'Default true: when the commands change a bound parameter whose constraint has a newer revision, the proposal also re-binds it to the latest revision (shown in the preview). false: only flag it.' },
         documentId,
       },
       required: ['commands'],
       additionalProperties: false,
     },
     async run(args, ctx) {
-      const commands = validateCalls(args.commands)
+      const requested = validateCalls(args.commands)
       const projectId = ctx.captured.projectId
-      const { open, version, dry } = await dryRunFor(await resolveDocument(args, ctx, { allowNone: true, createsDocument: commands[0]?.command === 'create_part' }), commands, args.expectedVersion as number | undefined)
+      const targetDoc = await resolveDocument(args, ctx, { allowNone: true, createsDocument: requested[0]?.command === 'create_part' })
+      // Bound parameters whose value changes while their constraint has a newer revision: flagged, and
+      // re-bound to the latest revision in the same transaction (unless rebind: false).
+      const rebinds = await outdatedBindings(targetDoc?.engine.document, requested, ctx)
+      const commands = args.rebind === false ? requested : [...requested, ...rebinds.commands]
+      const { open, version, dry } = await dryRunFor(targetDoc, commands, args.expectedVersion as number | undefined)
       const persist = persistsOnApply()
       if (!dry.ok) {
         const where = dry.failedIndex !== undefined && dry.failedIndex >= 0 ? ` (command ${dry.failedIndex + 1}, ${commands[dry.failedIndex]?.command})` : ''
@@ -311,9 +369,11 @@ const actions: AssistantActionDefinition[] = [
             ...(open ? [] : [{ label: 'New document', proposed: newTitle ?? 'Untitled CAD Modeler document' }]),
             ...commands.map((c, i) => ({ label: `${i + 1}. ${c.command}`, proposed: describeInput(c) })),
             ...predictionItems(dry),
+          ...rebinds.items(args.rebind !== false),
+            ...rebinds.items(args.rebind !== false),
             { targetId: open?.id ?? document.documentId, label: 'Saved to the project', proposed: open ? `revision ${open.stored!.revision + 1} of ${open.id} in ${projectId}` : `new document ${document.documentId} (revision 1) in ${projectId}` },
           ],
-          assumptions: dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : undefined,
+          assumptions: [...(dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : []), ...rebinds.assumptions(args.rebind !== false)].filter(Boolean).length ? [...(dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : []), ...rebinds.assumptions(args.rebind !== false)] : undefined,
           inspected: open ? [{ id: open.id, detail: `CAD document revision ${open.stored!.revision}, model version ${version}` }] : [],
           operations: open
             ? [{ module: MODULE, operationId: 'saveRevision', method: 'PUT', path: `${docsPath}/${open.id}`, body: { document, message }, ifMatch: `"${open.stored!.revision}"` }]
@@ -337,9 +397,10 @@ const actions: AssistantActionDefinition[] = [
           ...(open ? [] : [{ label: 'New document', proposed: newTitle ?? 'Untitled CAD Modeler document' }]),
           ...commands.map((c, i) => ({ label: `${i + 1}. ${c.command}`, proposed: describeInput(c) })),
           ...predictionItems(dry),
+          ...rebinds.items(args.rebind !== false),
           ...(persist ? [{ targetId: open?.id, label: 'Saved to the project', proposed: open?.stored ? `revision ${open.stored.revision + 1} of ${open.id} in ${projectId}` : `new stored document in ${projectId}` }] : []),
         ],
-        assumptions: dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : undefined,
+        assumptions: [...(dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : []), ...rebinds.assumptions(args.rebind !== false)].filter(Boolean).length ? [...(dry.after && !dry.after.ok ? ['The model will contain regeneration failures after this change (see the predicted failures).'] : []), ...rebinds.assumptions(args.rebind !== false)] : undefined,
         inspected: open ? [{ id: open.id, detail: `CAD document version ${version}` }] : [],
         async apply(provenance) {
           const d = target ? cadSession.require(target) : await cadSession.newDocument({ source: 'assistant', empty: true, projectId, ...(newTitle ? { title: newTitle } : {}) })
@@ -639,7 +700,7 @@ const actions: AssistantActionDefinition[] = [
     name: 'cad-modeler.check_bindings',
     label: 'Find outdated parameter bindings',
     description:
-      'List parameters whose binding pins a revision older than the bound artifact\'s latest revision, with the bound values of the pinned and the latest revision (Conceptualize constraints), so the parameter can be reviewed and re-bound. Bindings that follow the latest revision, and bindings to modules that cannot be read here, are reported separately. Read-only.',
+      'List parameters whose binding pins a revision older than the bound artifact\'s latest revision, with the bound values of the pinned and the latest revision (Conceptualize constraints), so the parameter can be reviewed and re-bound. To update an outdated parameter, change its value with cad-modeler.run_commands: the same proposal re-binds it to the latest revision (or include bind_parameter with that revision yourself). Bindings that follow the latest revision, and bindings to modules that cannot be read here, are reported separately. Read-only.',
     parameters: { type: 'object', properties: { documentId }, additionalProperties: false },
     async run(args, ctx) {
       const d = (await resolveDocument(args, ctx))!
