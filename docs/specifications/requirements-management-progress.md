@@ -139,6 +139,30 @@ Merged main d628556 (docs/specifications/integration-milestone-1.md).
 - **COORDINATOR REVIEW** commit 9bae3e9: `apps/workspace/src/assistant/assistant.test.ts` runs its twin demo flow without a Requirements service (it passed before only because no view was mounted). Test-only.
 - Limitation: proposals are still closures (`apply`/`undo`) held by the workspace, not persisted declarative data (C9 §3); that needs `services/assistant` persistence and a declarative proposal contract from the coordinator. The Requirements Apply is already a pure function of (requirement ID, patch, expected revision, project), so it can be expressed declaratively when that contract exists.
 
+## Declarative proposals, canonical allocation targets, CR-AI-10, 15 Oct 2026
+
+Merged main 5565018.
+
+- **Canonical allocation targets.**
+  - An allocation to a component or product element stores the ID the host's `TwinDirectory` returns (`found.id`). With Project Management's product directory, an alias such as HSG-110 is stored as the element UUID, so allocations made by alias are reported in `relations`.
+  - Allocations made before this change keep the ID they were made with.
+  - `listRequirements?allocatedTo=` matches the given IDs and their canonical IDs (`withCanonicalTargets`), so filters by twin ID (`read_for_component`, the table's component filter) find both forms.
+  - The workspace maps UUIDs back to twin IDs for display (coordinator).
+- **Declarative proposals (CR-AI-8).**
+  - In API mode, `requirements.update`, `create` and `allocate` return `DeclarativeProposal`s:
+    - update: PATCH `updateRequirement` with If-Match;
+    - create: POST `createRequirement`;
+    - allocate: DELETE `deleteRelationship` with If-Match, and POST `createRelationship` with `expectedFromRevision`;
+    - update and allocate also carry the expected requirement revision, re-read with `getRequirement`.
+  - The platform stores and executes them. The service records the `x-ews-proposal` header (`<conversation>/<key>`) in the audit details and, when no reason is given, as the change reason `Assistant proposal <conversation>/<key>`.
+  - There is no Undo for declarative proposals (the SDK type has none). Demo-mode update keeps the closure fallback.
+- **Parity through the platform.** Tests store the proposal in the assistant service and apply it there.
+  - Module refusals reach the person with the module's HTTP status and message, identical to the UI's.
+  - A stale revision is refused by the platform's re-read before anything is written (409, "changed since the preview: revision 1 → 2").
+  - An invalid create body is refused when the proposal is stored: the platform checks it against the module's OpenAPI schema. Same rule and status as the UI, platform wording.
+- **CR-AI-10:** `EventHub.close()` is idempotent. It returns at once when already closed, and clears `listener` before releasing it. Test in `infrastructure.test.ts`.
+- No migrations.
+
 ## D1-REQ: requirements.create and requirements.allocate, 15 Oct 2026
 
 Merged main (SDK 1.8.0); `@ews/requirements-service`, `@ews/requirements-client` and `@ews/tool-requirements` depend on `@ews/platform-sdk ^1.8.0`.

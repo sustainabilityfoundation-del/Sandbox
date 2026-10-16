@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
-import { localObjectStorage, migrateRequirements } from '@ews/requirements-service'
+import { createEventHub, localObjectStorage, migrateRequirements } from '@ews/requirements-service'
 
 async function withTransactionForTests(pool: pg.Pool, fn: (c: pg.PoolClient) => Promise<void>) {
   const c = await pool.connect()
@@ -282,3 +282,18 @@ describe('persistence across restarts (AC-B1)', () => {
   })
 })
 
+
+describe('event hub shutdown (CR-AI-10)', () => {
+  it('close() is idempotent: a second (or concurrent) call returns and never releases the LISTEN client twice', async () => {
+    const env = await createTestEnv({ seed: false })
+    try {
+      const hub = await createEventHub(env.pool, { pollMs: 50 })
+      await Promise.all([hub.close(), hub.close()])
+      await expect(hub.close()).resolves.toBeUndefined()
+      // The pool is still healthy (a double release would have thrown or corrupted it).
+      expect((await env.pool.query('SELECT 1 AS ok')).rows[0].ok).toBe(1)
+    } finally {
+      await env.close()
+    }
+  })
+})

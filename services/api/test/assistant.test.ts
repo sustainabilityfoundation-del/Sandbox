@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import type { AssistantActionContext, ServiceProposal } from '@ews/platform-sdk'
+import type { AssistantActionContext, DeclarativeProposal } from '@ews/platform-sdk'
 import { sampleModel } from '@ews/platform-sdk/testing'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createHttpRequirementsService, getModuleClient } from '../../../packages/requirements-client/src'
 import { requirementsAssistant } from '../../../packages/tool-requirements/src/assistant'
 import { BASE, PROJECT, REQ1, createTestEnv, type TestEnv } from './helpers'
+import { applyProposal, storeProposal, type PlatformApply } from './platformApply'
 
 /**
  * Integration milestone 1 on the real API and PostgreSQL:
@@ -30,7 +31,6 @@ const ctxFor = (user: string, projectId = PROJECT): AssistantActionContext => ({
   services: { requirements: service(user) },
 })
 const action = (name: string) => requirementsAssistant.actions.find((a) => a.name === name)!
-const provenance = () => ({ conversationId: 'conv-1', proposalId: `p-${randomUUID()}`, messageId: 'm-1' })
 const newRequirement = async (title: string) =>
   (await env.call('eli', 'POST', `${BASE}/requirements`, { title, statement: 'The rod shall be chromed.', rationale: 'Wear.', type: 'functional' }, { 'idempotency-key': randomUUID() })).body
 
@@ -40,8 +40,16 @@ const refusal = (e: unknown) => {
   return { name: x.name, code: x.code, status: x.status, message: x.message.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, '<id>').replace(/\bREQ-\d+/g, '<key>') }
 }
 
+/** How a refusal reaches the person through the platform: the module's HTTP status and message. */
+const viaPlatform = (r: PlatformApply) => {
+  if (r.status < 400) return undefined
+  const err = r.body.error as { code: string; message: string; details?: { proposal?: { results?: { status: string; httpStatus: number; summary: string }[] } } }
+  const failed = err.details?.proposal?.results?.find((x) => x.status === 'failed')
+  return { status: failed?.httpStatus ?? r.status, message: (failed?.summary ?? err.message).replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, '<id>').replace(/\bREQ-\d+/g, '<key>') }
+}
+
 describe('C9: Requirements assistant operations without a mounted view (API mode)', () => {
-  it('search, read_for_component, explain_quality and update (preview, Apply, Undo) all succeed headless', async () => {
+  it('search, read_for_component, explain_quality and update (stored proposal, Apply through the platform) all succeed headless', async () => {
     const ctx = ctxFor('eli')
     const search = await action('requirements.search').run({ text: 'load' }, ctx)
     expect(search).toMatchObject({ kind: 'data' })
@@ -55,21 +63,26 @@ describe('C9: Requirements assistant operations without a mounted view (API mode
     expect(quality).toMatchObject({ kind: 'data', data: { key: 'REQ-006' } })
 
     const r = await newRequirement('Rod finish')
-    const p = (await action('requirements.update').run({ requirementId: r.key, statement: 'The rod shall be hard-chromed.', rationale: 'Wear and corrosion.' }, ctx)) as ServiceProposal
-    expect(p).toMatchObject({ kind: 'service-proposal', module: 'requirements' })
+    const p = (await action('requirements.update').run({ requirementId: r.key, statement: 'The rod shall be hard-chromed.', rationale: 'Wear and corrosion.' }, ctx)) as DeclarativeProposal
+    expect(p).toMatchObject({ kind: 'declarative-proposal', module: 'requirements', projectId: PROJECT })
     expect(p.preview).toEqual([
       { targetId: r.id, label: `${r.key} Statement`, current: 'The rod shall be chromed.', proposed: 'The rod shall be hard-chromed.', basis: 'user-statement' },
       { targetId: r.id, label: `${r.key} Rationale`, current: 'Wear.', proposed: 'Wear and corrosion.', basis: 'user-statement' },
     ])
-    expect((await env.call('eli', 'GET', `${BASE}/requirements/${r.id}`)).body.revision).toBe(1) // nothing written yet
-    const pv = provenance()
-    await p.apply(pv)
+    expect(p.operations).toEqual([{ module: 'requirements', operationId: 'updateRequirement', method: 'PATCH', path: `/projects/${PROJECT}/requirements/${r.id}`, body: { statement: 'The rod shall be hard-chromed.', rationale: 'Wear and corrosion.' }, ifMatch: '"1"' }])
+    expect(p.expected).toEqual([{ module: 'requirements', kind: 'requirement', id: r.id, label: `${r.key} Rod finish`, revision: 1, read: { operationId: 'getRequirement', path: `/projects/${PROJECT}/requirements/${r.id}`, field: 'revision' } }])
+    // Stored as data: it is the same after a reload (read back from the assistant service), and nothing is written yet.
+    const id = await storeProposal(env, 'eli', p, PROJECT)
+    expect((await env.call('eli', 'GET', `/api/assistant/v1/proposals/${id}`)).body.proposal).toMatchObject({ status: 'pending', kind: 'declarative' })
+    expect((await env.call('eli', 'GET', `${BASE}/requirements/${r.id}`)).body.revision).toBe(1)
+    const applied = await applyProposal(env, 'eli', id, PROJECT)
+    expect(applied.status, JSON.stringify(applied.body)).toBe(200)
     const saved = (await env.call('eli', 'GET', `${BASE}/requirements/${r.id}`)).body
     expect(saved).toMatchObject({ revision: 2, statement: 'The rod shall be hard-chromed.', rationale: 'Wear and corrosion.' })
     const history = (await env.call('eli', 'GET', `${BASE}/requirements/${r.id}/history`)).body
-    expect(history.find((h: { action: string }) => h.action === 'revised')).toMatchObject({ actor: 'eli', reason: `Assistant proposal ${pv.proposalId}` })
-    await p.undo!({})
-    expect((await env.call('eli', 'GET', `${BASE}/requirements/${r.id}`)).body).toMatchObject({ revision: 3, statement: 'The rod shall be chromed.', rationale: 'Wear.' })
+    expect(history.find((h: { action: string }) => h.action === 'revised')).toMatchObject({ actor: 'eli', reason: expect.stringMatching(/^Assistant proposal C-REQ-[0-9a-f]+\/RQ-\d+$/) })
+    expect((await applyProposal(env, 'eli', id, PROJECT)).body).toMatchObject({ alreadyApplied: true })
+    expect((await env.call('eli', 'GET', `${BASE}/requirements/${r.id}`)).body.revision).toBe(2)
   })
 })
 
@@ -78,15 +91,13 @@ describe('C9: validation parity between the UI path and the assistant path', () 
   const uiSave = (user: string, id: string, patch: Record<string, unknown>, expectedRevision: number) =>
     getModuleClient(service(user), PROJECT)!.update(id, patch, { expectedRevision }).then(
       () => undefined,
-      (e) => refusal(e),
+      (e) => ({ status: e.status as number, message: refusal(e).message }),
     )
   const aiSave = async (user: string, key: string, args: Record<string, unknown>, before?: () => Promise<void>) => {
-    const p = (await action('requirements.update').run({ requirementId: key, ...args }, ctxFor(user))) as ServiceProposal
+    const p = await action('requirements.update').run({ requirementId: key, ...args }, ctxFor(user))
+    const id = await storeProposal(env, user, p, PROJECT)
     await before?.()
-    return p.apply(provenance()).then(
-      () => undefined,
-      (e) => refusal(e),
-    )
+    return viaPlatform(await applyProposal(env, user, id, PROJECT))
   }
 
   it('invalid statement (over 20 000 characters): refused with the same error', async () => {
@@ -95,7 +106,7 @@ describe('C9: validation parity between the UI path and the assistant path', () 
     const tooLong = 'x'.repeat(20001)
     const ui = await uiSave('eli', a.id, { statement: tooLong }, 1)
     const ai = await aiSave('eli', b.key, { statement: tooLong })
-    expect(ui?.code).toBe('invalid')
+    expect(ui?.status).toBe(400)
     expect(ai).toEqual(ui)
   })
 
@@ -110,7 +121,7 @@ describe('C9: validation parity between the UI path and the assistant path', () 
     expect(await review(b.id)).toEqual(ra)
   })
 
-  it('stale revision: refused with the same conflict', async () => {
+  it('stale revision: both refused with a conflict before anything is written', async () => {
     const a = await newRequirement('Parity stale A')
     const b = await newRequirement('Parity stale B')
     // Both based on revision 1; someone saves revision 2 first.
@@ -119,15 +130,18 @@ describe('C9: validation parity between the UI path and the assistant path', () 
     const ai = await aiSave('eli', b.key, { statement: 'Stale.' }, async () => {
       await env.call('eli', 'PATCH', `${BASE}/requirements/${b.id}`, { expectedRevision: 1, title: 'Parity stale B (changed)' })
     })
-    expect(ui!.code).toBe('conflict')
-    expect(ai).toEqual(ui)
+    expect(ui?.status).toBe(409)
+    expect(ai?.status).toBe(409)
+    // The platform re-reads the expected revision first and explains it (integration milestone 1 §4.4).
+    expect(ai?.message).toMatch(/changed since the preview: revision 1 → 2/)
+    expect((await env.call('eli', 'GET', `${BASE}/requirements/${b.id}`)).body.statement).toBe('The rod shall be chromed.')
   })
 
   it('forbidden role (reader): refused with the same error', async () => {
     const a = await newRequirement('Parity forbidden')
     const ui = await uiSave('rho', a.id, { statement: 'Reader edit.' }, 1)
     const ai = await aiSave('rho', a.key, { statement: 'Reader edit.' })
-    expect(ui!.code).toBe('forbidden')
+    expect(ui?.status).toBe(403)
     expect(ai).toEqual(ui)
     expect((await env.call('eli', 'GET', `${BASE}/requirements/${a.id}`)).body.revision).toBe(1)
   })

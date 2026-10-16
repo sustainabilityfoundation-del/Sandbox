@@ -205,7 +205,7 @@ export const RequirementListQuery = Type.Object(
     ids: Type.Optional(Type.String({ description: 'Comma-separated UUIDs' })),
     keys: Type.Optional(Type.String({ description: 'Comma-separated keys' })),
     collectionId: Type.Optional(Uuid),
-    allocatedTo: Type.Optional(Type.String({ description: 'Twin component IDs (comma-separated): requirements allocated to any of them' })),
+    allocatedTo: Type.Optional(Type.String({ description: 'Allocation target IDs (comma-separated; component IDs, product element UUIDs or aliases): requirements allocated to any of them' })),
     includeArchived: Type.Optional(Type.Boolean()),
     configurationId: Type.Optional(Type.String({ description: 'Only requirements applicable to this configuration (empty applicability = all)' })),
     baselineId: Type.Optional(Uuid),

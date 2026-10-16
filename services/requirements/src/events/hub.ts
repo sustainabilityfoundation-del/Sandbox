@@ -179,14 +179,18 @@ export async function createEventHub(pool: Pool, options: { pollMs?: number; onE
     },
     purge,
     retentionHours,
+    /** Idempotent (CR-AI-10): a second call returns at once and never releases the LISTEN client twice. */
     async close() {
+      if (closed) return
       closed = true
       clearInterval(timer)
       clearInterval(purgeTimer)
       await running
-      if (listener) {
-        await listener.query('UNLISTEN *').catch(() => undefined)
-        listener.release()
+      const client = listener
+      listener = null
+      if (client) {
+        await client.query('UNLISTEN *').catch(() => undefined)
+        client.release()
       }
     },
   }
