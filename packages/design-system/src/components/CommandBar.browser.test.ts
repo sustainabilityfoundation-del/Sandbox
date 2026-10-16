@@ -42,6 +42,8 @@ describe.skipIf(!haveChrome)('CommandBar in a browser', () => {
     if (shots) mkdirSync(shots, { recursive: true })
   }, 90_000)
 
+  // 60 s: closing Chromium and the Vite server can take well over the default hook timeout when several
+  // suites (or agents) run in parallel on one machine (see the testTimeout note in vitest.config.ts).
   afterAll(async () => {
     await browser?.close()
     await server?.close()

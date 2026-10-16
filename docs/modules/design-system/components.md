@@ -54,9 +54,11 @@ backlog IDs, Help); `CommandBar` uses it, and a host may open it from a palette 
 ### Command surfaces (1.3.0, [specification Amendment CT-2c](../../specifications/capability-registry.md))
 
 One neutral model (`CommandBarCommand` with its four states) feeds every surface; none imports the SDK. **A planned entry can never
-be invoked on any surface**: its state has no `onInvoke` (a compile error to add one), and every surface routes presses through
-`activateCommand`, which reads the state kind, so even a handler smuggled past the type is not run. Pressing a planned or
-unavailable entry opens its explanation (a popover; inline in sheets). Layouts: `desktop`, `tablet` (below 840 px), `phone` (below
+be invoked on any surface**: its state has no `onInvoke` (a compile error to add one), and the state kind is checked again at runtime, so even a handler
+smuggled past the type is not run: menu, palette, sheet and context entries route presses through `activateCommand`, which reads
+the state kind, while `CommandButton` (the ribbon and quick-bar button) calls `state.onInvoke` directly, gated by the same
+ready-or-partial check (it renders a disabled, explaining control for the other kinds). Pressing a planned or unavailable entry
+opens its explanation (a popover; inline in sheets). Layouts: `desktop`, `tablet` (below 840 px), `phone` (below
 520 px); `MenuBar`, `ToolPalette`, `ContextCommands` and `DockPanel` default to the viewport, `CommandBar` to its own width, and
 every one accepts a forced `layout`.
 
@@ -78,8 +80,9 @@ is `{ kind: 'command', command, checked?, mnemonic? }`, `{ kind: 'submenu', id, 
 `{ kind: 'separator', id }`. Desktop is the WAI-ARIA menubar pattern composed from React Aria `MenuTrigger` and `SubmenuTrigger` (no second
 behaviour library): one tab stop (roving), Left and Right move between menus and move an open menu, Home and End jump to the first and
 last, Down, Enter and Space open, Escape closes and returns focus to the menu. `keyTips` (the host says F10 or a lone Alt tap is
-active) underlines mnemonic letters; a menu's mnemonic letter opens it from the bar, and an item mnemonic invokes the item while its
-menu is open and key tips are active. Checked items are announced as `menuitemcheckbox` with `aria-checked`. Tablet: one "Menu"
+active) underlines mnemonic letters; mnemonics work only while key tips are shown: a menu's mnemonic letter then opens it from the
+bar, and an item mnemonic invokes the item while its menu is open. Item mnemonics work at the top level of a menu only: direct
+`command` items of the menu, not items inside a section or a submenu. Checked items are announced as `menuitemcheckbox` with `aria-checked`. Tablet: one "Menu"
 button whose submenus are the menus. Phone: a full-screen sheet with search first (results show the menu path, "File › Export"), rows
 at least 40 px.
 

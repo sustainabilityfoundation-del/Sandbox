@@ -236,7 +236,8 @@ function DesktopMenuBar({ ariaLabel, menus, keyTips, ctx, className }: { ariaLab
         goto(ids.length - 1)
         return
     }
-    if (e.key.length === 1 && /\S/.test(e.key)) {
+    // A menu mnemonic (like an item mnemonic) is active only while key tips are shown.
+    if (keyTips && e.key.length === 1 && /\S/.test(e.key)) {
       const letter = e.key.toLowerCase()
       if (onTrigger) {
         const index = menus.findIndex((m) => m.mnemonic?.toLowerCase() === letter)

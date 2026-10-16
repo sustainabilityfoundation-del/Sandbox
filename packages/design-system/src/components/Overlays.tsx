@@ -144,6 +144,7 @@ export function MenuSection({
   flush,
   selectionMode,
   selectedKeys,
+  onSelectionChange,
 }: {
   title?: string
   /** Accessible name when there is no visible title. */
@@ -161,6 +162,7 @@ export function MenuSection({
       aria-label={title ? undefined : label}
       selectionMode={selectionMode}
       selectedKeys={selectedKeys}
+      onSelectionChange={onSelectionChange as ((keys: 'all' | Set<React.Key>) => void) | undefined}
       className={cx(!flush && '[&:not(:first-child)]:mt-1 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-line [&:not(:first-child)]:pt-1')}
     >
       {title && <Header className="px-3 pb-1 pt-2 text-ui-xs font-medium tracking-wide text-fg-3">{title}</Header>}
