@@ -12,7 +12,7 @@ import { helpSources, useHelpCentre, workspaceHelp } from './workspaceHelp'
  * Modules that do not ship help yet. Each is a known, incomplete feature (AGENTS.md definition of
  * done): the list may only shrink. Adding a tool without help fails this test.
  */
-const KNOWN_DOCUMENTATION_GAPS = ['sysml', 'cad']
+const KNOWN_DOCUMENTATION_GAPS: string[] = []
 
 const manifests = (): HelpManifest[] => [platformHelp, aiHelp, ...getTools().flatMap((t) => (t.help ? [t.help] : []))]
 

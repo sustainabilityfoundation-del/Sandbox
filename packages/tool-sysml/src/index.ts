@@ -1,3 +1,4 @@
+import { sysmlHelp } from './help'
 import { defineTool } from '@ews/platform-sdk/react'
 import { lazy } from 'react'
 import pkg from '../package.json'
@@ -20,6 +21,7 @@ export const sysmlTool = defineTool<SysmlViewState>({
   view: lazy(() => import('./SysmlView')),
   initialViewState: INITIAL_VIEW_STATE,
   assistant: sysmlAssistant,
+  help: sysmlHelp,
   toolbar: ({ api, viewState, selection }) => {
     const selected = selection[0]
     return [
