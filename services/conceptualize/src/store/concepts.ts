@@ -15,11 +15,12 @@ import {
   type VerificationStatus,
 } from '../domain/rules'
 import { quantityProblem } from '../domain/units'
-import type { AttributeDto, ConceptCreateDto, ConceptDto, ConceptListItemDto, ConceptListQueryDto, ConceptPatchDto, StatementDto, StatementInputDto } from '../http/schemas'
+import { DefinitionError, canonical, normalizeDefinition, readDefinition, type EngineeringDefinition, type Stage } from '../domain/definition'
+import type { AttributeDto, ConceptCreateDto, DefinitionInputDto, ConceptDto, ConceptListItemDto, ConceptListQueryDto, ConceptPatchDto, StatementDto, StatementInputDto } from '../http/schemas'
 import { ASSISTANT_BASES, audit, emit, isUuid, isoRequired, nextKey, type Ctx, type Queryable } from './context'
 
 /** Content fields of a revision; changing any of them creates a new immutable revision. */
-export const CONTENT_FIELDS = ['name', 'summary', 'description', 'purpose', 'abstraction', 'classifications', 'attributes', 'statements'] as const
+export const CONTENT_FIELDS = ['name', 'summary', 'description', 'purpose', 'abstraction', 'classifications', 'attributes', 'statements', 'stage', 'definition'] as const
 
 interface Row {
   id: string
@@ -40,6 +41,8 @@ interface Row {
   abstraction: ConceptDto['abstraction']
   classifications: string[]
   attributes: Record<string, AttributeDto>
+  stage: Stage
+  definition: unknown
   maturity_at_creation: ConceptMaturity
   change_reason: string
   source_kind: ConceptDto['provenance']['sourceKind']
@@ -79,7 +82,7 @@ export const IMPLEMENTATION_STATUS_SQL = `COALESCE((
 
 const SELECT = `
   SELECT c.id, c.project_id, c.key, c.current_revision, c.maturity, c.verification_status, c.created_at, c.created_by, c.updated_at, c.updated_by,
-         v.revision, v.name, v.summary, v.description, v.purpose, v.abstraction, v.classifications, v.attributes, v.maturity_at_creation,
+         v.revision, v.name, v.summary, v.description, v.purpose, v.abstraction, v.classifications, v.attributes, v.stage, v.definition, v.maturity_at_creation,
          v.change_reason, v.source_kind, v.conversation_id, v.proposal_id, v.message_id, v.created_at AS rev_created_at, v.created_by AS rev_created_by,
          ${IMPLEMENTATION_STATUS_SQL} AS implementation_status`
 
@@ -112,6 +115,8 @@ function toDto(row: Row, statements: StatementRow[]): ConceptDto {
     classifications: row.classifications,
     attributes: row.attributes,
     statements: statements.map(toStatement),
+    stage: row.stage,
+    definition: readDefinition(row.definition) as ConceptDto['definition'],
     maturity: historical ? row.maturity_at_creation : row.maturity,
     verificationStatus: row.verification_status,
     implementationStatus: row.implementation_status,
@@ -302,6 +307,8 @@ interface Content {
   classifications: string[]
   attributes: Record<string, AttributeDto>
   statements: StatementDto[]
+  stage: Stage
+  definition: EngineeringDefinition
 }
 
 /**
@@ -407,15 +414,32 @@ export function validateAttributes(ctx: Ctx, attributes: Record<string, Attribut
   return out
 }
 
+/** Validates an engineering definition against the previous revision's (stable IDs, units, references, basis). */
+export async function validateDefinition(ctx: Ctx, input: DefinitionInputDto, previous: EngineeringDefinition): Promise<EngineeringDefinition> {
+  const ids = [...new Set((input.parameters ?? []).map((p) => p.constraintId).filter((x): x is string => typeof x === 'string'))]
+  const known = new Set<string>()
+  if (ids.length) {
+    const { rows } = await ctx.db.query<{ id: string }>('SELECT id FROM conceptualize.design_constraints WHERE project_id = $1 AND id = ANY($2::uuid[])', [ctx.projectId, ids.filter(isUuid)])
+    for (const r of rows) known.add(r.id)
+  }
+  const assistant = ctx.provenance.sourceKind === 'assistant'
+  try {
+    return normalizeDefinition(input as never, previous, { assistant, defaultBasis: assistant ? 'ai-hypothesis' : 'user-assertion', constraintExists: (id) => known.has(id) })
+  } catch (e) {
+    if (e instanceof DefinitionError) throw invalid(`The engineering definition is not valid: ${e.message}`, e.fields)
+    throw e
+  }
+}
+
 // ---- writes ------------------------------------------------------------------------------------------------
 
 async function insertRevision(ctx: Ctx, id: string, revision: number, c: Content, maturity: ConceptMaturity, reason: string) {
   const p = ctx.provenance
   await ctx.db.query(
     `INSERT INTO conceptualize.concept_revisions (concept_id, revision, name, summary, description, purpose, abstraction, classifications, attributes, maturity_at_creation, change_reason,
-       source_kind, conversation_id, proposal_id, message_id, created_at, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-    [id, revision, c.name, c.summary, c.description, c.purpose, c.abstraction, c.classifications, JSON.stringify(c.attributes), maturity, reason, p.sourceKind, p.conversationId ?? null, p.proposalId ?? null, p.messageId ?? null, ctx.now, ctx.actor],
+       source_kind, conversation_id, proposal_id, message_id, created_at, created_by, stage, definition)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+    [id, revision, c.name, c.summary, c.description, c.purpose, c.abstraction, c.classifications, JSON.stringify(c.attributes), maturity, reason, p.sourceKind, p.conversationId ?? null, p.proposalId ?? null, p.messageId ?? null, ctx.now, ctx.actor, c.stage, JSON.stringify(c.definition)],
   )
   for (const [ordinal, s] of c.statements.entries()) {
     await ctx.db.query(
@@ -445,6 +469,8 @@ export async function createConcept(ctx: Ctx, input: ConceptCreateDto, options: 
     classifications: [...new Set((input.classifications ?? []).map((c) => c.trim().toLowerCase()).filter(Boolean))],
     attributes: validateAttributes(ctx, input.attributes ?? {}),
     statements: await validateStatements(ctx, id, input.statements ?? [], []),
+    stage: input.stage ?? 'exploration',
+    definition: input.definition ? await validateDefinition(ctx, input.definition, readDefinition({})) : readDefinition({}),
   }
   if (!content.name) throw invalid('The Concept needs a name.', { name: 'required' })
   const maturity = options.maturity ?? input.maturity ?? 'idea'
@@ -471,7 +497,7 @@ export function checkRevision(current: { key: string; revision: number }, expect
   if (current.revision !== expected) throw conflict(`${current.key} changed since revision ${expected} (now ${current.revision}). Reload to see the newer change; nothing was overwritten.`, current.revision)
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+const same = (a: unknown, b: unknown) => canonical(a) === canonical(b)
 
 /** Applies a patch with optimistic concurrency; content changes create a new immutable revision. */
 export async function updateConcept(ctx: Ctx, id: string, patch: ConceptPatchDto, expectedRevision: number): Promise<{ concept: ConceptDto; changed: boolean }> {
@@ -492,6 +518,8 @@ export async function updateConcept(ctx: Ctx, id: string, patch: ConceptPatchDto
     classifications: patch.classifications ? [...new Set(patch.classifications.map((c) => c.trim().toLowerCase()).filter(Boolean))] : current.classifications,
     attributes: patch.attributes ? validateAttributes(ctx, attributes) : current.attributes,
     statements: patch.statements ? await validateStatements(ctx, id, patch.statements, current.statements) : current.statements,
+    stage: patch.stage ?? current.stage,
+    definition: patch.definition ? await validateDefinition(ctx, patch.definition, readDefinition(current.definition)) : current.definition,
   }
   const changedFields = CONTENT_FIELDS.filter((f) => !same(merged[f], current[f]))
   if (!changedFields.length) return { concept: current, changed: false }

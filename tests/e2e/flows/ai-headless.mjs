@@ -24,6 +24,11 @@ const found = await (await fetch(`${env.api}/api/projects/v1/projects?q=HL-OPEN`
 if (!found.items?.some((p) => p.key === 'HL-OPEN')) {
   await fetch(`${env.api}/api/projects/v1/projects`, { method: 'POST', headers: { ...H, 'idempotency-key': `hl-open-${Date.now()}` }, body: JSON.stringify({ key: 'HL-OPEN', name: 'Headless flow: open target', description: 'Target of projects.open in tests/e2e/flows/ai-headless.mjs (never opened).', templateId: 'blank' }) })
 }
+/**
+ * Operations that must be refused in this environment, with the reason expected (a refusal is their correct
+ * headless behaviour): illustrations need the visualization service and the external-generation class.
+ */
+const EXPECTED_REFUSALS = { 'conceptualize.request_illustration': 'off in Settings|not connected|not reachable' }
 /** View controls (navigation, selection): measured as view-control coverage, not engineering operations. */
 const VIEW_CONTROLS = ['select_objects', 'open_tool']
 
@@ -59,7 +64,7 @@ const mounted = await page.evaluate(async () => {
 check(mounted.open.length === 0 && mounted.views === 0, `all tool tabs are closed and no tool view is mounted (${mounted.open.length} open, ${mounted.views} views)`)
 await page.screenshot({ path: `${shots}/01-no-tools.png` })
 
-const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
+const report = await page.evaluate(async ({ VIEW_CONTROLS, EXPECTED_REFUSALS, repoFs }) => {
   const { executeToolCall } = await import('/workspace/src/assistant/executor.ts')
   const { createWorkspaceEnvironment } = await import('/workspace/src/assistant/environment.ts')
   const { captureContext } = await import('/workspace/src/assistant/conversation.ts')
@@ -92,6 +97,15 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
   const fn = (await designKey('a', 'function')) ?? (await designKey('e', 'function'))
   const decision = (await designKey('a', 'decision')) ?? (await designKey('e', 'decision'))
   const stamp = Date.now() % 100000
+  // A Concept with a structured layout, its layout visual and one annotation (visual concept exploration).
+  const CH = { 'x-dev-user': 'eli', 'content-type': 'application/json' }
+  const cpost = async (path, body) => (await fetch(`/api/concepts/v1/projects/PRJ-ACT100${path}`, { method: 'POST', headers: { ...CH, 'idempotency-key': `hl-${path}-${stamp}-${Math.random()}` }, body: JSON.stringify(body) })).json()
+  const visualConcept = await cpost('/concepts', { name: `Headless layout ${stamp}`, definition: { components: [{ id: 'C1', name: 'Plate' }], parameters: [{ id: 'P2', symbol: 'w', value: 40, unit: 'mm' }], layout: { items: [{ componentId: 'C1', x: 0, y: 0, width: { parameter: 'P2' }, height: 10 }], dimensions: [{ parameterId: 'P2', componentId: 'C1', axis: 'x' }] } } })
+  const layoutVisual = await cpost('/visuals', { conceptId: visualConcept.id, kind: 'layout' })
+  await cpost(`/visuals/${layoutVisual.id}/revisions/1/annotations`, { shape: 'pin', x: 0.5, y: 0.5, instruction: 'Headless: wider plate', componentId: 'C1' })
+  // A calculation model from the engine library (CR-C8) for the calculation operations.
+  const calcModel = await cpost('/calculation-models', { fromLibrary: 'lib.column.euler-round', name: `Headless buckling ${stamp}` })
+  const rodInputs = [{ symbol: 'F', value: 12, unit: 'kN' }, { symbol: 'E', value: 210, unit: 'GPa' }, { symbol: 'Sy', value: 600, unit: 'MPa' }, { symbol: 'd', value: 25, unit: 'mm' }, { symbol: 'L', value: 600, unit: 'mm' }, { symbol: 'K', value: 1, unit: '-' }, { symbol: 'n', value: 2, unit: '-' }]
   // A product element of the example project, found through the operations (ref.id is its UUID).
   const element = (await run('projects.list_artifacts', { category: 'product-element', q: 'ROD-120' })).data?.[0]?.ref?.id
   // A stored CAD document of the example project for the cad-modeler operations, created through the CAD API
@@ -143,8 +157,8 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
     'cad.set_dimension': { objectId: 'CAD-120', parameter: 'diameter', value: 26, unit: 'mm' },
     'conceptualize.search': { text: 'actuator' },
     'conceptualize.read': { conceptId: actuator },
-    'conceptualize.create': { text: `Headless test concept ${stamp}: a bracket that holds 2 kg.` },
-    'conceptualize.develop_alternatives': { text: 'Linear actuator pushing 500 N over 100 mm', count: 2 },
+    'conceptualize.create': { text: `Headless test concept ${stamp}: a bracket that holds 2 kg.`, name: `Headless bracket ${stamp}`, statements: [{ kind: 'constraint', text: 'Holds a load', quantity: { value: 2, unit: 'kg' } }] },
+    'conceptualize.develop_alternatives': { text: 'Linear actuator pushing 500 N over 100 mm', name: `Headless actuator ${stamp}`, alternatives: [{ name: 'Lead screw drive', summary: 'Motor turns a lead screw that pushes a nut.' }, { name: 'Pneumatic cylinder', summary: 'Compressed air acts on a piston.' }], tradeStudy: { criteria: [{ name: 'Cost', weight: 1 }], scores: [{ alternative: 'Lead screw drive', criterion: 'Cost', qualitative: 3, rationale: 'headless flow' }] } },
     'conceptualize.decompose': { conceptId: actuator, children: ['Headless child A', 'Headless child B'] },
     'conceptualize.compare': { conceptId: transmission },
     'conceptualize.propose_decision': { conceptId: alternative, rationale: 'headless flow' },
@@ -185,6 +199,17 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
     'cad-modeler.check': { documentId: cadId, checks: constraint?.id ? [{ measure: { kind: 'pattern-gap', featureId: patternId }, constraint: { id: constraint.id } }] : [] },
     'cad-modeler.check_bindings': { documentId: cadId },
     'projects.store_document': { title: 'Headless document', contentBase64: 'aGVhZGxlc3M=', fileName: 'headless.txt', mediaType: 'text/plain', documentKind: 'other' },
+    'conceptualize.list_constraints': {},
+    'conceptualize.evaluate_calculation': { modelId: calcModel.key, inputs: rodInputs },
+    'conceptualize.record_calculation': { modelId: calcModel.key, subjects: [actuator], inputs: rodInputs },
+    'conceptualize.define_concept': { conceptId: visualConcept.key, definition: { intent: 'Headless: hold a plate' } },
+    'conceptualize.read_visuals': { conceptId: visualConcept.key },
+    'conceptualize.request_illustration': { conceptId: visualConcept.key },
+    'conceptualize.annotate_visual': { visualId: layoutVisual.key, shape: 'rect', x: 0.1, y: 0.1, width: 0.3, height: 0.3, instruction: 'Headless region', componentId: 'C1' },
+    'conceptualize.refine_from_annotations': { visualId: layoutVisual.key, annotations: [1], changes: { setParameters: [{ parameter: 'w', value: 50 }] } },
+    'conceptualize.compare_cards': { conceptId: transmission },
+    'conceptualize.reject_alternative': { conceptId: alternative, rationale: 'Headless flow check (preview only, never applied)' },
+    'conceptualize.create_cad_handoff': { conceptId: visualConcept.key },
   }
   const ops = availableOperations().map((o) => o.name).filter((n) => !VIEW_CONTROLS.includes(n))
   const results = []
@@ -195,7 +220,9 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
       continue
     }
     const out = await run(name, examples[name])
-    results.push({ name, module, ok: out.ok, error: out.error, proposalId: out.proposalId })
+    const refusal = EXPECTED_REFUSALS[name]
+    if (refusal) results.push({ name, module, ok: !out.ok && new RegExp(refusal).test(out.error ?? ''), error: out.ok ? 'expected a refusal' : out.error, refusedAsExpected: true })
+    else results.push({ name, module, ok: out.ok, error: out.error, proposalId: out.proposalId })
   }
   // Apply one prepared Conceptualize change with no view mounted (closure fallback today; declarative once moved).
   const created = results.find((r) => r.name === 'conceptualize.create' && r.ok)
@@ -209,14 +236,14 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, repoFs }) => {
     }
   }
   return { results, applied, keys: { actuator, transmission, alternative, fn, decision } }
-}, { VIEW_CONTROLS, repoFs: env.repoFs })
+}, { VIEW_CONTROLS, EXPECTED_REFUSALS, repoFs: env.repoFs })
 
 check(!!report.keys.actuator && !!report.keys.transmission && !!report.keys.alternative && !!report.keys.fn && !!report.keys.decision, `seeded Conceptualize data found through the operations (${JSON.stringify(report.keys)})`)
 for (const r of report.results) {
   const known = KNOWN_FAILING[r.module]
   if (r.ok) {
     if (known) console.log(`[ai-headless] NOTE ${r.name} now succeeds headless: remove "${r.module}" from KNOWN_FAILING when all its operations do.`)
-    else check(true, `${r.name} succeeds with all tabs closed`)
+    else check(true, r.refusedAsExpected ? `${r.name} is refused headless with the expected reason (${r.error})` : `${r.name} succeeds with all tabs closed`)
   } else if (known) console.log(`[ai-headless] KNOWN ${r.name} fails headless (${known}): ${r.error}`)
   else check(false, `${r.name} succeeds with all tabs closed (${r.error})`)
 }

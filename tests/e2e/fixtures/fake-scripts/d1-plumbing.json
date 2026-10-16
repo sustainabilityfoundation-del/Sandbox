@@ -249,7 +249,57 @@
               "name": "conceptualize.develop_alternatives",
               "arguments": {
                 "text": "Bit holder block: compare pocket layouts for six bits",
-                "count": 2
+                "name": "Bit holder block pocket layout",
+                "alternatives": [
+                  {
+                    "name": "Single row of six pockets",
+                    "summary": "Six hexagonal pockets in one linear pattern along the block."
+                  },
+                  {
+                    "name": "Two rows of three pockets",
+                    "summary": "Two staggered rows of three pockets for a shorter block."
+                  }
+                ],
+                "tradeStudy": {
+                  "criteria": [
+                    {
+                      "name": "Block length",
+                      "weight": 1,
+                      "direction": "minimize",
+                      "unit": "mm"
+                    },
+                    {
+                      "name": "Ease of access",
+                      "weight": 2
+                    }
+                  ],
+                  "scores": [
+                    {
+                      "alternative": "Single row of six pockets",
+                      "criterion": "Block length",
+                      "value": 80,
+                      "rationale": "Six pockets at 13 mm pitch"
+                    },
+                    {
+                      "alternative": "Two rows of three pockets",
+                      "criterion": "Block length",
+                      "value": 45,
+                      "rationale": "Three pockets at 13 mm pitch"
+                    },
+                    {
+                      "alternative": "Single row of six pockets",
+                      "criterion": "Ease of access",
+                      "qualitative": 5,
+                      "rationale": "Every bit reachable from one side"
+                    },
+                    {
+                      "alternative": "Two rows of three pockets",
+                      "criterion": "Ease of access",
+                      "qualitative": 3,
+                      "rationale": "Back row partly shadowed"
+                    }
+                  ]
+                }
               }
             }
           ]

@@ -4,7 +4,7 @@ import type { ConceptMaturity } from '@ews/platform-sdk'
 import type { Basis, RelationshipType, StatementKind } from '@ews/conceptualize-client'
 
 /** Private view state of one Conceptualize view instance. */
-export type ConceptPage = 'explorer' | 'alternatives' | 'integration' | 'ai'
+export type ConceptPage = 'explorer' | 'alternatives' | 'visual' | 'integration' | 'ai'
 export interface ConceptualizeViewState {
   page: ConceptPage
   /** The open Concept (canonical UUID). */
@@ -81,8 +81,10 @@ export const KIND_LABEL: Record<StatementKind, string> = {
   question: 'Open question',
   rationale: 'Rationale',
   note: 'Note',
+  benefit: 'Benefit',
+  'trade-off': 'Trade-off',
 }
-export const KIND_ORDER: StatementKind[] = ['problem', 'function', 'behavior', 'capability', 'principle', 'mechanism', 'effect', 'input', 'output', 'constraint', 'performance', 'interface', 'assumption', 'uncertainty', 'question', 'rationale', 'note']
+export const KIND_ORDER: StatementKind[] = ['problem', 'function', 'behavior', 'capability', 'principle', 'mechanism', 'effect', 'input', 'output', 'constraint', 'performance', 'interface', 'benefit', 'trade-off', 'assumption', 'uncertainty', 'question', 'rationale', 'note']
 
 export const RELATION_LABEL: Record<RelationshipType, { out: string; in: string }> = {
   contains: { out: 'Contains', in: 'Part of' },
