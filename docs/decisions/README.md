@@ -22,6 +22,17 @@ editing an accepted one.
 | [0015](0015-conceptualize-module.md) | Conceptualize: Concepts independent of their implementations | Accepted |
 | [0072](0072-agent-context-management.md) | Agent context management: context levels, model routing, controls and lifecycle hooks | Proposed |
 | [0070](0070-development-assurance-boundaries.md) | Boundaries for future standards-aware development assurance (profiles as data, classifications keep their standard, configuration-specific evidence, distinct states) | Accepted |
+| [0071](0071-projects-browser-data-import.md) | Explicit, user-confirmed import of browser twin data into the server | Proposed |
+| [0069](0069-projects-operation-records.md) | Persisted multi-module operation records with idempotent, resumable steps | Proposed |
+| [0068](0068-projects-views-as-projections.md) | Project views are projections; no maintained copies | Proposed |
+| [0067](0067-projects-baselines.md) | Project baselines as sets of pinned module versions | Proposed |
+| [0066](0066-projects-blob-store.md) | Content-addressed blob store behind an interface | Proposed |
+| [0065](0065-projects-lifecycle-retention-and-deletion.md) | Project lifecycle, archive, soft delete with retention; module data is never deleted by Project Management | Proposed |
+| [0064](0064-projects-interchange-package.md) | Open, versioned project interchange package | Proposed |
+| [0063](0063-projects-product-structure-home-and-twin-migration.md) | Server-side product registry in Project Management; the twin's components migrate by projection and aliases | Proposed |
+| [0062](0062-projects-artifact-registration-and-provisioning.md) | Artifact registration from module outboxes, reconciliation, and provisioning without seed data | Proposed |
+| [0061](0061-projects-artifact-registry-and-global-identity.md) | Artifact registry and global artifact identity | Proposed |
+| [0060](0060-projects-module-placement.md) | Project Management as a service-backed module that indexes, not copies | Proposed |
 
 ## Open decisions
 
@@ -59,6 +70,7 @@ unused; the AI connection sprint uses 0047 upwards):
 | [0045](0045-reasoning-runs-and-model-access.md) | Reasoning runs: model access through the AI Interface, budgets, checkpoints, reproducibility, no chain-of-thought | Proposed |
 | [0046](0046-change-impact-and-invalidation.md) | Change impact distinguishes possible from demonstrated; invalidation is flagged, never silent | Proposed |
 | [0047](0047-ai-provider-backend-and-account-connection.md) | AI provider backend, account connection and server-enforced access policy | Proposed |
+| [0049](0049-ai-persisted-proposals-and-headless-contributions.md) | Persisted declarative proposals, server-side Apply gateway and headless contributions | Proposed |
 | [0048](0048-ai-settings-framework.md) | Settings framework: SDK 1.6 setting definitions, settings service, Settings centre | Proposed |
 
 CAD: [cad-program-contracts.md](../specifications/cad-program-contracts.md), [docs/modules/cad](../modules/cad/README.md).

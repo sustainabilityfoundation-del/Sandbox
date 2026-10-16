@@ -49,6 +49,17 @@ Next work (start as new agents, at most 2-3 implementers at once):
 | Open item 1, step M1: projects pilot (own manifest, legacy entries removed, proposals field SDK 1.12.0, proof test strengthened, M-step recipe) | task-worker role (Sonnet) | worktree branch feature/manifests-m1-projects from b845b0d | running |
 | Flaky tool-sysml-modeler completion test (20 s timeout under load) | task-worker role (Sonnet) | merged to main | done, test-only: dynamic imports in the test body moved to static imports (87 ms to 17 ms; assertions and timeout unchanged). Likely cause, not proven: the 20 s stall was not reproduced; if it recurs, look at per-file transform cost under load |
 | Fix e2e help.mjs (stale after PR #6) and concept-visual refusal reason | task-worker role (Sonnet) | merged to main | done, test-only: help.mjs expects SysML/CAD help; concept-visual was not refused because the fake stack registers the test-only fake-test image adapter (server.ts:312, never in production), so the flow hides test-only adapters for the refusal check. help, concept-visual, platform, demo-d1 and npm run check pass |
+## ADR triage (16 October 2026, architect, read-only; not yet decisions)
+Index repaired: 0049, 0060-0069 and 0071 were missing from docs/decisions/README.md. Triage was based on reading 0027 and 0030 in full
+and the rest by targeted search, so each acceptance still needs the ADR read against main (one reviewer pass per group).
+- Coordinator may accept after that check: 0013, 0020, 0022-0026, 0030-0038, 0048, 0049, 0060-0063, 0066, 0068, 0072; 0021 too unless
+  licence or hosting cost matters to the owner. Defer: 0039-0046 (design reasoning, phase B), 0064, 0067, 0069, 0071 (not built).
+- Owner decisions: 0027 phase 4 (hide the mock CAD tool; data stays readable), 0047 account terms, 0065 retention and deletion,
+  and whether to write an ADR retiring the illustrative SysML tool (none exists; ADR-0030 line 20 defers it).
+- Spec gap: I2 put the illustrative sysml and cad tools in INSTALLED_MODULES (installedModules.ts:51-52, defaultOpen), contrary to
+  module-registration.md "stay where they are"; no M-step covers them. Fix the spec after M1 merges; ADR-0027 phase 4 and any SysML
+  retirement become "flag or drop the manifest entry", keeping the cad and sysml IDs (demo-d1.mjs:202 checks cad).
+
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
 2. **D1 owner acceptance** (16 October 2026: the owner has no time now and will review D1 later; keep working on the other items meanwhile, do not ask again until the owner returns): ask the owner to try D1 (or review the live run); record acceptance only in the owner's words.
