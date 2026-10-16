@@ -98,6 +98,12 @@ CommandBar component) next when an implementer slot frees; CT-2b (checks, shell,
 pilot) after M6 and F. Owner decisions: how much planned scope to show; inventories for the mock and illustrative tools. CT-3..n per-module inventories and toolbars (module agents, after CT-2;
 research feeds OSS-3). D1 keeps priority.
 
+## CAD sprint C1 status (16 October 2026)
+Implemented on cad/c1-sketching-reliability (4e403d8, includes OSS-9). Review (Fable) blocked the merge: the new face-naming rule
+(OcctKernel.ts inheritNames) silently moves a stored fillet to another edge when a saved 1.3.0 document is opened (reproduced:
+46 mm strip at x=37 becomes 10 mm strip at x=5). Fix running: probe-containing piece keeps the name, others get ~k; old-format
+fixture test from main; ADR-0075 corrected. C1 merges only after the fix, a re-review of the naming and an integration run.
+
 ## Owner focus (16 October 2026)
 Owner: "focus on getting the cad working better woth more functionality". CAD Modeler work takes priority after D1: a CAD sprint plan is recorded in
 [cad-sprints-c1-c3.md](../specifications/cad-sprints-c1-c3.md): C1 sketching by clicks and reliability (after OSS-9 merges), C2 part features
