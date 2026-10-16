@@ -399,9 +399,20 @@ Today diagrams are read-only projections: elements are created in the Add dialog
 
 ### Totals
 
-Computed from the tables above; see the report in the delivering message and the script note at the end of this file.
+Counted by script over the rows of this section (one row per command, ids unique).
 
-COUNTS_PLACEHOLDER
+| Measure | Count |
+| --- | --- |
+| Commands | 155 (120 on ribbon tabs and side panels, 35 palette tools) |
+| Implemented | 39 |
+| Partial | 11 |
+| Planned | 105 |
+| Main tabs | 6 (Model, Views, Analyze, Collaborate, Exchange, Tools) |
+| Contextual tabs | 3 (Diagram, Matrix, Text) |
+| Palette sets | 5 diagram palettes (General, Interconnection, Action Flow, State Transition, Sequence) in 6 groups |
+| Groups | 35 (27 ribbon groups, 2 side-panel groups, 6 palette groups) |
+
+All 20 existing ids in `capabilities.ts` appear unchanged in the inventory. Of them, 19 stay implemented and `action-flow` is shown as partial (control nodes not drawn, as its own note says). The other implemented rows are finer commands split out of those entries (Inspector edits, diagram navigation, text editor, matrix kind); they are real behaviour with file:line evidence, but CT-3 may keep them as aggregates. Tests are named in the evidence column where one exists; binding `verifiedBy` is CT-3's job.
 
 ## 3. Proposed toolbar layout
 
