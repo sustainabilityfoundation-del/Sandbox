@@ -11,6 +11,7 @@ import type { ArtifactSource } from './artifacts'
 import type { SettingDefinition } from './settings'
 import type { CommandLayout, CommandMode, Placement, Prerequisite, SurfacePlacement, TestRef } from './capabilities'
 import type { HelpId } from './help'
+import type { ServerModuleContextSelector } from './context'
 import type { IconName } from '@ews/design-system/icon-names'
 
 /** Where the capability is reached by a person. */
@@ -177,6 +178,11 @@ export interface ServerModuleDescriptor {
   proposals?: ServerModuleProposals
   settings?: ServerModuleSettings
   provisioning?: ServerModuleProvisioning
+  /**
+   * The module's context selector (SDK 1.15, ECII plan Amendment 2, ADR-0085): one read operation the assistant calls
+   * in-process as the signed-in person to select snapshot items for an AI operation. Omit when the module has none.
+   */
+  selectContext?: ServerModuleContextSelector
 }
 
 /** A server module with its registration code: the descriptor plus `register` (and optional `migrate`/`seed`), typed by the host object. */

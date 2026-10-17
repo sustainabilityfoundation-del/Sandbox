@@ -28,6 +28,9 @@ editing an accepted one.
 | [0074](0074-capability-registry-and-toolbars.md) | Capability registry and capability-complete toolbars (manifest inventory extended; computed implementation state; CommandBar; AI list_capabilities; amends ADR-0013) | Accepted |
 | [0081](0081-ecii-placement-and-interface-ownership.md) | ECII placement across existing modules, federated context graph, interface ownership (option A), product origin | Proposed |
 | [0083](0083-architecture-first-and-readiness-criteria.md) | ECII architecture-first generation, diversity assessment and readiness criteria as data (advisory in Phase 1) | Proposed |
+| [0085](0085-context-package-selectors-and-server-assembly.md) | Context package, module selectors and server-side assembly (SDK 1.15 types; LlamaIndex, LangChain, Haystack, DSPy evaluated, none adopted; pgvector a P2 candidate) | Proposed |
+| [0086](0086-evaluation-findings-refinement-budgets-and-design-reasoning-boundary.md) | Evaluation findings, refinement budgets and the assistant to Design Reasoning boundary (assistant may import design-reasoning-core from CE-1) | Proposed |
+| [0087](0087-benchmark-and-live-key-policy.md) | Context engineering benchmark and live-key policy (internal replay runner; promptfoo, Inspect AI, DeepEval evaluated; live runs only with `*_LIVE_TEST_KEY`) | Proposed |
 | [0073](0073-sbom-and-licence-checks.md) | SBOM, machine-readable dependency register and licence policy check from npm built-ins and the lockfile (no new dependency) | Proposed |
 | [0072](0072-agent-context-management.md) | Agent context management: context levels, model routing, controls and lifecycle hooks | Accepted (16 Oct 2026) |
 | [0070](0070-development-assurance-boundaries.md) | Boundaries for future standards-aware development assurance (profiles as data, classifications keep their standard, configuration-specific evidence, distinct states) | Accepted |
