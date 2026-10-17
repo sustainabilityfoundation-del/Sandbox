@@ -126,7 +126,9 @@ ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only
   (and revoking them), user mode refusing the owner's ChatGPT connection by default, and test stacks ignoring `EWS_AI_MODE`.
   All fixed and re-reviewed; req:test:db 583, ai:test:db 181, demo-d1 3/3. Waits for its integration run (blocked as above).
 - Queued for integration: `cad/name-and-check-ui` (df241fb), then the gateway.
-- In progress: ECII increment 2 (architecture-first and readiness), `feature/ecii-2-architecture`.
+- In progress: ECII increment 2 (architecture-first and readiness), `feature/ecii-2-architecture` at 0e47474: Opus review
+  "approve with one fix" (variant satisfies `host-interface-stated` without a hostInterface); fix in progress. ADR-0083.
+- In progress: AUD-8 (requirements origin column; D1 allocates every requirement), `fix/aud-8-requirements-origin`.
 
 ## Integration queue update (17 October 2026, about 02:15 EDT)
 Merged since: feature/ct-2c2-sdk with CT-2c1 (4678e3a); cad/c1-sketching-reliability with OSS-9 (756b317); both after green
