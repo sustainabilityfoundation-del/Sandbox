@@ -13,7 +13,7 @@ outside the list is refused and never runs). The browser only displays the setti
 
 | Setting | Values | Effect |
 | --- | --- | --- |
-| Access per module (Shared model and navigation, Requirements, Conceptualize, System Model, CAD Modeler, Projects, Help) | AI off, Read only, Read and propose changes | Off: no operations of the module are sent. Read only: reads, searches and calculations, no change previews |
+| Access per module (Shared model and navigation, Requirements, Conceptualize, System Model, CAD, Projects, Help) | AI off, Read only, Read and propose changes | Off: no operations of the module are sent. Read only: reads, searches and calculations, no change previews |
 | Operation classes | Read objects, Search, Run calculations, Propose changes, Export files, Request external generation | A class that is off is never offered, in any module. Request external generation is off by default |
 | Operations per answer | 1–60 (default 24) | After this many operations the model must answer with what it has |
 | Maximum answer length | 256–32000 tokens (default 4000) | Output limit per model call (ChatGPT plan usage applies its own limits) |

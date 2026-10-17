@@ -3,11 +3,11 @@ import { validateSettingDefinitions } from '@ews/platform-sdk'
 import { AI_MODULES, AI_SETTING_DEFINITIONS, createPolicy } from './policy'
 import { INSTRUCTIONS } from './wire'
 
-// Conceptualize's, the CAD Modeler's and Requirements' AI modules and operation classes now come from their server manifests (module-registration.md, M2, M4, M6); the assistant
+// Conceptualize's, the CAD's and Requirements' AI modules and operation classes now come from their server manifests (module-registration.md, M2, M4, M6); the assistant
 // service cannot import another service, so these tests use the same module with the operations they exercise.
 const conceptualizePolicy = createPolicy(
   [{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] },
-  { id: 'cad-modeler', label: 'CAD Modeler', description: 'Parametric CAD documents and exports.', entitlement: 'tool:cad', prefixes: ['cad-modeler.'] },
+  { id: 'cad-modeler', label: 'CAD', description: 'Parametric CAD documents and exports.', entitlement: 'tool:cad', prefixes: ['cad-modeler.'] },
   { id: 'requirements', label: 'Requirements', description: 'Requirements Management.', entitlement: 'tool:requirements', prefixes: ['requirements.'] }],
   { 'cad-modeler.query': 'read', 'requirements.search': 'search', 'conceptualize.read': 'read', 'conceptualize.create': 'propose', 'conceptualize.request_realization': 'external-generation' },
 )

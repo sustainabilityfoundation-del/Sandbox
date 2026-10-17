@@ -2,7 +2,7 @@
 
 The workspace shell of the engineering platform: navigation, docking, tool discovery,
 subscriptions, the shared context, the inspector, Activity, ChatGPT and window management. It
-renders the installed tool packages (Requirements, Conceptualize, System Model, CAD Modeler) through the tool registry and has no
+renders the installed tool packages (Requirements, Conceptualize, System Model, CAD) through the tool registry and has no
 tool-specific code.
 
 The package architecture, development commands, subscription demo and how to add a tool are in
@@ -28,10 +28,10 @@ To start again from the sample data, open the **Demo repository** menu in the he
 1. Select **ROD-120 Rod** in the product tree. It becomes the shared selection and the inspector shows it with its SysML and CAD
    representations (the twin data of the retired illustrative tools, which stays readable).
 2. Open **Requirements**. The rod is still selected, so the table is filtered to the requirements allocated to it (REQ-001 and REQ-004).
-3. Open the **System Model** or the **CAD Modeler**: the shared selection is unchanged.
+3. Open the **System Model** or the **CAD**: the shared selection is unchanged.
 4. In **Requirements**, double-click REQ-001 and edit the statement. The inspector shows the new statement at once: every tool reads the
    same repository.
-5. Open the **subscription** menu in the header (key icon) and choose **Requirements only**. The System Model and CAD Modeler rail
+5. Open the **subscription** menu in the header (key icon) and choose **Requirements only**. The System Model and CAD rail
    entries stay (with a lock) and show why they are locked; the palette, search, direct links (`?tool=cad-modeler`), detached windows and
    ChatGPT all refuse to open them. Choose **All tools** to restore access; nothing was lost.
 6. Reload the browser. Model changes, artifacts, selection, open tools and each view's private

@@ -8,7 +8,7 @@ import { cadModelerTool } from './index'
 import { cadSession, type DownloadFile } from './session'
 
 /**
- * Contract C9 (headless AI boundary): every cad-modeler.* operation works with no CAD Modeler view
+ * Contract C9 (headless AI boundary): every cad-modeler.* operation works with no CAD view
  * mounted and no document open, loading from the project's CAD document service. Changes are saved
  * as revisions with the proposal's provenance. The same invalid command is refused identically by
  * the UI path and the assistant path.

@@ -45,7 +45,7 @@ const OBJECT_ID = /\b[A-Z]{2,4}-\d{3}\b/g
 
 const TOOLS: { pattern: RegExp; id: string; name: string }[] = [
   { pattern: /\bsysml\b|\bsystem model\b/i, id: 'sysml-modeler', name: 'System Model' },
-  { pattern: /\bcad\b|\bgeometry\b/i, id: 'cad-modeler', name: 'CAD Modeler' },
+  { pattern: /\bcad\b|\bgeometry\b/i, id: 'cad-modeler', name: 'CAD' },
   { pattern: /\brequirements?( tool| management)?\b/i, id: 'requirements', name: 'Requirements' },
 ]
 

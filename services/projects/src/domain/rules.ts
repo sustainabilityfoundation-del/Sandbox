@@ -152,7 +152,7 @@ const WORK: ArtifactCategory[] = ['work-item']
 
 /** Link types owned by Project Management (information-model.md §6.3). */
 export const LINK_RULES: Record<LinkType, LinkRule> = {
-  represents: { from: ['geometry', 'model'], to: ['product-element'], impact: true, meaning: 'the artifact represents the product element', nativeAlternative: 'twin represents; CAD Modeler and System Model mappings once available (CR-PM-CAD-1, CR-PM-SYS-1)' },
+  represents: { from: ['geometry', 'model'], to: ['product-element'], impact: true, meaning: 'the artifact represents the product element', nativeAlternative: 'twin represents; CAD and System Model mappings once available (CR-PM-CAD-1, CR-PM-SYS-1)' },
   'subject-of': { from: ['work-item', 'document', 'milestone'], to: 'any', impact: false, meaning: 'the work item, document or milestone concerns the artifact' },
   affects: { from: WORK, fromKinds: ['issue', 'risk'], to: 'any', impact: true, meaning: 'the issue or risk affects the artifact' },
   'mitigated-by': { from: WORK, fromKinds: ['risk'], to: WORK, impact: false, meaning: 'the risk is mitigated by the work item' },

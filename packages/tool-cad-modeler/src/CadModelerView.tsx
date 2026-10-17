@@ -3,7 +3,9 @@ import type { SketchFeature } from '@ews/cad-core'
 import { Badge, Button, EmptyState, Notice, Select, Spinner, StatusBadge, Tab, TabList, TabPanel, Tabs, useToasts } from '@ews/design-system'
 import { useSharedContext, useToolViewState, useUnsavedChanges, useSetting, usePlatformServices } from '@ews/platform-sdk/react'
 import { OpenDialog } from './ui/OpenDialog'
-import { useCallback, useEffect, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { checkOpenDocument } from './checkRun'
+import { checkFor, checkStore, useCheckStore } from './checkStore'
 import { plateCommands } from './assistant'
 import { cadSession, useCadSession, useEngineState } from './session'
 import { takeCadDeepLink } from './deepLink'
@@ -17,7 +19,7 @@ import { SketchStage } from './ui/SketchStage'
 import { Viewport } from './ui/Viewport'
 import type { CadModelerViewState, PanelTab } from './viewState'
 
-/** The CAD Modeler view: panels (model, edit, inspect, diagnostics) and the 3D viewport or sketcher. */
+/** The CAD view: panels (model, edit, inspect, diagnostics) and the 3D viewport or sketcher. */
 export default function CadModelerView() {
   const [vs, setVs] = useToolViewState<CadModelerViewState>()
   const session = useCadSession()
@@ -63,6 +65,30 @@ export default function CadModelerView() {
     }
   }, [src?.concept.id, src?.concept.revision, projectId, platformServices])
   const update = useCallback((u: Partial<CadModelerViewState>) => setVs(u), [setVs])
+  // "Check against constraints": the toolbar command and the panel button only request it; the same function as
+  // cad-modeler.check runs it on the open document (read-only) and the result is shown in Diagnostics.
+  const handledCheck = useRef(checkStore.getSnapshot().requestSeq)
+  const concepts = platformServices.concepts
+  const checkSnap = useCheckStore()
+  const { check, stale: checkStale } = checkFor(checkSnap, open?.id, state?.doc.version)
+  const runCheck = useCallback(async () => {
+    if (!open || checkStore.isRunning(open.id)) return
+    const id = open.id
+    const version = open.engine.document.version
+    checkStore.set(id, version, { state: 'running' })
+    setVs({ tab: 'diagnostics' })
+    try {
+      const report = await checkOpenDocument(open, { projectId, concepts })
+      checkStore.set(id, report.modelVersion, { state: 'done', report, at: new Date().toISOString() })
+    } catch (e) {
+      checkStore.set(id, version, { state: 'error', message: e instanceof Error ? e.message : String(e) })
+    }
+  }, [open, projectId, concepts, setVs])
+  useEffect(() => {
+    if (checkSnap.requestSeq === handledCheck.current) return
+    handledCheck.current = checkSnap.requestSeq
+    void runCheck()
+  }, [checkSnap.requestSeq, runCheck])
   const dirty = !!open && !!session.documents.find((d) => d.id === open.id)?.dirty
   useUnsavedChanges(dirty)
 
@@ -80,6 +106,7 @@ export default function CadModelerView() {
     hasBody: !!state?.regen?.parts.some((p) => p.bodies.length),
     dirty,
     busy: !!state?.regenerating,
+    checking: check?.state === 'running',
   }
   const statusKey = JSON.stringify(status)
   useEffect(() => {
@@ -129,7 +156,7 @@ export default function CadModelerView() {
 
   return (
     <div className="cadm-root" onKeyDown={onKeyDown}>
-      <aside className="cadm-side" aria-label="CAD Modeler panels">
+      <aside className="cadm-side" aria-label="CAD panels">
         <Tabs selectedKey={vs.tab} onSelectionChange={(k) => update({ tab: k as PanelTab })} className="cadm-tabs">
           <TabList aria-label="Panels" className="cadm-tablist">
             <Tab id="model">Model</Tab>
@@ -147,7 +174,7 @@ export default function CadModelerView() {
             <InspectPanel engine={open.engine} state={state} vs={vs} update={update} />
           </TabPanel>
           <TabPanel id="diagnostics" className="cadm-tabpanel">
-            <DiagnosticsPanel engine={open.engine} state={state} session={session} update={update} />
+            <DiagnosticsPanel engine={open.engine} state={state} session={session} update={update} check={check} stale={checkStale} onCheck={() => void runCheck()} />
           </TabPanel>
         </Tabs>
       </aside>
@@ -282,7 +309,7 @@ function Welcome({ update, kernel, canOpenStored }: { update: (u: Partial<CadMod
     <div className="cadm-welcome">
       <EmptyState
         icon="cad"
-        title="CAD Modeler"
+        title="CAD"
         action={
           <div className="cadm-actions">
             <Button variant="filled" icon="add" onPress={() => start(false)}>

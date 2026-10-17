@@ -56,3 +56,12 @@ ADR-0027 planned the CAD retirement in four gated phases (phase 4: hide the mock
 - The fixed AI presentation order loses `illustrative`: workspace, requirements, conceptualize, sysml-modeler, cad-modeler, projects,
   reasoning, help.
 - Tests that used the retired tools as vehicles for platform behaviour now use the modelers; tests prove the retired tools are absent.
+
+## Amendment: the CAD Modeler is displayed as "CAD" (17 October 2026)
+
+Owner decision (coordinator log): "yes leave it CAD". The CAD Modeler's user-visible name is "CAD", applied the same way as the System
+Model rename: the tool name and rail label, the client and server manifest `name`, the AI module label on the AI settings page
+(presentation order unchanged), the help module name and overview title, palette entries, tab titles, empty states and the documentation.
+Unchanged: the tool ID `cad-modeler`, operation names `cad-modeler.*`, package names, API paths, the `tool:cad` entitlement and help IDs.
+The retired mock tool keeps its ID `cad` as an internal module ID (provisioning, artifact source, twin object owner); it is not shown
+anywhere. The ownership table keeps the label "CAD Modeler (displayed "CAD")", like "SysML Modeler (displayed "System Model")".

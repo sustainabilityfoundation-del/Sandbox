@@ -60,7 +60,7 @@ export const PLATFORM_CAPABILITIES: CapabilityEntry[] = [
   // ---- CAD -----------------------------------------------------------------------------------
   // ---- Conceptualize (appended by the Conceptualize agent; API: /api/concepts/v1, OpenAPI operationIds in services/conceptualize) ----
   // ---- Project Management (platform module, headless; demonstration D1) ------------------------------------
-  // ---- CAD Modeler (CAD program Phase 1; appended by the CAD agent, coordinator review) -------
+  // ---- CAD (CAD program Phase 1; appended by the CAD agent, coordinator review) -------
   // ---- System Model (appended by the SysML agent; API /api/sysml/v1, typed commands in @ews/sysml-core) ----
 ]
 

@@ -36,7 +36,7 @@ export const RULES: RuleInfo[] = [
   { id: 'SYSML-COMPOSITION-CYCLE', severity: 'warning', title: 'A definition does not compose itself with a mandatory part (infinite structure)' },
   { id: 'SYSML-MANAGED-REQUIREMENT', severity: 'error', title: 'Managed requirement metadata carries a canonical requirement UUID' },
   { id: 'SYSML-PRODUCT-REFERENCE', severity: 'error', title: 'Product element metadata refers to a product element UUID with an integer revision' },
-  { id: 'SYSML-CAD-REFERENCE', severity: 'error', title: 'CAD representation metadata refers to a CAD Modeler entity as <documentUuid>/<entityId> with an integer document revision' },
+  { id: 'SYSML-CAD-REFERENCE', severity: 'error', title: 'CAD representation metadata refers to a CAD entity as <documentUuid>/<entityId> with an integer document revision' },
   { id: 'SYSML-CONSTRAINT-FALSE', severity: 'warning', title: 'A constraint whose expression can be evaluated holds (evaluates to true)' },
   { id: 'SYSML-UNSUPPORTED-METACLASS', severity: 'info', title: 'Element of a metaclass this version does not interpret (preserved unchanged)' },
 ]
@@ -250,7 +250,7 @@ function checkElement(s: Semantics, el: Element, out: Diagnostic[]) {
   if (t === 'MetadataUsage' && s.featureTypes(id).some((x) => s.qualifiedName(x) === 'EWS::CadRepresentation')) {
     const ref = readCadMetadata(s, id)
     if (!ref.cadRef || !CAD_REF.test(ref.cadRef)) {
-      d(out, 'SYSML-CAD-REFERENCE', s.owner(id)?.['@id'] ?? id, 'CadRepresentation needs cadRef = "<CAD document UUID>/<entity ID>" (a CAD Modeler entity; names are display text, not identity).')
+      d(out, 'SYSML-CAD-REFERENCE', s.owner(id)?.['@id'] ?? id, 'CadRepresentation needs cadRef = "<CAD document UUID>/<entity ID>" (a CAD entity; names are display text, not identity).')
     } else if (ref.revision !== undefined && !(Number.isInteger(ref.revision) && ref.revision >= 1)) {
       d(out, 'SYSML-CAD-REFERENCE', s.owner(id)?.['@id'] ?? id, 'CadRepresentation revision must be a CAD document revision number (an integer from 1), or absent to follow the latest revision.')
     }
@@ -307,7 +307,7 @@ export function expectedTypeKinds(metaclass: string): string[] | undefined {
   return TYPE_KINDS[metaclass] ?? Object.entries(TYPE_KINDS).find(([k]) => isKindOf(metaclass, k))?.[1]
 }
 
-/** `<documentUuid>/<entityId>`: a CAD Modeler entity (CR-SYSML-03). */
+/** `<documentUuid>/<entityId>`: a CAD entity (CR-SYSML-03). */
 export const CAD_REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[^\s/][^\s]*$/i
 
 /** Values of an EWS::CadRepresentation metadata usage (strings and integers only; no evaluation). */
@@ -325,7 +325,7 @@ export function readCadMetadata(s: Semantics, metadataId: string): { cadRef?: st
   return out
 }
 
-/** A CAD Modeler entity reference held by a SysML element (CR-SYSML-03): the platform ArtifactRef shape. */
+/** A CAD entity reference held by a SysML element (CR-SYSML-03): the platform ArtifactRef shape. */
 export interface CadEntityRef {
   module: 'cad'
   kind: 'cad-modeler-entity'
@@ -389,7 +389,7 @@ export interface Representation {
 }
 
 /**
- * Everything a SysML element `represents` (CAD Modeler entities and product elements): references owned
+ * Everything a SysML element `represents` (CAD entities and product elements): references owned
  * by SysML, never copies. All non-library elements, or one element.
  */
 export function representations(model: Model, elementId?: string): Representation[] {

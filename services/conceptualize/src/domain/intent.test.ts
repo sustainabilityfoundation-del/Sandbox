@@ -113,6 +113,14 @@ describe('isolation: the ECII generic code and instructions contain no domain wo
     'packages/conceptualize-client/src/intentTypes.ts',
     'packages/tool-conceptualize/src/assistantIntent.ts',
     'packages/tool-conceptualize/help/engineering-context.md',
+    // ECII increment 2
+    'services/conceptualize/src/domain/architecture.ts',
+    'services/conceptualize/src/store/architecture.ts',
+    'services/conceptualize/src/http/architectureSchemas.ts',
+    'services/conceptualize/src/http/architectureRoutes.ts',
+    'packages/conceptualize-client/src/architectureTypes.ts',
+    'packages/tool-conceptualize/src/assistantArchitecture.ts',
+    'packages/tool-conceptualize/help/architecture-readiness.md',
   ]
   // Domain nouns belong in fixtures only. Whole words, case-insensitive.
   const DOMAIN = /\b(drills?|bits?|holders?|sensors?|brackets?|fans?|enclosures?|cordless|chucks?|bolts?|screws?|magnets?|motors?|workbench|hex|cooling|battery|pump|valve|gear)\b/i

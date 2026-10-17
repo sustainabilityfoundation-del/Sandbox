@@ -78,7 +78,7 @@ beforeAll(async () => {
   const fake = createFakeImageAdapter({ slowMs: 4000 })
   const counted: ImageAdapter = { ...fake, generate: (i) => (fakeCalls++, fake.generate(i)) }
   const adapters = new AdapterRegistry({ production: false }).register(createOpenAIImageAdapter({ fetch: openaiFetch })).register(counted)
-  server = await buildServer({ pool, storage: memoryObjectStorage(), production: false, eventPollMs: 50, assistant: { fetch: openaiFetch }, visualization: { adapters, runner: { concurrency: 2, pollMs: 100, staleAfterMs: 1000 } } })
+  server = await buildServer({ pool, storage: memoryObjectStorage(), production: false, eventPollMs: 50, assistant: { fetch: openaiFetch, ai: { mode: 'user' } }, visualization: { adapters, runner: { concurrency: 2, pollMs: 100, staleAfterMs: 1000 } } })
 }, 180_000)
 afterAll(async () => {
   await server?.close()

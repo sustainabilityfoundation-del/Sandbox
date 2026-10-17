@@ -79,7 +79,7 @@ export function createCadArtifactSource(pool: Pool, events: Pick<CadEventHub, 's
   return {
     module: 'cad',
     contractVersion: '1.0.0',
-    describeModule: () => ({ name: 'CAD Modeler', kinds: CAD_ARTIFACT_KINDS }),
+    describeModule: () => ({ name: 'CAD', kinds: CAD_ARTIFACT_KINDS }),
 
     async list(projectId, options = {}) {
       const limit = Math.max(1, Math.min(500, options.limit ?? 500))

@@ -2,7 +2,7 @@ import { massProperties, type CadDocument, type MassProperties, type Regenerator
 import { CadClientError, type CadClient } from './types'
 
 /**
- * Read access to CAD Modeler entities for other modules (contract C5). This is the implementation
+ * Read access to CAD entities for other modules (contract C5). This is the implementation
  * behind the proposed SDK 1.8 `PlatformServices.cad`; the TypeScript proposed for the SDK is in
  * docs/specifications/cad-program-progress.md.
  *
@@ -93,7 +93,7 @@ export function createCadReadService(options: { client: CadClient; regenerator?:
   const service: CadReadService = {
     async summary(projectId, ref) {
       const parsed = parse(ref)
-      if (!parsed) return { status: 'missing', reason: 'not-a-cad-reference', message: `${ref.module}/${ref.kind} ${ref.id} is not a CAD Modeler reference ({ module: 'cad', kind: 'cad-modeler-entity', id: '<documentUuid>/<entityId>' }).` }
+      if (!parsed) return { status: 'missing', reason: 'not-a-cad-reference', message: `${ref.module}/${ref.kind} ${ref.id} is not a CAD reference ({ module: 'cad', kind: 'cad-modeler-entity', id: '<documentUuid>/<entityId>' }).` }
       try {
         const doc = await load(projectId, parsed.documentId, ref.revision)
         const r = await client.resolveEntity(projectId, parsed.documentId, parsed.entityId, doc.revision)

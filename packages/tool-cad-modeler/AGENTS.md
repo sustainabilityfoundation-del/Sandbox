@@ -1,6 +1,6 @@
 # AGENTS.md: @ews/tool-cad-modeler
 
-The CAD Modeler tool (`cad-modeler`, entitlement `tool:cad`, contracts §1). Owner: CAD agent.
+The CAD tool (`cad-modeler`, entitlement `tool:cad`, contracts §1). Owner: CAD agent.
 Separate from the mock CAD tool (`packages/tool-cad`), which must not be edited.
 
 ## Responsibilities
@@ -9,7 +9,7 @@ Separate from the mock CAD tool (`packages/tool-cad`), which must not be edited.
   (`ui/Viewport.tsx`, three.js, meshes from the kernel worker), sketch stage (`ui/SketchStage.tsx`: drawing bar and
   click-to-draw state; `ui/Sketcher.tsx`: SVG view; `ui/sketchDraw.ts`: snapping and the clicks-to-commands mapping,
   unit-tested without a DOM); Diagnostics with Repair reference (`ui/DiagnosticsPanel.tsx`).
-- Toolbar (`index.ts`): New, Open, Save, Sketch, Extrude, Revolve, Undo, Redo, Fit, Export STEP.
+- Toolbar (`index.ts`): New, Open, Save, Sketch, Extrude, Revolve, Undo, Redo, Fit, Check against constraints (result in Diagnostics, `checkRun.ts` shared with the assistant), Export STEP.
 - Session (`session.ts`): open documents (`CadEngine`), active document, kernel (Web Worker by
   default), downloads. Shared by the view and the assistant.
 - Assistant (`assistant.ts`): `cad-modeler.*` actions; reads as data, mutations as service

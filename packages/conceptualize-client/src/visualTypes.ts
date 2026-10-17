@@ -3,6 +3,8 @@
  * Concept revision, visuals with revisions, annotations, generation records, staleness and the CAD handoff.
  * Mirrors services/conceptualize (schemas.ts "engineering definition", visualSchemas.ts).
  */
+import type { ArchitectureBlock, ArchitectureInput } from './architectureTypes'
+
 
 export type Stage = 'exploration' | 'layout' | 'engineering'
 export type ParameterBasis = 'user-assertion' | 'ai-hypothesis' | 'assumption' | 'estimate'
@@ -75,6 +77,8 @@ export interface EngineeringDefinition {
   interfaces: ComponentInterface[]
   parameters: DefinedParameter[]
   layout: LayoutSpec | null
+  /** ECII increment 2: architecture or variant block; null when none is recorded. */
+  architecture?: ArchitectureBlock | null
   idSeq: number
 }
 
@@ -87,9 +91,11 @@ export interface DefinitionInput {
   interfaces?: Opt<ComponentInterface, 'id' | 'kind' | 'description' | 'parameterIds'>[]
   parameters?: Opt<DefinedParameter, 'id' | 'name' | 'value' | 'min' | 'max' | 'basis' | 'componentId' | 'constraintId' | 'note'>[]
   layout?: { view?: LayoutView; unit?: string; items: Opt<LayoutItem, 'shape'>[]; dimensions?: Opt<LayoutDimension, 'id'>[] } | null
+  /** Omitted keeps the stored block; null removes it. */
+  architecture?: ArchitectureInput | null
 }
 
-export const EMPTY_DEFINITION: EngineeringDefinition = { intent: '', components: [], relationships: [], interfaces: [], parameters: [], layout: null, idSeq: 0 }
+export const EMPTY_DEFINITION: EngineeringDefinition = { intent: '', components: [], relationships: [], interfaces: [], parameters: [], layout: null, architecture: null, idSeq: 0 }
 
 /** A stored definition as input (drops idSeq; IDs are kept). */
 export const definitionInput = (d: EngineeringDefinition): DefinitionInput => ({ intent: d.intent, components: d.components, relationships: d.relationships, interfaces: d.interfaces, parameters: d.parameters, layout: d.layout })
@@ -98,7 +104,7 @@ export type VisualKind = 'illustration' | 'layout' | 'mechanism' | 'architecture
 export type GenerationState = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'refused'
 
 export interface DefinitionChange {
-  area: 'intent' | 'component' | 'relationship' | 'interface' | 'parameter' | 'layout'
+  area: 'intent' | 'component' | 'relationship' | 'interface' | 'parameter' | 'layout' | 'architecture'
   id: string
   change: 'added' | 'removed' | 'changed'
   label: string

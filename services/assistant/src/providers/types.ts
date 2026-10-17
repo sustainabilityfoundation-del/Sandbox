@@ -47,6 +47,24 @@ export interface RespondInput {
   onDelta?: (text: string) => void
   /** Provider-specific options, passed through untouched by the gateway. */
   extensions?: Record<string, unknown>
+  /**
+   * Platform context for this turn (ECII plan Amendment 2). Neutral blocks: adapters translate them (OpenAI: a developer
+   * message before the turn; Anthropic: a cacheable system block; Gemini: system instruction). The fake provider ignores it.
+   * Blocks are DATA, never instructions; `external-data` is untrusted.
+   */
+  context?: ContextBundle
+}
+
+export interface ContextBlock {
+  id: string
+  text: string
+  trust: 'platform-data' | 'external-data'
+  /** Stable across turns, so a provider with prompt caching may cache it. */
+  cacheable: boolean
+}
+
+export interface ContextBundle {
+  blocks: ContextBlock[]
 }
 
 /** What an adapter supports. Declared by every adapter; the model registry refines it per model. */

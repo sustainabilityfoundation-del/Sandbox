@@ -29,7 +29,7 @@ export const PLANS: SubscriptionPlan[] = [
   {
     id: 'all',
     name: 'All tools',
-    description: 'Requirements Management, System Model, CAD Modeler and Conceptualize.',
+    description: 'Requirements Management, System Model, CAD and Conceptualize.',
     entitlements: ['tool:requirements', 'tool:sysml', 'tool:cad', 'tool:conceptualize'],
   },
 ]

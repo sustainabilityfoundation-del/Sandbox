@@ -142,7 +142,7 @@ describe('assistant and subscriptions', () => {
     const before = ws().model!.revision
     const reply = await ask('Open CAD and show the rod.')
     expect(reply.proposalIds).toHaveLength(0)
-    expect(reply.text).toMatch(/CAD Modeler/)
+    expect(reply.text).toMatch(/CAD/)
     expect(reply.text).toMatch(/can't open|not included|subscription/i)
     expect(ws().activeToolId).not.toBe('cad-modeler')
     expect(ws().model!.revision).toBe(before)

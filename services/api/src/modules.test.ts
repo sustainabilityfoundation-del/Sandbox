@@ -42,7 +42,7 @@ describe('installed server modules', () => {
       { module: 'requirements', name: 'Requirements' },
       { module: 'conceptualize', name: 'Conceptualize' },
       { module: 'sysml', name: 'System Model' },
-      { module: 'cad', name: 'CAD Modeler' },
+      { module: 'cad', name: 'CAD' },
     ])
   })
 
@@ -97,8 +97,8 @@ describe('AI policy from the installed manifests', () => {
     expect(ALL_SERVER_MODULES.find((m) => m.id === 'sysml-modeler')?.proposals).toEqual({ entitlement: 'tool:sysml' })
   })
 
-  it('takes the CAD Modeler from its manifest (no legacy entry): same module, classes, settings and proposal API as before', () => {
-    expect(aiModules.filter((m) => m.id === 'cad-modeler')).toEqual([{ id: 'cad-modeler', label: 'CAD Modeler', description: 'Parametric CAD documents and exports.', entitlement: 'tool:cad', prefixes: ['cad-modeler.'] }])
+  it('takes the CAD from its manifest (no legacy entry): same module, classes, settings and proposal API as before', () => {
+    expect(aiModules.filter((m) => m.id === 'cad-modeler')).toEqual([{ id: 'cad-modeler', label: 'CAD', description: 'Parametric CAD documents and exports.', entitlement: 'tool:cad', prefixes: ['cad-modeler.'] }])
     expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('cad-modeler.'))).toHaveLength(13)
     expect(policy.classify('cad-modeler.describe_model')).toMatchObject({ operationClass: 'read', module: { id: 'cad-modeler' } })
     expect(policy.classify('cad-modeler.run_commands')?.operationClass).toBe('propose')
@@ -129,7 +129,7 @@ describe('AI policy from the installed manifests', () => {
 
   it('takes Conceptualize from its manifest (no legacy entry): same module, prefix, entitlement and operation classes as before', () => {
     expect(aiModules.filter((m) => m.id === 'conceptualize')).toEqual([{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] }])
-    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('conceptualize.'))).toHaveLength(37)
+    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('conceptualize.'))).toHaveLength(39)
     expect(policy.classify('conceptualize.compare')).toMatchObject({ operationClass: 'calculate', module: { id: 'conceptualize' } })
     expect(policy.classify('conceptualize.request_illustration')?.operationClass).toBe('external-generation')
     expect(policy.classify('conceptualize.read_visuals')?.operationClass).toBe('read')

@@ -17,6 +17,12 @@ npm run e2e -- platform help    # selected flows
 | `E2E_OUTPUT` | `tests/e2e/.output` (git-ignored) | Screenshots |
 | `E2E_HEADED` | unset | Show the browser |
 
+**AI mode.** Flows must run against an API started in mock mode: `npm run ai:dev:fake` (sets `EWS_AI_MODE=mock`), or your own
+`npm run dev:api` with `EWS_AI_MODE=mock` (and `EWS_ASSISTANT_FAKE_PROVIDER=1`, `EWS_ASSISTANT_FAKE_SCRIPTS` for `demo-d1`). Mock mode
+ignores every stored connection, so a flow can never reach a person's connected AI account. A plain `npm run dev` is `user` mode
+(people's own connections, as before): do not point flows at it. After a run `GET /api/assistant/v1/usage?period=month` must list
+simulated rows only.
+
 Flows (`flows/*.mjs`, one process each, exit code 0 = pass): `platform` (subscriptions, shared context, upgrade
 of version 0.1 data, retired illustrative tools absent and their data kept, detached windows, failure isolation, icons), `help`, `coverage`,
 `integration`, `vision`, `conceptualize`, `sysml-modeler`, `cad-modeler` (the workspace AI path, then click-to-draw by mouse, touch and keyboard, and Repair reference; fixture `fixtures/cad/slotted-block.ewscad`), `cad-modeler-persistence` (CAD service revisions,
@@ -24,7 +30,7 @@ concurrency, edge features, deep link, units setting), `cad-d1` (regular polygon
 UI, volumes checked analytically), `ai-headless` (every engineering operation with all tool tabs closed; modules
 still tied to a view are listed as known-failing), `ai-fake-provider` (needs the API started with the fake provider:
 `npm run ai:dev:fake`; connect, ask, proposal reopened in a fresh session, access policy and refusals, audit,
-disconnect, drill bit holder demo), `concept-visual` (visual concept exploration in a clean project: three alternatives with structured layouts through the assistant operation, comparison cards, annotation and refinement into new revisions, staleness, selection and rejection, CAD handoff, illustration refusal and an in-page FAKE TEST image port; fixture `fixtures/concept-visual/drill-holder.json`), `ecii` (ECII increment 1: engineering intent and clarification, Tests A and D; fake provider replaying `fixtures/fake-scripts/ecii-a.json` and `ecii-d.json`; start with `npm run ai:dev:fake`; proves structure and plumbing, not reasoning quality), `projects` (Project Home, new project, switcher, reopen), `demo-d1` (plumbing test of demonstration D1: the fake
+disconnect, drill bit holder demo), `concept-visual` (visual concept exploration in a clean project: three alternatives with structured layouts through the assistant operation, comparison cards, annotation and refinement into new revisions, staleness, selection and rejection, CAD handoff, illustration refusal and an in-page FAKE TEST image port; fixture `fixtures/concept-visual/drill-holder.json`), `ecii` (ECII increments 1 and 2: engineering intent and clarification, architecture-first alternatives, diversity and readiness, Tests A, D and E; fake provider replaying `fixtures/fake-scripts/ecii-a.json`, `ecii-d.json`, `ecii-e-sensor.json` and `ecii-e-fan.json`; start with `npm run ai:dev:fake`; proves structure and plumbing, not reasoning quality), `projects` (Project Home, new project, switcher, reopen), `demo-d1` (plumbing test of demonstration D1: the fake
 provider replays the recorded script in `fixtures/fake-scripts/d1-plumbing.json`; start with `npm run ai:dev:fake`;
 not D1 acceptance), `visualization` (image generation jobs with the fake test adapter only: idempotent repeats,
 a batch with one failing item, retry, cancel, SSE events, the labelled test asset in a browser; start with

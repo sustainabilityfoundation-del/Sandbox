@@ -1,4 +1,4 @@
-# CAD Modeler: architecture specification
+# CAD: architecture specification
 
 Status: Proposed (CAD agent, 14–15 October 2026). Decisions: ADR-0020 (packages), ADR-0021 (kernel),
 ADR-0022 (native format), ADR-0023 (commands), ADR-0024 (topological naming), ADR-0025 (sketch

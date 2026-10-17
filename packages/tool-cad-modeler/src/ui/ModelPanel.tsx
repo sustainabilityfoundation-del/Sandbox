@@ -1,7 +1,8 @@
 import type { CadEngine, EngineState, Feature, Part } from '@ews/cad-core'
 import { AppIcon, Button, IconButton, MenuButton, MenuItem, Select, TextField, cx } from '@ews/design-system'
-import { Fragment, useState } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import type { CadModelerViewState, SelectionItem } from '../viewState'
+import { useConstraintLabel } from './constraintLabel'
 import { CommitField, FeatureStatus, fmtNum, makeRun, regenOf, useMeasure } from './common'
 
 interface Props {
@@ -99,6 +100,23 @@ function PartSection({ part, state, vs, onSelect, onEdit, engine }: { part: Part
   )
 }
 
+/** "Implements …" line of a bound parameter: the constraint's stable ID and title, never its UUID (AUD-4). */
+function BindingLine({ binding, children }: { binding: NonNullable<Part['parameters'][number]['binding']>; children?: ReactNode }) {
+  const label = useConstraintLabel(binding.ref)
+  const isConstraint = binding.ref.module === 'conceptualize' && binding.ref.kind === 'constraint'
+  return (
+    <p className="cadm-param-binding cadm-muted" data-help-id="cad-modeler.parameters" data-testid="param-binding">
+      <AppIcon name="link" size="sm" /> Implements {binding.quantity ? `“${binding.quantity}” of ` : ''}
+      <span className="cadm-mono" data-testid="param-binding-ref">
+        {isConstraint ? (label.key ?? (label.state === 'loading' ? 'constraint …' : 'constraint (not readable here)')) : `${binding.ref.module}/${binding.ref.kind}`}
+      </span>
+      {label.title ? <span title={label.title}> “{label.title.length > 48 ? `${label.title.slice(0, 47)}…` : label.title}”</span> : null}
+      {binding.ref.revision !== undefined ? `, revision ${binding.ref.revision}` : ', latest revision'}
+      {children}
+    </p>
+  )
+}
+
 function Parameters({ part, engine, state }: { part: Part; engine: CadEngine; state: EngineState }) {
   const run = makeRun(engine)
   const evaluated = regenOf(state, part.id)?.parameters ?? []
@@ -127,12 +145,9 @@ function Parameters({ part, engine, state }: { part: Part; engine: CadEngine; st
             <IconButton label={`Delete parameter ${p.name}`} icon="close" size="sm" onPress={() => run([{ command: 'delete_parameter', input: { partId: part.id, name: p.name } }], `Delete ${p.name}`)} />
           </div>
           {p.binding && (
-            <p className="cadm-param-binding cadm-muted" data-help-id="cad-modeler.parameters">
-              <AppIcon name="link" size="sm" /> Implements {p.binding.quantity ? `“${p.binding.quantity}” of ` : ''}
-              <span className="cadm-mono">{p.binding.ref.module}/{p.binding.ref.kind} {p.binding.ref.id.length > 12 ? `${p.binding.ref.id.slice(0, 8)}…` : p.binding.ref.id}</span>
-              {p.binding.ref.revision !== undefined ? `, revision ${p.binding.ref.revision}` : ', latest revision'}
+            <BindingLine binding={p.binding}>
               <IconButton label={`Remove the binding of ${p.name}`} icon="unlink" size="sm" onPress={() => run([{ command: 'unbind_parameter', input: { partId: part.id, name: p.name } }], `Unbind ${p.name}`)} />
-            </p>
+            </BindingLine>
           )}
           </Fragment>
         )

@@ -1,4 +1,4 @@
-# CAD Modeler module (CAD program)
+# CAD module (CAD program)
 
 Status: Phase 0 complete; Phase 1 vertical slice implemented on `feature/cad`, awaiting coordinator
 integration review. Brief: [cad-program.md](../../specifications/cad-program.md). Contracts:
@@ -6,7 +6,7 @@ integration review. Brief: [cad-program.md](../../specifications/cad-program.md)
 [cad-program-progress.md](../../specifications/cad-program-progress.md).
 
 The existing [cad.md](../cad.md) still specifies the **mock** CAD tool (`cad`), which is unchanged.
-This folder specifies the new **CAD Modeler** (`cad-modeler`).
+This folder specifies the new **CAD** (`cad-modeler`).
 
 ## Documents (brief §14)
 

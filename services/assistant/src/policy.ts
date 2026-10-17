@@ -1,4 +1,6 @@
 import type { AiModuleDescriptor, OperationClass, SettingDefinition, SettingValue } from '@ews/platform-sdk'
+import { ROUTING_AND_CONTEXT_DEFINITIONS, type RoutingDefault } from './orchestrator/settings'
+import { pair } from './settingsPair'
 
 /**
  * The AI access policy (docs/specifications/ai-connection.md §5a), enforced on the server:
@@ -96,26 +98,8 @@ const LEVELS = [
   { value: 'propose', label: 'Read and propose changes', description: 'Also prepare change previews; applying always needs you.' },
 ]
 
-interface PairInput {
-  id: string
-  ceilingId: string
-  ceilingDefault: SettingValue
-  label: string
-  description: string
-  group: string
-  [key: string]: unknown
-}
-
-/** A user setting and the project ceiling (administrator) that bounds it. */
-function pair(base: PairInput): SettingDefinition[] {
-  const { ceilingId, ceilingDefault, ...rest } = base
-  const user = { ...rest, scope: 'user', ceiling: ceilingId } as SettingDefinition
-  const ceiling = { ...rest, id: ceilingId, label: `${rest.label} (project limit)`, description: `Upper limit for everyone in the project: ${rest.description}`, scope: 'project', requiresPermission: 'administrator', default: ceilingDefault, group: `Project limits: ${rest.group}` } as SettingDefinition
-  return [user, ceiling]
-}
-
 /** Definitions registered with the settings service by the API host. `ai.reasoning.*` is reserved. */
-function settingDefinitions(modules: AiModule[]): SettingDefinition[] {
+function settingDefinitions(modules: AiModule[], routingDefault: RoutingDefault = 'balanced'): SettingDefinition[] {
   return [
   {
     id: 'ai.connection.active',
@@ -161,6 +145,7 @@ function settingDefinitions(modules: AiModule[]): SettingDefinition[] {
     group: 'Image generation',
   },
   ...pair({ id: 'ai.images.daily-limit', ceilingId: 'ai.images-ceiling.daily-limit', label: 'Images per day', description: 'Maximum paid image generations you can request in 24 hours (retries of a job do not count again).', helpId: 'ai.images', type: 'number', unit: 'images', min: 0, max: 200, integer: true, default: 20, ceilingDefault: 200, group: 'Image generation' }),
+  ...ROUTING_AND_CONTEXT_DEFINITIONS(routingDefault),
   ...pair({ id: 'ai.audit.store-prompts', ceilingId: 'ai.audit-ceiling.store-prompts', label: 'Store prompts for debugging', description: 'Keep the full request sent to the provider in your audit records. Off by default; turn it on only to diagnose a problem.', helpId: 'ai.privacy', type: 'boolean', default: false, ceilingDefault: true, group: 'Audit' }),
   ]
 }
@@ -233,7 +218,7 @@ export interface Policy {
  * Merges module contributions into the platform-owned AI modules and catalogue. An ID or operation name defined twice
  * (a platform or legacy entry and a manifest, or two manifests) is an error: nothing is silently overridden.
  */
-export function createPolicy(extraModules: AiModule[] = [], extraCatalogue: Record<string, OperationClass> = {}): Policy {
+export function createPolicy(extraModules: AiModule[] = [], extraCatalogue: Record<string, OperationClass> = {}, options: { routingDefault?: RoutingDefault } = {}): Policy {
   const seen = new Set<string>()
   const all: AiModule[] = []
   for (const m of [...AI_MODULES, ...extraModules]) {
@@ -248,7 +233,7 @@ export function createPolicy(extraModules: AiModule[] = [], extraCatalogue: Reco
     if (name in catalogue) throw new Error(`Operation “${name}” is defined twice (existing entry and module manifest, or two manifests).`)
     catalogue[name] = cls
   }
-  const settingDefs = settingDefinitions(modules)
+  const settingDefs = settingDefinitions(modules, options.routingDefault)
   const defaults = new Map(settingDefs.map((d) => [d.id, d.default]))
   const classify = (name: string) => classifyIn(modules, catalogue, name)
   return {

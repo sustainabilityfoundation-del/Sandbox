@@ -159,7 +159,7 @@ Modules keep their own states; Project Management maps them for cross-module vie
 | Requirements | draft, proposed → working; in-review → in-review; approved, baselined → released; superseded → superseded; archived, rejected → retired |
 | Conceptualize | idea … evaluated → working; selected, engineering-development → in-review*; implemented, verified → released; superseded → superseded; archived → retired |
 | System Model | element at branch head → working; element pinned by a tag → released (per tag, not per element: the record stays `working`, the tag artifact is `released`) |
-| CAD Modeler | document → working; archived → retired |
+| CAD | document → working; archived → retired |
 | Project Management | per entity (see [lifecycle-and-persistence.md](lifecycle-and-persistence.md)) |
 
 \* The mapping is published by each module's `ArtifactSource` (`lifecycleOf(moduleState)`), so the module,

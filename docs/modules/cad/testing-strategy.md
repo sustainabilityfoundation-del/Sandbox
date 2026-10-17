@@ -1,4 +1,4 @@
-# CAD Modeler: testing and validation strategy
+# CAD: testing and validation strategy
 
 Status: implemented for Phase 1 (CAD agent). Brief §12: geometry is validated numerically and
 topologically, not only visually.

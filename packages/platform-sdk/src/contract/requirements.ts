@@ -190,7 +190,7 @@ export interface PlatformServices {
   concepts?: ConceptsService
   /** Project Management (SDK 1.7): projects and the artifact registry. */
   projects?: ProjectsService
-  /** CAD Modeler read service (SDK 1.8): entity summaries and mass properties at a document revision. */
+  /** CAD read service (SDK 1.8): entity summaries and mass properties at a document revision. */
   cad?: CadService
   /** SysML Modeler read service (SDK 1.8): projects, element resolution and search. */
   sysml?: SysmlModelService

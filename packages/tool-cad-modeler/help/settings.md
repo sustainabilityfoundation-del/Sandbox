@@ -1,13 +1,13 @@
 ---
 help_id: cad-modeler.settings
-title: CAD Modeler settings
+title: CAD settings
 kind: reference
 summary: Personal display settings in the Settings centre (measurement units, display tessellation tolerance, initial view, edges). The model is always stored in millimetres.
 keywords: [settings, units, inches, centimetres, tolerance, tessellation, view, edges, preferences]
 related: [cad-modeler.viewport, cad-modeler.document]
 ---
 
-Open **Settings → CAD Modeler**. The settings are personal (user scope) and change only how the
+Open **Settings → CAD**. The settings are personal (user scope) and change only how the
 model is shown.
 
 | Setting | Values | Default | Effect |

@@ -3,6 +3,7 @@ import { defineTool, type ClientModule, type ModuleHostEnv, type ToolDefinition 
 import { lazy } from 'react'
 import pkg from '../package.json'
 import { cadModelerAssistant } from './assistant'
+import { checkStore } from './checkStore'
 import { CAD_MODELER_CAPABILITIES } from './capabilities'
 import { cadModelerHelp } from './help'
 import { createCadReadService, createHttpCadClient, createLocalCadClient, type CadClient } from '@ews/cad-client'
@@ -31,7 +32,7 @@ const fail = (title: string, e: unknown) => useToasts.getState().push({ tone: 'd
 const docOf = (vs: CadModelerViewState) => cadSession.document(vs.documentId)
 
 /**
- * CAD Modeler (ADR-0020): parametric part modeling on an exact B-rep kernel (Open CASCADE in a Web
+ * CAD (ADR-0020): parametric part modeling on an exact B-rep kernel (Open CASCADE in a Web
  * Worker). Every toolbar action and dialog runs typed commands from @ews/cad-core, the same ones the
  * assistant proposes. Separate from the mock CAD tool (`cad`) during Phases 0–1 (contracts §1).
  */
@@ -50,7 +51,7 @@ export interface CadModelerOptions {
 /**
  * `PlatformServices.cad` for the workspace (SDK 1.8, contract C5): CAD entity summaries and mass
  * properties at a document revision. It reads stored revisions from the CAD service and regenerates
- * them in this window's shared kernel worker (the CAD Modeler's), so no second kernel is loaded.
+ * them in this window's shared kernel worker (CAD's), so no second kernel is loaded.
  * Results are cached per immutable revision. Call it once from the host's platform services.
  */
 export function createWorkspaceCadService(options: { baseUrl?: string; devUser?: string; client?: CadClient } = {}): CadService {
@@ -69,13 +70,13 @@ export function createWorkspaceCadService(options: { baseUrl?: string; devUser?:
 }
 
 /**
- * The CAD Modeler's client module (docs/specifications/module-registration.md, M4): its manifest (capability entries) and its
+ * The CAD's client module (docs/specifications/module-registration.md, M4): its manifest (capability entries) and its
  * tool. Separate from the mock CAD tool (cad-program-contracts.md §1). Until the SDK offers PlatformServices.cad the tool builds
  * its client: API mode follows the Requirements service mode (API → /api/cad/v1 as the development user; demo → files only).
  */
 export function cadModelerModule(): ClientModule {
   return {
-    manifest: { schemaVersion: 1, id: 'cad-modeler', name: 'CAD Modeler', capabilities: CAD_MODELER_CAPABILITIES, entitlement: 'tool:cad' },
+    manifest: { schemaVersion: 1, id: 'cad-modeler', name: 'CAD', capabilities: CAD_MODELER_CAPABILITIES, entitlement: 'tool:cad' },
     tool: (env: ModuleHostEnv) => createCadModelerTool(env.requirementsMode === 'demo' ? { mode: 'files' } : { mode: 'api', baseUrl: '/api/cad/v1', devUser: env.devUser }),
   }
 }
@@ -85,7 +86,7 @@ export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefin
   cadSession.configureStore(client)
   return defineTool<CadModelerViewState>({
   id: 'cad-modeler',
-  name: 'CAD Modeler',
+  name: 'CAD',
   description: 'Parametric part modeling: constrained sketches, extrude and revolve, parameters and regeneration on an exact B-rep kernel; native open format and STEP AP242 export.',
   category: 'Design',
   icon: 'cad',
@@ -236,6 +237,18 @@ export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefin
       { type: 'button', id: 'fit', label: 'Fit', icon: 'fit', title: 'Fit the model in the view (F)', onClick: () => api.updateViewState({ viewRequest: { kind: 'fit', seq: Date.now() } }) },
       {
         type: 'button',
+        id: 'check',
+        label: 'Check against constraints',
+        icon: 'verification',
+        disabled: !s.hasDoc || s.busy,
+        title: 'Measure the model and compare it with the bounds of the design constraints it is bound to (read-only; result in Diagnostics)',
+        onClick: () => {
+          api.updateViewState({ tab: 'diagnostics' })
+          checkStore.request()
+        },
+      },
+      {
+        type: 'button',
         id: 'export-step',
         label: 'Export STEP',
         icon: 'open-window',
@@ -252,5 +265,5 @@ export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefin
   })
 }
 
-/** The CAD Modeler with files only (tests, hosts without the CAD service). The workspace uses createCadModelerTool. */
+/** The CAD with files only (tests, hosts without the CAD service). The workspace uses createCadModelerTool. */
 export const cadModelerTool = createCadModelerTool()

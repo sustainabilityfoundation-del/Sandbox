@@ -13,7 +13,7 @@ const AssetRef = Type.Object({ assetId: Text(200, 1), sha256: Type.Optional(Type
 const ProvenanceOut = Type.Object({ sourceKind: Type.String(), conversationId: Nullable(Type.String()), proposalId: Nullable(Type.String()), messageId: Nullable(Type.String()) })
 
 export const DefinitionChange = Type.Object({
-  area: L('intent', 'component', 'relationship', 'interface', 'parameter', 'layout'),
+  area: L('intent', 'component', 'relationship', 'interface', 'parameter', 'layout', 'architecture'),
   id: Type.String(),
   change: L('added', 'removed', 'changed'),
   label: Type.String(),
@@ -202,6 +202,6 @@ export const Handoff = Type.Object(
     createdBy: Type.String(),
     provenance: ProvenanceOut,
   },
-  { $id: 'CadHandoff', description: 'Immutable, revision-pinned package for the CAD Modeler. Missing information is listed in unresolved, never invented.' },
+  { $id: 'CadHandoff', description: 'Immutable, revision-pinned package for the CAD. Missing information is listed in unresolved, never invented.' },
 )
 export const HandoffCreate = Type.Object({ target: Type.Optional(Type.Literal('cad')), conceptRevision: Type.Optional(Type.Integer({ minimum: 1 })) }, { $id: 'CadHandoffCreate', additionalProperties: false })

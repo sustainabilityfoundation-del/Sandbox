@@ -1,4 +1,4 @@
-# CAD Modeler: AI command specification
+# CAD: AI command specification
 
 Status: Proposed (ADR-0023; contracts §5). Implementation: `packages/tool-cad-modeler/src/assistant.ts`;
 tests: `assistant.test.ts` (Node, real kernel) and the workspace browser flow (demo assistant).
@@ -19,7 +19,7 @@ tests: `assistant.test.ts` (Node, real kernel) and the workspace browser flow (d
 | `cad-modeler.check` | read | Measurements of the regenerated model compared with design-constraint bounds read through `ConceptsService.getConstraint` (never caller-supplied). Each result records document, stored revision, model version and kernel name and version (ADR-0070 item 3); assumptions are listed |
 | `cad-modeler.check_bindings` | read | Parameters bound to superseded constraint revisions, with the old and new bounds |
 
-All operations also work with no CAD Modeler view mounted (C9). Format 1.2 commands for D1:
+All operations also work with no CAD view mounted (C9). Format 1.2 commands for D1:
 `add_regular_polygon`, `pattern_linear`, `bind_parameter` and `unbind_parameter` (see [api.md](api.md)).
 
 Every operation is listed in the capability inventory (`apps/workspace/src/assistant/capabilities.ts`)

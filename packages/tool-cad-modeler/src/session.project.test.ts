@@ -15,7 +15,7 @@ beforeEach(async () => {
 })
 afterEach(() => cadSession.configureStore(null))
 
-describe('project scoping of the CAD Modeler session (C13)', () => {
+describe('project scoping of the CAD session (C13)', () => {
   it('switching projects never shows another project’s open document', async () => {
     const store = createLocalCadClient({ actor: 'eli' })
     cadSession.configureStore(store)

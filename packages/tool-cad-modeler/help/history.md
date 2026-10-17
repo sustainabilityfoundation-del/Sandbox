@@ -15,7 +15,7 @@ prepared on an older version is refused instead of silently overwriting your wor
 
 **Assistant.** `cad-modeler.undo` and `cad-modeler.redo` prepare the same actions as proposals with a
 preview. Redo is available only right after an undo in the open document, before any new change;
-otherwise it is refused with the reason. When no CAD Modeler tab is open, an applied undo or redo is
+otherwise it is refused with the reason. When no CAD tab is open, an applied undo or redo is
 saved as a new revision in the project.
 
 **Diagnostics → Operation log** lists recent transactions with their source (user or assistant),

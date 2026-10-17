@@ -1,18 +1,18 @@
 import { CadEngine, COMMANDS, MEDIA_TYPE, QUERIES, applyTransaction, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, serializeDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
 import { ActionError, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DeclarativeProposal, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { cadSession, type OpenDocument } from './session'
-import { runChecks, type CheckRequest, type MeasureSpec } from './checks'
-import pkg from '../package.json'
+import { checkOpenDocument, NoKernelError } from './checkRun'
+import type { CheckRequest, MeasureSpec } from './checks'
 import { mapHandoff, portOf } from './handoff'
 
 /**
- * Assistant operations for the CAD Modeler (contracts §5, ADR-0023). Reads return structured data
+ * Assistant operations for CAD (contracts §5, ADR-0023). Reads return structured data
  * from the same queries the inspector and diagnostics use. Every mutation is a service proposal: the
  * commands are validated and regenerated on a copy (dry run) for the preview, and only Apply runs
  * them, through the same executor as the toolbar and dialogs, with the model version captured at
  * preview time. Nothing is written by an action itself.
  *
- * Headless (contract C9): every operation works with no CAD Modeler view mounted. A target that is
+ * Headless (contract C9): every operation works with no CAD view mounted. A target that is
  * not open is loaded from the CAD document service of the captured project (the injected client;
  * later PlatformServices.cad). Regeneration, dry runs and previews run in the kernel worker. While
  * no view is mounted, an applied change is also saved as a new revision with the proposal's
@@ -22,7 +22,7 @@ import { mapHandoff, portOf } from './handoff'
 
 export const MODULE = 'cad-modeler'
 
-const documentId = { type: 'string', description: 'Document ID. Default: the active CAD Modeler document of this project, else the only document stored in the project. A stored document that is not open is loaded from the project.' }
+const documentId = { type: 'string', description: 'Document ID. Default: the active CAD document of this project, else the only document stored in the project. A stored document that is not open is loaded from the project.' }
 
 const fmt = (n: number, digits = 2) => (Math.abs(n) >= 1e5 ? n.toExponential(3) : n.toFixed(digits))
 
@@ -105,7 +105,7 @@ export async function resolveDocument(args: Record<string, unknown>, ctx: Assist
     if (docs.length > 1) throw new ActionError('invalid-arguments', `Project ${projectId} has ${docs.length} CAD documents; pass documentId (${docs.slice(0, 8).map((d) => `${d.id} “${d.title}”`).join(', ')}). See cad-modeler.list_documents.`)
   }
   if (options.allowNone) return undefined
-  throw new ActionError('not-found', `No CAD Modeler document is open or stored in project ${projectId}. Propose cad-modeler.new_document or cad-modeler.run_commands (it creates a document).`)
+  throw new ActionError('not-found', `No CAD document is open or stored in project ${projectId}. Propose cad-modeler.new_document or cad-modeler.run_commands (it creates a document).`)
 }
 
 /** While no view is mounted, applied changes are saved as revisions (when a CAD service is connected). */
@@ -266,7 +266,7 @@ const actions: AssistantActionDefinition[] = [
     name: 'cad-modeler.describe_model',
     label: 'Read CAD model',
     description:
-      'Structured overview of the active CAD Modeler document (or one by ID): open documents, parts, feature history with regeneration status and errors, parameters with values, bodies with volume, mass, bounding box and topology, and failures. Use cad-modeler.query for details (sketch DOF, faces with stable names, dependencies, operation log, the native document).',
+      'Structured overview of the active CAD document (or one by ID): open documents, parts, feature history with regeneration status and errors, parameters with values, bodies with volume, mass, bounding box and topology, and failures. Use cad-modeler.query for details (sketch DOF, faces with stable names, dependencies, operation log, the native document).',
     parameters: { type: 'object', properties: { documentId }, additionalProperties: false },
     async run(args, ctx) {
       const open = await resolveDocument(args, ctx, { allowNone: true })
@@ -275,7 +275,7 @@ const actions: AssistantActionDefinition[] = [
         return {
           kind: 'data',
           data: { documents: snap.documents, active: null, kernel: snap.kernel, hint: `No CAD document is open or stored in project ${ctx.captured.projectId}. Propose cad-modeler.new_document or cad-modeler.run_commands (it creates a document when none is open).` },
-          summary: 'No CAD Modeler document is open',
+          summary: 'No CAD document is open',
         }
       }
       const regen = await open.engine.regenerate()
@@ -328,7 +328,7 @@ const actions: AssistantActionDefinition[] = [
     label: 'Prepare CAD modelling commands',
     description:
       `Propose a transaction of CAD commands (all apply or none). The commands are validated and the model is regenerated on a copy for the preview (predicted volumes, faces, failures); nothing changes until the user applies it. Commands: ${COMMANDS.map((c) => c.name).join(', ')}. ` +
-      'Each item is { "command": name, "input": {...} }; see cad-modeler.query list_commands for input schemas. Use "ref": "$name" on create commands and "$name" (or "$name.field.index") in later commands of the same transaction. Lengths in mm, angles in degrees; values may be expressions over part parameters. When no document is open, a new one is created (name it with "title"). When no CAD Modeler view is open and the project has a CAD service, Apply also saves the result as a new revision (the result says which); cad-modeler.save_document is then not needed. If a command changes a parameter bound to a constraint that has a newer revision than the binding pins (see cad-modeler.check_bindings), the preview flags it and the same proposal re-binds the parameter to the latest revision (rebind: false to only flag it); run cad-modeler.check afterwards to confirm the new value against that revision.',
+      'Each item is { "command": name, "input": {...} }; see cad-modeler.query list_commands for input schemas. Use "ref": "$name" on create commands and "$name" (or "$name.field.index") in later commands of the same transaction. Lengths in mm, angles in degrees; values may be expressions over part parameters. When no document is open, a new one is created (name it with "title"). When no CAD view is open and the project has a CAD service, Apply also saves the result as a new revision (the result says which); cad-modeler.save_document is then not needed. If a command changes a parameter bound to a constraint that has a newer revision than the binding pins (see cad-modeler.check_bindings), the preview flags it and the same proposal re-binds the parameter to the latest revision (rebind: false to only flag it); run cad-modeler.check afterwards to confirm the new value against that revision.',
     parameters: {
       type: 'object',
       properties: {
@@ -377,7 +377,7 @@ const actions: AssistantActionDefinition[] = [
           title,
           explanation: `${commands.length} command${commands.length === 1 ? '' : 's'} in one transaction${open ? ` against revision ${open.stored!.revision} (model version ${version})` : ' in a new document'}. The preview shows the regenerated result predicted by the kernel; Apply stores the result as ${open ? `revision ${open.stored!.revision + 1}` : 'revision 1'} in ${projectId}.`,
           preview: [
-            ...(open ? [] : [{ label: 'New document', proposed: newTitle ?? 'Untitled CAD Modeler document' }]),
+            ...(open ? [] : [{ label: 'New document', proposed: newTitle ?? 'Untitled CAD document' }]),
             ...commands.map((c, i) => ({ label: `${i + 1}. ${c.command}`, proposed: describeInput(c) })),
             ...predictionItems(dry),
           ...rebinds.items(args.rebind !== false),
@@ -405,7 +405,7 @@ const actions: AssistantActionDefinition[] = [
         title,
         explanation: `${commands.length} command${commands.length === 1 ? '' : 's'} in one transaction against version ${version}${open ? '' : ' of a new document'}. The preview shows the regenerated result predicted by the kernel.`,
         preview: [
-          ...(open ? [] : [{ label: 'New document', proposed: newTitle ?? 'Untitled CAD Modeler document' }]),
+          ...(open ? [] : [{ label: 'New document', proposed: newTitle ?? 'Untitled CAD document' }]),
           ...commands.map((c, i) => ({ label: `${i + 1}. ${c.command}`, proposed: describeInput(c) })),
           ...predictionItems(dry),
           ...rebinds.items(args.rebind !== false),
@@ -439,7 +439,7 @@ const actions: AssistantActionDefinition[] = [
         async undo() {
           if (!target || !before || appliedVersion === undefined) throw new Error('Nothing to undo.')
           const d = cadSession.require(target)
-          if (d.engine.document.version !== appliedVersion) throw new Error(`The model changed after this proposal was applied (now version ${d.engine.document.version}); undo it in the CAD Modeler instead.`)
+          if (d.engine.document.version !== appliedVersion) throw new Error(`The model changed after this proposal was applied (now version ${d.engine.document.version}); undo it in CAD instead.`)
           const r = await d.engine.restore(before, `Undo assistant: ${label}`, 'assistant', appliedVersion)
           return { summary: `Restored the model before “${label}” as version ${r.version}` }
         },
@@ -476,7 +476,7 @@ const actions: AssistantActionDefinition[] = [
         throw new ActionError('unavailable', (e as Error).message)
       }
       if (!h) throw new ActionError('not-found', `CAD handoff ${handoffId} does not exist in project ${projectId}.`)
-      if (h.package?.schema !== 'conceptualize.cad-handoff/1') throw new ActionError('invalid-arguments', `Handoff ${h.key} uses schema ${String(h.package?.schema)}; the CAD Modeler reads conceptualize.cad-handoff/1.`)
+      if (h.package?.schema !== 'conceptualize.cad-handoff/1') throw new ActionError('invalid-arguments', `Handoff ${h.key} uses schema ${String(h.package?.schema)}; CAD reads conceptualize.cad-handoff/1.`)
       const m = mapHandoff(h, { title: typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined, partName: typeof args.partName === 'string' && args.partName.trim() ? args.partName.trim() : undefined })
       const staleness = await port.revisionStaleness(h.conceptId, h.conceptRevision, { projectId, purpose: 'handoff' }).catch(() => undefined)
       const runCommands = actions.find((a) => a.name === 'cad-modeler.run_commands')!
@@ -554,7 +554,7 @@ const actions: AssistantActionDefinition[] = [
   {
     name: 'cad-modeler.new_document',
     label: 'Prepare new CAD document',
-    description: 'Propose creating a new CAD Modeler document with one empty part, and make it active.',
+    description: 'Propose creating a new CAD document with one empty part, and make it active.',
     parameters: { type: 'object', properties: { title: { type: 'string' }, partName: { type: 'string' } }, additionalProperties: false },
     async run(args, ctx) {
       const title = (args.title as string | undefined)?.trim() || 'Untitled'
@@ -564,7 +564,7 @@ const actions: AssistantActionDefinition[] = [
         kind: 'service-proposal',
         module: MODULE,
         title: `New CAD document “${title}”`,
-        explanation: persist ? `Creates the document and stores it in ${ctx.captured.projectId} as revision 1.` : 'Creates a document in this window’s CAD Modeler session. Save it to keep it.',
+        explanation: persist ? `Creates the document and stores it in ${ctx.captured.projectId} as revision 1.` : 'Creates a document in this window’s CAD session. Save it to keep it.',
         preview: [{ label: 'New document', proposed: `${title} with part “${partName}”${persist ? `, stored in ${ctx.captured.projectId}` : ''}` }],
         async apply(provenance) {
           const d = await cadSession.newDocument({ title, partName, source: 'assistant', projectId: ctx.captured.projectId })
@@ -763,18 +763,13 @@ const actions: AssistantActionDefinition[] = [
     async run(args, ctx) {
       const d = (await resolveDocument(args, ctx))!
       const requests = validateCheckRequests(args.checks)
-      const regen = await d.engine.regenerate()
-      if (!regen) throw new ActionError('unavailable', 'The model could not be regenerated (no kernel).')
-      const report = await runChecks(d.engine.document, regen, {
-        projectId: ctx.captured.projectId,
-        concepts: ctx.services?.concepts,
-        requests,
-        bindings: args.bindings !== false,
-        storedRevision: d.stored?.revision ?? null,
-        unsavedChanges: !!d.stored && cadSession.isDirty(d),
-        toolVersion: pkg.version,
-      })
-      if (d.remoteRevision) report.assumptions.push(`A newer revision (${d.remoteRevision}) of this document was saved elsewhere; the results refer to revision ${d.stored?.revision}.`)
+      let report
+      try {
+        report = await checkOpenDocument(d, { projectId: ctx.captured.projectId, concepts: ctx.services?.concepts, requests, bindings: args.bindings !== false })
+      } catch (e) {
+        if (e instanceof NoKernelError) throw new ActionError('unavailable', e.message)
+        throw e
+      }
       const s = report.summary
       return {
         kind: 'data',
@@ -887,7 +882,7 @@ export const cadModelerDemo: DemoPlanner = (text) => {
     const [w, d, th] = plate.slice(1, 4).map(Number)
     const h = hole ? Number(hole[1] ?? hole[2]) : undefined
     return {
-      reply: `(Demo planner.) I prepared a parametric plate ${w} × ${d} × ${th} mm${h ? ` with a ${h} mm through hole` : ''} in the CAD Modeler: parameters width, depth and thickness${h ? ', hole_d' : ''}, a constrained rectangle sketch and an extrusion${h ? ', then a hole sketch and a cut' : ''}. The preview shows the volume predicted by the kernel.`,
+      reply: `(Demo planner.) I prepared a parametric plate ${w} × ${d} × ${th} mm${h ? ` with a ${h} mm through hole` : ''} in CAD: parameters width, depth and thickness${h ? ', hole_d' : ''}, a constrained rectangle sketch and an extrusion${h ? ', then a hole sketch and a cut' : ''}. The preview shows the volume predicted by the kernel.`,
       calls: [{ name: 'cad-modeler.run_commands', arguments: { label: `Plate ${w} × ${d} × ${th}${h ? ` with ${h} mm hole` : ''}`, commands: plateCommands(w, d, th, h) } }],
     }
   }
@@ -929,7 +924,7 @@ export const cadModelerDemo: DemoPlanner = (text) => {
     }
   }
   if (/\b(cad|part|model)\b/.test(t) && /\b(describe|summari[sz]e|what is|show|volume|mass|status|failures?)\b/.test(t) && /\bcad\b|\bvolume\b|\bpart\b/.test(t))
-    return { reply: '(Demo planner.) Here is the CAD Modeler model as structured data: features, parameters, bodies and failures.', calls: [{ name: 'cad-modeler.describe_model', arguments: {} }] }
+    return { reply: '(Demo planner.) Here is the CAD model as structured data: features, parameters, bodies and failures.', calls: [{ name: 'cad-modeler.describe_model', arguments: {} }] }
   if (/\bsave\b/.test(t) && /\bcad\b/.test(t) && cadSession.storeClient && open) {
     const message = /["“](.+?)["”]/.exec(text)?.[1] ?? ''
     return { reply: '(Demo planner.) I prepared saving the active CAD document as a new revision in this project; the revision records this conversation.', calls: [{ name: 'cad-modeler.save_document', arguments: message ? { message } : {} }] }

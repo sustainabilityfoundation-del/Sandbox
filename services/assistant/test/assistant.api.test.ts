@@ -12,7 +12,7 @@ const FAKE_KEY = 'fake-owner-secret-0123456789'
 const TOOLS = ['read_object', 'search_objects', 'propose_changes', 'read_help', 'requirements.search', 'requirements.update', 'conceptualize.read', 'conceptualize.create', 'cad-modeler.export']
 
 beforeAll(async () => {
-  env = await createAiEnv()
+  env = await createAiEnv({ ai: { mode: 'user' } })
 })
 afterAll(async () => env?.close())
 

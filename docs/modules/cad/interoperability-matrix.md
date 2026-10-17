@@ -3,7 +3,7 @@
 Status: research complete, Phase 1 implemented for the native format and STEP export. Research,
 library licences, signatures and test-model sources: [interoperability.md](../../research/cad/interoperability.md)
 (subagent research from public sources; read depth in its sources file). This page states what the
-CAD Modeler does **today** and what is planned, keeping fidelity levels separate (brief §7.1).
+CAD does **today** and what is planned, keeping fidelity levels separate (brief §7.1).
 
 Legend: **✔ implemented and tested** · **◐ partial** · **P5** planned for Phase 5 (no approval
 needed) · **A** needs coordinator approval (licensed library, GPL code or paid service) · **—** the
@@ -46,7 +46,7 @@ native format and STEP; the other signatures need tests with real public sample 
 
 ## 3. Ecosystems
 
-| Ecosystem | Native | Recommended route into the CAD Modeler today |
+| Ecosystem | Native | Recommended route into the CAD today |
 | --- | --- | --- |
 | CATIA | CATPart/CATProduct (proprietary) | STEP AP242 export from CATIA |
 | SOLIDWORKS | SLDPRT/SLDASM (proprietary, OLE) | STEP AP242 |

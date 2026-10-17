@@ -9,7 +9,7 @@ import { cadModelerTool } from '../../../packages/tool-cad-modeler/src/index'
 import { cadSession } from '../../../packages/tool-cad-modeler/src/session'
 
 /**
- * CAD Modeler declarative proposals (SDK 1.8, CR-AI-8) through the real assistant gateway and CAD API:
+ * CAD declarative proposals (SDK 1.8, CR-AI-8) through the real assistant gateway and CAD API:
  * the action computes the resulting document; the platform stores the proposal and, on Apply,
  * revalidates the expected revision and calls the CAD API (If-Match, idempotency, assistant provenance).
  */
@@ -44,7 +44,7 @@ async function storeAndApply(p: DeclarativeProposal) {
 }
 const docs = async () => (await env.call('eli', 'GET', `/api/cad/v1/projects/${P}/documents`)).body as { id: string; title: string; revision: number }[]
 
-describe('CAD Modeler declarative proposals through the platform gateway', () => {
+describe('CAD declarative proposals through the platform gateway', () => {
   it('run_commands creates, then revises a stored document; Apply goes through the CAD API with provenance', async () => {
     const before = new Set((await docs()).map((d) => d.id))
     const p1 = (await action('cad-modeler.run_commands').run(

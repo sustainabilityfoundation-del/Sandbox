@@ -37,7 +37,7 @@ describe('reference kinds (C3)', () => {
 })
 
 describe('Project Management registry port (SDK 1.7)', () => {
-  it('resolves product elements, SysML and CAD Modeler references through the registry', async () => {
+  it('resolves product elements, SysML and CAD references through the registry', async () => {
     const svc = projects({ [PE]: {}, 'p1/e1': { key: 'SYS:e1', title: 'Drive', version: { value: 12 } }, gone: { availability: 'missing-in-module' }, off: { availability: 'module-unavailable' } })
     const port = createRegistryReferencePort(svc)
     expect(port.adapter).toBe(false)
@@ -104,7 +104,7 @@ describe('SDK 1.8 read clients (PlatformServices.sysml, .cad)', () => {
     expect((await port.resolve('PRJ-1', { module: 'sysml', id: `${SP}/gone` })).state).toBe('missing')
     expect((await port.resolve('PRJ-1', { module: 'sysml', id: `${SP}/forbidden` })).state).toBe('unavailable')
   })
-  it('resolves CAD Modeler entities and keeps missing and unavailable apart', async () => {
+  it('resolves CAD entities and keeps missing and unavailable apart', async () => {
     const cad = {
       summary: async (_p: string, ref: { id: string }) =>
         ref.id === `${DOC}/body-1`
