@@ -5,6 +5,7 @@ import { PROJECT_ID } from '@ews/model-service'
 import { getToolApi, selectInView, sharedContextOf } from '../platform/api'
 import { DEFAULT_LAYOUTS, useWorkspaceStore } from '../platform/store'
 import { detachedViewId, splitViewId, toolIdOfView } from '../platform/views'
+import { saveSession } from '../platform/session'
 import { clampLayout, modeFor } from '../shell/layout/viewport'
 import '../platform/tools'
 import { getTools } from '../platform/registry'
@@ -90,17 +91,17 @@ describe('view instances', () => {
       repository: new DemoRepository({ storage: sharedStorage(), latencyMs: [0, 0] }),
       projectId: PROJECT_ID,
       tools: getTools().map((t) => ({ id: t.id, initialViewState: t.initialViewState })),
-      defaultOpenToolIds: ['cad'],
+      defaultOpenToolIds: ['cad-modeler'],
     })
   })
 
   it('keeps view state private to each instance of the same tool', () => {
-    expect(toolIdOfView(detachedViewId('w1', 'cad'))).toBe('cad')
-    const main = getToolApi<{ camera: { zoom: number } }>('cad')
-    const detached = getToolApi<{ camera: { zoom: number } }>('cad', detachedViewId('w1', 'cad'))
-    detached.updateViewState((vs) => ({ ...vs, camera: { ...vs.camera, zoom: 3 } }))
-    expect(detached.getViewState().camera.zoom).toBe(3)
-    expect(main.getViewState().camera.zoom).toBe(1)
+    expect(toolIdOfView(detachedViewId('w1', 'cad-modeler'))).toBe('cad-modeler')
+    const main = getToolApi<{ probe?: number }>('cad-modeler')
+    const detached = getToolApi<{ probe?: number }>('cad-modeler', detachedViewId('w1', 'cad-modeler'))
+    detached.updateViewState((vs) => ({ ...vs, probe: 3 }))
+    expect(detached.getViewState().probe).toBe(3)
+    expect(main.getViewState().probe).toBeUndefined()
   })
 
   it('pins a view to its objects and configuration while the workspace selection moves on', () => {
@@ -147,11 +148,45 @@ describe('responsive layout helpers', () => {
   })
 
   it('clamps restored sizes so panels stay reachable', () => {
-    const huge = { ...DEFAULT_LAYOUTS.spacious, treeWidth: 2000, inspectorWidth: 2000, dockHeight: 5000, split: { toolId: 'cad', ratio: 0.95 } }
+    const huge = { ...DEFAULT_LAYOUTS.spacious, treeWidth: 2000, inspectorWidth: 2000, dockHeight: 5000, split: { toolId: 'cad-modeler', ratio: 0.95 } }
     const clamped = clampLayout(huge, 1280, 720)
     expect(clamped.treeWidth).toBeLessThanOrEqual(1280 * 0.4)
     expect(clamped.inspectorWidth).toBeLessThanOrEqual(1280 * 0.45)
     expect(clamped.dockHeight).toBeLessThanOrEqual(720 * 0.7)
     expect(clamped.split?.ratio).toBe(0.75)
+  })
+})
+
+describe('restoring a session that references retired tools', () => {
+  it('drops retired tabs, split views and view states on restore, and keeps all model data', async () => {
+    const storage = sharedStorage()
+    const init = () =>
+      useWorkspaceStore.getState().initialize({
+        repository: new DemoRepository({ storage, latencyMs: [0, 0] }),
+        projectId: PROJECT_ID,
+        tools: getTools().map((t) => ({ id: t.id, initialViewState: t.initialViewState })),
+        defaultOpenToolIds: ['requirements'],
+      })
+    await init()
+    const before = useWorkspaceStore.getState()
+    const counts = { objects: before.model!.objects.length, revision: before.model!.revision }
+    saveSession({
+      context: before.context,
+      activeToolId: 'sysml',
+      openToolIds: ['sysml', 'cad', 'requirements'],
+      favorites: ['sysml'],
+      recents: ['cad'],
+      viewStates: { sysml: { zoom: 2 }, requirements: {} },
+      scrollStates: {},
+      layouts: { spacious: { split: { toolId: 'sysml', ratio: 0.5 } } },
+    })
+    await init()
+    const after = useWorkspaceStore.getState()
+    expect(after.openToolIds).toEqual(['requirements'])
+    expect(after.activeToolId).toBe('requirements')
+    expect(after.layouts.spacious.split).toBeNull()
+    expect(after.favorites).not.toContain('sysml')
+    expect(Object.keys(after.viewStates)).not.toContain('sysml')
+    expect({ objects: after.model!.objects.length, revision: after.model!.revision }).toEqual(counts)
   })
 })

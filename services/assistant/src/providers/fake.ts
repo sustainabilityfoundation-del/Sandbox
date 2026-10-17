@@ -9,6 +9,7 @@ import { loadReplayScripts, replay } from './replay'
  * Keys: any string starting with `fake-` and at least 12 characters; `fake-invalid…` is refused.
  * Script (last user message):
  * - "set REQ-003 status to approved" → propose_changes for that requirement (a preview the person applies)
+ * - `revise REQ-003 rationale to "…"` → requirements.update for that requirement (a preview the person applies)
  * - "read ROD-120" → read_object, then a final answer quoting the result
  * - "forge <tool name>" → a call to that tool even if it was not offered (tests refusal)
  * - "simulate rate limit" / "simulate outage" / "simulate timeout" → the matching provider error
@@ -100,6 +101,18 @@ export function createFakeProvider(options: { id?: string; delayMs?: number; /**
         }
         const r = JSON.parse(results[0].output || '{}')
         return r.ok ? final(`I prepared **${r.data?.proposalId}** to set the ${property} of [[${id.toUpperCase()}]] to ${value} ${unit}. Nothing changes until you choose **Apply**. (Fake provider.)`) : final(`The change could not be prepared: ${r.error}`)
+      }
+
+      // A Requirements module operation (a service write the person applies); the twin has no editable field left once the
+      // illustrative tools are retired (ADR-0077), so the browser flows use this for "model tool call, preview, Apply".
+      const revise = /revise\s+(REQ-\d{3})\s+rationale\s+to\s+"([^"]{1,200})"/i.exec(text)
+      if (revise) {
+        if (!results.length) {
+          if (!offered.has('requirements.update')) return final('I may not propose changes with your current AI access settings.')
+          return call('requirements.update', { requirementId: revise[1].toUpperCase(), rationale: revise[2] })
+        }
+        const r = JSON.parse(results[0].output || '{}')
+        return r.ok ? final(`I prepared **${r.data?.proposalId}** to revise the rationale of [[${revise[1].toUpperCase()}]]. Nothing changes until you choose **Apply**. (Fake provider.)`) : final(`The change could not be prepared: ${r.error}`)
       }
 
       const status = /set\s+(REQ-\d{3})\s+status\s+to\s+(\w+)/i.exec(text)

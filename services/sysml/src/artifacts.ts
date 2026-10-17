@@ -6,7 +6,7 @@ import type { ProjectRow, SysmlRepository, TagRow } from './repository'
 import { isUuid } from './repository'
 
 /**
- * Project Management artifact source for the SysML Modeler (CR-PM-REG-3, SDK 1.7 `ArtifactSource`,
+ * Project Management artifact source for the System Model (CR-PM-REG-3, SDK 1.7 `ArtifactSource`,
  * docs/modules/projects/registration-and-provisioning.md §4). Read-only over the SysML repository:
  *
  * - `sysml-project` (id = SysML project UUID), `sysml-tag` (id = `<projectId>/<tagId>`) and
@@ -212,7 +212,7 @@ export function createSysmlArtifactSource(repo: SysmlRepository, events: SysmlEv
   return {
     module: 'sysml',
     contractVersion: ARTIFACT_SOURCE_CONTRACT_VERSION,
-    describeModule: () => ({ name: 'SysML Modeler', kinds: SYSML_ARTIFACT_KINDS }),
+    describeModule: () => ({ name: 'System Model', kinds: SYSML_ARTIFACT_KINDS }),
 
     async list(projectId, options = {}): Promise<ArtifactPage> {
       const limit = Math.min(Math.max(options.limit ?? MAX_PAGE, 1), MAX_PAGE)

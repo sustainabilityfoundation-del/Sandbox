@@ -12,42 +12,30 @@
 import type { ClientModule, ModuleHostEnv } from '@ews/platform-sdk/react'
 import type { AnyToolDefinition } from '@ews/platform-sdk/react'
 import type { CapabilityEntry, PlatformModuleContribution } from '@ews/platform-sdk'
-import { cadTool } from '@ews/tool-cad'
 import { cadModelerModule } from '@ews/tool-cad-modeler'
 import { conceptualizeModule } from '@ews/tool-conceptualize'
 import { requirementsModule } from '@ews/tool-requirements'
-import { sysmlTool } from '@ews/tool-sysml'
 import { sysmlModelerModule } from '@ews/tool-sysml-modeler'
 import type { HelpModuleSource } from '../help/helpService'
 import { projectsModule } from '@ews/projects-client'
 import { switchProject } from '../projects/currentProject'
 import { platformModuleHelpSource, toolHelpSource } from './helpSources'
-import {
-  CAD_CAPABILITIES,
-  SYSML_CAPABILITIES,
-} from './installedCapabilities'
 import { serviceSettings } from './services'
 
-const manifest = (id: string, name: string, capabilities: CapabilityEntry[], extra: { entitlement?: string; defaultOpen?: boolean } = {}) => ({
-  schemaVersion: 1 as const,
-  id,
-  name,
-  capabilities,
-  ...extra,
-})
-
 /**
- * Installed modules in registry, rail and help order. The CAD Modeler and SysML Modeler share the CAD and SysML
+ * Installed modules in registry, rail and help order. The CAD Modeler and System Model share the CAD and SysML
  * subscriptions during development (cad-program-contracts.md §1, sysml-program-contracts.md §1).
+ *
+ * The illustrative SysML (`sysml`) and mock CAD (`cad`) tools are retired from the interface (ADR-0077): they are not
+ * installed, so no rail entry, tab, command, help, coverage row or AI operation exists for them. Their packages
+ * (`@ews/tool-sysml`, `@ews/tool-cad`) stay in the repository; stored data and the stable IDs are untouched.
  */
 export const INSTALLED_MODULES: ClientModule[] = [
   requirementsModule(),
-  { manifest: manifest('sysml', 'SysML', SYSML_CAPABILITIES, { entitlement: 'tool:sysml', defaultOpen: true }), tool: () => sysmlTool },
-  { manifest: manifest('cad', 'CAD', CAD_CAPABILITIES, { entitlement: 'tool:cad', defaultOpen: true }), tool: () => cadTool },
   conceptualizeModule(),
   // CAD Modeler (cad-program-contracts.md §1): API → /api/cad/v1; demo → files only. Lives in @ews/tool-cad-modeler (M4).
   cadModelerModule(),
-  // SysML Modeler (sysml-program-contracts.md §1, §7): API → /api/sysml/v1; demo → explicit in-browser repository. Lives in @ews/tool-sysml-modeler (M3).
+  // System Model (sysml-program-contracts.md §1, §7): API → /api/sysml/v1; demo → explicit in-browser repository. Lives in @ews/tool-sysml-modeler (M3).
   sysmlModelerModule(),
   // Project Management is a platform module, not a tool: its assistant operations work headless (milestone C9). It lives in
   // @ews/projects-client (M1); the window supplies how to switch project.

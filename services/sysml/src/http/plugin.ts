@@ -20,7 +20,7 @@ export interface SysmlPluginOptions extends SysmlHost {
 }
 
 /**
- * The SysML Modeler API as a Fastify plugin, hosted under `/api/sysml/v1`. It migrates its own
+ * The System Model API as a Fastify plugin, hosted under `/api/sysml/v1`. It migrates its own
  * schema `sysml` on registration (idempotent, advisory-locked), optionally seeds the example, and
  * serves the Systems Modeling API-aligned subset plus platform extensions with OpenAPI 3.1.
  */
@@ -79,10 +79,10 @@ export function buildSysmlOpenApi(routes: RouteSpec[]) {
   return {
     openapi: '3.1.0',
     info: {
-      title: 'SysML Modeler API',
+      title: 'System Model API',
       version: SYSML_API_VERSION,
       description:
-        'Model repository of the SysML Modeler. Operations tagged x-ews-alignment "aligned" follow the resource model, paths and JSON shapes (@id, @type) of the OMG Systems Modeling API and Services (REST/HTTP PSM); this is an aligned subset, not a conformance claim. Platform extensions add typed command transactions (dry run, validation, element-level concurrency), revert, textual notation, validation, impact analysis and events. Every write is validated by the same semantic core the editor and the assistant use.',
+        'Model repository of the System Model. Operations tagged x-ews-alignment "aligned" follow the resource model, paths and JSON shapes (@id, @type) of the OMG Systems Modeling API and Services (REST/HTTP PSM); this is an aligned subset, not a conformance claim. Platform extensions add typed command transactions (dry run, validation, element-level concurrency), revert, textual notation, validation, impact analysis and events. Every write is validated by the same semantic core the editor and the assistant use.',
     },
     servers: [{ url: SYSML_BASE_PATH }],
     components: {

@@ -239,7 +239,7 @@ export const requirementsAssistant: AssistantContribution = {
       name: 'requirements.allocate',
       label: 'Prepare requirement allocation',
       description:
-        'Propose allocating one requirement to product elements (kind "product-element", element ID), shared-twin components (kind "component") or SysML Modeler elements (kind "sysml-model-element", "<sysmlProjectId>/<elementId>"), and/or removing existing allocations (by target ID). The change is applied only if the requirement is still at the previewed revision.',
+        'Propose allocating one requirement to product elements (kind "product-element", element ID), shared-twin components (kind "component") or System Model elements (kind "sysml-model-element", "<sysmlProjectId>/<elementId>"), and/or removing existing allocations (by target ID). The change is applied only if the requirement is still at the previewed revision.',
       parameters: {
         type: 'object',
         properties: {
@@ -543,7 +543,7 @@ async function proposeAllocate(conn: Connection & { client: RequirementsModuleCl
     module: MODULE,
     projectId: conn.projectId,
     title: `Allocations of ${r.key} ${r.title}`,
-    explanation: `Changes the allocations of ${r.key} if it is still at revision ${r.revision}; targets are checked by the server (product structure, shared twin, SysML Modeler). Operations run in order; a refusal stops the rest, and applying again resumes.`,
+    explanation: `Changes the allocations of ${r.key} if it is still at revision ${r.revision}; targets are checked by the server (product structure, shared twin, System Model). Operations run in order; a refusal stops the rest, and applying again resumes.`,
     preview: [
       ...removals.map((rel) => ({ targetId: r.id, label: `${r.key} allocation removed`, current: allocationTargetLabel(rel), proposed: '(none)' })),
       ...additions.map((t) => ({ targetId: r.id, label: `${r.key} allocated to`, proposed: label(t) })),

@@ -110,7 +110,7 @@ export interface RelationshipInput {
   fromId: string
   toRequirementId?: string
   toTwinId?: string
-  /** Allocation to a SysML Modeler element, `<sysmlProjectId>/<elementId>`. */
+  /** Allocation to a System Model element, `<sysmlProjectId>/<elementId>`. */
   toSysmlElement?: string
   /** Refuse with a conflict unless the from requirement is still at this revision. */
   expectedFromRevision?: number

@@ -2,7 +2,7 @@ import { HELP_SCHEMA_VERSION, parseHelpMarkdown, type HelpManifest } from '@ews/
 import pkg from '../package.json'
 
 /**
- * Help manifest of the SysML Modeler (SDK 1.4, docs/modules/help.md), built from ../help/*.md.
+ * Help manifest of the System Model (SDK 1.4, docs/modules/help.md), built from ../help/*.md.
  * Keep help IDs stable when the interface changes.
  */
 const files = import.meta.glob('../help/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
@@ -10,7 +10,7 @@ const files = import.meta.glob('../help/*.md', { query: '?raw', import: 'default
 export const sysmlModelerHelp: HelpManifest = {
   schemaVersion: HELP_SCHEMA_VERSION,
   moduleId: 'sysml-modeler',
-  displayName: 'SysML Modeler',
+  displayName: 'System Model',
   moduleVersion: pkg.version,
   docsVersion: pkg.version,
   landingTopic: 'sysml-modeler.overview',
@@ -99,7 +99,7 @@ export const sysmlModelerHelp: HelpManifest = {
     { keys: 'F1', action: 'Help for the focused control', helpId: 'sysml-modeler.shortcuts' },
   ],
   apiReferences: [
-    { title: 'SysML Modeler HTTP API (interactive)', url: '/api/sysml/v1/docs', kind: 'openapi', helpId: 'sysml-modeler.api' },
+    { title: 'System Model HTTP API (interactive)', url: '/api/sysml/v1/docs', kind: 'openapi', helpId: 'sysml-modeler.api' },
     { title: 'OpenAPI document', url: '/api/sysml/v1/openapi.json', kind: 'openapi', helpId: 'sysml-modeler.api' },
     { title: 'Command reference', helpId: 'sysml-modeler.commands', kind: 'guide' },
   ],

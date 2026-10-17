@@ -24,7 +24,7 @@ ACT-100 with its housing, rod and motor).
 ## First steps
 
 1. Select **ROD-120 Rod** in the product tree. The inspector shows it; Requirements filters to its
-   requirements; SysML and CAD highlight their representation of the rod.
+   requirements, and the inspector lists its SysML and CAD representations.
 2. Open **Requirements** and press Enter on a requirement to read or edit it
    ([Requirements Management](help:requirements.overview)).
 3. Press **F1** anywhere for help on what you are looking at.

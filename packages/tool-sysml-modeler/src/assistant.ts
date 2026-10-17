@@ -6,7 +6,7 @@ import type { Graph } from './projection/graph'
 import { existingSession, getClient } from './session'
 
 /**
- * Assistant operations of the SysML Modeler (ADR-0038). Reads return data; changes are service
+ * Assistant operations of the System Model (ADR-0038). Reads return data; changes are service
  * proposals built from a DRY RUN of the same typed-command transaction the UI submits. Nothing is
  * written until the user applies the proposal; Apply commits with assistant provenance, the base
  * commit captured at preparation and validation policy reject-new-errors; Undo reverts the commit.
@@ -29,7 +29,7 @@ interface Target {
  */
 async function target(ctx: AssistantActionContext, projectId?: string): Promise<Target> {
   const client = getClient()
-  if (!client) throw new ActionError('not-allowed', 'The SysML Modeler is not configured in this host.')
+  if (!client) throw new ActionError('not-allowed', 'The System Model is not configured in this host.')
   const session = existingSession(ctx.captured.projectId)
   try {
     let pid = projectId
@@ -37,7 +37,7 @@ async function target(ctx: AssistantActionContext, projectId?: string): Promise<
       const st = session?.getState()
       pid = st?.project?.id ?? (await client.listProjects(ctx.captured.projectId))[0]?.id
     }
-    if (!pid) throw new ActionError('not-found', `There is no SysML project for ${ctx.captured.projectId}. Create one first (the SysML Modeler's Start modelling, or the assistant operation sysml-modeler.create_project).`)
+    if (!pid) throw new ActionError('not-found', `There is no SysML project for ${ctx.captured.projectId}. Create one first (the System Model's Start modelling, or the assistant operation sysml-modeler.create_project).`)
     const project = await client.getProject(pid)
     // C13: the assistant acts only in the platform project of the conversation.
     if (project.platformProjectId !== ctx.captured.projectId) throw new ActionError('not-allowed', `SysML project ${pid} belongs to platform project ${project.platformProjectId}, not ${ctx.captured.projectId}. Switch projects to work on it.`)
@@ -390,7 +390,7 @@ const createProject: AssistantActionDefinition = {
   },
   run: async (args, ctx) => {
     const client = getClient()
-    if (!client) throw new ActionError('not-allowed', 'The SysML Modeler is not configured in this host.')
+    if (!client) throw new ActionError('not-allowed', 'The System Model is not configured in this host.')
     const name = argString(args, 'name').trim()
     if (!name) throw new ActionError('invalid-arguments', '“name” must not be empty.')
     let text = argOptionalString(args, 'initialText')?.trim() ?? ''
@@ -633,7 +633,7 @@ const KIND_WORDS: Record<string, string> = { part: 'PartDefinition', port: 'Port
 export const sysmlModelerDemo: AssistantContribution['demo'] = (text) => {
   const t = text.trim()
   let m: RegExpExecArray | null
-  if (/sysml/i.test(t) && /(commands|what can you do|schema)/i.test(t)) return { reply: 'These are the typed SysML Modeler commands I can use (the same ones the editor uses).', calls: [{ name: 'sysml-modeler.describe_commands', arguments: {} }] }
+  if (/sysml/i.test(t) && /(commands|what can you do|schema)/i.test(t)) return { reply: 'These are the typed System Model commands I can use (the same ones the editor uses).', calls: [{ name: 'sysml-modeler.describe_commands', arguments: {} }] }
   if (/(validate|check) (the )?(sysml )?model/i.test(t)) return { reply: 'I validated the SysML model with the module’s rules.', calls: [{ name: 'sysml-modeler.validate', arguments: {} }] }
   if ((m = /(?:what|which elements?) (?:uses|use|references?|depends? on|is affected by changing) ([\w:']+)/i.exec(t))) return { reply: `Here is what depends on ${m[1]} in the SysML model.`, calls: [{ name: 'sysml-modeler.impact', arguments: { element: m[1] } }] }
   if (/(explain|what was) (the )?(last|latest) (sysml )?change|what changed in the (sysml )?model/i.test(t)) return { reply: 'This is the latest commit with its reason and provenance.', calls: [{ name: 'sysml-modeler.explain_commit', arguments: { commit: 'latest' } }] }

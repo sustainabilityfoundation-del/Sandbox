@@ -1,6 +1,6 @@
 Generated from OpenAPI by scripts/gen-api-reference.mjs; do not edit
 
-# SysML Modeler API
+# System Model API
 
 Base path: /api/sysml/v1
 

@@ -73,7 +73,7 @@ export default function ModelerView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, root, icRoot, behaviourRoot, vs.view, state.revision])
 
-  if (!session) return <Notice tone="danger" title="SysML Modeler is not configured">The host did not provide a SysML client.</Notice>
+  if (!session) return <Notice tone="danger" title="System Model is not configured">The host did not provide a SysML client.</Notice>
   if (state.status === 'idle' || state.status === 'loading') return <LoadingState label="Loading the SysML model" />
   if (state.status === 'error')
     return (

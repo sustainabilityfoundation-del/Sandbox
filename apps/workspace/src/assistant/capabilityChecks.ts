@@ -1,4 +1,4 @@
-import type { CapabilityEntry, ToolApi } from '@ews/platform-sdk'
+import { surfaceProblems as moduleSurfaceProblems, type CapabilityEntry, type ModuleManifest, type ToolApi } from '@ews/platform-sdk'
 import type { AnyToolDefinition } from '@ews/platform-sdk/react'
 import { sampleModel } from '@ews/platform-sdk/testing'
 
@@ -43,6 +43,16 @@ export function operationProblems(existing: Iterable<string>, inventory: readonl
     ...[...names].filter((n) => !mapped.has(n)).map((n) => `operation "${n}" has no inventory entry`),
     ...[...mapped].filter((n) => !names.has(n)).map((n) => `inventory names operation "${n}" that does not exist`),
   ]
+}
+
+/**
+ * The command surfaces of every manifest are consistent (SDK 1.14, capability-registry.md Amendment CT-2c): menu and
+ * palette references resolve, shortcuts are unique and none is reserved (Ctrl+K, F1, F10), `splitOf` has no cycles, and
+ * every entry of a module with `inventory: 1` is reachable from at least one menu. The rules live in the SDK
+ * (`surfaceProblems` per manifest); this runs them over the installed list.
+ */
+export function surfaceProblems(manifests: readonly ModuleManifest[]): string[] {
+  return manifests.flatMap((m) => moduleSurfaceProblems(m))
 }
 
 /** Coverage claims name operations, and partial or restricted coverage explains itself. */

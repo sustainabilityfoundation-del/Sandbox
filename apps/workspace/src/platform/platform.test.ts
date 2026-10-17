@@ -25,18 +25,23 @@ beforeAll(async () => {
     repository: new DemoRepository({ storage: memoryStorage(), latencyMs: [0, 0] }),
     projectId: PROJECT_ID,
     tools: getTools().map((t) => ({ id: t.id, initialViewState: t.initialViewState })),
-    defaultOpenToolIds: ['requirements', 'sysml', 'cad'],
+    defaultOpenToolIds: ['requirements', 'sysml-modeler', 'cad-modeler'],
   })
 })
 
 beforeEach(() => setPlan('all'))
 
 describe('tool catalogue', () => {
-  it('contains every installed tool (at least Requirements, SysML, CAD, Conceptualize, CAD Modeler and SysML Modeler); Analysis and Verification are retired', () => {
+  it('contains every installed tool (Requirements, Conceptualize, CAD Modeler and System Model); the illustrative SysML and mock CAD tools, Analysis and Verification are retired', () => {
     // Derived from the installed list (module-registration.md), with a floor so an empty list cannot pass.
     expect(getTools().map((t) => t.id)).toEqual(collect().tools.map((t) => t.id))
-    expect(getTools().length).toBeGreaterThanOrEqual(6)
-    expect(getTools().map((t) => t.id)).toEqual(expect.arrayContaining(['requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler', 'sysml-modeler']))
+    expect(getTools().length).toBeGreaterThanOrEqual(4)
+    expect(getTools().map((t) => t.id)).toEqual(expect.arrayContaining(['requirements', 'conceptualize', 'cad-modeler', 'sysml-modeler']))
+    // ADR-0077: the illustrative tools are not in the catalogue (their data and IDs are kept).
+    expect(getTool('sysml')).toBeUndefined()
+    expect(getTool('cad')).toBeUndefined()
+    expect(getTools().map((t) => t.id)).not.toEqual(expect.arrayContaining(['sysml']))
+    expect(getTools().map((t) => t.id)).not.toEqual(expect.arrayContaining(['cad']))
     expect(getTool('analysis')).toBeUndefined()
     expect(getTool('verification')).toBeUndefined()
     // Their saved data keeps a readable source name.
@@ -95,10 +100,10 @@ describe('subscriptions', () => {
     expect(PLANS.map((p) => p.entitlements.length)).toEqual([1, 2, 4])
   })
 
-  it('Requirements only: Requirements opens, SysML and CAD are refused with an explanation', () => {
+  it('Requirements only: Requirements opens, the System Model and CAD Modeler are refused with an explanation', () => {
     setPlan('requirements')
     expect(canOpenTool('requirements')).toBe(true)
-    for (const id of ['sysml', 'cad']) {
+    for (const id of ['sysml-modeler', 'cad-modeler']) {
       const access = toolAccess(id)
       expect(access.ok).toBe(false)
       if (!access.ok) {
@@ -111,33 +116,37 @@ describe('subscriptions', () => {
   it('every navigation path goes through the same check (store, tool API)', () => {
     setPlan('requirements')
     ws().activateTool('requirements')
-    expect(ws().activateTool('cad')).toMatchObject({ ok: false, code: 'not-entitled' })
+    expect(ws().activateTool('cad-modeler')).toMatchObject({ ok: false, code: 'not-entitled' })
     expect(ws().activeToolId).toBe('requirements')
     // A tool asking the platform to open another one is refused the same way.
-    expect(getToolApi('requirements').openTool('sysml')).toMatchObject({ ok: false })
+    expect(getToolApi('requirements').openTool('sysml-modeler')).toMatchObject({ ok: false })
     expect(ws().activeToolId).toBe('requirements')
   })
 
-  it('Requirements and SysML: CAD stays locked', () => {
+  it('Requirements and System Model: CAD Modeler stays locked', () => {
     setPlan('requirements-sysml')
-    expect(ws().activateTool('sysml').ok).toBe(true)
-    expect(ws().activateTool('cad').ok).toBe(false)
+    expect(ws().activateTool('sysml-modeler').ok).toBe(true)
+    expect(ws().activateTool('cad-modeler').ok).toBe(false)
   })
 
   it('All tools: every tool opens', () => {
-    for (const id of ['requirements', 'sysml', 'cad']) expect(ws().activateTool(id).ok).toBe(true)
+    for (const id of ['requirements', 'sysml-modeler', 'cad-modeler']) expect(ws().activateTool(id).ok).toBe(true)
+  })
+
+  it('the retired illustrative tools cannot be opened in any plan', () => {
+    for (const id of ['sysml', 'cad']) expect(ws().activateTool(id)).toMatchObject({ ok: false, code: 'unknown-tool' })
   })
 
   it('keeps open tabs and data when access is lost, and restores access without losing anything', async () => {
-    ws().activateTool('cad')
+    ws().activateTool('cad-modeler')
     const before = ws().model!.objects.filter((o) => o.type === 'cad-representation').length
     setPlan('requirements')
-    expect(ws().openToolIds).toContain('cad') // the tab stays and explains
-    ws().focusTab('cad')
-    expect(ws().activeToolId).toBe('cad') // shows the locked notice, not the tool
+    expect(ws().openToolIds).toContain('cad-modeler') // the tab stays and explains
+    ws().focusTab('cad-modeler')
+    expect(ws().activeToolId).toBe('cad-modeler') // shows the locked notice, not the tool
     expect(ws().model!.objects.filter((o) => o.type === 'cad-representation')).toHaveLength(before)
     setPlan('all')
-    expect(ws().activateTool('cad').ok).toBe(true)
+    expect(ws().activateTool('cad-modeler').ok).toBe(true)
   })
 })
 
@@ -146,7 +155,7 @@ describe('shared context across tools', () => {
     ws().select(['ROD-120'])
     ws().setScenario('SCN-MAX')
     const before = { ...ws().context, revision: ws().model!.revision }
-    for (const id of ['cad', 'requirements', 'sysml']) {
+    for (const id of ['cad-modeler', 'requirements', 'sysml-modeler']) {
       ws().activateTool(id)
       const ctx = getToolApi(id).getContext()
       expect(ctx).toMatchObject({ selectedIds: ['ROD-120'], scenarioId: 'SCN-MAX', configurationId: before.configurationId, modelRevision: before.revision })
@@ -154,9 +163,9 @@ describe('shared context across tools', () => {
   })
 
   it('keeps view state private to each tool and view instance', () => {
-    getToolApi<{ hidden: string[] }>('cad').updateViewState({ hidden: ['CAD-130'] })
-    expect(getToolApi<{ hidden: string[] }>('cad').getViewState().hidden).toEqual(['CAD-130'])
-    expect(getToolApi<{ hidden: string[] }>('cad', 'w1:cad').getViewState().hidden).toEqual([])
+    getToolApi<{ probe: string[] }>('cad-modeler').updateViewState({ probe: ['CAD-130'] })
+    expect(getToolApi<{ probe: string[] }>('cad-modeler').getViewState().probe).toEqual(['CAD-130'])
+    expect(getToolApi<{ probe?: string[] }>('cad-modeler', 'w1:cad-modeler').getViewState().probe).toBeUndefined()
   })
 
   it('sees a requirement edit made by one tool in every other tool through the common repository', async () => {
@@ -165,12 +174,12 @@ describe('shared context across tools', () => {
       [{ kind: 'update-properties', targetId: 'REQ-001', baseRevision: req.revision, properties: { statement: 'Edited statement.' } }],
       'Edited REQ-001',
     )
-    expect(getToolApi('sysml').getModel().get('REQ-001')!.properties.statement).toBe('Edited statement.')
-    expect(getToolApi('cad').getModel().get('REQ-001')!.properties.statement).toBe('Edited statement.')
+    expect(getToolApi('sysml-modeler').getModel().get('REQ-001')!.properties.statement).toBe('Edited statement.')
+    expect(getToolApi('cad-modeler').getModel().get('REQ-001')!.properties.statement).toBe('Edited statement.')
   })
 
   it('records the producing tool, objects, input revision and schema version with saved artifacts', async () => {
-    const api = getToolApi('cad')
+    const api = getToolApi('cad-modeler')
     const saved = await api.saveArtifact({
       kind: 'cad-representation',
       schemaVersion: 1,
@@ -182,11 +191,13 @@ describe('shared context across tools', () => {
       result: [],
       summary: 'test',
     })
-    expect(saved).toMatchObject({ toolId: 'cad', schemaVersion: 1, inputRevision: api.getModel().revision, configurationId: ws().context.configurationId })
+    expect(saved).toMatchObject({ toolId: 'cad-modeler', schemaVersion: 1, inputRevision: api.getModel().revision, configurationId: ws().context.configurationId })
     expect(api.getArtifacts({ objectId: 'ROD-120' }).map((a) => a.id)).toContain(saved.id)
   })
 })
 
+// Ownership is data-side: the stable module IDs 'cad' and 'sysml' own the twin's CAD and SysML objects whether or not
+// the illustrative tools are in the interface (ADR-0077), so these checks keep using those IDs.
 describe('module ownership through the tool API', () => {
   it('refuses a Requirements tool edit to CAD-owned dimensions; the CAD tool may make it', async () => {
     const rod = ws().model!.get('ROD-120')!

@@ -238,7 +238,7 @@ describe('implementation links to the real modules (C3, C5)', () => {
     return { ...c, captured: { ...c.captured, projectId } }
   }
 
-  it('checks a SysML Modeler element through an injected port and pins its revision', async () => {
+  it('checks a System Model element through an injected port and pins its revision', async () => {
     const off = registerReferencePort({ name: 'Fake SysML adapter', adapter: true, supports: (r) => r.module === 'sysml' && r.id.includes('/'), resolve: async () => ({ state: 'found', label: 'Spindle (Drill rig)', latest: 7 }) })
     try {
       const calls: { url: string; body: any }[] = []

@@ -27,7 +27,6 @@ export const AI_MODULES: AiModule[] = [
     prefixes: [],
     names: ['read_object', 'search_objects', 'read_relationships', 'read_artifacts', 'propose_changes', 'select_objects', 'open_tool'],
   },
-  { id: 'illustrative', label: 'Illustrative tools', description: 'The mock SysML diagram and mock CAD tools.', prefixes: ['sysml.', 'cad.'] },
   // Headless platform modules (SDK 1.8 registerPlatformModule). Their services enforce membership; no entitlement decided yet.
   { id: 'reasoning', label: 'Design reasoning', description: 'Calculations and reasoning runs (headless module).', prefixes: ['reasoning.'] },
   { id: 'help', label: 'Help', description: 'Product documentation (read_help).', prefixes: [], names: ['read_help'] },
@@ -38,7 +37,7 @@ export const AI_MODULES: AiModule[] = [
  * moving a module into its manifest never reorders the page. Known modules keep this order; modules not listed (new
  * installed modules) follow in installed-list order, after the listed ones and before the platform tail.
  */
-const MODULE_ORDER_HEAD = ['workspace', 'requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'illustrative', 'projects']
+const MODULE_ORDER_HEAD = ['workspace', 'requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'projects']
 const MODULE_ORDER_TAIL = ['reasoning', 'help']
 function moduleRank(id: string): number {
   const head = MODULE_ORDER_HEAD.indexOf(id)
@@ -46,9 +45,6 @@ function moduleRank(id: string): number {
   const tail = MODULE_ORDER_TAIL.indexOf(id)
   return tail >= 0 ? 1000 + tail : 500
 }
-
-/** Illustrative tools need the entitlement of their tool (SysML → tool:sysml, CAD → tool:cad). */
-const PREFIX_ENTITLEMENT: Record<string, string> = { 'sysml.': 'tool:sysml', 'cad.': 'tool:cad' }
 
 export const OPERATION_CLASSES: { id: OperationClass; label: string; description: string }[] = [
   { id: 'read', label: 'Read objects', description: 'Read objects, relationships, documents and help; select objects and open tools.' },
@@ -73,12 +69,6 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   select_objects: 'read',
   open_tool: 'read',
   read_help: 'read',
-  'sysml.read_model': 'read',
-  'sysml.create_part': 'propose',
-  'sysml.connect': 'propose',
-  'sysml.add_requirement_reference': 'propose',
-  'cad.read_representation': 'read',
-  'cad.set_dimension': 'propose',
 }
 
 export interface Classified {
@@ -91,7 +81,7 @@ function classifyIn(modules: AiModule[], catalogue: Record<string, OperationClas
   for (const module of modules) {
     if (module.names?.includes(name)) return { module, operationClass: catalogue[name] ?? 'propose', entitlement: module.entitlement }
     const prefix = module.prefixes.find((p) => name.startsWith(p))
-    if (prefix && /^[a-z0-9-]+\.[a-z0-9_]+$/.test(name)) return { module, operationClass: catalogue[name] ?? 'propose', entitlement: module.entitlement ?? PREFIX_ENTITLEMENT[prefix] }
+    if (prefix && /^[a-z0-9-]+\.[a-z0-9_]+$/.test(name)) return { module, operationClass: catalogue[name] ?? 'propose', entitlement: module.entitlement }
   }
   return null
 }

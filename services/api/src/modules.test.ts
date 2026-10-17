@@ -41,7 +41,7 @@ describe('installed server modules', () => {
     expect(provisioning).toEqual([
       { module: 'requirements', name: 'Requirements' },
       { module: 'conceptualize', name: 'Conceptualize' },
-      { module: 'sysml', name: 'SysML Modeler' },
+      { module: 'sysml', name: 'System Model' },
       { module: 'cad', name: 'CAD Modeler' },
     ])
   })
@@ -57,7 +57,8 @@ describe('AI policy from the installed manifests', () => {
   const policy = createPolicy(aiModules, operations)
 
   it('lists every assistant action the tool packages register in the merged operation catalogue', () => {
-    const tools = readdirSync(join(repo, 'packages')).filter((d) => d.startsWith('tool-'))
+    // The retired illustrative tools (tool-sysml, tool-cad; ADR-0077) are no longer installed, so their operations are neither offered nor classified.
+    const tools = readdirSync(join(repo, 'packages')).filter((d) => d.startsWith('tool-') && !['tool-sysml', 'tool-cad'].includes(d))
     const names = new Set<string>()
     for (const t of tools) for (const f of sources(join(repo, 'packages', t, 'src'))) for (const m of readFileSync(f, 'utf8').matchAll(/name: '([a-z-]+\.[a-z_]+)'/g)) names.add(m[1])
     expect(names.size).toBeGreaterThan(20)
@@ -65,18 +66,28 @@ describe('AI policy from the installed manifests', () => {
     expect([...names].filter((n) => !policy.classify(n))).toEqual([])
   })
 
+  it('has no illustrative AI module and refuses the retired sysml.* and cad.* operations (ADR-0077)', () => {
+    expect(policy.modules.map((m) => m.id)).not.toContain('illustrative')
+    for (const op of ['sysml.read_model', 'sysml.create_part', 'sysml.connect', 'sysml.add_requirement_reference', 'cad.read_representation', 'cad.set_dimension']) {
+      expect(op in policy.catalogue).toBe(false)
+      expect(policy.classify(op)).toBeNull()
+    }
+    // The modelers keep their own, differently spelled prefixes.
+    expect(policy.classify('sysml-modeler.read_element')?.module.id).toBe('sysml-modeler')
+  })
+
   it('keeps the AI module order and the order of the AI settings rows exactly as before the manifests (b845b0d)', () => {
-    const base = ['workspace', 'requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'illustrative', 'projects', 'reasoning', 'help']
+    const base = ['workspace', 'requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'projects', 'reasoning', 'help']
     expect(policy.modules.map((m) => m.id)).toEqual(base)
     const rows = (defs: { id: string }[], prefix: string) => defs.filter((d) => d.id.startsWith(prefix)).map((d) => d.id.slice(prefix.length))
     expect(rows(policy.settingDefinitions, 'ai.access.')).toEqual(base)
     expect(rows(policy.settingDefinitions, 'ai.ceiling.')).toEqual(base)
     // A new installed module follows the known ones and precedes the platform tail, in installed-list order.
     const extra = collectPolicyContributions([...ALL_SERVER_MODULES, fixture({ id: 'x1', aiModule: { id: 'x1', label: 'X1', description: 'X.', prefixes: ['x1.'] } }), fixture({ id: 'x2', aiModule: { id: 'x2', label: 'X2', description: 'X.', prefixes: ['x2.'] } })])
-    expect(createPolicy(extra.aiModules, extra.operations).modules.map((m) => m.id)).toEqual([...base.slice(0, 7), 'x1', 'x2', 'reasoning', 'help'])
+    expect(createPolicy(extra.aiModules, extra.operations).modules.map((m) => m.id)).toEqual([...base.slice(0, 6), 'x1', 'x2', 'reasoning', 'help'])
   })
 
-  it('takes the SysML Modeler from its manifest (no legacy entry): same module, classes and proposal API as before', () => {
+  it('takes the System Model from its manifest (no legacy entry): same module, classes and proposal API as before', () => {
     expect(aiModules.filter((m) => m.id === 'sysml-modeler')).toHaveLength(1)
     expect(policy.classify('sysml-modeler.read_element')).toMatchObject({ operationClass: 'read', module: { id: 'sysml-modeler', entitlement: 'tool:sysml', prefixes: ['sysml-modeler.'] } })
     expect(policy.classify('sysml-modeler.impact')?.operationClass).toBe('calculate')

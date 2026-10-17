@@ -277,7 +277,7 @@ function Relationships({ r, readOnly, baselineId }: { r: Requirement; readOnly: 
                 label="SysML element (project/element ID)"
                 value={target?.id ?? ''}
                 onChange={(v) => setTarget(v.trim() ? { id: v.trim(), label: v.trim() } : null)}
-                description="The SysML Modeler is not available here to search; enter <sysmlProjectId>/<elementId>"
+                description="The System Model is not available here to search; enter <sysmlProjectId>/<elementId>"
               />
             )
           ) : (

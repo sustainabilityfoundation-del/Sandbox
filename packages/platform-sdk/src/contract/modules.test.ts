@@ -34,7 +34,7 @@ const manifest: ModuleManifest = {
 
 describe('SDK 1.12 module manifests', () => {
   it('is an additive minor version', () => {
-    expect(SDK_VERSION).toBe('1.13.0')
+    expect(SDK_VERSION).toBe('1.14.0')
     expect(isSdkCompatible('^1.9.0')).toBe(true)
   })
 

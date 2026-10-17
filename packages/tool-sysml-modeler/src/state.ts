@@ -1,4 +1,4 @@
-/** Private state of one SysML Modeler view instance (never shared engineering data). */
+/** Private state of one System Model view instance (never shared engineering data). */
 export interface ModelerViewState {
   /** Centre area. */
   tab: 'diagram' | 'text' | 'validation' | 'history' | 'matrix' | 'coverage'

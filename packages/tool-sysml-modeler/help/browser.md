@@ -20,5 +20,5 @@ port definitions are not listed; Properties and the views show them instead.
   requirements, connections and flows. A kind includes its specializations: *Definitions* includes
   part, port, requirement and every other definition.
 
-Selection in the SysML Modeler is private to the view. SysML elements are not objects of the
+Selection in the System Model is private to the view. SysML elements are not objects of the
 shared product model, so selecting them does not change the workspace selection.

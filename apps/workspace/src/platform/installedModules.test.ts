@@ -70,10 +70,17 @@ const fixtureModule: ClientModule = {
 describe('collect()', () => {
   it('collects the installed modules in list order', () => {
     const c = collect()
-    expect(c.tools.map((t) => t.id)).toEqual(['requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler', 'sysml-modeler'])
+    expect(c.tools.map((t) => t.id)).toEqual(['requirements', 'conceptualize', 'cad-modeler', 'sysml-modeler'])
     expect(c.platformModules.map((m) => m.id)).toEqual(['projects'])
-    expect(c.help.map((s) => s.moduleId)).toEqual(['requirements', 'sysml', 'cad', 'conceptualize', 'cad-modeler', 'sysml-modeler', 'projects'])
-    expect(c.defaultOpen).toEqual(['requirements', 'sysml', 'cad', 'conceptualize'])
+    expect(c.help.map((s) => s.moduleId)).toEqual(['requirements', 'conceptualize', 'cad-modeler', 'sysml-modeler', 'projects'])
+    expect(c.defaultOpen).toEqual(['requirements', 'conceptualize'])
+    // ADR-0077: the illustrative SysML and mock CAD tools are not installed, so no tool, help source, capability, AI operation or default tab exists for them.
+    for (const retired of ['sysml', 'cad']) {
+      expect(c.tools.map((t) => t.id)).not.toContain(retired)
+      expect(c.help.map((h) => h.moduleId)).not.toContain(retired)
+      expect(c.defaultOpen).not.toContain(retired)
+      expect(c.capabilities.filter((cap) => cap.module === retired)).toEqual([])
+    }
     expect(c.capabilities.length).toBeGreaterThan(100)
   })
 

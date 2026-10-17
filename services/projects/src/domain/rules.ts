@@ -152,7 +152,7 @@ const WORK: ArtifactCategory[] = ['work-item']
 
 /** Link types owned by Project Management (information-model.md §6.3). */
 export const LINK_RULES: Record<LinkType, LinkRule> = {
-  represents: { from: ['geometry', 'model'], to: ['product-element'], impact: true, meaning: 'the artifact represents the product element', nativeAlternative: 'twin represents; CAD Modeler and SysML Modeler mappings once available (CR-PM-CAD-1, CR-PM-SYS-1)' },
+  represents: { from: ['geometry', 'model'], to: ['product-element'], impact: true, meaning: 'the artifact represents the product element', nativeAlternative: 'twin represents; CAD Modeler and System Model mappings once available (CR-PM-CAD-1, CR-PM-SYS-1)' },
   'subject-of': { from: ['work-item', 'document', 'milestone'], to: 'any', impact: false, meaning: 'the work item, document or milestone concerns the artifact' },
   affects: { from: WORK, fromKinds: ['issue', 'risk'], to: 'any', impact: true, meaning: 'the issue or risk affects the artifact' },
   'mitigated-by': { from: WORK, fromKinds: ['risk'], to: WORK, impact: false, meaning: 'the risk is mitigated by the work item' },
@@ -170,7 +170,7 @@ export const LINK_TYPES = Object.keys(LINK_RULES) as LinkType[]
 export const MODULE_OWNED_LINKS: Record<string, string> = {
   'allocated-to': 'Requirements owns allocation: allocate the requirement in the Requirements module.',
   implements: 'Conceptualize owns implementations: link the Concept to the artifact with a Concept implementation.',
-  satisfies: 'SysML owns satisfy relationships: create them in the SysML Modeler.',
+  satisfies: 'SysML owns satisfy relationships: create them in the System Model.',
   verifies: 'Requirements owns verification records: record verification in the Requirements module.',
 }
 

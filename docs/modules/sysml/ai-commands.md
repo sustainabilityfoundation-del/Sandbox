@@ -90,7 +90,7 @@ The demo planner (labelled demo; no model provider) maps a few prompts to these 
 
 ## Headless operation (C9, integration milestone 1)
 
-Every `sysml-modeler.*` operation works with no SysML Modeler view mounted (all tabs closed). The
+Every `sysml-modeler.*` operation works with no System Model view mounted (all tabs closed). The
 client comes from the host's configuration of the tool (`PlatformServices.sysml` once SDK 1.8 provides
 it); the model is loaded from the repository at the branch head. When a view of the same platform
 project is open, its branch is used and it is refreshed after Apply/Undo; no view session is created

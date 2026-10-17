@@ -125,7 +125,7 @@ const MODULE_LABEL: Record<ArtifactModule, string> = { requirements: 'Requiremen
 
 type PickerChoice = 'sysml-modeler' | 'cad-modeler' | 'product' | 'projects' | 'demo-twin' | 'analysis' | 'external'
 const CHOICES: { id: PickerChoice; label: string; module: ArtifactModule; kind?: string; field?: string; revisionLabel?: string }[] = [
-  { id: 'sysml-modeler', label: 'SysML Modeler element', module: 'sysml', kind: 'sysml-model-element', field: 'SysML project / element ID (<projectId>/<elementId>)', revisionLabel: 'Commit number (empty = follow latest)' },
+  { id: 'sysml-modeler', label: 'System Model element', module: 'sysml', kind: 'sysml-model-element', field: 'SysML project / element ID (<projectId>/<elementId>)', revisionLabel: 'Commit number (empty = follow latest)' },
   { id: 'cad-modeler', label: 'CAD Modeler entity', module: 'cad', kind: 'cad-modeler-entity', field: 'CAD document / entity ID (<documentUuid>/<entityId>)', revisionLabel: 'Document revision (empty = follow latest)' },
   { id: 'product', label: MODULE_LABEL.product, module: 'product', kind: 'product-element', field: 'Product element UUID (Project Management)', revisionLabel: 'Revision (empty = follow latest)' },
   { id: 'projects', label: MODULE_LABEL.projects, module: 'projects', kind: 'document', field: 'Project document UUID (Project Management)', revisionLabel: 'Revision (empty = follow latest)' },
@@ -143,7 +143,7 @@ const ID_HINT: Partial<Record<PickerChoice, RegExp>> = {
 }
 
 /**
- * Picks a version-aware artifact reference. Real modules (SysML Modeler, CAD Modeler, Project Management) by
+ * Picks a version-aware artifact reference. Real modules (System Model, CAD Modeler, Project Management) by
  * ID and revision, checked through the owning module; the legacy twin objects only in the PRJ-ACT100 demo.
  */
 function ArtifactPicker({ onPick, busy, label }: { onPick: (ref: ArtifactRefInput) => void; busy?: boolean; label: string }) {

@@ -228,11 +228,16 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function restoreLayouts(session: SessionState | null): Record<LayoutClass, Layout> {
+function restoreLayouts(session: SessionState | null, known: ReadonlySet<string>): Record<LayoutClass, Layout> {
   const saved = session?.layouts ?? (session?.layout ? { spacious: session.layout } : {})
+  // A second view of a tool that is no longer installed (for example a retired tool) is dropped, not left as an empty column.
+  const layout = (base: Layout, over: Partial<Layout> | undefined): Layout => {
+    const merged = { ...base, ...over }
+    return merged.split && !known.has(merged.split.toolId) ? { ...merged, split: null } : merged
+  }
   return {
-    spacious: { ...DEFAULT_LAYOUTS.spacious, ...saved.spacious },
-    compact: { ...DEFAULT_LAYOUTS.compact, ...saved.compact },
+    spacious: layout(DEFAULT_LAYOUTS.spacious, saved.spacious),
+    compact: layout(DEFAULT_LAYOUTS.compact, saved.compact),
   }
 }
 
@@ -347,7 +352,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
           restored?.activeToolId && openToolIds.includes(restored.activeToolId)
             ? restored.activeToolId
             : (openToolIds[0] ?? null)
-        const layouts = restoreLayouts(restored)
+        const layouts = restoreLayouts(restored, known)
 
         set({
           status: 'ready',

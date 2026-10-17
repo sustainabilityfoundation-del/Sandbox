@@ -27,18 +27,21 @@ check('button', box && box.x > 1500 && box.y < 60, `Help button sits in the uppe
 // 2. Menu and dynamic module submenus.
 await helpBtn.click()
 const items = await page.getByRole('menuitem').allTextContents()
-for (const label of ['Help Centre', 'Contextual help', 'Getting started', 'Keyboard shortcuts', 'Requirements', 'SysML', 'CAD', 'AI Interface', 'API documentation', 'About and versions']) {
+for (const label of ['Help Centre', 'Contextual help', 'Getting started', 'Keyboard shortcuts', 'Requirements', 'System Model', 'CAD Modeler', 'AI Interface', 'API documentation', 'About and versions']) {
   check('menu', items.some((t) => t.includes(label)), `menu has “${label}”`)
 }
+// ADR-0077: no help entry for the retired illustrative SysML and mock CAD tools.
+const menuModules = await page.locator('[data-help-menu-module]').evaluateAll((els) => els.map((e) => e.getAttribute('data-help-menu-module')))
+check('menu', menuModules.length > 0 && !menuModules.some((id) => id === 'sysml' || id === 'cad'), `menu has no entry for the retired illustrative tools (module ids: ${menuModules.join(', ')})`)
 await page.getByRole('menuitem', { name: /^Requirements/ }).hover()
 await page.waitForTimeout(400)
 const sub = await page.locator('[role="menu"]').last().getByRole('menuitem').allTextContents()
 check('submenu', ['User guide', 'Feature reference', 'Tutorial: Create your first requirement', 'Keyboard shortcuts', 'Troubleshooting', 'API documentation'].every((l) => sub.some((t) => t.includes(l))), `Requirements submenu: ${sub.join(' | ')}`)
 await page.screenshot({ path: `${shots}/help-1-menu.png` })
-await page.getByRole('menuitem', { name: /^SysML(?! Modeler)/ }).hover()
+await page.getByRole('menuitem', { name: /^System Model/ }).hover()
 await page.waitForTimeout(400)
 const sysml = await page.locator('[role="menu"]').last().getByRole('menuitem').allTextContents().catch(() => [])
-check('sysml', sysml.some((t) => t.includes('Tutorial: Explore the SysML demo')) && !sysml.some((t) => t.includes('No documentation yet')), `SysML now has documentation, including its tutorial (${sysml.join(' | ')})`)
+check('sysml', sysml.some((t) => t.includes('Tutorial: Model a battery and connect it')) && !sysml.some((t) => t.includes('No documentation yet')), `the System Model has documentation, including its tutorial (${sysml.join(' | ')})`)
 await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.waitForTimeout(300)
 
 // 3. Help Centre from the Requirements submenu, search, navigation.
@@ -88,11 +91,12 @@ await helpBtn.click(); await page.getByRole('menuitem', { name: 'About and versi
 await page.waitForSelector('[data-testid="help-about"]')
 const about = await page.locator('[data-testid="help-about"]').textContent()
 const aboutRows = await page.locator('[data-testid="help-about"] tbody tr').allTextContents()
+const aboutIds = await page.locator('[data-testid="help-about"] tbody tr').evaluateAll((els) => els.map((e) => e.getAttribute('data-help-module')))
 const documented = (name) => aboutRows.some((r) => r.startsWith(name) && /\d+ topics for /.test(r))
-check('about', /SDK 1.[0-9]+.[0-9]+/.test(about) && !/Not available yet/.test(about) && aboutRows.length > 0 && documented('SysML') && documented('CAD'), `About lists versions and every module with topic counts, none without documentation (${aboutRows.join(' | ')})`)
+check('about', /SDK 1.[0-9]+.[0-9]+/.test(about) && !/Not available yet/.test(about) && aboutRows.length > 0 && documented('System Model') && documented('CAD Modeler') && aboutIds.length > 0 && !aboutIds.some((id) => id === 'sysml' || id === 'cad'), `About lists versions and every module with topic counts, none without documentation (${aboutRows.join(' | ')})`)
 await closeHelp()
 
-// 7. Subscription: Requirements only hides SysML and CAD from the menu.
+// 7. Subscription: Requirements only hides the System Model and CAD Modeler from the menu.
 await page.getByRole('button', { name: /^Subscription:/ }).click()
 await page.getByRole('button', { name: /Subscription \(demo\)/ }).click()
 await page.getByRole('option', { name: /^Requirements only/ }).click()
@@ -104,7 +108,7 @@ await page.waitForSelector('.ws-overlay', { state: 'detached', timeout: 3000 }).
 await page.waitForTimeout(700)
 await helpBtn.click()
 const limited = await page.getByRole('menuitem').allTextContents()
-check('subscription', !limited.some((t) => /^SysML|^CAD/.test(t.trim())) && limited.some((t) => t.includes('Requirements')), `menu follows the subscription (${limited.filter((t) => /SysML|CAD|Requirements/.test(t)).join(', ')})`)
+check('subscription', !limited.some((t) => /^System Model|^CAD Modeler|^SysML|^CAD/.test(t.trim())) && limited.some((t) => t.includes('Requirements')), `menu follows the subscription (${limited.filter((t) => /System Model|SysML|CAD|Requirements/.test(t)).join(', ')})`)
 await page.keyboard.press('Escape')
 
 // 8. Phone.

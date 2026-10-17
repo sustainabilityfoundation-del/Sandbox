@@ -4,7 +4,6 @@ import { AppIcon, Icon, MenuButton, MenuItem, MenuSection, Tooltip, cx, type Ico
 import { useConversation } from '../assistant/conversation'
 import { openToolOrExplain } from '../platform/api'
 import { canOpenTool, useEntitlements } from '../platform/entitlements'
-import { isDemoTool } from '../platform/demoTools'
 import { getTools } from '../platform/registry'
 import { useWorkspaceStore } from '../platform/store'
 import { PRESETS, PRESET_IDS, applyPreset, assistantOnRight, assistantVisibleRight, currentPreset, dockAssistant, restoreDefaultLayout, showAssistant } from './layout/presets'
@@ -95,7 +94,7 @@ export function NavigationRail({ desktop, expanded }: { desktop: boolean; /** La
               key={tool.id}
               icon={tool.icon}
               label={tool.name}
-              tooltip={`${tool.name}${isDemoTool(tool.id) ? ' (demo)' : ''}${allowed ? '' : ' (not in your subscription)'}`}
+              tooltip={`${tool.name}${allowed ? '' : ' (not in your subscription)'}`}
               active={activeToolId === tool.id}
               expanded={expanded}
               onPress={() => openToolOrExplain(tool.id)}

@@ -6,16 +6,19 @@ are developed as independent packages:
 | Tool | Package | What it does |
 | --- | --- | --- |
 | Requirements Management | `@ews/tool-requirements` | Requirements table, search and filters; statements, rationale, status and allocation to components; relationships, history and recorded verification |
-| SysML Modeling | `@ews/tool-sysml` | A small editable diagram of parts, requirement usages, connections and satisfy links, with an illustrative text notation |
-| CAD | `@ews/tool-cad` | A selectable mock actuator assembly with pan, zoom, fit, visibility and a few editable demonstration dimensions |
+| System Model | `@ews/tool-sysml-modeler` | SysML v2 (documented subset) modelling: model browser, textual notation, general and interconnection views, validation, versioned history; no SysML v2 conformance claim |
+| CAD Modeler | `@ews/tool-cad-modeler` | Parametric part modelling on an Open CASCADE kernel: constrained sketches, extrude, revolve, parameters, STEP export |
+
+The earlier illustrative SysML tool (`@ews/tool-sysml`) and mock CAD tool (`@ews/tool-cad`) are retired from the interface and the
+AI ([ADR-0077](docs/decisions/0077-retire-illustrative-tools-system-model.md)); their packages, the twin data they wrote and their
+IDs (`sysml`, `cad`, `SYS-…`, `CAD-…`) are kept.
 
 All three work on the same actuator example (ACT-100 with housing HSG-110, rod ROD-120 and motor
 MTR-130), through the same repository and stable IDs. The repository also contains the standalone
 GLB model viewer (`apps/glb-viewer`) from earlier work.
 
 > **Prototype.** The repository is simulated in the browser, subscriptions are a client-side
-> mock, the CAD geometry is a mock drawing (no CAD kernel) and the SysML notation is illustrative
-> (not SysML v2 compliant, no parser). See [What is mocked](#what-works-and-what-is-mocked).
+> mock and the System Model implements a documented SysML v2 subset (not SysML v2 compliant). See [What is mocked](#what-works-and-what-is-mocked).
 
 ## Documentation
 
@@ -290,8 +293,7 @@ Example: a *Mass budget* tool.
 ## What works and what is mocked
 
 Works end to end in the browser: the three tools on one twin; shared selection and context with
-explicit representation resolution; requirement editing that every tool sees; SysML element
-creation and linking; CAD dimension edits recorded in Activity and persisted; representation
+explicit representation resolution; requirement editing that every tool sees; representation
 artifacts with provenance and staleness; module ownership; revision history; baselines and
 comparison; change impact; verification records with stale-evidence detection; subscription gating on every entry point and across
 windows; contained tool failures (palette › *Simulate a rendering failure*); ChatGPT previews with
@@ -299,8 +301,7 @@ validation, entitlement checks and undo; each tool in its standalone harness; li
 densities and phone/tablet/desktop layouts.
 
 Mocked: the repository (browser storage, simulated latency), subscriptions (client-side plans),
-the assistant (scripted demo, not ChatGPT), CAD geometry (a parametric drawing), SysML (a small
-subset with generated, illustrative notation).
+the assistant (scripted demo, not ChatGPT). The System Model implements a SysML v2 subset (no conformance claim).
 
 ## Before independent production deployment
 

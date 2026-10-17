@@ -2,7 +2,7 @@
 help_id: sysml-modeler.ai
 title: AI operations
 kind: reference
-summary: What the assistant can do in the SysML Modeler, and how its changes are previewed, validated, applied with provenance and undone.
+summary: What the assistant can do in the System Model, and how its changes are previewed, validated, applied with provenance and undone.
 keywords: [ai, assistant, chatgpt, proposal, automation, agent, operations]
 related: [sysml-modeler.commands, sysml-modeler.history, sysml-modeler.validation]
 operations: [sysml-modeler.describe_commands, sysml-modeler.find_elements, sysml-modeler.read_element, sysml-modeler.validate, sysml-modeler.impact, sysml-modeler.explain_commit, sysml-modeler.propose_commands, sysml-modeler.propose_text, sysml-modeler.matrix, sysml-modeler.coverage, sysml-modeler.behavior, sysml-modeler.create_project, sysml-modeler.satisfy_requirement, sysml-modeler.import_requirement, sysml-modeler.link_requirement, sysml-modeler.link_product_element]
@@ -28,7 +28,7 @@ the interface and never writes to the database.
 | `sysml-modeler.link_requirement` | proposal | Link a SysML requirement to a managed requirement (UUID, pinned revision) |
 | `sysml-modeler.link_product_element` | proposal | The part or item represents a Project Management product element (UUID, pinned revision) |
 
-All operations work **without the SysML Modeler open** (headless): the model is read from the
+All operations work **without the System Model open** (headless): the model is read from the
 repository. A typical architecture step in a new project is one `create_project` proposal with the text, the
 `requirements` to allocate and the `productElements` the parts represent; then `validate`. Product
 elements proposed in the same turn get their UUID only when you apply that proposal, so link them

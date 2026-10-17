@@ -16,10 +16,7 @@ import { clientDecision } from './aiPolicy'
 export const EXAMPLE_PROMPTS = [
   'What requirements apply to the selected component?',
   'Set REQ-003 status to approved.',
-  'Change the rod diameter to 28 mm.',
-  'Add a SysML requirement reference for REQ-003.',
-  'Connect the housing to the motor in SysML.',
-  'Open SysML and show the rod.',
+  'Open the System Model and show the rod.',
   'Which artifacts are stale?',
   'Undo the last model change.',
   // Example prompts of scripted plans shipped as fixtures (none is required).
@@ -47,22 +44,10 @@ const NOUNS = /\b(rod|housing|motor|actuator assembly|assembly|actuator)\b/gi
 const OBJECT_ID = /\b[A-Z]{2,4}-\d{3}\b/g
 
 const TOOLS: { pattern: RegExp; id: string; name: string }[] = [
-  { pattern: /\bsysml\b/i, id: 'sysml', name: 'SysML' },
-  { pattern: /\bcad\b|\bgeometry\b/i, id: 'cad', name: 'CAD' },
+  { pattern: /\bsysml\b|\bsystem model\b/i, id: 'sysml-modeler', name: 'System Model' },
+  { pattern: /\bcad\b|\bgeometry\b/i, id: 'cad-modeler', name: 'CAD Modeler' },
   { pattern: /\brequirements?( tool| management)?\b/i, id: 'requirements', name: 'Requirements' },
 ]
-
-const DIMENSIONS: { pattern: RegExp; parameter: string }[] = [
-  { pattern: /\bouter diameter\b/i, parameter: 'outerDiameter' },
-  { pattern: /\bdiameter\b/i, parameter: 'diameter' },
-  { pattern: /\blength\b/i, parameter: 'length' },
-]
-
-function parseValue(text: string): { value: number; unit?: string } | null {
-  // Ignore digits that are part of IDs such as ROD-120.
-  const match = /(?<![A-Za-z0-9-])(-?\d+(?:\.\d+)?)\s*(mm|cm|m)?(?![A-Za-z])/.exec(text)
-  return match ? { value: Number(match[1]), unit: match[2] } : null
-}
 
 let callSeq = 0
 function call(name: string, args: Record<string, unknown>): AssistantResponse {
@@ -182,7 +167,7 @@ function requirementsIntent(turn: Turn): AssistantResponse {
     return `- [[${r.id}]] **${r.title}**${via}: “${r.statement}” Status: ${r.status}${sysml}.`
   })
   return final(`**${data.requirements.length} requirement${data.requirements.length === 1 ? '' : 's'} apply to [[${data.component.id}]] ${data.component.name}:**\n${lines.join('\n')}`, {
-    suggestions: ['Set REQ-003 status to approved.', 'Open SysML and show the rod.'],
+    suggestions: ['Set REQ-003 status to approved.', 'Open the System Model and show the rod.'],
   })
 }
 
@@ -204,69 +189,6 @@ function requirementEditIntent(turn: Turn): AssistantResponse {
   const result = turn.last(name)
   if (!result) return call(name, { requirementId: id, [field]: value })
   if (!result.ok) return failed(result, `prepare the edit of ${id}`)
-  return proposalReply(result)
-}
-
-function dimensionIntent(turn: Turn, parameter: string): AssistantResponse {
-  const name = 'cad.set_dimension'
-  if (!turn.offered(name)) return notInSubscription('CAD', name)
-  const parsed = parseValue(turn.text)
-  if (!parsed) return final(`What should the ${parameter} be, in mm?`, { clarification: true })
-  const target = turn.component()
-  if ('next' in target) return target.next
-  if ('missing' in target) return final(`${target.missing} Which part's ${parameter} should change?`, { clarification: true, suggestions: [`Change the rod ${parameter} to ${parsed.value} mm.`] })
-  const result = turn.last(name)
-  if (!result) return call(name, { objectId: target.id, parameter, value: parsed.value, unit: parsed.unit ?? 'mm' })
-  if (!result.ok) return failed(result, 'prepare the dimension change')
-  return proposalReply(result)
-}
-
-function sysmlReferenceIntent(turn: Turn): AssistantResponse {
-  const name = 'sysml.add_requirement_reference'
-  if (!turn.offered(name)) return notInSubscription('SysML', name)
-  const id = [...turn.text.matchAll(OBJECT_ID)].map((m) => m[0]).find((x) => x.startsWith('REQ-'))
-  if (!id) return final('Which requirement should the SysML model reference? Give its ID, e.g. REQ-003.', { clarification: true })
-  const result = turn.last(name)
-  if (!result) return call(name, { requirementId: id })
-  if (!result.ok) return failed(result, `add a reference to ${id}`)
-  return proposalReply(result)
-}
-
-function sysmlPartIntent(turn: Turn): AssistantResponse {
-  const name = 'sysml.create_part'
-  if (!turn.offered(name)) return notInSubscription('SysML', name)
-  const called = /\b(?:called|named)\s+["“]?([A-Za-z][\w -]{0,40}?)["”]?(?:\s+(?:for|that|representing)\b|[.?!]?$)/i.exec(turn.text)?.[1]
-  let representsId: string | undefined
-  if (/\bfor\b|\brepresent/i.test(turn.text)) {
-    const target = turn.component()
-    if ('next' in target) return target.next
-    if ('id' in target) representsId = target.id
-  }
-  const partName = called ?? (representsId ? representsId.split('-')[0].toLowerCase() : undefined)
-  if (!partName) return final('What should the new part be called, and which component (if any) does it represent?', { clarification: true })
-  const result = turn.last(name)
-  if (!result) return call(name, { name: partName, ownerId: 'SYS-001', ...(representsId ? { representsId } : {}) })
-  if (!result.ok) return failed(result, 'prepare the new SysML part')
-  return proposalReply(result)
-}
-
-function sysmlConnectIntent(turn: Turn): AssistantResponse {
-  const name = 'sysml.connect'
-  if (!turn.offered(name)) return notInSubscription('SysML', name)
-  const reqId = [...turn.text.matchAll(OBJECT_ID)].map((m) => m[0]).find((x) => x.startsWith('REQ-'))
-  const from = turn.component(0)
-  if ('next' in from) return from.next
-  if ('missing' in from) return final('Which parts should be connected?', { clarification: true })
-  let toId = reqId
-  if (!toId) {
-    const to = turn.component(1)
-    if ('next' in to) return to.next
-    if ('missing' in to) return final(`${to.missing} Which part should [[${from.id}]] connect to?`, { clarification: true })
-    toId = to.id
-  }
-  const result = turn.last(name)
-  if (!result) return call(name, { fromId: from.id, toId })
-  if (!result.ok) return failed(result, 'prepare the connection')
   return proposalReply(result)
 }
 
@@ -355,7 +277,7 @@ function toolDemoIntent(turn: Turn): AssistantResponse | null {
 function helpReply(): AssistantResponse {
   return final(
     "I'm the **demo assistant**: a deterministic mock that understands a few example requests. I'm not connected to an AI model; connect your own account in Settings → AI and reasoning. " +
-      'I can read requirements and the shared model, prepare change previews (requirements, SysML elements and links, CAD dimensions) for you to apply, open tools in your subscription, and select objects.',
+      'I can read requirements and the shared model, prepare change previews (requirements and the models in your subscription) for you to apply, open tools in your subscription, and select objects.',
     { suggestions: EXAMPLE_PROMPTS },
   )
 }
@@ -384,12 +306,7 @@ export class DemoAssistantService implements AssistantService {
     if (scripted) return scripted
     if (/\b(undo|revert|roll ?back)\b/i.test(text)) return undoIntent(turn, history)
     if (/\b(stale|out of date|outdated)\b/i.test(text)) return staleIntent(turn, history)
-    if (/\bsysml\b/i.test(text) && /\b(reference|ref)\b/i.test(text)) return sysmlReferenceIntent(turn)
-    if (/\bsysml\b/i.test(text) && /\b(connect|link|satisf)/i.test(text)) return sysmlConnectIntent(turn)
-    if (/\bsysml\b/i.test(text) && /\b(add|create|new)\b.*\bpart\b/i.test(text)) return sysmlPartIntent(turn)
     if (/\b(open|go to|switch to)\b/i.test(text) && TOOLS.some((t) => t.pattern.test(text))) return openIntent(turn)
-    const dimension = DIMENSIONS.find((d) => d.pattern.test(text))
-    if (dimension && /\b(change|set|make|increase|decrease)\b/i.test(text)) return dimensionIntent(turn, dimension.parameter)
     if (/\bREQ-\d{3}\b/.test(text) && /\b(set|change|update|edit|approve|mark)\b/i.test(text)) return requirementEditIntent(turn)
     if (/\brequirements?\b/i.test(text) && /\b(apply|applies|allocated|relevant)\b/i.test(text)) return requirementsIntent(turn)
     return toolDemoIntent(turn) ?? helpReply()

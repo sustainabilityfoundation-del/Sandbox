@@ -32,8 +32,10 @@ const MODULES: { id: 'all' | CapabilityModule; label: string }[] = [
   { id: 'platform', label: 'Platform' },
   { id: 'assistant', label: 'Assistant' },
   { id: 'requirements', label: 'Requirements' },
-  { id: 'sysml', label: 'SysML' },
-  { id: 'cad', label: 'CAD' },
+  { id: 'conceptualize', label: 'Conceptualize' },
+  { id: 'sysml-modeler', label: 'System Model' },
+  { id: 'cad-modeler', label: 'CAD Modeler' },
+  { id: 'projects', label: 'Projects' },
 ]
 
 export function CoverageDialog() {

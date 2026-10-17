@@ -64,7 +64,7 @@ const refKey = (d: { ref: { kind: string; id: string } }) => `${d.ref.kind}:${d.
 describe('SysML artifact source (contract)', () => {
   it('describes the module with its kinds', () => {
     const m = source.describeModule()
-    expect(m.name).toBe('SysML Modeler')
+    expect(m.name).toBe('System Model')
     expect(m.kinds.map((k) => k.kind)).toEqual(['sysml-project', 'sysml-model-element', 'sysml-tag'])
     for (const k of m.kinds) expect(ARTIFACT_CATEGORIES).toContain(k.category)
     expect(source.module).toBe('sysml')

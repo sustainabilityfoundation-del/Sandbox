@@ -408,7 +408,7 @@ describe('Project Management references (CR-PM-CON-1)', () => {
     expect(ev.body.artifact).toMatchObject({ module: 'projects', id: DOC })
     const link = await post(`/concepts/${c.id}/links`, { relation: 'references', artifact: { module: 'projects', kind: 'document', id: DOC } })
     expect(link.status).toBe(201)
-    // C3: SysML Modeler elements and CAD Modeler entities (scoped IDs, pinned revisions).
+    // C3: System Model elements and CAD Modeler entities (scoped IDs, pinned revisions).
     const real = await post('/implementations', {
       name: 'Housing in the modelers',
       conceptIds: [c.id],
