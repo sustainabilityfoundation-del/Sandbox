@@ -81,8 +81,8 @@ session. Gaps:
 | --- | --- | --- | --- |
 | AUD-1 | Restart `npm run dev` | Owner | Now |
 | AUD-2 | Merge the queue: retire branch, CT-2c1/2c2, C1 (with OSS-9), AI increment A | Coordinator | In progress |
-| AUD-3 | CAD check in the CAD UI (command, result panel with bounds, kernel provenance) | CAD | Done on cad/name-and-check-ui (toolbar "Check against constraints", result in Diagnostics) |
-| AUD-4 | Stable IDs instead of UUIDs in the matrix, CAD binding labels and Conceptualize references | Each module | After the queue |
+| AUD-3 | CAD check in the CAD UI (command, result panel with bounds, kernel provenance) | CAD | Done on cad/name-and-check-ui (toolbar "Check against constraints", result in Diagnostics; outdated after model edits) |
+| AUD-4 | Stable IDs instead of UUIDs in the matrix, CAD binding labels and Conceptualize references | Each module | Partly done on cad/name-and-check-ui (CAD binding labels show CST-nnn); the matrix and Conceptualize references remain |
 | AUD-5 | SysML: D1 script adds requirement usages, satisfy links and `link_requirement`; matrix empty message explains managed requirements; a command that brings a managed requirement into the System Model with its link | System Model | Now |
 | AUD-6 | Conceptualize: show constraint bounds in full; Inspector follows the selection | Conceptualize | After ECII increment 1 |
 | AUD-7 | About page derived from the capability registry | Platform | With CT-2b |

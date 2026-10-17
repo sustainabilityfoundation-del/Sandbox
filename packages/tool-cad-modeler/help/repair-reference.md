@@ -10,7 +10,7 @@ operations: [cad-modeler.run_commands, cad-modeler.query]
 
 Fillets and chamfers refer to **edges**, and sketches or datum planes can sit on a **face**, by stable names (see
 [face names](help:cad-modeler.viewport)). If an upstream change removes that face or edge (for example fewer pockets in a
-pattern, so a strip of the top face no longer exists), the feature fails with *reference lost*. The CAD never
+pattern, so a strip of the top face no longer exists), the feature fails with *reference lost*. CAD never
 guesses a replacement: a wrong guess would silently change the shape you designed.
 
 **Repair it.**

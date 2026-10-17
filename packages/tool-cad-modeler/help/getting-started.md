@@ -1,6 +1,6 @@
 ---
 help_id: cad-modeler.getting-started
-title: Getting started with the CAD
+title: Getting started with CAD
 kind: tutorial
 summary: Create a part, sketch a constrained rectangle, extrude it, change a dimension and save the model.
 keywords: [getting started, first part, tutorial, sketch, extrude]

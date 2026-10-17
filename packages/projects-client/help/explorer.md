@@ -16,7 +16,7 @@ grouped by the module that owns it:
 | Concepts and design knowledge | Concepts (including alternatives), functions, alternative sets, decisions, constraints, assumptions … | opens Conceptualize |
 | Requirements | Requirements and collections | selects the requirement and opens Requirements |
 | SysML models | System Model projects with their named elements | opens the System Model |
-| CAD documents | CAD documents with their parts | opens the CAD on the document |
+| CAD documents | CAD documents with their parts | opens CAD on the document |
 | Tasks, milestones and documents | Project Management records | — |
 
 The list comes from the project's **registry**: each module reports what it creates, and the explorer refreshes when

@@ -28,7 +28,7 @@ Every change is a proposal. **Apply** runs it through the same command executor 
 against the model version the preview was made for; if you changed the model meanwhile, it is
 refused. **Undo** on an applied proposal restores the previous state if nothing changed since.
 
-**With the CAD closed.** Every operation also works when no CAD tab is open. The
+**With CAD closed.** Every operation also works when no CAD tab is open. The
 assistant picks the document like this:
 
 - the document you name;

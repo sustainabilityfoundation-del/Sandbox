@@ -99,10 +99,10 @@ What changed:
   `FILES_CONTRACT_VERSION`, and `createMemoryFilesService()` (per window, in memory). `PlatformServices.files?`.
 - The workspace host implements the new Concepts members over the Conceptualize module client and provides `files`;
   the harness mock host provides an in-memory `files` by default. The interim `configureConceptHandoffs` port of the
-  CAD is removed; it reads `services.concepts.getHandoff` / `revisionStaleness`.
+  CAD Modeler is removed; it reads `services.concepts.getHandoff` / `revisionStaleness`.
 Why: CAD consumption of Conceptualize handoffs and concept staleness without a private port (visual concept
 exploration), and file hand-off (for example STEP export to a project document) without bytes passing through the assistant.
-Migration for tools: none required (additive). Tools should handle the optional members being absent. The CAD
+Migration for tools: none required (additive). Tools should handle the optional members being absent. The CAD Modeler
 no longer exports `configureConceptHandoffs`.
 Validated with: npm run check; npm run build; platform-sdk contract and boundaries tests
 

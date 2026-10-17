@@ -3,6 +3,14 @@ import pkg from '../package.json'
 import { runChecks, type CheckReport, type CheckRequest } from './checks'
 import { cadSession, type OpenDocument } from './session'
 
+/** The geometric kernel is not available, so nothing can be measured. */
+export class NoKernelError extends Error {
+  constructor() {
+    super('The model could not be regenerated (no kernel).')
+    this.name = 'NoKernelError'
+  }
+}
+
 export interface DocumentCheckOptions {
   projectId: string
   concepts?: Pick<ConceptsService, 'getConstraint'>
@@ -18,7 +26,7 @@ export interface DocumentCheckOptions {
  */
 export async function checkOpenDocument(d: OpenDocument, options: DocumentCheckOptions): Promise<CheckReport> {
   const regen = await d.engine.regenerate()
-  if (!regen) throw new Error('The model could not be regenerated (no kernel).')
+  if (!regen) throw new NoKernelError()
   const report = await runChecks(d.engine.document, regen, {
     projectId: options.projectId,
     concepts: options.concepts,

@@ -1,12 +1,12 @@
 import { CadEngine, COMMANDS, MEDIA_TYPE, QUERIES, applyTransaction, createDocument, featureTree, failures, massProperties, parameterTable, parseDocument, serializeDocument, type CadDocument, type CommandCall, type DryRunResult } from '@ews/cad-core'
 import { ActionError, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type DeclarativeProposal, type DemoPlanner, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { cadSession, type OpenDocument } from './session'
-import { checkOpenDocument } from './checkRun'
+import { checkOpenDocument, NoKernelError } from './checkRun'
 import type { CheckRequest, MeasureSpec } from './checks'
 import { mapHandoff, portOf } from './handoff'
 
 /**
- * Assistant operations for the CAD (contracts §5, ADR-0023). Reads return structured data
+ * Assistant operations for CAD (contracts §5, ADR-0023). Reads return structured data
  * from the same queries the inspector and diagnostics use. Every mutation is a service proposal: the
  * commands are validated and regenerated on a copy (dry run) for the preview, and only Apply runs
  * them, through the same executor as the toolbar and dialogs, with the model version captured at
@@ -439,7 +439,7 @@ const actions: AssistantActionDefinition[] = [
         async undo() {
           if (!target || !before || appliedVersion === undefined) throw new Error('Nothing to undo.')
           const d = cadSession.require(target)
-          if (d.engine.document.version !== appliedVersion) throw new Error(`The model changed after this proposal was applied (now version ${d.engine.document.version}); undo it in the CAD instead.`)
+          if (d.engine.document.version !== appliedVersion) throw new Error(`The model changed after this proposal was applied (now version ${d.engine.document.version}); undo it in CAD instead.`)
           const r = await d.engine.restore(before, `Undo assistant: ${label}`, 'assistant', appliedVersion)
           return { summary: `Restored the model before “${label}” as version ${r.version}` }
         },
@@ -476,7 +476,7 @@ const actions: AssistantActionDefinition[] = [
         throw new ActionError('unavailable', (e as Error).message)
       }
       if (!h) throw new ActionError('not-found', `CAD handoff ${handoffId} does not exist in project ${projectId}.`)
-      if (h.package?.schema !== 'conceptualize.cad-handoff/1') throw new ActionError('invalid-arguments', `Handoff ${h.key} uses schema ${String(h.package?.schema)}; the CAD reads conceptualize.cad-handoff/1.`)
+      if (h.package?.schema !== 'conceptualize.cad-handoff/1') throw new ActionError('invalid-arguments', `Handoff ${h.key} uses schema ${String(h.package?.schema)}; CAD reads conceptualize.cad-handoff/1.`)
       const m = mapHandoff(h, { title: typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined, partName: typeof args.partName === 'string' && args.partName.trim() ? args.partName.trim() : undefined })
       const staleness = await port.revisionStaleness(h.conceptId, h.conceptRevision, { projectId, purpose: 'handoff' }).catch(() => undefined)
       const runCommands = actions.find((a) => a.name === 'cad-modeler.run_commands')!
@@ -767,7 +767,7 @@ const actions: AssistantActionDefinition[] = [
       try {
         report = await checkOpenDocument(d, { projectId: ctx.captured.projectId, concepts: ctx.services?.concepts, requests, bindings: args.bindings !== false })
       } catch (e) {
-        if (e instanceof Error && /no kernel/.test(e.message)) throw new ActionError('unavailable', e.message)
+        if (e instanceof NoKernelError) throw new ActionError('unavailable', e.message)
         throw e
       }
       const s = report.summary
@@ -882,7 +882,7 @@ export const cadModelerDemo: DemoPlanner = (text) => {
     const [w, d, th] = plate.slice(1, 4).map(Number)
     const h = hole ? Number(hole[1] ?? hole[2]) : undefined
     return {
-      reply: `(Demo planner.) I prepared a parametric plate ${w} × ${d} × ${th} mm${h ? ` with a ${h} mm through hole` : ''} in the CAD: parameters width, depth and thickness${h ? ', hole_d' : ''}, a constrained rectangle sketch and an extrusion${h ? ', then a hole sketch and a cut' : ''}. The preview shows the volume predicted by the kernel.`,
+      reply: `(Demo planner.) I prepared a parametric plate ${w} × ${d} × ${th} mm${h ? ` with a ${h} mm through hole` : ''} in CAD: parameters width, depth and thickness${h ? ', hole_d' : ''}, a constrained rectangle sketch and an extrusion${h ? ', then a hole sketch and a cut' : ''}. The preview shows the volume predicted by the kernel.`,
       calls: [{ name: 'cad-modeler.run_commands', arguments: { label: `Plate ${w} × ${d} × ${th}${h ? ` with ${h} mm hole` : ''}`, commands: plateCommands(w, d, th, h) } }],
     }
   }

@@ -100,9 +100,9 @@ re-verify the calculation; record such results as *Estimate* or *Assessment*.
 
 **Binding a CAD parameter to a constraint.** Each constraint has a reference other modules bind to:
 `{ module: "conceptualize", kind: "constraint", id, revision }`. The assistant reports it when it creates, promotes or
-revises a constraint and when it lists a Concept's constraints, so the CAD can bind a parameter to it and
+revises a constraint and when it lists a Concept's constraints, so CAD can bind a parameter to it and
 check the parameter against the bound read from Conceptualize. A revised constraint has a new revision; bindings
-pinned to the old one are reported as outdated by the CAD. A check can also name a whole CAD document as
+pinned to the old one are reported as outdated by CAD. A check can also name a whole CAD document as
 its source (`kind: "cad-document"` with the document revision).
 
 The assistant can prepare a **constraint revision** (new revision with a reason; status changes stay with a

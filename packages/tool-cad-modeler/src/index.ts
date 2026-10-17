@@ -3,6 +3,7 @@ import { defineTool, type ClientModule, type ModuleHostEnv, type ToolDefinition 
 import { lazy } from 'react'
 import pkg from '../package.json'
 import { cadModelerAssistant } from './assistant'
+import { checkStore } from './checkStore'
 import { CAD_MODELER_CAPABILITIES } from './capabilities'
 import { cadModelerHelp } from './help'
 import { createCadReadService, createHttpCadClient, createLocalCadClient, type CadClient } from '@ews/cad-client'
@@ -50,7 +51,7 @@ export interface CadModelerOptions {
 /**
  * `PlatformServices.cad` for the workspace (SDK 1.8, contract C5): CAD entity summaries and mass
  * properties at a document revision. It reads stored revisions from the CAD service and regenerates
- * them in this window's shared kernel worker (the CAD's), so no second kernel is loaded.
+ * them in this window's shared kernel worker (CAD's), so no second kernel is loaded.
  * Results are cached per immutable revision. Call it once from the host's platform services.
  */
 export function createWorkspaceCadService(options: { baseUrl?: string; devUser?: string; client?: CadClient } = {}): CadService {
@@ -241,7 +242,10 @@ export function createCadModelerTool(options: CadModelerOptions = {}): ToolDefin
         icon: 'verification',
         disabled: !s.hasDoc || s.busy,
         title: 'Measure the model and compare it with the bounds of the design constraints it is bound to (read-only; result in Diagnostics)',
-        onClick: () => api.updateViewState({ tab: 'diagnostics', checkRequest: Date.now() }),
+        onClick: () => {
+          api.updateViewState({ tab: 'diagnostics' })
+          checkStore.request()
+        },
       },
       {
         type: 'button',

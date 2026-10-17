@@ -1,5 +1,3 @@
-import type { CheckReport } from './checks'
-
 /** Private state of one CAD view instance (never shared model data). */
 
 export type PanelTab = 'model' | 'edit' | 'inspect' | 'diagnostics'
@@ -18,11 +16,8 @@ export type SelectionItem =
   | { kind: 'face' | 'edge'; id: string; bodyId: string }
   | { kind: 'body'; id: string }
   | { kind: 'feature'; id: string }
-  | { kind: 'sketch-entity'; id: string; sketchId: string }
   | { kind: 'parameter'; id: string; partId: string }
 
-/** Latest "Check against constraints" run of this view (a read-only report; never stored in the model). */
-export type CheckPanelState = { state: 'running' } | { state: 'done'; report: CheckReport; at: string } | { state: 'error'; message: string }
 
 export type ViewPreset = 'fit' | 'iso' | 'front' | 'top' | 'right'
 
@@ -42,11 +37,8 @@ export interface CadModelerViewState {
   /** Open dialog (documents of the project in the CAD service). */
   dialog?: 'open' | null
   viewRequest: { kind: ViewPreset; seq: number } | null
-  /** Set by the toolbar command "Check against constraints"; the view runs the check once per value. */
-  checkRequest?: number
-  check?: CheckPanelState
   /** Mirror of session flags so the toolbar re-renders when they change. */
-  status: { hasDoc: boolean; canUndo: boolean; canRedo: boolean; hasBody: boolean; dirty: boolean; busy: boolean }
+  status: { hasDoc: boolean; canUndo: boolean; canRedo: boolean; hasBody: boolean; dirty: boolean; busy: boolean; checking: boolean }
 }
 
 export const INITIAL_VIEW_STATE: CadModelerViewState = {
@@ -56,5 +48,5 @@ export const INITIAL_VIEW_STATE: CadModelerViewState = {
   selection: [],
   showEdges: true,
   viewRequest: null,
-  status: { hasDoc: false, canUndo: false, canRedo: false, hasBody: false, dirty: false, busy: false },
+  status: { hasDoc: false, canUndo: false, canRedo: false, hasBody: false, dirty: false, busy: false, checking: false },
 }

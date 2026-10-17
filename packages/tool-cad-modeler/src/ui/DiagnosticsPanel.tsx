@@ -3,12 +3,13 @@ import { Badge, Button, EmptyState, Notice, Select } from '@ews/design-system'
 import { formatTime } from '@ews/platform-sdk/react'
 import { useState } from 'react'
 import type { SessionSnapshot } from '../session'
-import type { CadModelerViewState, CheckPanelState } from '../viewState'
+import type { CheckPanelState } from '../checkStore'
+import type { CadModelerViewState } from '../viewState'
 import { CheckPanel } from './CheckPanel'
 import { fmtNum, makeRun } from './common'
 
 /** Model diagnostics (brief §8, §9.2): kernel, regeneration, failures, exports and the operation log. */
-export function DiagnosticsPanel({ engine, state, session, update, check, onCheck }: { engine: CadEngine; state: EngineState; session: SessionSnapshot; update?: (u: Partial<CadModelerViewState>) => void; check?: CheckPanelState; onCheck?: () => void }) {
+export function DiagnosticsPanel({ engine, state, session, update, check, stale, onCheck }: { engine: CadEngine; state: EngineState; session: SessionSnapshot; update?: (u: Partial<CadModelerViewState>) => void; check?: CheckPanelState; stale?: boolean; onCheck?: () => void }) {
   const regen = state.regen
   const issues = failures(regen)
   const repairs = referenceRepairs(state.doc, regen)
@@ -17,7 +18,7 @@ export function DiagnosticsPanel({ engine, state, session, update, check, onChec
   const exp = session.lastExport
   return (
     <div className="cadm-panel-body" data-help-id="cad-modeler.diagnostics">
-      <CheckPanel check={check} onRun={() => onCheck?.()} canRun={!!onCheck} />
+      <CheckPanel check={check} stale={stale} onRun={() => onCheck?.()} canRun={!!onCheck} />
       <section className="cadm-section" aria-label="Kernel">
         <h4 className="cadm-subtitle">Geometric kernel</h4>
         <dl className="cadm-props">

@@ -13,6 +13,9 @@ operations: [cad-modeler.check, cad-modeler.check_bindings]
 Choose **Check against constraints** in the toolbar (or the button at the top of the **Diagnostics** tab). It runs the same
 check as the assistant operation below on the open document and lists the result in Diagnostics. It is read-only: the
 model, its revisions and the project are not changed, and nothing is recorded as evidence.
+The result is kept for this browser session only (not saved, not restored after a reload) and belongs to the document and
+model version it measured. After any edit it is marked **Outdated, run again** and is never shown as a current pass. The
+toolbar button is disabled while a check runs.
 
 Each row of the result shows:
 

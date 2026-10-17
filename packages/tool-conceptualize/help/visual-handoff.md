@@ -2,7 +2,7 @@
 help_id: conceptualize.visual.handoff
 title: CAD handoff package
 kind: reference
-summary: A revision-pinned package of the selected Concept for the CAD, with parameters, interfaces, envelopes, constraints, requirement and decision links, and the list of unresolved items. Missing information is listed, never invented.
+summary: A revision-pinned package of the selected Concept for CAD, with parameters, interfaces, envelopes, constraints, requirement and decision links, and the list of unresolved items. Missing information is listed, never invented.
 keywords: [CAD, handoff, package, envelope, parameters, unresolved, gaps, HND]
 operations: [conceptualize.create_cad_handoff]
 related: [conceptualize.visual, conceptualize.integration, conceptualize.decision]
@@ -21,7 +21,7 @@ Choose **CAD handoff** on a card and **Build handoff**. The package (`HND-001`, 
 | visuals | References only; images are illustrative |
 | unresolved | Open questions, uncertainties, missing definition (no components, parameters or layout), ranges without a nominal value, unplaced components, interfaces without parameters, unchecked constraints, unvalidated assumptions, not the recorded selection |
 
-The CAD reads the package (`GET …/handoffs/{id}`) and records the Concept and revision it used.
+CAD reads the package (`GET …/handoffs/{id}`) and records the Concept and revision it used.
 When the definition changes, the package and the CAD documents made from it are marked **possibly
 outdated** (`GET …/concepts/{id}/staleness?revision=N`); nothing is regenerated automatically. Ask the
 assistant to propose the missing definition instead of guessing it.

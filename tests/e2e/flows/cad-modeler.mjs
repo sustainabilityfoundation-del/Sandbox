@@ -35,10 +35,7 @@ await page.waitForSelector('.ws-app')
 await page.waitForTimeout(1500)
 
 // Open the CAD from the command palette.
-await page.keyboard.press('Control+k')
-await page.waitForSelector('.ws-launcher')
-await page.keyboard.type('CAD')
-await page.keyboard.press('Enter')
+await page.click('[data-rail-tool="cad-modeler"]')
 await page.getByRole('button', { name: 'New part' }).waitFor({ timeout: 30000 })
 check(true, 'CAD opens in the workspace (start page)')
 await page.screenshot({ path: `${shots}/ws-01-start.png` })

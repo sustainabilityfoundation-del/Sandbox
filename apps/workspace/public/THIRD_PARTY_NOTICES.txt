@@ -1,8 +1,8 @@
-THIRD-PARTY NOTICES: CAD Modeler geometry kernel
+THIRD-PARTY NOTICES: CAD geometry kernel
 =================================================
 
 This application (the engineering workspace) uses Open CASCADE Technology (OCCT), a C++
-geometry library, to build and analyse solid models in the CAD Modeler. OCCT is compiled to
+geometry library, to build and analyse solid models in CAD. OCCT is compiled to
 WebAssembly and loaded by the browser as a separate file; the application's own code is not
 compiled into it.
 

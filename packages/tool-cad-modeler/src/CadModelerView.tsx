@@ -5,6 +5,7 @@ import { useSharedContext, useToolViewState, useUnsavedChanges, useSetting, useP
 import { OpenDialog } from './ui/OpenDialog'
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { checkOpenDocument } from './checkRun'
+import { checkFor, checkStore, useCheckStore } from './checkStore'
 import { plateCommands } from './assistant'
 import { cadSession, useCadSession, useEngineState } from './session'
 import { takeCadDeepLink } from './deepLink'
@@ -66,23 +67,28 @@ export default function CadModelerView() {
   const update = useCallback((u: Partial<CadModelerViewState>) => setVs(u), [setVs])
   // "Check against constraints": the toolbar command and the panel button only request it; the same function as
   // cad-modeler.check runs it on the open document (read-only) and the result is shown in Diagnostics.
-  const handledCheck = useRef(vs.checkRequest)
+  const handledCheck = useRef(checkStore.getSnapshot().requestSeq)
   const concepts = platformServices.concepts
+  const checkSnap = useCheckStore()
+  const { check, stale: checkStale } = checkFor(checkSnap, open?.id, state?.doc.version)
   const runCheck = useCallback(async () => {
-    if (!open) return
-    setVs({ tab: 'diagnostics', check: { state: 'running' } })
+    if (!open || checkStore.isRunning(open.id)) return
+    const id = open.id
+    const version = open.engine.document.version
+    checkStore.set(id, version, { state: 'running' })
+    setVs({ tab: 'diagnostics' })
     try {
       const report = await checkOpenDocument(open, { projectId, concepts })
-      setVs({ check: { state: 'done', report, at: new Date().toISOString() } })
+      checkStore.set(id, report.modelVersion, { state: 'done', report, at: new Date().toISOString() })
     } catch (e) {
-      setVs({ check: { state: 'error', message: e instanceof Error ? e.message : String(e) } })
+      checkStore.set(id, version, { state: 'error', message: e instanceof Error ? e.message : String(e) })
     }
   }, [open, projectId, concepts, setVs])
   useEffect(() => {
-    if (vs.checkRequest === undefined || vs.checkRequest === handledCheck.current) return
-    handledCheck.current = vs.checkRequest
+    if (checkSnap.requestSeq === handledCheck.current) return
+    handledCheck.current = checkSnap.requestSeq
     void runCheck()
-  }, [vs.checkRequest, runCheck])
+  }, [checkSnap.requestSeq, runCheck])
   const dirty = !!open && !!session.documents.find((d) => d.id === open.id)?.dirty
   useUnsavedChanges(dirty)
 
@@ -100,6 +106,7 @@ export default function CadModelerView() {
     hasBody: !!state?.regen?.parts.some((p) => p.bodies.length),
     dirty,
     busy: !!state?.regenerating,
+    checking: check?.state === 'running',
   }
   const statusKey = JSON.stringify(status)
   useEffect(() => {
@@ -167,7 +174,7 @@ export default function CadModelerView() {
             <InspectPanel engine={open.engine} state={state} vs={vs} update={update} />
           </TabPanel>
           <TabPanel id="diagnostics" className="cadm-tabpanel">
-            <DiagnosticsPanel engine={open.engine} state={state} session={session} update={update} check={vs.check} onCheck={() => void runCheck()} />
+            <DiagnosticsPanel engine={open.engine} state={state} session={session} update={update} check={check} stale={checkStale} onCheck={() => void runCheck()} />
           </TabPanel>
         </Tabs>
       </aside>

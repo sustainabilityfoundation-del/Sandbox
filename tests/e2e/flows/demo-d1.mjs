@@ -165,10 +165,7 @@ try {
   // open document and the Diagnostics panel lists bound (with the stable CST-nnn ID), measured value, result and source.
   {
     await page.keyboard.press('Escape')
-    await page.keyboard.press('Control+k')
-    await page.waitForSelector('.ws-launcher')
-    await page.keyboard.type('CAD')
-    await page.keyboard.press('Enter')
+    await page.click('[data-rail-tool="cad-modeler"]')
     await page.waitForSelector('.cadm-root, .cadm-welcome, [data-tool="cad-modeler"]', { timeout: 30000 })
     await page.getByRole('tab', { name: 'Model', exact: true }).click()
     const refText = await page.getByTestId('param-binding-ref').first().textContent({ timeout: 60000 })
