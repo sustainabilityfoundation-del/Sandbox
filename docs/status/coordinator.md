@@ -109,6 +109,15 @@ Owner: "focus on getting the cad working better woth more functionality". CAD Mo
 [cad-sprints-c1-c3.md](../specifications/cad-sprints-c1-c3.md): C1 sketching by clicks and reliability (after OSS-9 merges), C2 part features
 (holes, mirror, circular pattern, shell, draft, body booleans), C3 measurement, STEP import, STL, loft and sweep. Owner decisions listed there.
 
+## Integration queue (16 October 2026, 22:15 EDT)
+Integration runs use the separate worktree ../Sandbox-integration; the main checkout stays on main (the owner's dev server).
+Order (reviewer): (1) ui/retire-illustrative-rename-system-model (approved; review fixes in, main merged at 3dc5291);
+(2) feature/ct-2c2-sdk (contains CT-2c1 2b0e82c; approved, required fixes and browser-test robustness running);
+(3) cad/c1-sketching-reliability (OSS-9 + C1; naming fix re-review approved at 5c64c5a/23d2014; follow-ups: probe-less `~k`
+names can still move on a later split, fixture regeneration note, worker details test). One full integration run per step.
+AI infrastructure: brief and plan on main; commercial research merged (cbfc4a4); increment A (contract, registries, ledger)
+running on feature/ai-infra-a-core; B and C after A; ADRs 0078-0080.
+
 ## Merging to main (owner, 16 October 2026)
 Owner: "I take bake the command to not push to main. It is ok for you to automatically do this." The coordinator merges verified
 work to main automatically again (after review where required and a green integration run); feature branches stay the working
