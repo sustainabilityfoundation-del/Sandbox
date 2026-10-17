@@ -4,7 +4,7 @@ import type { AlternativeSet, Concept, Criterion, DecisionOutcomeKind, Score, Tr
 import { useState } from 'react'
 import { useModuleData, useResource } from '../data'
 import { KIND_LABEL, QUALITATIVE, formatQuantity, type ConceptualizeViewState } from '../domain'
-import { ApiErrorNotice, BasisBadge, ConceptLinkButton, MaturityBadge, ProvenanceBadge, Section } from './common'
+import { ApiErrorNotice, BasisBadge, ConceptLinkButton, MaturityBadge, ProvenanceBadge, RefLabel, Section } from './common'
 import { DecisionList } from './Workspace'
 
 const MEMBER_TONE = { candidate: 'neutral', selected: 'success', rejected: 'danger', deferred: 'warning', withdrawn: 'neutral' } as const
@@ -150,7 +150,7 @@ function TradeStudyTable({ study, concepts }: { study: TradeStudy; concepts: Map
               <th scope="col">Criterion (weight)</th>
               {study.options.map((o) => (
                 <th key={o} scope="col">
-                  {concepts.get(o)?.name ?? o.slice(0, 8)}
+                  {concepts.get(o)?.name ?? <RefLabel type="concept" id={o} />}
                 </th>
               ))}
             </tr>

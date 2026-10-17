@@ -4,7 +4,7 @@ import type { AnyRef, Assumption, CalculationModel, AssumptionStatus, Basis, Con
 import { useState, type ReactNode } from 'react'
 import { useModuleData, useResource } from '../data'
 import { BASIS, formatDate, formatQuantity, type ConceptualizeViewState, type DesignRecordType } from '../domain'
-import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, Section } from './common'
+import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, RefLabel, Section } from './common'
 import { CalculationDetail, CalculationEvidence } from './Calculations'
 
 /**
@@ -162,7 +162,7 @@ export function DesignLinksSection({ subject }: { subject: DesignRef }) {
   const linkType = new Map((types.data ?? []).map((t) => [t.name, t]))
   const revisions = new Map((stored.data ?? []).map((l) => [l.id, l.revision]))
   const edges = (nb.data?.edges ?? []).filter((e) => e.from.id === subject.id || e.to.id === subject.id)
-  const label = (n: GraphNode | undefined, r: AnyRef) => (n ? `${n.key} ${n.label}` : `${r.module} ${r.id.slice(0, 8)}`)
+  const label = (n: GraphNode | undefined, r: AnyRef) => (n ? `${n.key} ${n.label}` : `${r.module} record (unresolved)`)
   const addable = (types.data ?? []).filter((t) => t.stored === 'design-links' && t.fromTypes.includes(subject.type))
   const chosen = type ? linkType.get(type) : undefined
   const targets = (candidates.data?.items ?? []).filter((i) => i.ref.id !== subject.id && (!chosen || chosen.toTypes.includes(i.ref.type)))
@@ -417,7 +417,7 @@ function ConstraintDetail({ c }: { c: DesignConstraint }) {
         )}
         {c.source.kind === 'derived' && (
           <p>
-            Derived from <RefButton target={c.source.from} label={`${TYPE_LABEL[c.source.from.type] ?? c.source.from.type} ${c.source.from.id.slice(0, 8)}`} />
+            Derived from <RefButton target={c.source.from} label={<RefLabel type={c.source.from.type} id={c.source.from.id} />} />
           </p>
         )}
         {c.source.kind === 'stated' && <p className="con-muted">Stated by {c.createdBy}; the basis label says how it is known.</p>}
@@ -431,7 +431,7 @@ function ConstraintDetail({ c }: { c: DesignConstraint }) {
         <ul className="con-rel-list">
           {c.subjects.map((s) => (
             <li key={s.id}>
-              <RefButton target={s} label={`${TYPE_LABEL[s.type]} ${s.id.slice(0, 8)}`} />
+              <RefButton target={s} label={<RefLabel type={s.type} id={s.id} />} />
             </li>
           ))}
           {!c.subjects.length && <li className="con-muted">No subject.</li>}
@@ -485,7 +485,7 @@ function AssumptionDetail({ a }: { a: Assumption }) {
         <ul className="con-rel-list">
           {a.scope.subjects.map((s) => (
             <li key={s.id}>
-              <RefButton target={s} label={`${TYPE_LABEL[s.type]} ${s.id.slice(0, 8)}`} />
+              <RefButton target={s} label={<RefLabel type={s.type} id={s.id} />} />
             </li>
           ))}
           {!a.scope.subjects.length && <li className="con-muted">Project-wide.</li>}
@@ -609,7 +609,7 @@ function ConvertToFunction({ concept, graph }: { concept: Concept; graph: Graph 
               Creates a Function “{concept.name}” derived from {concept.key} revision {concept.revision}.
             </li>
             <li>Copies {copied.length} statement(s) (function, behaviour, performance, constraint); quantified ones become objectives with their basis.</li>
-            <li>{implementers.length ? `Re-expresses ${implementers.length} “implements” relationship(s) as “performs”: ${implementers.map((e) => names.get(e.fromId) ?? e.fromId.slice(0, 8)).join(', ')}.` : 'There are no implementing Concepts to re-express.'}</li>
+            <li>{implementers.length ? `Re-expresses ${implementers.length} “implements” relationship(s) as “performs”: ${implementers.map((e) => names.get(e.fromId) ?? "Concept (unresolved)").join(', ')}.` : 'There are no implementing Concepts to re-express.'}</li>
             <li>Keeps the Concept, its relationships and its history unchanged.</li>
           </ul>
         </Notice>
