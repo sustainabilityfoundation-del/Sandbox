@@ -286,6 +286,19 @@ try {
   await page2.waitForSelector('.ws-app', { timeout: 60000 })
   await page2.waitForTimeout(2000)
   await page2.screenshot({ path: `${shots}/03-fresh-session.png` })
+  // AUD-4: the Conceptualize references ("Applies to", Concept links) show stable keys, never a UUID or its prefix.
+  {
+    const uuidLike = /[0-9a-f]{8}-[0-9a-f]{4}-|(Concept|Constraint|Function|Assumption|Evidence|Decision) [0-9a-f]{8}\b/
+    await page2.getByRole('button', { name: /Record type/ }).first().click()
+    await page2.getByRole('option', { name: 'Constraints', exact: true }).click()
+    await page2.locator('.con-results .con-tree-label').first().click({ timeout: 30000 })
+    await page2.getByText('Applies to', { exact: true }).first().waitFor({ timeout: 30000 })
+    await page2.waitForTimeout(1500)
+    const detail = await page2.locator('.con-root').first().innerText()
+    const applies = (await page2.locator('.con-rel-list').first().innerText()).trim()
+    check(!uuidLike.test(detail) && !/\(unresolved\)/.test(applies), `the constraint detail shows no UUID and resolves its subjects (${applies.replace(/\s+/g, ' ').slice(0, 80)})`)
+    await page2.screenshot({ path: `${shots}/03b-constraint-applies-to.png` })
+  }
   await fresh.close()
   const concepts = await get(`/api/concepts/v1/projects/${P}/concepts?text=${encodeURIComponent('Drill bit holder block')}&limit=50`)
   check((concepts.items ?? []).length === 1, `the concept is stored in Conceptualize (${(concepts.items ?? []).map((c) => c.key).join(', ')})`)
