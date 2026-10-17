@@ -142,6 +142,15 @@ ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only
 - **AWS deployment brief** (owner, 17 Oct): recorded in docs/specifications/aws-deployment-brief.md (text cut off in §8). Phase 1
   (read-only audit and proposed plan) assigned to the AWS infrastructure agent on `infra/aws-audit`; no AWS writes, applies or
   workflow triggers until the owner reviews the plan.
+- **CE-0 merged** (3801ae4, green run: 1679 tests, builds, e2e platform/ai-headless/demo-d1). SDK 1.15.0 on main.
+- **AWS phase 1 audit merged** (docs only, docs/infrastructure/). No AWS CLI or credentials here; nothing in AWS verified. Likely
+  failure: no backend, database or `/api` routing in AWS (Amplify static only). Proposed CDK, CloudFront+S3, one Fargate task,
+  RDS PostgreSQL 17 single-AZ, about $85/month for both environments. **Owner decisions pending:** read-only AWS access, account
+  and region, sign-in approach, Amplify keep or retire, cost, accounts, domain, approver, alarm e-mail, and whether the GitHub
+  repository should stay public.
+- In progress: AUD-4 stable IDs in labels (`fix/aud-4-stable-ids`); AWS platform readiness, no AWS calls
+  (`infra/aws-platform-readiness`: refuse embedded PostgreSQL when deployed, all-schema migrate with `--check`, `/health` and
+  `/ready`, dev identities off when deployed unless explicitly enabled).
 - Owner's main checkout lacks `@salusoft89/planegcs` (added by C1): run `npm install` before restarting `npm run dev`.
 
 ## Integration queue update (17 October 2026, about 02:15 EDT)
