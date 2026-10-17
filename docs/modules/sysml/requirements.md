@@ -87,7 +87,7 @@ model element in the sense of the specifications (relationships are elements too
 
 | ID | Requirement | Source | Phase | Status |
 | --- | --- | --- | --- | --- |
-| SYS-FR-INT-01 | Requirement usages that stand for managed requirements shall reference them by canonical UUID and revision via `RequirementsService`; SysML shall store no competing requirement text. | B§5.C, contracts §5 | 3 | Implemented (link with pinned revision, live text, stale pin, update pin, unlink, assistant link_requirement); coverage analysis planned |
+| SYS-FR-INT-01 | Requirement usages that stand for managed requirements shall reference them by canonical UUID and revision via `RequirementsService`; SysML shall store no competing requirement text. | B§5.C, contracts §5 | 3 | Implemented (link with pinned revision, live text, stale pin, update pin, unlink, assistant link_requirement; AUD-5: command importRequirement, idempotent by UUID, with key and title, Matrix dialog and assistant import_requirement, see requirements-sysml-mapping.md §6); coverage analysis planned |
 | SYS-FR-INT-02 | Concepts shall link to System Model elements through `ArtifactRef` with element UUID and commit number. | B§7, contracts §5 | 3 | Planned (scheme proposed: contract change request) |
 | SYS-FR-INT-03 | Part usages shall link to CAD parts/assemblies with interface traceability and mass properties through an agreed contract. | B§8 | 3 | Planned (proposal; coordinator reconciles) |
 | SYS-FR-INT-04 | Traceability matrices, coverage and gap analysis across requirements and model. | B§5.C | 3 | Planned |

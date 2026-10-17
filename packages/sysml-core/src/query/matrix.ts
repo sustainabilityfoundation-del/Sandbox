@@ -16,6 +16,10 @@ export interface MatrixAxisItem {
   elementId: string
   label: string
   metaclass: string
+  /** Stable ID of the managed requirement the element stands for (REQ-nnn), when its EWS::ManagedRequirement metadata carries one. */
+  displayId?: string
+  /** Title of that managed requirement as recorded at import (display only; the text is owned by Requirements Management). */
+  title?: string
 }
 
 export interface MatrixCell {
@@ -83,7 +87,11 @@ export function referencedRequirement(s: Semantics, usageId: string): string | u
 function axis(s: Semantics, chain: string[]): MatrixAxisItem {
   const last = chain[chain.length - 1]
   const label = chain.length > 1 ? chain.map((id) => s.name(id) ?? '?').join('.') : (s.qualifiedName(last) ?? s.label(last))
-  return { key: chain.join('.'), elementId: last, label, metaclass: s.get(last)?.['@type'] ?? '?' }
+  const item: MatrixAxisItem = { key: chain.join('.'), elementId: last, label, metaclass: s.get(last)?.['@type'] ?? '?' }
+  const managed = chain.length === 1 ? managedOf(s, last) : undefined
+  if (managed?.requirementKey) item.displayId = managed.requirementKey
+  if (managed?.title) item.title = managed.title
+  return item
 }
 
 const REQUIREMENT_REFERENCE_MEMBERSHIPS = new Set(['RequirementVerificationMembership', 'FramedConcernMembership', 'ObjectiveMembership', 'SubjectMembership'])
@@ -158,7 +166,7 @@ export interface RequirementCoverage {
   /** Verification cases whose objective verifies it. */
   verifiedBy: { caseId: string; label: string }[]
   /** Managed requirement link (EWS::ManagedRequirement), if any. */
-  managed?: { requirementId?: string; revision?: number }
+  managed?: { requirementId?: string; revision?: number; requirementKey?: string; title?: string }
   status: CoverageStatus
 }
 
@@ -168,7 +176,7 @@ export interface CoverageReport {
   counts: Record<CoverageStatus, number> & { total: number; linkedToManaged: number }
 }
 
-function managedOf(s: Semantics, id: string): RequirementCoverage['managed'] {
+export function managedOf(s: Semantics, id: string): RequirementCoverage['managed'] {
   const els = [id, ...s.featureTypes(id)]
   for (const e of els) {
     const meta = s.ownedMembers(e).find((m) => m['@type'] === 'MetadataUsage' && s.featureTypes(m['@id']).some((t) => s.qualifiedName(t) === 'EWS::ManagedRequirement'))
@@ -179,6 +187,8 @@ function managedOf(s: Semantics, id: string): RequirementCoverage['managed'] {
       const v = fv ? s.get(refId(fv, 'ownedRelatedElement')) : undefined
       if (s.name(f['@id']) === 'requirementId' && v?.['@type'] === 'LiteralString') out.requirementId = String(v.value)
       if (s.name(f['@id']) === 'revision' && v?.['@type'] === 'LiteralInteger') out.revision = Number(v.value)
+      if (s.name(f['@id']) === 'requirementKey' && v?.['@type'] === 'LiteralString') out.requirementKey = String(v.value)
+      if (s.name(f['@id']) === 'title' && v?.['@type'] === 'LiteralString') out.title = String(v.value)
     }
     return out
   }

@@ -74,14 +74,15 @@ export function defineSysmlClientContract(name: string, setup: () => Promise<{ c
       let base = branch.headCommitId!
       const deadline = Date.now() + 45000
       let n = 0
-      while (!events.some((e) => e.type === 'sysml.commit-created') && Date.now() < deadline) {
+      const committed = () => events.some((e) => e.type === 'sysml.commit-created' && (e.commitNumber ?? 0) >= 2)
+      while (!committed() && Date.now() < deadline) {
         const out = await client.transact(project.id, branch.id, { baseCommitId: base, commands: [{ op: 'setDocumentation', elementId: 'C', text: `Contract ${++n}.` }] })
         base = out.commit!.id
         const until = Date.now() + 2000
-        while (!events.some((e) => e.type === 'sysml.commit-created') && Date.now() < until) await new Promise((r) => setTimeout(r, 50))
+        while (!committed() && Date.now() < until) await new Promise((r) => setTimeout(r, 50))
       }
       off()
-      expect(events.some((e) => e.type === 'sysml.commit-created' && (e.commitNumber ?? 0) >= 2)).toBe(true)
+      expect(committed()).toBe(true)
     })
 
     it('branches and tags', async () => {

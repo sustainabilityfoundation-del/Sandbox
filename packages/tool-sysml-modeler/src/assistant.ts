@@ -1,6 +1,6 @@
 import { ActionError, argOptionalString, argString, type RequirementSummary, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { SysmlClientError, type SysmlClient, type TransactionOutcome } from '@ews/sysml-client'
-import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, applyTransaction, checkCommandShape, findElements, isKindOf, loadText, validate, relationshipMatrix, requirementCoverage, impact, incomingReferences, isTextEditableNamespace, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
+import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, applyTransaction, checkCommandShape, findElements, isKindOf, loadText, validate, relationshipMatrix, requirementCoverage, impact, incomingReferences, isTextEditableNamespace, findManagedRequirementElement, newerRevisionNotices, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
 import { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from './projection/behavior'
 import type { Graph } from './projection/graph'
 import { existingSession, getClient } from './session'
@@ -89,7 +89,7 @@ function previewItems(model: Model, out: TransactionOutcome): ServiceProposalIte
   return items
 }
 
-async function propose(ctx: AssistantActionContext, args: Record<string, unknown>, commands: Command[], title: string, explanation: string): Promise<ServiceProposal> {
+async function propose(ctx: AssistantActionContext, args: Record<string, unknown>, commands: Command[], title: string, explanation: string, notices: string[] = []): Promise<ServiceProposal | { kind: 'data'; summary: string; data: unknown }> {
   const t = await target(ctx, argOptionalString(args, 'projectId'))
   let dry: TransactionOutcome
   try {
@@ -101,6 +101,7 @@ async function propose(ctx: AssistantActionContext, args: Record<string, unknown
     }
     throw e
   }
+  if (!dry.changes.length) return { kind: 'data', summary: `The model already contains this; nothing to change, so no proposal was made.${notices.length ? ` Notice: ${notices.join('; ')}.` : ''}`, data: { changed: false, ...(notices.length ? { notices } : {}) } }
   const assumptions = Array.isArray(args.assumptions) ? (args.assumptions as unknown[]).map(String).slice(0, 20) : []
   let commitId: string | undefined
   return {
@@ -108,7 +109,7 @@ async function propose(ctx: AssistantActionContext, args: Record<string, unknown
     module: MODULE,
     title,
     explanation,
-    preview: previewItems(t.model, dry),
+    preview: [...previewItems(t.model, dry), ...notices.map((n) => ({ label: 'Notice', proposed: n, basis: 'evidence' as const }))],
     assumptions: [
       ...assumptions,
       `Prepared against commit ${t.headCommitId.slice(0, 8)}; if the same elements change before you apply, Apply is refused and nothing is written.`,
@@ -304,22 +305,6 @@ async function productElement(ctx: AssistantActionContext, id: string, revision?
   return { id, revision: revision ?? (typeof found.version.value === 'number' ? found.version.value : undefined), label: `${found.key} ${found.title}` }
 }
 
-const safeName = (key: string) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) ? key : `'${key.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`)
-const safeDoc = (text: string) => text.replace(/\*\//g, '* /').replace(/\s+/g, ' ').trim()
-
-/** SysML text for "the managed requirement is satisfied by these elements": a requirement usage linked by metadata, and satisfy relationships. */
-function requirementAllocationText(req: RequirementSummary, satisfiedBy: string[]): string {
-  const name = safeName(req.key)
-  const lines = [
-    `requirement <${safeName(req.key)}> ${name} {`,
-    `    doc /* ${safeDoc(req.title)}${req.statement ? `: ${safeDoc(req.statement)}` : ''} (text owned by Requirements Management) */`,
-    `    @EWS::ManagedRequirement { requirementId = "${req.id}"; revision = ${req.revision}; }`,
-    '}',
-    ...satisfiedBy.map((x) => `satisfy ${name} by ${x};`),
-  ]
-  return lines.join('\n')
-}
-
 interface Allocation {
   requirement: string
   satisfiedBy: string[]
@@ -374,7 +359,8 @@ async function linkCommands(ctx: AssistantActionContext, model: Model, allocatio
       const ty = s.get(t)!['@type']
       if (!isKindOf(ty, 'Usage') && !isKindOf(ty, 'Definition')) throw new ActionError('invalid-arguments', `${s.label(t)} is a ${ty}; requirements are satisfied by parts (definitions or usages).`)
     }
-    commands.push({ op: 'applyText', namespaceId: topPackage(model, targets[0]), mode: 'append', text: requirementAllocationText(req, targets.map((t) => s.qualifiedName(t) ?? t)) })
+    // One command for all paths (AUD-5): idempotent by the managed requirement UUID, so allocating again never creates a second element.
+    commands.push({ op: 'importRequirement', ownerId: topPackage(model, targets[0]), requirementId: req.id, key: req.key, title: req.title, revision: req.revision, satisfiedBy: targets.map((t) => s.qualifiedName(t) ?? t) })
     summary.push(`${req.key} (rev ${req.revision}) satisfied by ${targets.map((t) => s.qualifiedName(t)).join(', ')}`)
   }
   for (const p of products) {
@@ -503,6 +489,50 @@ const linkRequirement: AssistantActionDefinition = {
   },
 }
 
+const importRequirementAction: AssistantActionDefinition = {
+  name: 'sysml-modeler.import_requirement',
+  label: 'Bring a managed requirement into the System Model',
+  description:
+    'Propose bringing a requirement managed by Requirements Management (key such as REQ-001, or UUID) into the System Model as a SysML requirement usage that carries its UUID, pinned revision, key and title (the text stays in Requirements). Optionally also satisfy links from the given parts (satisfiedBy, qualified names). Idempotent: when the model already has a requirement for that managed requirement it is reused, never duplicated, and only missing satisfy links are added. This is what fills the requirements matrix and coverage for managed requirements; for an existing SysML requirement use link_requirement.',
+  parameters: {
+    type: 'object',
+    properties: {
+      requirement: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }], description: 'Managed requirement key (REQ-001) or UUID, or a list of them (all with the same satisfiedBy)' },
+      satisfiedBy: { type: 'array', items: { type: 'string' }, description: 'Qualified names of the parts or features that satisfy it' },
+      namespace: { type: 'string', description: 'Package that receives a new requirement (default: the package of the first satisfying part, else the first package)' },
+      explanation: { type: 'string' },
+      ...projectArg,
+    },
+    required: ['requirement'],
+    additionalProperties: false,
+  },
+  run: async (args, ctx) => {
+    const t = await target(ctx, argOptionalString(args, 'projectId'))
+    const wanted = Array.isArray(args.requirement) ? args.requirement : [args.requirement]
+    if (!wanted.length || wanted.some((x) => typeof x !== 'string' || !x.trim())) throw new ActionError('invalid-arguments', '“requirement” must be a key (REQ-001) or UUID, or a list of them.')
+    const reqs: RequirementSummary[] = []
+    for (const w of wanted as string[]) {
+      const r = await managedRequirement(ctx, w.trim())
+      if (!reqs.some((x) => x.id === r.id)) reqs.push(r)
+    }
+    const by = args.satisfiedBy === undefined ? [] : Array.isArray(args.satisfiedBy) && args.satisfiedBy.every((x) => typeof x === 'string' && x) ? (args.satisfiedBy as string[]) : undefined
+    if (!by) throw new ActionError('invalid-arguments', '“satisfiedBy” must be a list of qualified names.')
+    const targets = by.map((x) => element(t.model, x)['@id'])
+    const s = semanticsOf(t.model)
+    const ns = argOptionalString(args, 'namespace')
+    const first = s.ownedMembers(t.model.rootId).find((m) => isKindOf(m['@type'], 'Package'))
+    const ownerId = ns ? element(t.model, ns)['@id'] : targets.length ? topPackage(t.model, targets[0]) : (first?.['@id'] ?? t.model.rootId)
+    const commands: Command[] = reqs.map((req) => ({ op: 'importRequirement', ownerId, requirementId: req.id, key: req.key, title: req.title, revision: req.revision, ...(targets.length ? { satisfiedBy: targets.map((x) => s.qualifiedName(x) ?? x) } : {}) }))
+    const parts = reqs.map((req) => {
+      const existing = findManagedRequirementElement(t.model, req.id)
+      return `${req.key} “${req.title}” (revision ${req.revision}) ${existing ? `reuses ${s.qualifiedName(existing['@id']) ?? existing['@id']} (no second element)` : `becomes a requirement in ${s.qualifiedName(ownerId) ?? 'the model root'}`}`
+    })
+    const keys = reqs.map((r) => r.key).join(', ')
+    const notices = newerRevisionNotices(t.model, reqs)
+    return propose(ctx, args, commands, `Bring ${keys} into the System Model`, argOptionalString(args, 'explanation') ?? `${parts.join('; ')}${targets.length ? `; satisfied by ${by.join(', ')}` : ''}. Their text stays in Requirements Management.${notices.length ? ` Notice: ${notices.join('; ')}.` : ''}`, notices)
+  },
+}
+
 const matrixAction: AssistantActionDefinition = {
   name: 'sysml-modeler.matrix',
   label: 'SysML relationship matrix',
@@ -514,10 +544,10 @@ const matrixAction: AssistantActionDefinition = {
     const scopeRef = argOptionalString(args, 'scope')
     const scope = scopeRef ? element(t.model, scopeRef)['@id'] : t.model.rootId
     const m = relationshipMatrix(t.model, kind, scope)
-    const label = new Map([...m.rows, ...m.cols].map((a) => [a.key, a.label]))
+    const label = new Map([...m.rows, ...m.cols].map((a) => [a.key, a.displayId ?? a.label]))
     const cells = m.cells.map((c) => ({ row: label.get(c.row), col: label.get(c.col), relationships: c.relationships.map((r) => r.metaclass) }))
-    const emptyRows = m.rows.filter((r) => !m.cells.some((c) => c.row === r.key)).map((r) => r.label)
-    return { kind: 'data', summary: `${kind} matrix: ${m.rows.length} × ${m.cols.length}, ${cells.length} filled cells`, data: { kind, rows: m.rows.map((r) => r.label), columns: m.cols.map((c) => c.label), cells, rowsWithoutRelationships: emptyRows, notes: m.notes } }
+    const emptyRows = m.rows.filter((r) => !m.cells.some((c) => c.row === r.key)).map((r) => r.displayId ?? r.label)
+    return { kind: 'data', summary: `${kind} matrix: ${m.rows.length} × ${m.cols.length}, ${cells.length} filled cells`, data: { kind, rows: m.rows.map((r) => r.displayId ?? r.label), columns: m.cols.map((c) => c.label), cells, rowsWithoutRelationships: emptyRows, notes: m.notes } }
   },
 }
 
@@ -633,6 +663,6 @@ export const sysmlModelerDemo: AssistantContribution['demo'] = (text) => {
 }
 
 export const sysmlModelerAssistant: AssistantContribution = {
-  actions: [describeCommands, findElementsAction, readElement, validateAction, impactAction, explainCommit, matrixAction, coverageAction, behaviourAction, createProject, proposeCommands, proposeText, satisfyRequirement, linkRequirement, linkProductElement],
+  actions: [describeCommands, findElementsAction, readElement, validateAction, impactAction, explainCommit, matrixAction, coverageAction, behaviourAction, createProject, proposeCommands, proposeText, satisfyRequirement, importRequirementAction, linkRequirement, linkProductElement],
   demo: sysmlModelerDemo,
 }

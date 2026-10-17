@@ -5,7 +5,8 @@
 - **State:** sprint 3 (integration milestone 1) ready for coordinator review
 - **Branch:** feature/sysml @ b1ebaa5, level with main
 - **Done:** sprint 2 merged (97c64cb); satisfy_requirement AI policy entry
-- **Next actions:** coordinator review of sprint 3
+- **AUD-5 (17 Oct 2026, branch fix/aud-5-sysml-matrix, not merged):** managed requirements are bridged into the model: command `importRequirement` (idempotent by UUID; usage with `ManagedRequirement` requirementId, pinned revision, requirementKey, title; optional `satisfy`), assistant operation `sysml-modeler.import_requirement` (propose, previewed), Matrix dialog and empty state ("Managed requirements appear here once they are brought into the System Model"), `REQ-nnn` row headers; `satisfy_requirement` and `create_project` now use the same command (no second element); D1 script step 4 brings REQ-001 and REQ-002 in and `demo-d1` asserts 2 filled matrix rows. Mapping: requirements-sysml-mapping.md §6. No SysML v2 compliance claim. Contract changes: every propose operation now returns `kind: 'data'` (`changed: false`) instead of a proposal when its dry run changes nothing; `satisfy_requirement` no longer writes the `doc /* title: statement */` comment (title in metadata, statement stays in Requirements); reusing a requirement pinned at an older revision returns the notice "newer revision REQ-001 rev N available; pin kept" (preview and result, pin never changed); a satisfy target given as a feature chain (`motor.power`) is not satisfied twice on re-import.
+- **Next actions:** coordinator review of sprint 3 and of AUD-5
 - **Blockers:** none recorded
 - **Archive:** the sections below are the detailed record and are read on demand, not at session start. Format and the archive split: [handoff template](../agents/handoff-template.md#2-status-block-top-of-every-module-progress-file-kept-current-at-each-checkpoint).
 

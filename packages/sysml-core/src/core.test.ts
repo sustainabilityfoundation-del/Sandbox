@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveRef } from './commands/commands'
+import { newerRevisionNotices, resolveRef } from './commands/commands'
 import { relationshipMatrix, requirementCoverage } from './query/matrix'
 import { applyChanges, diffModels, invertChanges } from './commands/changes'
 import { COMMAND_SCHEMAS } from './commands/schemas'
@@ -420,5 +420,100 @@ describe('product element references (CR-PM-SYS-1)', () => {
     expect(refs).toContainEqual({ module: 'product', kind: 'product-element', id: '7d1f3c2e-8b1a-4c55-9e0f-1a2b3c4d5e6f', revision: 3 })
     expect(refs).toContainEqual({ module: 'cad', kind: 'cad-modeler-entity', id: '0e7c2c1a-4b7d-4f7e-9a51-2f3c6c1d9a10/e12' })
     expect(rules(model('package A { part def R { @EWS::ProductElement { productElementId = "ROD-120"; } } }'))).toEqual(['SYSML-PRODUCT-REFERENCE'])
+  })
+})
+
+describe('importRequirement (AUD-5): managed requirements enter the model once', () => {
+  const R1 = '5b1c7e2a-0001-4e6a-9c1d-6f0a3d2b1001'
+  const R2 = '5b1c7e2a-0002-4e6a-9c1d-6f0a3d2b1002'
+  const base = () => model('package A { part def HolderBlock; part def Cover; }')
+  const imp = (m: Model, extra: Record<string, unknown> = {}, rid = R1, key = 'REQ-001') => {
+    const r = applyTransaction(m, { validationPolicy: 'reject-new-errors', commands: [{ op: 'importRequirement', ownerId: 'A', requirementId: rid, key, title: 'Six bits "hex"', revision: 3, ...extra } as never] })
+    if (!r.ok) throw new Error(r.error.message)
+    return r
+  }
+  const usagesOf = (m: Model, rid: string) => requirementCoverage(m).requirements.filter((x) => x.managed?.requirementId === rid)
+
+  it('creates one requirement usage with pinned metadata (id, revision, key, title) and no satisfy links by default', () => {
+    const r = imp(base())
+    const rows = usagesOf(r.model, R1)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].managed).toEqual({ requirementId: R1, revision: 3, requirementKey: 'REQ-001', title: 'Six bits "hex"' })
+    expect(rows[0].shortName).toBe('REQ-001')
+    expect(r.commandResults[0]).toMatchObject({ op: 'importRequirement', elementId: rows[0].id })
+    expect(rules(r.model)).toEqual([])
+    expect(serialize(r.model)).toContain('@EWS::ManagedRequirement')
+  })
+
+  it('is idempotent: importing twice (also in one transaction) yields one element and keeps the first pin', () => {
+    const once = imp(base())
+    const twice = imp(once.model, { revision: 5, title: 'Changed' })
+    expect(twice.commandResults[0].elementId).toBe(once.commandResults[0].elementId)
+    expect(usagesOf(twice.model, R1)).toHaveLength(1)
+    expect(usagesOf(twice.model, R1)[0].managed?.revision).toBe(3)
+    expect(twice.changes).toEqual([])
+    const both = applyTransaction(base(), { commands: [{ op: 'importRequirement', ownerId: 'A', requirementId: R1, key: 'REQ-001', title: 'T', revision: 1 }, { op: 'importRequirement', ownerId: 'A', requirementId: R1.toUpperCase(), key: 'REQ-001', title: 'T', revision: 1 }] })
+    expect(both.ok).toBe(true)
+    if (!both.ok) return
+    expect(usagesOf(both.model, R1)).toHaveLength(1)
+    expect(requirementCoverage(both.model).requirements).toHaveLength(1)
+  })
+
+  it('reuses an existing SysML requirement that was linked by setMetadata, instead of creating a second one', () => {
+    const m = model('package A { part def HolderBlock; requirement def Existing; }')
+    const linked = applyTransaction(m, { commands: [{ op: 'setMetadata', elementId: 'A::Existing', metadata: 'ManagedRequirement', values: { requirementId: R1, revision: 2 } }] })
+    expect(linked.ok).toBe(true)
+    if (!linked.ok) return
+    const r = imp(linked.model, { satisfiedBy: ['A::HolderBlock'] })
+    expect(r.commandResults[0].elementId).toBe(id(r.model, 'A::Existing'))
+    // Definition plus usage: the usage (typed by the linked definition) is what is satisfied; a second import adds nothing.
+    const again = imp(r.model, { satisfiedBy: ['A::HolderBlock'] })
+    expect(again.changes).toEqual([])
+    expect([...again.model.elements()].filter((e) => e['@type'] === 'RequirementUsage' && !again.model.isLibrary(e['@id']))).toHaveLength(1)
+    expect(relationshipMatrix(again.model, 'satisfy').rows[0].displayId).toBeUndefined()
+    expect(relationshipMatrix(again.model, 'satisfy').cells).toHaveLength(1)
+  })
+
+  it('creates satisfy links once per target and fills the matrix with the stable ID as header', () => {
+    const a = imp(base(), { satisfiedBy: ['A::HolderBlock'] })
+    const b = imp(a.model, { satisfiedBy: ['A::HolderBlock', 'A::Cover'] })
+    const c = imp(b.model, { satisfiedBy: ['A::Cover'] })
+    const sats = [...c.model.elements()].filter((e) => e['@type'] === 'SatisfyRequirementUsage')
+    expect(sats).toHaveLength(2)
+    const mx = relationshipMatrix(c.model, 'satisfy')
+    expect(mx.rows).toHaveLength(1)
+    expect(mx.rows[0]).toMatchObject({ displayId: 'REQ-001', title: 'Six bits "hex"' })
+    expect(mx.cols.map((x) => x.label).sort()).toEqual(['A::Cover', 'A::HolderBlock'])
+    expect(mx.cells).toHaveLength(2)
+  })
+
+  it('a feature-chain target (motor.power) is not satisfied twice by a re-import', () => {
+    const m = model('package A { part def Motor { attribute power; } part motor : Motor; }')
+    const a = imp(m, { satisfiedBy: ['motor.power'] })
+    const count = (x: Model) => [...x.elements()].filter((e) => e['@type'] === 'SatisfyRequirementUsage').length
+    expect(count(a.model)).toBe(1)
+    const b = imp(a.model, { satisfiedBy: ['motor.power'] })
+    expect(count(b.model)).toBe(1)
+    expect(b.changes).toEqual([])
+  })
+
+  it('reusing a requirement pinned at an older revision returns a notice and keeps the pin', () => {
+    const once = imp(base())
+    expect(once.commandResults[0].notices).toBeUndefined()
+    const newer = imp(once.model, { revision: 5 })
+    expect(newer.commandResults[0].notices).toEqual(['newer revision REQ-001 rev 5 available; pin kept (pinned rev 3)'])
+    expect(usagesOf(newer.model, R1)[0].managed?.revision).toBe(3)
+    expect(newer.changes).toEqual([])
+    expect(imp(once.model, { revision: 3 }).commandResults[0].notices).toBeUndefined()
+    expect(newerRevisionNotices(once.model, [{ id: R1, key: 'REQ-001', revision: 4 }])).toHaveLength(1)
+  })
+
+  it('two managed requirements give two rows; invalid input is rejected', () => {
+    const a = imp(imp(base(), { satisfiedBy: ['A::HolderBlock'] }).model, { satisfiedBy: ['A::HolderBlock'] }, R2, 'REQ-002')
+    expect(relationshipMatrix(a.model, 'satisfy').rows.map((r) => r.displayId)).toEqual(['REQ-001', 'REQ-002'])
+    const bad = applyTransaction(base(), { commands: [{ op: 'importRequirement', ownerId: 'A', requirementId: 'REQ-001', key: 'REQ-001', title: 'T' }] })
+    expect(bad.ok).toBe(false)
+    const unknown = applyTransaction(base(), { commands: [{ op: 'importRequirement', ownerId: 'A', requirementId: R1, key: 'REQ-001', title: 'T', satisfiedBy: ['A::Nope'] }] })
+    expect(unknown.ok).toBe(false)
   })
 })

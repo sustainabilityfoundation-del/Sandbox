@@ -36,7 +36,7 @@ export type TransactionResult =
       summaryText: string
       /** Placeholder → element ID, and the main element of each command (by index). */
       createdIds: Record<string, string>
-      commandResults: { op: string; elementId?: string }[]
+      commandResults: { op: string; elementId?: string; notices?: string[] }[]
       diagnostics: DiagnosticsDelta
       /** IDs of elements that touched by the change (written set), for concurrency checks. */
       touched: string[]
@@ -86,13 +86,13 @@ export function applyTransaction(base: Model, input: TransactionInput): Transact
   if (!Array.isArray(input.commands) || !input.commands.length) return { ok: false, error: { code: 'invalid', message: 'A transaction needs at least one command.' } }
   const model = base.clone()
   const placeholders = new Map<string, string>()
-  const commandResults: { op: string; elementId?: string }[] = []
+  const commandResults: { op: string; elementId?: string; notices?: string[] }[] = []
   for (const [k, cmd] of input.commands.entries()) {
     try {
       const shape = checkCommandShape(cmd)
       if (shape) throw new CommandError('invalid', shape)
       const r = executeCommand({ model, base, placeholders }, cmd)
-      commandResults.push({ op: cmd.op, elementId: r.elementId })
+      commandResults.push({ op: cmd.op, elementId: r.elementId, ...(r.notices?.length ? { notices: r.notices } : {}) })
     } catch (e) {
       if (e instanceof CommandError) return { ok: false, error: { code: e.code, message: `Command ${k + 1} (${(cmd as { op?: string }).op}): ${e.message}`, commandIndex: k, diagnostics: e.diagnostics } }
       throw e
