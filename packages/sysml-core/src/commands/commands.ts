@@ -597,14 +597,14 @@ function importRequirement(ctx: CommandContext, cmd: Extract<Command, { op: 'imp
       resolved = undefined // a feature chain such as motor.power: resolved when built
     }
     const s = new Semantics(model)
+    const chainText = by.replace(/'/g, '').replace(/\s*\.\s*/g, '.')
     if (resolved) by = resolved['@id']
     // Already satisfied? A resolved target is compared by id; a feature chain (motor.power) by its dotted name text.
-    const chainText = by.replace(/'/g, '').replace(/s*.s*/g, '.')
     const have = [...model.elements()].some(
       (e) =>
         e['@type'] === 'SatisfyRequirementUsage' &&
         referencedRequirement(s, e['@id']) === subject['@id'] &&
-        (resolved ? satisfyingChain(s, e['@id']).join('.') === resolved['@id'] : satisfyingChain(s, e['@id']).map((id) => s.name(id) ?? '').join('.') === chainText),
+        ((resolved && satisfyingChain(s, e['@id']).join('.') === resolved['@id']) || satisfyingChain(s, e['@id']).map((id) => s.name(id) ?? '').join('.') === chainText),
     )
     if (have) continue
     executeCommand(ctx, { op: 'satisfy', ownerId: satOwner, requirementId: subject['@id'], by })
