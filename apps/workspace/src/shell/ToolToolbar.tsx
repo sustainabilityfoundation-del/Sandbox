@@ -6,7 +6,7 @@ import { useWorkspaceStore } from '../platform/store'
 import type { ToolbarItem } from '@ews/platform-sdk'
 import type { AnyToolDefinition } from '@ews/platform-sdk/react'
 import { toolIdOfView } from '../platform/views'
-import { Button, Icon, MenuButton, MenuItem, Select, ToggleButton, Toolbar, ToolbarSeparator, Tooltip, cx } from '@ews/design-system'
+import { Button, Icon, MenuButton, MenuItem, NumberField, Select, ToggleButton, Toolbar, ToolbarSeparator, Tooltip, cx } from '@ews/design-system'
 
 type Item = ToolbarItem
 
@@ -22,7 +22,7 @@ function tooltipFor(item: Extract<Item, { type: 'button' }>) {
   return item.illustrative ? `${base} (illustrative in this mockup)` : base
 }
 
-function Control({ item, measuring, helpId }: { item: Item; measuring?: boolean; helpId?: string }) {
+export function Control({ item, measuring, helpId }: { item: Item; measuring?: boolean; helpId?: string }) {
   switch (item.type) {
     case 'separator':
       return <ToolbarSeparator />
@@ -40,6 +40,24 @@ function Control({ item, measuring, helpId }: { item: Item; measuring?: boolean;
             onChange={item.onChange}
             options={item.options.map((o) => ({ id: o.value, label: o.label }))}
             className="min-w-36"
+          />
+        </div>
+      )
+    case 'number':
+      return (
+        <div className="flex items-center gap-1.5 px-1">
+          <NumberField
+            label={item.label}
+            unit={item.unit}
+            size="sm"
+            value={item.value}
+            minValue={item.min}
+            maxValue={item.max}
+            step={item.step}
+            isDisabled={item.disabled}
+            onChange={(v) => {
+              if (Number.isFinite(v)) item.onChange(v)
+            }}
           />
         </div>
       )

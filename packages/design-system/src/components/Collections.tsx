@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import {
   Cell as AriaCell,
   Group,
@@ -72,9 +72,15 @@ export function ToolbarSeparator() {
 }
 
 /** A labelled group of related toolbar controls (selection tools, zoom, view modes). */
-export function ToolbarGroup({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+export function ToolbarGroup({ label, description, children, className }: { label: string; /** Read after the name, e.g. "2 of 5 available". */ description?: string; children: ReactNode; className?: string }) {
+  const descriptionId = useId()
   return (
-    <Group aria-label={label} className={cx('ws-toolbar-group flex flex-none items-center gap-0.5', className)}>
+    <Group aria-label={label} aria-describedby={description ? descriptionId : undefined} className={cx('ws-toolbar-group flex flex-none items-center gap-0.5', className)}>
+      {description && (
+        <span id={descriptionId} className="sr-only">
+          {description}
+        </span>
+      )}
       {children}
     </Group>
   )

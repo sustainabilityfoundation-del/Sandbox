@@ -101,7 +101,7 @@ export interface MenuItemProps extends Omit<AriaMenuItemProps, 'className' | 'ch
   /** Trailing content such as a favourite marker. */
   trailing?: ReactNode
   children: ReactNode
-  tone?: 'default' | 'danger'
+  tone?: 'default' | 'danger' | 'muted'
 }
 
 export function MenuItem({ icon, shortcut, description, trailing, children, tone = 'default', textValue, ...props }: MenuItemProps) {
@@ -111,7 +111,7 @@ export function MenuItem({ icon, shortcut, description, trailing, children, tone
       {...props}
       className={cx(
         'group flex min-h-[max(var(--ws-control-h),var(--ws-touch-target))] cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-1 text-ui-sm outline-none',
-        tone === 'danger' ? 'text-error' : 'text-fg',
+        tone === 'danger' ? 'text-error' : tone === 'muted' ? 'text-fg-3' : 'text-fg',
         'data-[hovered]:bg-hover data-[focused]:bg-hover data-[pressed]:bg-pressed',
         'data-[disabled]:cursor-default data-[disabled]:opacity-40',
         'data-[focus-visible]:outline-2 data-[focus-visible]:-outline-offset-2 data-[focus-visible]:outline-focus',
@@ -137,9 +137,34 @@ export function MenuItem({ icon, shortcut, description, trailing, children, tone
   )
 }
 
-export function MenuSection({ title, children }: { title?: string; children: ReactNode }) {
+export function MenuSection({
+  title,
+  label,
+  children,
+  flush,
+  selectionMode,
+  selectedKeys,
+  onSelectionChange,
+}: {
+  title?: string
+  /** Accessible name when there is no visible title. */
+  label?: string
+  children: ReactNode
+  /** No separator above (consecutive checked items that read as one block). */
+  flush?: boolean
+  /** Checked items: `multiple` with the checked ids in `selectedKeys`. */
+  selectionMode?: 'none' | 'single' | 'multiple'
+  selectedKeys?: Iterable<string>
+  onSelectionChange?: (keys: "all" | Set<string>) => void
+}) {
   return (
-    <AriaMenuSection className="[&:not(:first-child)]:mt-1 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-line [&:not(:first-child)]:pt-1">
+    <AriaMenuSection
+      aria-label={title ? undefined : label}
+      selectionMode={selectionMode}
+      selectedKeys={selectedKeys}
+      onSelectionChange={onSelectionChange as ((keys: 'all' | Set<React.Key>) => void) | undefined}
+      className={cx(!flush && '[&:not(:first-child)]:mt-1 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-line [&:not(:first-child)]:pt-1')}
+    >
       {title && <Header className="px-3 pb-1 pt-2 text-ui-xs font-medium tracking-wide text-fg-3">{title}</Header>}
       {children}
     </AriaMenuSection>

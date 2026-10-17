@@ -2,7 +2,19 @@
  * '@ews/platform-sdk/react': the React side of the tool contract. Tool views
  * use these hooks; the platform (workspace or harness) provides the host.
  */
-export { buildCommandModel, FALLBACK_GROUP_ID, type CommandModel } from './commandModel'
+export {
+  buildCommandModel,
+  EMPTY_COMMAND_MODEL,
+  EVIDENCE_GAP_TEXT,
+  FALLBACK_GROUP_ID,
+  SESSION_OPEN_TEXT,
+  type CommandModel,
+  type CommandModelContextSet,
+  type CommandModelPalette,
+  type CommandModelPanel,
+  type CommandModelSession,
+} from './commandModel'
+export { CommandModelProvider, useCommandModel, useContextSet, usePalette } from './commandHooks'
 export { defineTool, type AnyToolDefinition, type ToolDefinition } from './defineTool'
 export type { ClientModule, ModuleHostEnv } from './modules'
 export { PlatformHostProvider, ToolScope, shallowEqual, useHostValue, usePlatformHost, useToolScope } from './host'

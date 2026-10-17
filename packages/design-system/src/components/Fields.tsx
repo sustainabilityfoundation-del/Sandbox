@@ -9,6 +9,7 @@ import {
   Label,
   ListBox,
   ListBoxItem,
+  NumberField as AriaNumberField,
   SearchField as AriaSearchField,
   Select as AriaSelect,
   SelectValue,
@@ -20,6 +21,7 @@ import {
   type ComboBoxProps,
   type Key,
   type ListBoxItemProps,
+  type NumberFieldProps as AriaNumberFieldProps,
   type SearchFieldProps,
   type TextFieldProps as AriaTextFieldProps,
 } from 'react-aria-components'
@@ -294,3 +296,46 @@ export function ComboBox({
     </AriaComboBox>
   )
 }
+
+// ---- Number field --------------------------------------------------------------------------
+
+export interface NumberFieldProps extends Omit<AriaNumberFieldProps, 'className' | 'children' | 'aria-label'> {
+  /** Visible label. Without one, `ariaLabel` names the field (compact toolbar use). */
+  label?: ReactNode
+  ariaLabel?: string
+  /** Visible unit after the input, e.g. "mm". Announced as part of the name. */
+  unit?: string
+  className?: string
+  inputClassName?: string
+  size?: 'sm' | 'md'
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>
+}
+
+/**
+ * A numeric field with `min`, `max` and `step` (arrow keys step, Page Up/Down step by ten, Home/End jump to the
+ * limits) and an optional unit. The value is committed on Enter and on blur.
+ */
+export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(function NumberField(
+  { label: text, ariaLabel, unit, className, inputClassName, size = 'md', onKeyDown, ...props },
+  ref,
+) {
+  const named = unit && typeof text === 'string' ? `${text} (${unit})` : text
+  const name = ariaLabel ? (unit ? `${ariaLabel} (${unit})` : ariaLabel) : undefined
+  return (
+    <AriaNumberField {...props} aria-label={text ? undefined : name} className={cx('flex min-w-0 flex-col gap-1', className)}>
+      {text && <Label className={label}>{named}</Label>}
+      <div className="flex items-center gap-1.5">
+        <Input
+          ref={ref}
+          onKeyDown={onKeyDown}
+          className={cx(fieldBox, size === 'sm' ? 'h-ctl-sm w-24' : 'h-ctl w-28', 'font-mono tabular-nums', inputClassName)}
+        />
+        {unit && (
+          <span aria-hidden="true" className="text-ui-sm text-fg-2">
+            {unit}
+          </span>
+        )}
+      </div>
+    </AriaNumberField>
+  )
+})

@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium, type Browser, type Page } from 'playwright-core'
 import { createServer, type ViteDevServer } from 'vite'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const chrome = process.env.CHROME_PATH ?? (process.platform === 'win32' ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : '/usr/bin/google-chrome')
@@ -22,10 +22,12 @@ if (!haveChrome) {
   console.warn(`SKIPPED: ${message}`)
 }
 
-describe.skipIf(!haveChrome)('CommandBar in a browser', () => {
+// 60 s per test: under full-suite load the first interactions can be slow; the page default (15 s) bounds each wait.
+describe.skipIf(!haveChrome)('CommandBar in a browser', { timeout: 60_000 }, () => {
   let server: ViteDevServer
   let browser: Browser
   let base = ''
+  const pages = new Set<Page>()
 
   beforeAll(async () => {
     server = await createServer({
@@ -39,16 +41,34 @@ describe.skipIf(!haveChrome)('CommandBar in a browser', () => {
     await server.listen()
     base = server.resolvedUrls!.local[0]
     browser = await chromium.launch({ executablePath: chrome, headless: true })
+    // Warm-up: Vite transforms the fixture and Tailwind on demand; load the page once so no test pays for it.
+    const warmPage = await browser.newPage()
+    try {
+      warmPage.setDefaultTimeout(60_000)
+      await warmPage.goto(`${base}`, { timeout: 80_000 })
+      await warmPage.locator('#root > *').first().waitFor({ timeout: 80_000 })
+    } finally {
+      await warmPage.close()
+    }
     if (shots) mkdirSync(shots, { recursive: true })
-  }, 90_000)
+  }, 120_000)
+
+  // 60 s: closing Chromium and the Vite server can take well over the default hook timeout when several
+  // suites (or agents) run in parallel on one machine (see the testTimeout note in vitest.config.ts).
+  afterEach(async () => {
+    await Promise.all([...pages].map((p) => p.close().catch(() => undefined)))
+    pages.clear()
+  })
 
   afterAll(async () => {
     await browser?.close()
     await server?.close()
-  })
+  }, 60_000)
 
   async function open(query = '', viewport = { width: 1000, height: 600 }): Promise<Page> {
     const page = await browser.newPage({ viewport })
+    pages.add(page)
+    page.setDefaultTimeout(15_000)
     await page.goto(`${base}?${query}`)
     await page.getByRole('toolbar', { name: 'Demo toolbar' }).waitFor()
     return page
@@ -166,6 +186,38 @@ describe.skipIf(!haveChrome)('CommandBar in a browser', () => {
     expect(await page.getByRole('tablist').count()).toBe(0)
     await page.getByRole('button', { name: 'Edit', exact: true }).click()
     await page.getByRole('menuitem', { name: /Fillet, planned/ }).waitFor()
+    await page.close()
+  })
+
+  // The measured layout (no forced layout): below 520 px a phone, below 840 px a tablet, otherwise desktop.
+  it('at 520 px is the tablet layout: secondary commands move into a group menu, and nothing scrolls sideways', async () => {
+    const page = await open('', { width: 520, height: 600 })
+    await page.getByRole('button', { name: 'Edit: more commands' }).waitFor()
+    expect(await page.getByRole('button', { name: 'Fillet, planned' }).count()).toBe(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+    await page.close()
+  })
+
+  it('at 519 px is the phone layout: groups are menus and the tabs are a select', async () => {
+    const page = await open('tabs=1', { width: 519, height: 600 })
+    await page.getByRole('button', { name: 'Edit', exact: true }).waitFor()
+    expect(await page.getByRole('tablist').count()).toBe(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+    await page.close()
+  })
+
+  it('at 840 px is the desktop layout: every command is in the bar, tabs are a tab list, and nothing scrolls sideways', async () => {
+    const page = await open('tabs=1', { width: 840, height: 600 })
+    await page.getByRole('button', { name: 'Fillet, planned' }).waitFor()
+    await page.getByRole('tablist').waitFor()
+    expect(await page.getByRole('button', { name: 'Edit: more commands' }).count()).toBe(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+    await page.close()
+  })
+
+  it('at 839 px is the tablet layout', async () => {
+    const page = await open('', { width: 839, height: 600 })
+    await page.getByRole('button', { name: 'Edit: more commands' }).waitFor()
     await page.close()
   })
 

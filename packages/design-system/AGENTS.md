@@ -24,7 +24,7 @@ Owner: the ui-ux-design-system agent (Platform area). Reference: [docs/modules/d
 - **Density:** `comfortable` (default) and `compact` change control, row, toolbar and status-bar heights through
   tokens (`h-ctl`, `h-ctl-sm`, `h-toolbar`, `h-statusbar`, `w-rail`). Never hard-code those heights.
 - **Icons:** `AppIcon` with semantic names only. Lucide (`lucide-react`, ISC) is imported only in
-  `icons/registry.tsx`. A new name goes in `icons/names.ts` (additive; never rename or remove) and is mapped in the
+  `icons/registry.tsx`. A new name goes in its domain file under `icons/names/` (`core.ts`, `glyphs.ts`, `cad.ts`, `sysml.ts`; additive; never rename or remove; `icons/names.ts` joins them) and is mapped in the
   registry to a Lucide icon or a custom glyph made with `createLucideIcon` (same 24-unit grid and stroke). Sizes:
   16 in toolbars, trees and menus, 18–20 in primary navigation. Icon-only controls need a label (the tooltip).
 - **Fonts and icons are self-hosted** from npm; no CDN. Record every dependency with its licence in
