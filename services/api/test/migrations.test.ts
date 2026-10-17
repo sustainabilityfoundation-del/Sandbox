@@ -132,8 +132,19 @@ describe('health and readiness', () => {
     expect((await env.server.app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200)
   })
 
+  it('/ready is reused for the cache window', async () => {
+    const cached = await createTestEnv({ seed: false, readyCacheMs: 60_000 })
+    try {
+      expect((await cached.server.app.inject({ method: 'GET', url: '/ready' })).statusCode).toBe(200)
+      await cached.pool.query('DELETE FROM cad.schema_migrations WHERE version = (SELECT max(version) FROM cad.schema_migrations)')
+      expect((await cached.server.app.inject({ method: 'GET', url: '/ready' })).statusCode).toBe(200)
+    } finally {
+      await cached.close()
+    }
+  })
+
   it('X-Dev-User is refused on a deployed server unless explicitly allowed', async () => {
-    const deployed = await createTestEnv({ seed: true, production: true })
+    const deployed = await createTestEnv({ seed: true, production: true, env: {} })
     try {
       expect((await deployed.call('ada', 'GET', '/api/platform/v1/me')).status).toBe(401)
       expect((await deployed.call('ada', 'GET', '/api/platform/v1/dev-users')).status).toBe(404)

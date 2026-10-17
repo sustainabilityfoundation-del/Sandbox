@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Pool } from 'pg'
 import type { FastifyRequest } from 'fastify'
-import { devIdentitiesAllowed, isDeployed, readConfig } from './config'
+import { devIdentitiesAllowed, isDeployed, readAiConfig, readConfig } from './config'
+import { prepareExternal } from './database'
 import { identity } from './platform/identity'
 import { SCHEMA_MIGRATIONS } from './migrations'
 
@@ -44,6 +45,35 @@ describe('refuse the embedded database when deployed', () => {
       expect(c.seedOnStart).toBe(false)
       expect(c.allowDevIdentities).toBe(false)
     }
+  })
+})
+
+describe('external database at start-up', () => {
+  const cfgFor = (production: boolean) => ({ production, databaseUrl: 'postgres://ews_app:x@db.internal:5432/ews', databaseName: 'ews' })
+  it('deployed: checks the target database only and never creates one', async () => {
+    const seen: string[] = []
+    let created = 0
+    const deps = { canConnect: async (u: string) => (seen.push(u), true), ensureDatabase: async () => void created++ }
+    expect(await prepareExternal(cfgFor(true), deps)).toBeUndefined()
+    expect(seen).toEqual([cfgFor(true).databaseUrl])
+    expect(await prepareExternal(cfgFor(true), { ...deps, canConnect: async () => false })).toMatch(/bootstrap/)
+    expect(created).toBe(0)
+  })
+  it('local: checks the admin database and creates the target if missing', async () => {
+    const seen: string[] = []
+    let created = 0
+    const deps = { canConnect: async (u: string) => (seen.push(u), true), ensureDatabase: async () => void created++ }
+    expect(await prepareExternal(cfgFor(false), deps)).toBeUndefined()
+    expect(seen[0]).toMatch(/\/postgres$/)
+    expect(created).toBe(1)
+  })
+})
+
+describe('AI configuration follows the deployment flag', () => {
+  it('EWS_DEPLOYED=1 forces user mode like production', () => {
+    const r = readAiConfig({ EWS_DEPLOYED: '1', EWS_AI_MODE: 'mock' })
+    expect(r.config.mode).toBe('user')
+    expect(r.config.allowUnverifiedPricing).toBe(false)
   })
 })
 

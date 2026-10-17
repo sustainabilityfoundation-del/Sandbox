@@ -79,6 +79,9 @@ async function main() {
       return
     }
     case 'seed':
+      if (cfg.production && process.env.EWS_ALLOW_SEED_DEPLOYED !== '1') {
+        throw new Error('Refusing to seed a deployed database (development users and sample projects). Set EWS_ALLOW_SEED_DEPLOYED=1 only if you really mean it.')
+      }
       await withServer(async (adminUrl) => {
         await ensureDatabase(adminUrl, cfg.databaseName)
         const r = await withPool((pool) => prepareDatabase(pool, { seed: true }))

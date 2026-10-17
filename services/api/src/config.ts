@@ -104,7 +104,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
  *   `EWS_AI_ALLOW_UNVERIFIED_PRICING` (default 1 in development, 0 in production).
  * Keys are returned inside the config and must never be logged or serialised; `warnings` never contain a key.
  */
-export function readAiConfig(env: NodeJS.ProcessEnv = process.env, production = env.NODE_ENV === 'production'): { config: AiRuntimeConfig; warnings: string[] } {
+export function readAiConfig(env: NodeJS.ProcessEnv = process.env, production = isDeployed(env)): { config: AiRuntimeConfig; warnings: string[] } {
   const warnings: string[] = []
   const requested = (env.EWS_AI_MODE ?? '').trim().toLowerCase()
   const fakeAlias = env.EWS_ASSISTANT_FAKE_PROVIDER === '1'

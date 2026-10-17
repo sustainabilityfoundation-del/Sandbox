@@ -49,6 +49,10 @@ export interface ServerOptions {
   storage: ObjectStorage
   /** Deployed (default: NODE_ENV=production or EWS_DEPLOYED=1). */
   production?: boolean
+  /** Environment for the deployment switches (default process.env); tests pass an explicit one. */
+  env?: NodeJS.ProcessEnv
+  /** How long a /ready answer is reused, in ms (default 5000; 0 disables). */
+  readyCacheMs?: number
   /** Accept X-Dev-User. Default: outside a deployment yes; deployed only with EWS_ALLOW_DEV_IDENTITIES=1. */
   devIdentities?: boolean
   twin?: TwinDirectory
@@ -134,8 +138,8 @@ export async function prepareDatabase(pool: Pool, opts: { seed: boolean; twin?: 
 }
 
 export async function buildServer(options: ServerOptions): Promise<ApiServer> {
-  const production = options.production ?? isDeployed()
-  const devIdentities = options.devIdentities ?? (!production || process.env.EWS_ALLOW_DEV_IDENTITIES === '1')
+  const production = options.production ?? isDeployed(options.env)
+  const devIdentities = options.devIdentities ?? (!production || (options.env ?? process.env).EWS_ALLOW_DEV_IDENTITIES === '1')
   const app = Fastify({ logger: options.logger ?? false, bodyLimit: 2 * 1024 * 1024, forceCloseConnections: true })
   const events = await createEventHub(options.pool, { pollMs: options.eventPollMs, retentionHours: options.outboxRetentionHours, onError: (e) => app.log.error(e) })
   const conceptEvents = await createConceptsEventHub(options.pool, { pollMs: options.eventPollMs, retentionHours: options.outboxRetentionHours, onError: (e) => app.log.error(e) })
@@ -157,19 +161,23 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   app.get('/health', async () => ({ status: 'ok' }))
   // Readiness: the database is reachable and every schema's migrations in this image are applied (no checksum drift).
   // Counts only; no file names, SQL or driver messages are returned.
-  const ready = async (_request: unknown, reply: { code: (n: number) => unknown }) => {
+  // The answer is reused for a few seconds so a load balancer's probes do not query nine tables each time.
+  const readyCacheMs = options.readyCacheMs ?? 5000
+  let readyCached: { at: number; code: number; body: Record<string, unknown> } | undefined
+  const readyNow = async (): Promise<{ code: number; body: Record<string, unknown> }> => {
     try {
       const status = await checkMigrations(options.pool)
-      if (!status.current) {
-        reply.code(503)
-        return { status: 'not ready', database: 'reachable', migrations: 'not current', pending: status.pending, drift: status.drift }
-      }
-      return { status: 'ready', database: 'reachable', migrations: 'current' }
+      if (!status.current) return { code: 503, body: { status: 'not ready', database: 'reachable', migrations: 'not current', pending: status.pending, drift: status.drift } }
+      return { code: 200, body: { status: 'ready', database: 'reachable', migrations: 'current' } }
     } catch (error) {
       app.log.error({ err: error }, 'readiness check failed')
-      reply.code(503)
-      return { status: 'not ready', database: 'unreachable' }
+      return { code: 503, body: { status: 'not ready', database: 'unreachable' } }
     }
+  }
+  const ready = async (_request: unknown, reply: { code: (n: number) => unknown }) => {
+    if (!readyCached || Date.now() - readyCached.at >= readyCacheMs) readyCached = { at: Date.now(), ...(await readyNow()) }
+    reply.code(readyCached.code)
+    return readyCached.body
   }
   app.get('/ready', ready)
   app.get('/api/ready', ready)

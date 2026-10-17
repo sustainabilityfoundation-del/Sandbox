@@ -103,5 +103,5 @@ instance, point a temporary task at it, run `status` and read a known test proje
 
 `SEED_ON_START=false` explicitly in every deployed environment (the code default is already `false` when `NODE_ENV=production`). The prod smoke
 test checks that `platform.users` contains none of ada, rui, eli, rho, nia and that project PRJ-ACT100 does not exist. `db:seed` and `db:reset`
-are never run by the pipeline; `db:reset` also refuses any database not named `ews_dev`/`ews_test*` and any `NODE_ENV=production`.
+are never run by the pipeline (`db:seed` also refuses a deployed database unless `EWS_ALLOW_SEED_DEPLOYED=1` is set explicitly); `db:reset` also refuses any database not named `ews_dev`/`ews_test*` and any `NODE_ENV=production`.
 Dev uses a dedicated test project created by the smoke test, never existing user data (brief §7).

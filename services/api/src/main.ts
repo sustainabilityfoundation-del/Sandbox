@@ -3,7 +3,7 @@ import pg from 'pg'
 import { localObjectStorage } from '@ews/requirements-service'
 import { localBlobStore } from '@ews/projects-service'
 import { REPO_ROOT, loadEnvFile, readAiConfig, readConfig } from './config'
-import { adminUrlOf, canConnect, ensureDatabase, startEmbedded } from './database'
+import { ensureDatabase, prepareExternal, startEmbedded } from './database'
 import { buildServer, prepareDatabase } from './server'
 import { loadAssistantKey } from '@ews/assistant-service'
 
@@ -25,11 +25,11 @@ if (cfg.pgMode === 'embedded') {
   stopDb = handle.stop
   await ensureDatabase(handle.adminUrl, cfg.databaseName)
 } else {
-  if (!(await canConnect(adminUrlOf(cfg)))) {
-    console.error(`Cannot reach PostgreSQL at ${new URL(cfg.databaseUrl).host}. Start it with "npm run db:up" (Docker Compose) or set EWS_PG=embedded.`)
+  const problem = await prepareExternal(cfg)
+  if (problem) {
+    console.error(problem)
     process.exit(1)
   }
-  await ensureDatabase(adminUrlOf(cfg), cfg.databaseName)
 }
 const { config: ai, warnings: aiWarnings } = readAiConfig(process.env, cfg.production)
 for (const w of aiWarnings) console.warn(`[ai] ${w}`)
