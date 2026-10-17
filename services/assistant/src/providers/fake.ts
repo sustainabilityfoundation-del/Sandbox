@@ -1,3 +1,4 @@
+import { defaultModelId, loadModelRegistry } from '../models'
 import { ProviderError, type AssistantProvider, type ProviderMessage, type RespondInput, type RespondOutput } from './types'
 import { loadReplayScripts, replay } from './replay'
 
@@ -43,15 +44,13 @@ export function createFakeProvider(options: { id?: string; delayMs?: number; /**
   const check = (key: string) => {
     if (!key.startsWith('fake-') || key.length < 12 || key.startsWith('fake-invalid')) throw new ProviderError('invalid-credential', 'The fake provider did not accept this key (use fake- followed by at least 7 characters).', 401)
   }
-  const models = [
-    { id: 'fake-small', label: 'Fake small (scripted)' },
-    { id: 'fake-large', label: 'Fake large (scripted)' },
-  ]
+  const models = loadModelRegistry('fake').models.map((m) => ({ id: m.id, label: m.label }))
   return {
     id: options.id ?? FAKE_PROVIDER_ID,
     displayName: 'Fake provider (tests)',
     description: 'Deterministic scripted provider for tests and development. Not a language model.',
-    defaultModel: 'fake-small',
+    defaultModel: defaultModelId('fake'),
+    capabilities: { streaming: false, tools: true, structuredOutput: false, imageInput: false, reasoningEffort: false, promptCaching: false, modelDiscovery: true },
     methods: [{ id: 'api-key', kind: 'api-key', label: 'Fake key', keyLabel: 'Fake provider key', help: 'Any value starting with fake- (development only).', keyPattern: /^fake-.{7,}$/ }],
     calls,
     async listModels(credential) {
@@ -67,7 +66,7 @@ export function createFakeProvider(options: { id?: string; delayMs?: number; /**
       check(input.credential.kind === 'api-key' ? input.credential.apiKey : input.credential.accessToken)
       const text = lastUser(input.messages)
       const results = turnResults(input.messages)
-      const usage = { inputTokens: JSON.stringify(input.messages).length >> 2, outputTokens: 20 }
+      const usage = { inputTokens: JSON.stringify(input.messages).length >> 2, outputTokens: 20, reported: 'estimated' as const }
       if (/simulate timeout/i.test(text)) {
         await new Promise<void>((resolve, reject) => {
           const t = setTimeout(resolve, 600_000)

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "provider": "fake",
+  "registryVersion": "2026-10-16.1",
+  "verified": true,
+  "note": "Scripted test provider (not a language model). Its models exist only for tests and mock mode.",
+  "models": [
+    { "id": "fake-small", "label": "Fake small (scripted)", "default": true, "status": "active", "qualityTier": 1, "latencyClass": "fast", "capabilities": { "streaming": false, "tools": true } },
+    { "id": "fake-large", "label": "Fake large (scripted)", "status": "active", "qualityTier": 2, "latencyClass": "standard", "capabilities": { "streaming": false, "tools": true } }
+  ]
+}

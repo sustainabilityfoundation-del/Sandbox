@@ -43,6 +43,10 @@ const PROVIDER_STATUS: Record<ProviderError['kind'], number> = {
   unavailable: 502,
   'bad-request': 502,
   'model-not-found': 502,
+  // New kinds (AI infrastructure A); the gateway (increment C) maps them properly.
+  cancelled: 499,
+  'content-filtered': 422,
+  'context-too-long': 413,
 }
 
 function providerFailure(e: unknown): AssistantError {
