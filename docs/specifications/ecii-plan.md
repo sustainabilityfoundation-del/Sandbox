@@ -125,3 +125,26 @@ Tika, pdf.js; PROV-O as vocabulary); **0084** readiness gate and architecture-fi
 Live research depends on AI infrastructure increments A and C. Licensing: store metadata, links and short locators by default, bytes
 only for user uploads or permitted terms, never train on retrieved material, use fictional brands in fixtures. ADR-0070: no
 standard-specific gates; readiness generic and per activity. Image analysis is Phase 2. Readiness is advisory in Phase 1.
+
+## Amendment 1 (16 October 2026): refinements after the practice research
+
+From the ECII architect's second report (after [engineering-practice.md](../research/ecii/engineering-practice.md)); adopted:
+- Intent integration modes `standalone | hosted | embedded | connected | replacement | undetermined` with a rationale; rules key
+  off structure (mode not standalone), never nouns.
+- External systems carry an owner (project, external, shared) and an identified flag; a host appears once, as an existing product
+  element; concept definition components may carry `represents: ArtifactRef` (no second component).
+- Information needs replace free-text investigations: tier 1-4 and route (research, ask-user, measure, defer), open or resolved.
+  Only tier-1 research needs are researched automatically; questions are asked only for tier-1 ask-user needs, ranked by impact
+  (blocks, changes-architecture, refines).
+- Evidence is per attribute as claims (value, unit, tolerance, datum, method, status, pinned source and locator, inputs), with the
+  interpretation stored separately; `conflicting` is computed and all claims kept; evidence status, interface review state
+  (candidate, proposed, confirmed, rejected, superseded), verification and evidence currency are four separate axes (ADR-0070).
+- Readiness criteria are data keyed by activity and overridable per project or later assurance profile; the result lists the
+  blocking items.
+- Interface ownership option A (Conceptualize, own tables and route group so it can move later) recorded with options B (new
+  service) and C (product registry) in ADR-0081.
+- ADR numbering: 0081 placement and graph projection; 0082 interface definition, attribute claims, seven statuses, open items
+  (amends 0043); 0083 readiness criteria as data and architecture-first generation; 0084 research operations, research class,
+  source rights, recorded-fixture adapter.
+- D1 §1 wording ("a small block with mounting holes" as one candidate architecture rather than the problem statement) is an
+  **owner decision**, not adopted; D1-a (intent step and live-run wording) proceeds.
