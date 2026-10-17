@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium, type Browser, type Page } from 'playwright-core'
 import { createServer, type ViteDevServer } from 'vite'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const chrome = process.env.CHROME_PATH ?? (process.platform === 'win32' ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : '/usr/bin/google-chrome')
@@ -30,10 +30,16 @@ declare global {
   }
 }
 
-describe.skipIf(!haveChrome)('command surfaces in a browser', () => {
+/** Waits until every running CSS animation and transition has finished, then two frames (a state wait, not a fixed delay). */
+const settled = (page: Page) =>
+  page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))).then(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))))
+
+// 60 s per test: under full-suite load the first interactions can be slow; the page default (15 s) bounds each wait.
+describe.skipIf(!haveChrome)('command surfaces in a browser', { timeout: 60_000 }, () => {
   let server: ViteDevServer
   let browser: Browser
   let base = ''
+  const pages = new Set<Page>()
 
   beforeAll(async () => {
     server = await createServer({
@@ -47,11 +53,25 @@ describe.skipIf(!haveChrome)('command surfaces in a browser', () => {
     await server.listen()
     base = server.resolvedUrls!.local[0]
     browser = await chromium.launch({ executablePath: chrome, headless: true })
+    // Warm-up: Vite transforms the fixture and Tailwind on demand; load the page once so no test pays for it.
+    const warmPage = await browser.newPage()
+    try {
+      warmPage.setDefaultTimeout(60_000)
+      await warmPage.goto(`${base}surfaces.html?c=bar`, { timeout: 80_000 })
+      await warmPage.locator('#root > *').first().waitFor({ timeout: 80_000 })
+    } finally {
+      await warmPage.close()
+    }
     if (shots) mkdirSync(shots, { recursive: true })
-  }, 90_000)
+  }, 120_000)
 
   // 60 s: closing Chromium and the Vite server can take well over the default hook timeout when several
   // suites (or agents) run in parallel on one machine (see the testTimeout note in vitest.config.ts).
+  afterEach(async () => {
+    await Promise.all([...pages].map((p) => p.close().catch(() => undefined)))
+    pages.clear()
+  })
+
   afterAll(async () => {
     await browser?.close()
     await server?.close()
@@ -59,8 +79,9 @@ describe.skipIf(!haveChrome)('command surfaces in a browser', () => {
 
   async function open(query: string, viewport = { width: 1000, height: 600 }): Promise<Page> {
     const page = await browser.newPage({ viewport })
+    pages.add(page)
+    page.setDefaultTimeout(15_000)
     await page.goto(`${base}surfaces.html?${query}`, { timeout: 30_000 })
-    page.setDefaultTimeout(5000)
     await page.locator('#root > *').first().waitFor()
     return page
   }
@@ -134,7 +155,7 @@ describe.skipIf(!haveChrome)('command surfaces in a browser', () => {
       // Without key tips a menu's mnemonic letter is inert: it does not open the menu.
       await off.getByRole('menuitem', { name: 'File' }).focus()
       await off.keyboard.press('v')
-      await off.waitForTimeout(200)
+      await settled(off) // a frame round-trip: the key would have opened the menu by now
       expect(await off.getByRole('menu').count()).toBe(0)
       expect(await activeLabel(off)).toBe('File')
       await off.close()
@@ -270,7 +291,7 @@ describe.skipIf(!haveChrome)('command surfaces in a browser', () => {
       await page.getByRole('button', { name: 'Add', exact: true }).click()
       const sheet = page.getByRole('dialog', { name: 'Add' })
       await sheet.waitFor()
-      await page.waitForTimeout(500) // the sheet slides in
+      await settled(page) // the sheet slides in
       await sheet.getByRole('button', { name: 'Spline, planned' }).click({ force: true })
       await sheet.getByRole('note').waitFor()
       expect(await calls(page)).toEqual([])
@@ -378,7 +399,7 @@ describe.skipIf(!haveChrome)('command surfaces in a browser', () => {
       await ok.click({ force: true })
       await page.getByRole('textbox', { name: 'Depth (mm)' }).focus()
       await page.keyboard.press('Enter')
-      await page.waitForTimeout(100)
+      await settled(page)
       expect(await calls(page)).toEqual([])
       await page.close()
     })
@@ -559,7 +580,7 @@ describe.skipIf(!haveChrome)('command surfaces in a browser', () => {
     const take = async (name: string, query: string, viewport: { width: number; height: number }, act?: (page: Page) => Promise<void>) => {
       const page = await open(query, viewport)
       if (act) await act(page)
-      await page.waitForTimeout(250)
+      await settled(page)
       await page.screenshot({ path: join(shots!, `${name}.png`) })
       await page.close()
     }

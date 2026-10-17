@@ -161,7 +161,7 @@ describe('reachability', () => {
 
   it('exempts assistant-only, API-only, header and panel entries, but not an unplaced toolbar-bound entry', () => {
     const exempt = [
-      entry({ id: 'demo.ai', surface: 'assistant', aiOperations: ['demo.op'] }),
+      entry({ id: 'demo.ai', surface: 'dialog', aiOperations: ['demo.op'] }),
       entry({ id: 'demo.api', surface: 'api', apiOperations: ['GET /x'] }),
       entry({ id: 'demo.header', surface: 'header' }),
       entry({ id: 'demo.panel', surface: 'panel' }),
