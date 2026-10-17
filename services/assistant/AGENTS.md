@@ -17,8 +17,9 @@ Owner: the AI connection agent. Brief: docs/specifications/ai-connection.md; dec
 - Every model request goes through `gateway.call()` (`src/gateway/`), which routes (`src/orchestrator/`), reserves budget, writes the
   usage ledger and only then calls the adapter; never call an adapter's `respond` from anywhere else (ADR-0080,
   `docs/modules/ai-interface/orchestration.md`). If the ledger cannot record `started`, the request is refused (503).
-- Mock mode (the default, `EWS_AI_MODE`) disables every real source, including stored user connections; automated and end-to-end
-  runs must use it. Developer keys are read on the server only, in development mode only, and never leave it (status shows the
+- Mock mode (explicit: `EWS_AI_MODE=mock` or `EWS_ASSISTANT_FAKE_PROVIDER=1`; the default is `user`) disables every real source,
+  including stored user connections (they are never decrypted, called, refreshed, revoked, replaced or deleted); automated and
+  end-to-end runs must set it. Developer keys are read on the server only, in development mode only, and never leave it (status shows the
   last four characters).
 - Tests use the fake provider or a stubbed `fetch`; nothing calls a real provider unless a `*_LIVE_TEST_KEY` variable is set, and
   live tests never read a connection record or the ChatGPT sign-in. Report mock, integration and live results as separate tables.

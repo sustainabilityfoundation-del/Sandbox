@@ -103,6 +103,21 @@ describe('filters', () => {
   })
 })
 
+describe('user mode: the person’s own connection is always usable', () => {
+  const own = (over: Partial<Candidate> = {}) => dev('mystery', { source: 'user-connection', billing: 'byok', accountId: 'conn:9', known: false, pricing: undefined, ...over })
+  it('passes the automatic-mode exclusions (unknown model, ChatGPT plan) only when the flag is set', () => {
+    const plan = own({ chatgptPlan: true, billing: 'consumer-plan' })
+    for (const mode of ['economy', 'balanced', 'quality'] as const) {
+      expect(route([plan], { ...base, mode, ownConnectionAlwaysUsable: true }).candidate.accountId).toBe('conn:9')
+      expect(() => route([plan], { ...base, mode })).toThrow(RoutingError)
+    }
+    expect(route([own()], { ...base, ownConnectionAlwaysUsable: true }).rankCost).toBeNull()
+  })
+  it('does not override a provider switched off', () => {
+    expect(() => route([own()], { ...base, ownConnectionAlwaysUsable: true, disallowedProviders: new Set(['acme']) })).toThrow(RoutingError)
+  })
+})
+
 describe('unavailable models are disabled with a reason (brief criterion 7)', () => {
   it('lists a model missing from the account as disabled and never selects it', () => {
     const gone = dev('top', { tier: 3, unavailableReason: 'This model is not available on this account.' })

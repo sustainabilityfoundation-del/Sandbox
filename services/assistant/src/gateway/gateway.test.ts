@@ -128,6 +128,17 @@ describe('the dispatch sequence', () => {
     expect(metering.events.map((e) => e.event)).toEqual(['started', 'failed', 'started', 'cancelled'])
   })
 
+  it('developer-key usage that cannot be priced is charged at the reserved worst case, never as zero', async () => {
+    const { gateway, metering, openai } = build(DEV)
+    const original = openai.provider.respond
+    openai.provider.respond = async (input) => ({ ...(await original(input)), usage: { inputTokens: 10, outputTokens: 10, units: [{ dimension: 'unpriced-unit', quantity: 3 }], reported: 'provider' } })
+    const r = await gateway.call(call())
+    const [started, completed] = metering.events
+    expect(completed.estimatedProviderCost).toBe(started.reservedCost)
+    expect(completed.accountingStatus).toBe('provisional')
+    expect(r.cost.estimated).toBe(started.reservedCost)
+  })
+
   it('applies named price modifiers to the stored snapshot', async () => {
     const { gateway, metering } = build(DEV)
     await gateway.call(call({ modifiers: ['dataResidencyUplift'] }))

@@ -74,7 +74,7 @@ export async function createAiEnv(options: { openaiFetch?: typeof fetch; ai?: Pa
     policy,
     publicOrigin: 'http://127.0.0.1:8801',
     fetch: options.openaiFetch,
-    ai: options.ai,
+    ai: options.ai ?? { mode: 'mock' },
     metering: options.metering,
     retryDelaysMs: options.retryDelaysMs,
     authenticate: auth.authenticate,

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TestProject } from 'vitest/node'
+import { DEVELOPER_KEY_VARIABLES } from '@ews/assistant-service'
 import { startEmbedded } from '../src/database'
 
 import './providedContext'
@@ -9,7 +10,7 @@ import './providedContext'
 /** Starts a disposable real PostgreSQL server for the test run (or uses EWS_TEST_PG_ADMIN_URL). */
 export default async function setup(project: TestProject) {
   // Automated runs never reach a real AI provider: a key or mode in the shell of whoever runs the tests is dropped (ADR-0080).
-  for (const name of ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_AI_API_KEY', 'XAI_API_KEY']) delete process.env[name]
+  for (const name of DEVELOPER_KEY_VARIABLES) delete process.env[name]
   process.env.EWS_AI_MODE = 'mock'
   const external = process.env.EWS_TEST_PG_ADMIN_URL
   if (external) {

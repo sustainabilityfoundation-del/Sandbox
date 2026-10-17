@@ -127,12 +127,28 @@ export class AssistantBackend {
     if (this.runtime.mode === 'mock' && provider !== 'fake') throw new AssistantError('mock-mode', 'This server runs in mock mode: real AI accounts are disabled and nothing is sent to a provider. Set EWS_AI_MODE=development with a provider key to use real models.', 409)
   }
 
+  /** A person has one connection; saving a fake one would overwrite a real one stored in a shared development database. */
+  private async refuseReplacingRealConnectionInMock(userId: string) {
+    if (this.runtime.mode !== 'mock') return
+    const row = await this.store.connection(userId)
+    if (row && row.provider !== 'fake') throw new AssistantError('mock-mode', 'A real AI connection is stored for this person. Mock mode never touches it, so it will not be replaced.', 409)
+  }
+
   private async member(userId: string, projectId: string) {
     if (!(await this.o.roleOf(userId, projectId))) throw new AssistantError('forbidden', `You are not a member of project ${projectId}.`, 403)
   }
 
-  async status(userId: string): Promise<ConnectionStatus | null> {
+  /**
+   * The person's stored connection as this server may see it. Mock mode treats any row that is not the scripted fake provider as
+   * absent: it is never decrypted, refreshed, tested, revoked or deleted (the development database can hold a real connection).
+   */
+  private async ownConnection(userId: string): Promise<ConnectionRow | undefined> {
     const row = await this.store.connection(userId)
+    return row && this.runtime.mode === 'mock' && row.provider !== 'fake' ? undefined : row
+  }
+
+  async status(userId: string): Promise<ConnectionStatus | null> {
+    const row = await this.ownConnection(userId)
     return row ? publicStatus(row) : null
   }
 
@@ -147,6 +163,7 @@ export class AssistantBackend {
   async connectApiKey(principal: Principal, projectId: string, input: { provider: string; method?: string; apiKey: string; model?: string }): Promise<ConnectionStatus> {
     await this.member(principal.userId, projectId)
     this.refuseRealAccountInMock(input.provider)
+    await this.refuseReplacingRealConnectionInMock(principal.userId)
     const found = this.o.providers.method(input.provider, input.method ?? 'api-key')
     if (!found || found.method.kind !== 'api-key') throw new AssistantError('invalid', `Provider “${input.provider}” has no API key connection.`, 422)
     const apiKey = String(input.apiKey ?? '').trim()
@@ -273,7 +290,7 @@ export class AssistantBackend {
   }
 
   private async active(userId: string): Promise<{ row: ConnectionRow; provider: AssistantProvider }> {
-    const row = await this.store.connection(userId)
+    const row = await this.ownConnection(userId)
     if (!row) throw new AssistantError('not-connected', 'No AI account is connected. Connect one in Settings → AI and reasoning.', 409)
     const provider = this.o.providers.get(row.provider)
     if (!provider) throw new AssistantError('provider-unavailable', `The provider of your connection (${row.provider}) is not available on this server.`, 409)
@@ -311,7 +328,7 @@ export class AssistantBackend {
 
   /** Revokes (OAuth) and deletes the connection; the issued client registration is kept for a later sign-in. */
   async disconnect(userId: string, projectId: string): Promise<{ disconnected: boolean; revoked?: boolean }> {
-    const row = await this.store.connection(userId)
+    const row = await this.ownConnection(userId)
     if (!row) return { disconnected: false }
     let revoked: boolean | undefined
     const found = this.o.providers.method(row.provider, row.method)
@@ -376,7 +393,7 @@ export class AssistantBackend {
   async preview(principal: Principal, request: WireRequest) {
     const policy = await this.policy(principal, request.turn.context.projectId)
     const prepared = this.prepare(principal, request, policy)
-    const row = await this.store.connection(principal.userId)
+    const row = await this.ownConnection(principal.userId)
     return {
       provider: row?.provider ?? null,
       model: row?.model ?? null,

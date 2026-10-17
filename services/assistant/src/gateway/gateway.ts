@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { AssistantError } from '../errors'
-import { priceUsage, type UsageEventInput } from '../ledger'
+import { LedgerError, priceUsage, type UsageEventInput } from '../ledger'
 import { findRegistryModel, intersectModels, loadModelRegistry, type ModelRegistryFile } from '../models'
 import { evaluate, route, type Candidate, type Evaluation, type RouteDecision, type RouteRequest } from '../orchestrator/route'
 import type { RoutingMode } from '../orchestrator/settings'
@@ -229,7 +229,7 @@ export class Gateway {
 
   /** The candidates with their eligibility (the model selector shows the disabled ones with their reasons). */
   async options(userConnection: UserConnectionHandle | undefined, req: Omit<RouteRequest, 'allowUnverifiedPricing' | 'now'>): Promise<Evaluation[]> {
-    return evaluate(await this.candidates(userConnection), { ...req, allowUnverifiedPricing: this.o.runtime.allowUnverifiedPricing, now: this.now() })
+    return evaluate(await this.candidates(userConnection), { ...req, allowUnverifiedPricing: this.o.runtime.allowUnverifiedPricing, ownConnectionAlwaysUsable: this.o.runtime.mode === 'user', now: this.now() })
   }
 
   // ---- budget ---------------------------------------------------------------------------------------------
@@ -266,7 +266,7 @@ export class Gateway {
       maxOutputTokens,
       manual: c.routing.manual,
       sticky: stickyEntry && stickyEntry.expires > now.getTime() ? { accountId: stickyEntry.accountId, model: stickyEntry.model, mode: stickyEntry.mode } : undefined,
-      allowUnverifiedPricing: this.o.runtime.allowUnverifiedPricing,
+      allowUnverifiedPricing: this.o.runtime.allowUnverifiedPricing, ownConnectionAlwaysUsable: this.o.runtime.mode === 'user',
       remainingBudget,
       now,
     })
@@ -331,12 +331,14 @@ export class Gateway {
         this.o.log?.warn({ requestId, err: e instanceof Error ? e.message : 'unknown' }, 'usage could not be priced')
       }
     }
-    await this.writeEnd({ ...base, idempotencyKey: `${requestId}:completed`, event: 'completed', usage, ...priced })
+    // Developer-key usage that cannot be priced is never counted as zero: it is charged to the budget at the reserved worst case.
+    const unpriced: { estimatedProviderCost?: string; accountingStatus?: 'provisional' } = developerKey && priced.estimatedProviderCost === undefined && decision.worstCase ? { estimatedProviderCost: decision.worstCase, accountingStatus: 'provisional' } : {}
+    await this.writeEnd({ ...base, idempotencyKey: `${requestId}:completed`, event: 'completed', usage, ...priced, ...unpriced })
 
     return {
       output,
       routing: routingView(decision),
-      cost: { estimated: priced.estimatedProviderCost ?? null, currency: priced.currency ?? record?.currency ?? 'USD', verified: priced.ratesUsed?.verified ?? record?.verified ?? false, billing: chosen.billing },
+      cost: { estimated: priced.estimatedProviderCost ?? (unpriced.estimatedProviderCost ?? null), currency: priced.currency ?? record?.currency ?? 'USD', verified: priced.ratesUsed?.verified ?? record?.verified ?? false, billing: chosen.billing },
       usage: usageView(usage),
       requestId,
       target,
@@ -363,7 +365,9 @@ export class Gateway {
   // ---- fail-safe ------------------------------------------------------------------------------------------
 
   private ledgerWriteSucceeded() {
-    if (this.degradedFlag) this.o.log?.warn({ pending: this.pending.length }, 'usage ledger accepts writes again: metering is no longer degraded')
+    // Degraded ends only when nothing is left unwritten: a write that succeeds while events are still pending does not clear it.
+    if (this.pending.length) return
+    if (this.degradedFlag) this.o.log?.warn({}, 'usage ledger accepts writes again: metering is no longer degraded')
     this.degradedFlag = false
   }
 
@@ -394,12 +398,14 @@ export class Gateway {
     for (const event of this.pending) {
       try {
         await this.o.metering.record(event)
-        this.ledgerWriteSucceeded()
-      } catch {
-        left.push(event)
+      } catch (e) {
+        // A rejected event (invalid content) can never succeed: report it loudly and stop retrying it.
+        if (e instanceof LedgerError) this.o.log?.warn({ requestId: event.requestId, code: e.code }, 'usage event rejected by the ledger and dropped')
+        else left.push(event)
       }
     }
     this.pending = left
+    this.ledgerWriteSucceeded()
   }
 }
 

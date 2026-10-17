@@ -9,10 +9,10 @@ beforeAll(async () => {
 afterAll(async () => env?.close())
 
 describe('API host', () => {
-  it('mounts settings and assistant with OpenAPI and reference pages; no fake provider by default', async () => {
+  it('mounts settings and assistant with OpenAPI and reference pages; the fake provider only in mock mode (the test environments set it)', async () => {
     expect((await env.call('eli', 'GET', '/api/settings/v1/definitions')).body.pages[0].id).toBe('ai')
     const providers = (await env.call('eli', 'GET', '/api/assistant/v1/providers')).body.providers
-    expect(providers.map((p: { id: string }) => p.id)).toEqual(['openai'])
+    expect(providers.map((p: { id: string }) => p.id)).toEqual(['openai', 'fake'])
     // No loopback origin configured in tests: only the API key method is offered.
     expect(providers[0].methods.map((m: { id: string }) => m.id)).toEqual(['api-key'])
     for (const base of ['/api/settings/v1', '/api/assistant/v1']) {

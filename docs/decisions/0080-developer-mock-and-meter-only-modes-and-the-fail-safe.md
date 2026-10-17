@@ -69,10 +69,13 @@ People's own connections and mock usage do not count against the development bud
 ### Fail-safe
 
 - If `started` cannot be written the request is **refused with 503 `metering-unavailable`** and nothing is sent to a provider.
+  This applies in every mode: **in user mode too, a ledger outage now refuses the person's own connection's calls** (the owner
+  accepted metering as a precondition of any model call; before the gateway such calls needed no ledger).
 - If an end event cannot be written after retries (100, 400 and 1600 ms), the answer is still returned (the call happened), the
   event is kept in memory and retried, and the gateway is **degraded**: developer-key calls are refused (503 `metering-degraded`)
-  until a ledger write succeeds; the unwritten events are written at the next opportunity and counted in budget checks meanwhile.
-  A person's own connection is not blocked.
+  until the unwritten events have been written (the state does not clear while any is pending); they are counted in budget
+  checks meanwhile. A person's own connection is not blocked by the degraded state (only by an outage at `started`).
+  Developer-key usage that cannot be priced is charged to the budget at its reserved worst case, never as zero.
 - Mock mode is metered the same way, which is what lets the same tests prove the fail-safe.
 
 ### Orchestrator
@@ -80,7 +83,7 @@ People's own connections and mock usage do not count against the development bud
 Modes `balanced` (default), `quality`, `economy` and `manual`; Phase 1 filters (valid account, allowed provider, tool support, a
 known price for developer keys, verified price unless unverified prices are allowed, budget fit) and scoring (quality: highest
 tier; balanced: cheapest of tier 2 or higher, else the best available; economy: cheapest with tool calling). Models the registry does
-not know are Manual only. **A ChatGPT-plan connection is offered in Manual mode only.** Stickiness: the model of the first call
+not know are Manual only. **In development mode a ChatGPT-plan connection is offered in Manual mode only; in user mode the person's own connection is always usable in every routing mode** (unknown model and ChatGPT plan included; an unpriced model is metered with a null cost), so the owner's connection works with no settings change. Stickiness: the model of the first call
 stays for the tool loop and the conversation while it remains eligible and the mode is unchanged (in memory; lost on restart, which
 costs only prompt-cache reuse). Manual never substitutes another model: an unavailable, unpriced or out-of-policy choice is refused with
 the reason (fallback across providers is Phase 2 and must respect the same filters).
@@ -111,8 +114,10 @@ No library is added or linked. Nothing changes the licence position of ADR-0079 
 - `npm run dev` keeps its behaviour: without configuration the mode is `user` and a stored connection (the owner's ChatGPT sign-in)
   works as before, now metered as `consumer-plan` or `byok`. Automated runs never reach it because they set mock explicitly, and
   mock ignores stored connections. Developer keys need `EWS_AI_MODE=development`.
-- A ChatGPT-plan connection is used only when the person sets Model selection to Manual (Settings → AI and reasoning); until the
-  UI increment adds the model selector this is done in the settings page.
+- In development mode a ChatGPT-plan connection is used only when Model selection is Manual; in user mode it works in every mode.
+- Mock mode never touches a stored real connection: the connection endpoints treat it as absent (no decrypt, no provider call, no
+  refresh, no revoke, no delete), a fake connection will not replace it, and the status endpoint does not show it. `ai:dev:fake`
+  shares the development database with `npm run dev`, so this is what keeps the owner's sign-in safe.
 - A person's own connection contributes its selected model only; changing it is `PUT /connection/model`.
 - Risks: unverified prices make budget enforcement approximate (shown as "unverified estimate"); provider-side caps in each
   provider's console remain necessary because balances cannot be read; the sticky map and the pending-event queue are per process.

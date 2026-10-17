@@ -37,8 +37,9 @@ const server = await buildServer({
   // Project Management documents and attachments (content-addressed, STORAGE_DIR).
   blobs: localBlobStore(cfg.storageDir),
   // AI connection: credential key from EWS_ASSISTANT_KEY (development: generated once in .data/), loopback origin for provider sign-in.
-  // AI runtime (ADR-0080): mock by default (no external credentials, people's connections ignored); development with provider keys
-  // from the environment when EWS_AI_MODE=development. EWS_ASSISTANT_FAKE_PROVIDER=1 is an alias for mock.
+  // AI runtime (ADR-0080): user mode by default (people's own connections, as before); mock only when EWS_AI_MODE=mock or
+  // EWS_ASSISTANT_FAKE_PROVIDER=1 (no external credentials, stored connections ignored); development with provider keys from the
+  // environment when EWS_AI_MODE=development.
   assistant: { key: loadAssistantKey({ production: cfg.production, repoRoot: REPO_ROOT }), publicOrigin: `http://${cfg.host}:${cfg.port}`, fakeProvider: ai.mode === 'mock' && !cfg.production, ai },
 })
 await server.app.listen({ host: cfg.host, port: cfg.port })

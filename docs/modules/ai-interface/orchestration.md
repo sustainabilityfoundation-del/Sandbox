@@ -41,7 +41,9 @@ the pricing file of its provider. `route()` (a pure function, `orchestrator/rout
    or project); tool support when operations are offered; for developer keys a known price, verified unless
    `EWS_AI_ALLOW_UNVERIFIED_PRICING` (unverified estimates are labelled), and a complete price for everything a request can use.
 2. **Automatic modes also**: only models the registry knows (an unknown discovered model is "capabilities unknown": Manual
-   only), no ChatGPT-plan connection (Manual only), and the worst case must fit the remaining development budget.
+   only), no ChatGPT-plan connection (Manual only), and the worst case must fit the remaining development budget. **Exception, user
+   mode:** the person's own connection passes all of these exclusions in every routing mode (it is their choice; unpriced is fine,
+   metered with a null cost); only a provider switched off and missing tool support still apply.
 3. **Scoring**: *quality*: highest tier, then cheapest. *balanced* (default): cheapest of tier 2 or higher; when none is rated,
    the best available. *economy*: cheapest with reliable tool calling. Ties: default model, then name.
 4. **Stickiness**: the model of the first call is kept for the tool loop and the conversation (key: conversation, or person and

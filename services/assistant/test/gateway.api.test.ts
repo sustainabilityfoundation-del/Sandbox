@@ -303,6 +303,34 @@ describe('mock mode', () => {
     expect((await rows(env, `source <> 'mock'`))).toEqual([])
   })
 
+  it('never decrypts, calls, refreshes, revokes or deletes a stored real connection through any connection endpoint', async () => {
+    // An expired ChatGPT-plan sign-in: a normal server would refresh it (a call) the moment it is used.
+    await env.backend().store.saveConnection({ userId: 'nia', provider: 'openai', method: 'chatgpt', accountLabel: 'ChatGPT account (test)', clientId: 'client-test', secret: { kind: 'oauth', accessToken: 'test-token', refreshToken: 'test-refresh' }, accessExpiresAt: new Date(Date.now() - 3600_000), model: 'gpt-6.1-sol' })
+    const snapshot = async () => JSON.stringify((await env.pool.query(`SELECT * FROM assistant.connections WHERE user_id = 'nia'`)).rows)
+    const before = await snapshot()
+    expect(before).toContain('chatgpt')
+    const q = `projectId=${PROJECT}`
+    const results = [
+      await env.call('nia', 'GET', `${A}/connection`),
+      await env.call('nia', 'GET', `${A}/connection/models`),
+      await env.call('nia', 'PUT', `${A}/connection/model`, { model: 'gpt-6-luna' }),
+      await env.call('nia', 'POST', `${A}/connection/test`, {}),
+      await env.call('nia', 'POST', `${A}/connection/api-key?${q}`, { provider: 'fake', apiKey: 'fake-nia-key-0000000' }),
+      await env.call('nia', 'POST', `${A}/connection/api-key?${q}`, { provider: 'openai', apiKey: 'sk-test-0123456789abcdef0123' }),
+      await env.call('nia', 'POST', `${A}/connection/oauth/start?${q}`, { provider: 'openai', method: 'chatgpt' }),
+      await env.call('nia', 'POST', `${A}/preview`, wireRequest('hello', TOOLS)),
+      await ask(env, 'nia', 'hello'),
+      await env.call('nia', 'DELETE', `${A}/connection?${q}`),
+    ]
+    expect(results.map((r) => r.status)).toEqual([200, 409, 409, 409, 409, 409, 409, 200, 200, 200])
+    expect(results[0].body.connection).toBeNull()
+    expect(results[9].body).toMatchObject({ disconnected: false })
+    expect(results[8].body.meta.routing).toMatchObject({ source: 'mock' })
+    expect(stub.calls).toEqual([])
+    expect(await snapshot()).toBe(before)
+    await env.pool.query(`DELETE FROM assistant.connections WHERE user_id = 'nia'`)
+  })
+
   it('refuses to connect a real account (nothing is validated against a provider)', async () => {
     const r = await env.call('rho', 'POST', `${A}/connection/api-key?projectId=${PROJECT}`, { provider: 'openai', apiKey: 'sk-owner-real-key-0000000000009999' })
     expect(r.status).toBe(409)
@@ -361,7 +389,7 @@ describe('defaults from the environment', () => {
 describe('user mode and the context hooks', () => {
   let env: AiEnv
   beforeAll(async () => {
-    env = await createAiEnv()
+    env = await createAiEnv({ openaiFetch: openaiStub().f, ai: { mode: 'user' } })
   })
   afterAll(async () => env?.close())
 
@@ -370,13 +398,28 @@ describe('user mode and the context hooks', () => {
     expect((await env.call('eli', 'POST', `${A}/developer/providers/openai/validate`, {})).status).toBe(404)
   })
 
-  it('a ChatGPT plan connection is used in Manual mode only', async () => {
+  it('user mode: a ChatGPT plan connection works in the default routing mode with no settings change, metered as consumer-plan', async () => {
     await env.backend().store.saveConnection({ userId: 'eli', provider: 'openai', method: 'chatgpt', accountLabel: 'ChatGPT account (test)', secret: { kind: 'oauth', accessToken: 'test-token', refreshToken: 'test-refresh' }, accessExpiresAt: new Date(Date.now() + 3600_000), model: 'gpt-6.1-sol' })
-    // Automatic: refused with an explanation, the provider is not called.
-    const auto = await ask(env, 'eli', 'hello')
-    expect(auto.status).toBe(409)
-    expect(auto.body.error.code).toBe('no-model-available')
-    expect(auto.body.error.message).toMatch(/Manual mode only/)
+    for (const mode of [null, 'economy', 'quality', 'manual']) {
+      await setUser(env, 'eli', { 'ai.routing.mode': mode })
+      const r = await ask(env, 'eli', 'hello', {}, { conversationId: `CONV-PLAN-${mode}` })
+      expect(r.status).toBe(200)
+      expect(r.body.meta.routing).toMatchObject({ source: 'user-connection', billing: 'consumer-plan', model: 'gpt-6.1-sol' })
+    }
+    const events = await rows(env, `conversation_id LIKE 'CONV-PLAN-%' AND event = 'completed'`)
+    expect(events).toHaveLength(4)
+    expect(events.every((e) => e.billing === 'consumer-plan' && e.credits_charged === null)).toBe(true)
+    await setUser(env, 'eli', { 'ai.routing.mode': null })
+    await env.pool.query('DELETE FROM assistant.connections')
+  })
+
+  it('user mode: an API-key connection on a model the registry does not list is used, unpriced, metered as byok with a null cost', async () => {
+    await env.backend().store.saveConnection({ userId: 'eli', provider: 'openai', method: 'api-key', accountLabel: 'OpenAI, key ending 0000', keyLast4: '0000', secret: { kind: 'api-key', apiKey: 'sk-test-user-0123456789abcdef0000' }, model: 'gpt-unlisted-9' })
+    const r = await ask(env, 'eli', 'hello', {}, { conversationId: 'CONV-UNLISTED' })
+    expect(r.status).toBe(200)
+    expect(r.body.meta).toMatchObject({ routing: { source: 'user-connection', billing: 'byok', model: 'gpt-unlisted-9' }, cost: { estimated: null, billing: 'byok' } })
+    const done = (await rows(env, `conversation_id = 'CONV-UNLISTED' AND event = 'completed'`))[0]
+    expect(done).toMatchObject({ billing: 'byok', estimated_provider_cost: null })
     await env.pool.query('DELETE FROM assistant.connections')
   })
 

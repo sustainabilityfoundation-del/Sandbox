@@ -8,7 +8,7 @@
 - **In progress:** none
 - **Next actions:** 1. coordinator reviews and merges C (and B); 2. B: adapters register in the `ProviderRegistry`, which turns "adapter pending" providers usable with no gateway change, and add model-registry entries with tiers (the balanced mode falls back to "best available" while tiers are empty); 3. D: model selector over `GET /routing/options`, usage badge, Developer section over `GET /developer/status`
 - **Blockers and open change requests:** none
-- **Decisions needing the coordinator:** ADR-0080 acceptance; the default mode is `user` (unchanged owner workflow); mock only when explicit; a ChatGPT-plan connection works only with Model selection = Manual until D adds the selector
+- **Decisions needing the coordinator:** ADR-0080 acceptance; the default mode is `user` (unchanged owner workflow); mock only when explicit; in user mode the person's own connection works in every routing mode; a ledger outage now refuses user-mode calls too (503)
 - **Verification:** see "Increment C" below (A's results under "Increment A")
 
 Brief: [ai-infrastructure-brief.md](ai-infrastructure-brief.md). Plan: [ai-infrastructure-plan.md](ai-infrastructure-plan.md).
@@ -55,8 +55,10 @@ Brief §17 criteria by tier (full list: orchestration.md "Tests"):
 Verification run on this branch: `npm run check` (115 files, 1577 tests passed, 3 skipped), `npm run build`, `npm run ai:test:db`
 (19 files passed, 174 tests passed, live skipped), `npm run deps:check` (policy check passed), `services/api` tests on PostgreSQL
 (11 files, 113 tests). End-to-end in mock mode on own ports (API 38787, workspace 35173, PostgreSQL 54599, data `.data/pg-aic`,
-`.data/objects-aic`, `EWS_AI_MODE` unset = mock): `ai-fake-provider` PASS (82 s), `ai-headless` PASS (11 s), `demo-d1` PASS (68 s);
-the ledger then held 51 simulated requests and no real one.
+`.data/objects-aic`, started with `EWS_AI_MODE=mock` and `EWS_ASSISTANT_FAKE_PROVIDER=1`; review fixes at the commit after 2fd1d63):
+`ai-fake-provider` PASS (57 s), `ai-headless` PASS (7 s), `demo-d1` PASS (50 s). The first demo-d1 run on the fresh database failed once (cause
+not captured); the next two runs passed. The ledger held 141 requests, all simulated, none real. `npm run check` (1580 tests) and
+`ai:test:db` (181 tests) ran with `EWS_AI_MODE=mock` set.
 
 ## Notes and open issues
 
@@ -69,7 +71,8 @@ the ledger then held 51 simulated requests and no real one.
      sets it (`ai:dev:fake`, e2e recipes, test environments).
   2. With the default `balanced` mode and no tiers in the OpenAI registry entries, balanced picks the cheapest available registry
      model ("best available"); B should add `qualityTier` values so the Phase 1 scoring is meaningful.
-  3. A ChatGPT-plan connection needs Model selection = Manual (settings page) until D adds the selector.
+  3. (Resolved) In user mode the person's own connection is usable in every routing mode (ChatGPT plan included); the Manual-only
+     rule for ChatGPT plan applies in development mode only.
   4. A person's own connection offers its selected model only; automatic modes do not switch it. The sticky map and the queue of
      unwritten ledger events are per process (a restart loses them; the events are lost only if the process stops while degraded).
   5. `services/api/src/config.ts` now imports `DEVELOPER_PROVIDERS` and types from `@ews/assistant-service` (value import).

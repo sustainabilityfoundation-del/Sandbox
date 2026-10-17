@@ -56,6 +56,8 @@ export interface RouteRequest {
   /** The model used earlier in this turn's tool loop or conversation. */
   sticky?: { accountId: string; model: string; mode: RoutingMode }
   allowUnverifiedPricing: boolean
+  /** User mode: a user-connection candidate passes the automatic-mode exclusions (unknown model, ChatGPT plan). */
+  ownConnectionAlwaysUsable?: boolean
   /** Remaining development budget as a decimal string; automatic modes skip models whose worst case exceeds it. */
   remainingBudget?: string
   now?: Date
@@ -115,7 +117,9 @@ export function evaluate(candidates: Candidate[], req: RouteRequest): Evaluation
       if (!record.verified && !req.allowUnverifiedPricing) return out('The price of this model is unverified and unverified prices are not allowed (EWS_AI_ALLOW_UNVERIFIED_PRICING).')
       if (worstCase === null) return out('The price of this model does not cover everything a request can use.')
     }
-    if (req.mode !== 'manual') {
+    // User mode: the person's own connection is their choice, usable in every routing mode (even unknown models and a ChatGPT plan).
+    const ownChoice = req.ownConnectionAlwaysUsable && candidate.source === 'user-connection'
+    if (req.mode !== 'manual' && !ownChoice) {
       if (!candidate.known) return out('Capabilities unknown: choose this model in Manual mode.')
       if (candidate.chatgptPlan) return out('A ChatGPT plan connection is used in Manual mode only.')
       if (candidate.source === 'developer-key' && req.remainingBudget !== undefined && worstCase !== null && new Money(worstCase).gt(req.remainingBudget)) return out(BUDGET_REASON)
