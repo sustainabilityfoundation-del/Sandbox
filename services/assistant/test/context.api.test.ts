@@ -387,3 +387,79 @@ describe('snapshot integrity and reuse', () => {
     ])
   })
 })
+
+describe('items owned by a module whose AI access is off, described by an allowed selector', () => {
+  it('Projects registry records of requirements never reach assemble, injection or retrieve once requirements is off', async () => {
+    await env.call('eli', 'POST', `/api/projects/v1/projects/${P}/reconcile`, {}, idem())
+    const list = await env.call('eli', 'GET', `/api/projects/v1/projects/${P}/artifacts?module=requirements&limit=1`)
+    const record = list.body.items?.[0]
+    expect(record, 'the example project has registered requirements').toBeTruthy()
+    const target = { module: 'requirements', id: record.ref.id, kind: record.ref.kind }
+    const ghost = { module: 'requirements', id: 'GHOST-REQ-404', kind: record.ref.kind }
+    const owned = (pkg: unknown) => JSON.stringify(pkg)
+
+    // 1. allowed: the registry record is in the package, and a missing requirement is a not-found omission with its reference
+    const before = pkgOf(await assemble('eli', { targets: [target, ghost] }))
+    expect(before.items.some((i) => i.ref.module === 'requirements' && i.ref.id === target.id)).toBe(true)
+    expect(before.omitted.some((o) => o.reason === 'not-found' && o.refs?.some((r) => r.module === 'requirements'))).toBe(true)
+
+    // 2. requirements off (Projects still allowed): nothing owned by requirements, no omitted reference either
+    await setUserValues('eli', { 'ai.access.requirements': 'off' })
+    try {
+      const after = pkgOf(await assemble('eli', { targets: [target, ghost] }))
+      expect(after.items.some((i) => i.ref.module === 'requirements')).toBe(false)
+      expect(owned(after)).not.toContain(target.id)
+      expect(owned(after)).not.toContain('GHOST-REQ-404')
+      expect(modulesOf(after)).toContain('projects')
+
+      // 3. injection with a task that targets the requirement
+      await setUserValues('eli', { 'ai.context.mode': 'full' })
+      const s = spyGateway()
+      try {
+        const req = wireRequest('hello', ['read_help'])
+        const r = await env.call('eli', 'POST', `${A}/respond`, { ...req, turn: { ...req.turn, context: { ...req.turn.context, projectId: P }, conversationId: 'CONV-REF', task: { operation: 'x', targets: [target, ghost] } } })
+        expect(r.status).toBe(200)
+        const call = s.calls.at(-1)!
+        const text = (call.input.context?.blocks ?? []).map((b) => b.text).join('\n')
+        expect(text).not.toContain(target.id)
+        expect(text).not.toContain('GHOST-REQ-404')
+        if (call.contextId) {
+          const snap = (await env.pool.query('SELECT package FROM assistant.context_snapshots WHERE id = $1', [call.contextId])).rows[0].package
+          expect(owned(snap)).not.toContain(target.id)
+        }
+      } finally {
+        s.restore()
+        await setUserValues('eli', { 'ai.context.mode': null })
+      }
+
+      // 4. a snapshot stored BEFORE the setting changed: retrieve drops requirements items, their omitted references and targets
+      const stored = await retrieve('eli', { contextId: before.contextId })
+      expect(stored.status).toBe(200)
+      expect(owned(stored.body)).not.toContain(target.id)
+      expect(owned(stored.body)).not.toContain('GHOST-REQ-404')
+      expect(stored.body.items.some((i: any) => i.ref.module === 'requirements')).toBe(false)
+      expect(stored.body.omitted.every((o: any) => !o.refs?.some((r: any) => r.module === 'requirements'))).toBe(true)
+      expect(stored.body.task.targets.some((t: any) => t.module === 'requirements')).toBe(false)
+      // asking for it by reference gets nothing either (fresh reads are filtered too)
+      const direct = await retrieve('eli', { contextId: before.contextId, refs: [target] })
+      expect(owned(direct.body)).not.toContain(target.id)
+    } finally {
+      await setUserValues('eli', { 'ai.access.requirements': null })
+    }
+    // and with the setting restored the stored snapshot is whole again
+    expect(owned((await retrieve('eli', { contextId: before.contextId })).body)).toContain(target.id)
+  })
+
+  it('readiness of a disallowed module is dropped from a stored snapshot', async () => {
+    const pkg = pkgOf(await assemble('eli'))
+    expect(pkg.readiness).toBeTruthy()
+    await setUserValues('eli', { 'ai.access.conceptualize': 'off' })
+    try {
+      const r = await retrieve('eli', { contextId: pkg.contextId })
+      expect(r.body.readiness).toBeUndefined()
+      expect(r.body.items.some((i: any) => i.ref.module === 'conceptualize')).toBe(false)
+    } finally {
+      await setUserValues('eli', { 'ai.access.conceptualize': null })
+    }
+  })
+})

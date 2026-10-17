@@ -40,6 +40,7 @@ interface ContextGate {
   ok: boolean
   reason: string
   allow: (module: string) => boolean
+  allowRef: (refModule: string) => boolean
   sharing: { requirementText: boolean; elementDetails: boolean }
 }
 
@@ -644,6 +645,7 @@ export class AssistantBackend {
         maxTokens: routing.contextMaxTokens,
         modelContextLimit: await this.contextLimit(principal, routing, request.routing),
         allow: gate.allow,
+        allowRef: gate.allowRef,
         sharing: gate.sharing,
       })
       const bundle = renderBundle(pkg)
@@ -662,10 +664,13 @@ export class AssistantBackend {
   private contextGate(policy: AiPolicy, values: Record<string, SettingValue>): ContextGate {
     const sharing = { requirementText: policy.sharing.requirementText, elementDetails: policy.sharing.elementDetails }
     const allow = (module: string) => (policy.modules[module] ?? 'off') !== 'off'
-    if (values['ai.context-ceiling.mode'] === 'off') return { ok: false, reason: 'Platform context is switched off by the project limit set by an administrator.', allow, sharing }
-    if (!allow('context')) return { ok: false, reason: 'AI access to Platform context is off in your AI settings.', allow, sharing }
-    if (!policy.operations.read) return { ok: false, reason: 'The operation class “Read objects” is off in your AI settings.', allow, sharing }
-    return { ok: true, reason: '', allow, sharing }
+    // The AI module that owns artifacts of a reference module (fail closed: an unknown module counts as off).
+    const REF_OWNER: Record<string, string> = { sysml: 'sysml-modeler', cad: 'cad-modeler', product: 'projects', external: 'projects', twin: 'workspace' }
+    const allowRef = (refModule: string) => allow(REF_OWNER[refModule] ?? refModule)
+    if (values['ai.context-ceiling.mode'] === 'off') return { ok: false, reason: 'Platform context is switched off by the project limit set by an administrator.', allow, allowRef, sharing }
+    if (!allow('context')) return { ok: false, reason: 'AI access to Platform context is off in your AI settings.', allow, allowRef, sharing }
+    if (!policy.operations.read) return { ok: false, reason: 'The operation class “Read objects” is off in your AI settings.', allow, allowRef, sharing }
+    return { ok: true, reason: '', allow, allowRef, sharing }
   }
 
   private requireContexts(): ContextAssembler {
@@ -688,6 +693,7 @@ export class AssistantBackend {
       maxTokens: routing.contextMaxTokens,
       modelContextLimit: await this.contextLimit(principal, routing),
       allow: gate.allow,
+      allowRef: gate.allowRef,
       sharing: gate.sharing,
     })
     return { package: pkg, text: { blocks: renderBundle(pkg).blocks.map((b) => ({ id: b.id, trust: b.trust, text: b.text })) } }
@@ -699,7 +705,7 @@ export class AssistantBackend {
     const { values, policy } = await this.settingsOf(principal, input.projectId)
     const gate = this.contextGate(policy, values)
     if (!gate.ok) throw new AssistantError('context-not-allowed', gate.reason, 403)
-    return contexts.retrieve(principal, forward, { ...input, allow: gate.allow, sharing: gate.sharing })
+    return contexts.retrieve(principal, forward, { ...input, allow: gate.allow, allowRef: gate.allowRef, sharing: gate.sharing })
   }
 
   /** One step of the browser's tool-calling loop. */
