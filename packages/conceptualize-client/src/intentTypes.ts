@@ -1,0 +1,99 @@
+/**
+ * Engineering Intent types of the Conceptualize API (ECII increment 1), mirroring
+ * services/conceptualize/src/http/intentSchemas.ts. Generic: no engineering-domain vocabulary.
+ */
+import type { ArtifactRefInput, ProvenanceInfo } from './types'
+import type { Assumption, DesignConstraint } from './designTypes'
+
+export type IntentRole = 'standalone' | 'accessory' | 'component' | 'modification' | 'system'
+export type IntegrationMode = 'standalone' | 'hosted' | 'embedded' | 'connected' | 'replacement' | 'undetermined'
+export type SystemRelation = 'mounts-to' | 'connects-to' | 'integrates-with' | 'interferes-with'
+export type IntentBasis = 'user-assertion' | 'ai-hypothesis' | 'assumption' | 'assessment' | 'estimate'
+export type GapTier = 'essential' | 'concept' | 'detail' | 'immaterial'
+export type NeedRoute = 'research' | 'ask-user' | 'measure' | 'defer'
+
+export interface IntentSystem {
+  name: string
+  role: string
+  description: string
+  productElement?: ArtifactRefInput
+  identified: boolean
+  owner: 'project' | 'external' | 'shared'
+  relation: SystemRelation
+}
+export interface InformationNeed {
+  id: string
+  text: string
+  tier: 1 | 2 | 3 | 4
+  subject?: string
+  route: NeedRoute
+  state: 'open' | 'resolved'
+}
+export interface IntentQuestion {
+  id: string
+  text: string
+  why: string
+  impact: 'blocks' | 'changes-architecture' | 'refines'
+  options: string[]
+  state: 'open' | 'answered' | 'withdrawn'
+  needId?: string
+}
+export interface IntentFields {
+  designObject: string
+  role: IntentRole
+  integration: IntegrationMode
+  rationale: string
+  externalSystems: IntentSystem[]
+  objectives: string[]
+  environment: string[]
+  informationNeeds: InformationNeed[]
+  /** Assumption record IDs. */
+  assumptions: string[]
+  questions: IntentQuestion[]
+}
+export interface EngineeringIntent extends IntentFields {
+  id: string
+  key: string
+  projectId: string
+  revision: number
+  basis: IntentBasis
+  status: 'active' | 'retired'
+  changeReason: string
+  provenance: ProvenanceInfo
+  revisionCreatedAt: string
+  revisionCreatedBy: string
+  createdAt: string
+  createdBy: string
+  updatedAt: string
+  updatedBy: string
+}
+export type IntentCreate = Pick<IntentFields, 'designObject' | 'role' | 'integration'> & Partial<Omit<IntentFields, 'designObject' | 'role' | 'integration'>> & { basis?: IntentBasis; reason?: string }
+export type IntentPatch = Partial<IntentFields> & { basis?: IntentBasis; status?: 'active' | 'retired'; reason?: string }
+
+export interface IntentGap {
+  id: string
+  tier: GapTier
+  text: string
+  route: NeedRoute
+  source: 'structure' | 'information-need'
+  subject?: string
+  ref?: string
+}
+export interface IntentGaps {
+  intentId: string
+  key: string
+  revision: number
+  gaps: IntentGap[]
+  counts: Record<GapTier, number>
+  researchItems: IntentGap[]
+  unaskedEssential: IntentGap[]
+  systemGaps: IntentGap[]
+}
+export interface IntentContext {
+  intent: EngineeringIntent
+  assumptions: Assumption[]
+  constraints: DesignConstraint[]
+  concepts: { id: string; key: string; name: string; maturity: string }[]
+  questions: IntentQuestion[]
+  gaps: IntentGaps
+}

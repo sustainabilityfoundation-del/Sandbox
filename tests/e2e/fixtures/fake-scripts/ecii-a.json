@@ -1,0 +1,77 @@
+{
+  "id": "ecii-a",
+  "description": "Recorded tool-call script for ECII Test A (an accessory for an existing system), replayed by the FAKE provider. It proves the structure only: the intent record, the deterministic gaps and the clarification question travel through the real operations, previews, Apply and the Conceptualize service. It is not a model run and says nothing about whether a model interprets such a request well; that is a live evaluation. Domain words appear here as fixture values only.",
+  "turns": [
+    {
+      "user": "^Design a drill-bit holder that attaches to my cordless drill",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.interpret_intent",
+              "arguments": {
+                "designObject": "Drill-bit holder",
+                "role": "accessory",
+                "integration": "hosted",
+                "rationale": "The holder attaches to the person's own cordless drill, so it works with an existing system whose model is not stated.",
+                "externalSystems": [
+                  {
+                    "name": "Cordless drill (make and model not stated)",
+                    "role": "host",
+                    "description": "The person's cordless drill; the request does not say which model it is.",
+                    "identified": false,
+                    "owner": "external",
+                    "relation": "mounts-to"
+                  }
+                ],
+                "objectives": [
+                  "Keep drill bits within reach on the drill"
+                ],
+                "questions": [
+                  {
+                    "id": "Q1",
+                    "text": "Which cordless drill model should the holder attach to?",
+                    "why": "The attachment features differ between models and cannot be guessed; a wrong assumption would give a holder that does not fit.",
+                    "impact": "blocks",
+                    "options": [
+                      "Continue with a generic holder and decide the attachment later",
+                      "Tell me the drill make and model so I can identify the mounting features",
+                      "Upload photos or CAD of the drill",
+                      "Supply measurements of the mounting features"
+                    ],
+                    "state": "open",
+                    "needId": "system-0"
+                  }
+                ],
+                "reason": "ECII Test A: interpret the intent before designing"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I interpreted this as an accessory that integrates with your cordless drill; the drill is not identified yet. Apply the intent to record it. I have not designed anything: I will list the information gaps and ask for the drill model first."
+        }
+      ]
+    },
+    {
+      "user": "^ECII A gaps",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.read_context",
+              "arguments": {}
+            },
+            {
+              "name": "conceptualize.identify_gaps",
+              "arguments": {}
+            }
+          ]
+        },
+        {
+          "final": "Essential gap: ${conceptualize.identify_gaps.data.gaps.0.text}. Question: ${conceptualize.read_context.data.openQuestions.0.text} Why: ${conceptualize.read_context.data.openQuestions.0.why} Options: (1) ${conceptualize.read_context.data.openQuestions.0.options.0}; (2) ${conceptualize.read_context.data.openQuestions.0.options.1}; (3) ${conceptualize.read_context.data.openQuestions.0.options.2}; (4) ${conceptualize.read_context.data.openQuestions.0.options.3}."
+        }
+      ]
+    }
+  ]
+}

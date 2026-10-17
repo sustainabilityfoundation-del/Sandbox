@@ -27,7 +27,7 @@ describe('Conceptualize ArtifactSource (CR-PM-REG-2)', () => {
     const d = source.describeModule()
     expect(source.module).toBe('conceptualize')
     expect(d.name).toBe('Conceptualize')
-    expect(d.kinds.map((k) => k.kind)).toEqual(['concept', 'function', 'constraint', 'assumption', 'alternative-set', 'trade-study', 'decision', 'evidence', 'concept-implementation', 'calculation-model'])
+    expect(d.kinds.map((k) => k.kind)).toEqual(['concept', 'function', 'constraint', 'assumption', 'alternative-set', 'trade-study', 'decision', 'evidence', 'concept-implementation', 'calculation-model', 'intent'])
     for (const k of d.kinds) expect(ARTIFACT_CATEGORIES).toContain(k.category)
   })
 

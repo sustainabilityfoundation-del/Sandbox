@@ -25,11 +25,12 @@ export const CONCEPTS_ARTIFACT_KINDS: ArtifactKindInfo[] = [
   { kind: 'evidence', label: 'Engineering evidence', category: 'analysis', navigable: false },
   { kind: 'concept-implementation', label: 'Concept implementation', category: 'concept', navigable: false },
   { kind: 'calculation-model', label: 'Calculation model', category: 'analysis', navigable: false },
+  { kind: 'intent', label: 'Engineering intent', category: 'design-knowledge', navigable: false },
 ]
 const KIND_ORDER = CONCEPTS_ARTIFACT_KINDS.map((k) => k.kind)
 
 /** Conceptualize entity type ↔ registry kind. */
-const KIND_OF_TYPE: Record<string, string> = { 'calculation-model': 'calculation-model', concept: 'concept', function: 'function', constraint: 'constraint', assumption: 'assumption', 'alternative-set': 'alternative-set', 'trade-study': 'trade-study', decision: 'decision', evidence: 'evidence', implementation: 'concept-implementation' }
+const KIND_OF_TYPE: Record<string, string> = { 'calculation-model': 'calculation-model', concept: 'concept', function: 'function', constraint: 'constraint', assumption: 'assumption', 'alternative-set': 'alternative-set', 'trade-study': 'trade-study', decision: 'decision', evidence: 'evidence', implementation: 'concept-implementation', intent: 'intent' }
 
 /** Module state → normalised lifecycle (information-model.md §5; published by the module). */
 export function lifecycleOf(kind: string, state: string): ArtifactLifecycle {
@@ -39,6 +40,8 @@ export function lifecycleOf(kind: string, state: string): ArtifactLifecycle {
     case 'decision':
       return state.startsWith('proposed') ? 'in-review' : state === 'recorded' ? 'released' : state.startsWith('recorded (invalidated') || state === 'superseded' ? 'superseded' : state === 'withdrawn' ? 'retired' : 'working'
     case 'function':
+      return state === 'retired' ? 'retired' : 'working'
+    case 'intent':
       return state === 'retired' ? 'retired' : 'working'
     case 'constraint':
       return state === 'retired' ? 'retired' : 'working'
@@ -94,6 +97,8 @@ const SELECTS: Record<string, string> = {
     FROM ${C}.evidence e WHERE e.project_id = $1`,
   'concept-implementation': `SELECT 'concept-implementation', e.id::text, e.key, e.name, e.status, e.revision, e.created_at, e.created_by, e.updated_at, e.updated_by, NULL, NULL
     FROM ${C}.implementations e WHERE e.project_id = $1`,
+  intent: `SELECT 'intent', e.id::text, e.key, v.design_object, e.status, e.current_revision, e.created_at, e.created_by, e.updated_at, e.updated_by, NULL, NULL
+    FROM ${C}.intents e JOIN ${C}.intent_revisions v ON v.intent_id = e.id AND v.revision = e.current_revision WHERE e.project_id = $1`,
   'calculation-model': `SELECT 'calculation-model', e.id::text, e.key, v.name, e.validation_status, e.current_revision, e.created_at, e.created_by, e.updated_at, e.updated_by, NULL, NULL
     FROM ${C}.calculation_models e JOIN ${C}.calculation_model_revisions v ON v.model_id = e.id AND v.revision = e.current_revision WHERE e.project_id = $1`,
 }
@@ -169,7 +174,8 @@ async function refsForEvent(pool: Pool, projectId: string, type: string, entityI
      UNION ALL SELECT 'decision' FROM ${C}.decisions WHERE id::text = $1 AND project_id = $2
      UNION ALL SELECT 'evidence' FROM ${C}.evidence WHERE id::text = $1 AND project_id = $2
      UNION ALL SELECT 'concept-implementation' FROM ${C}.implementations WHERE id::text = $1 AND project_id = $2
-     UNION ALL SELECT 'calculation-model' FROM ${C}.calculation_models WHERE id::text = $1 AND project_id = $2`,
+     UNION ALL SELECT 'calculation-model' FROM ${C}.calculation_models WHERE id::text = $1 AND project_id = $2
+     UNION ALL SELECT 'intent' FROM ${C}.intents WHERE id::text = $1 AND project_id = $2`,
     [entityId, projectId],
   )
   if (!found.rows[0]) return null
