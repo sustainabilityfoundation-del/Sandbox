@@ -112,7 +112,8 @@ describe('ledger schema', () => {
     expect(row.estimatedProviderCost).toBe('123456789.1234567891')
     expect(JSON.stringify(row)).not.toContain('confidential')
     const cols = (await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_schema = 'assistant' AND table_name = 'usage_events'`)).rows.map((r) => r.column_name as string)
-    expect(cols.filter((c) => /prompt|response|content|message|text|output$/.test(c))).toEqual([])
+    // context_id (migration 0004) is an identifier of a context package, not its content.
+    expect(cols.filter((c) => c !== 'context_id' && /prompt|response|content|message|text|output$/.test(c))).toEqual([])
   })
 
   it('keeps a provider-reported cost (xAI ticks) as the actual cost, and the 1 hour cache-write split', async () => {

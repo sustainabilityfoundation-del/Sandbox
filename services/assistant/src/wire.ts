@@ -1,6 +1,7 @@
 import type { CredentialVault } from './crypto'
 import { stableJson } from './crypto'
 import { DEFAULT_POLICY, type AiPolicy, type Policy } from './policy'
+import type { CostView, RoutingView, UsageView } from './gateway/types'
 import type { ProviderMessage, ProviderTool, RespondOutput } from './providers/types'
 
 /**
@@ -49,8 +50,10 @@ export type WireHistoryItem =
 
 export interface WireRequest {
   history: WireHistoryItem[]
-  turn: { text: string; context: WireContext; toolResults: WireToolResult[] }
+  turn: { text: string; context: WireContext; toolResults: WireToolResult[]; /** Keeps the model choice stable across the conversation and groups its usage. */ conversationId?: string }
   tools: WireToolSpec[]
+  /** Manual selection (used when the person's routing mode is Manual). The mode itself comes from the person's settings. */
+  routing?: { provider?: string; model?: string }
 }
 
 export type WireResponse =
@@ -63,7 +66,12 @@ export interface ResponseMeta {
   method: string
   /** Calls the model requested that the access policy refused (never executed). */
   refused?: { name: string; reason: string }[]
-  usage?: { inputTokens?: number; outputTokens?: number }
+  /** Normalised usage of the step (tokens by kind; 'estimated' when the provider reported none). */
+  usage?: UsageView
+  /** Which model answered and why (ADR-0080). */
+  routing?: RoutingView
+  /** Estimated cost of the step; an estimate, never an invoice. */
+  cost?: CostView
 }
 
 /** JSON schema of the respond body (Fastify validates it before any handler code runs). */
@@ -77,6 +85,7 @@ export const WIRE_REQUEST_SCHEMA = {
       required: ['text', 'context', 'toolResults'],
       properties: {
         text: { type: 'string', minLength: 1, maxLength: 20000 },
+        conversationId: { type: 'string', minLength: 1, maxLength: 100 },
         context: {
           type: 'object',
           required: ['projectId', 'configurationId', 'scenarioId', 'modelRevision', 'selection'],
@@ -91,6 +100,7 @@ export const WIRE_REQUEST_SCHEMA = {
         toolResults: { type: 'array', maxItems: 50, items: { type: 'object', required: ['callId', 'name', 'ok'], properties: { callId: { type: 'string', maxLength: 300 }, name: { type: 'string', maxLength: 120 }, ok: { type: 'boolean' } } } },
       },
     },
+    routing: { type: 'object', properties: { provider: { type: 'string', maxLength: 60 }, model: { type: 'string', maxLength: 120 } } },
     tools: { type: 'array', maxItems: 200, items: { type: 'object', required: ['name', 'description', 'parameters'], properties: { name: { type: 'string', maxLength: 120 }, description: { type: 'string', maxLength: 4000 }, parameters: { type: 'object' } } } },
   },
 } as const

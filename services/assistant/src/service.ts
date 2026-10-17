@@ -2,6 +2,16 @@ import type { Pool } from 'pg'
 import type { SettingValue } from '@ews/platform-sdk'
 import { CredentialVault } from './crypto'
 import { OAuthError, authorizationUrl, exchangeCode, loopbackRedirect, newAttemptSecrets, refreshTokens, revokeRefreshToken, validateIdToken } from './oauth'
+import { randomUUID } from 'node:crypto'
+import { AssistantError } from './errors'
+import { DeveloperAccounts } from './gateway/accounts'
+import { Gateway, type GatewayResult, type UserConnectionHandle } from './gateway/gateway'
+import { PgMetering, type Metering } from './gateway/metering'
+import { DEFAULT_AI_RUNTIME, type AiRuntimeConfig } from './gateway/runtime'
+import { UsageLedger } from './ledger'
+import { RoutingError, type Evaluation } from './orchestrator/route'
+import { ROUTING_MODES, routingFromSettings, type RoutingSettings } from './orchestrator/settings'
+import { isPriced } from './pricing'
 import { DEFAULT_POLICY, OPERATION_CLASSES, type AiPolicy, type Policy } from './policy'
 import type { ProviderRegistry } from './providers/registry'
 import { ProviderError, type AssistantProvider, type AuthMethod, type ProviderCredential, type ProviderMessage, type ProviderTool, type RespondOutput } from './providers/types'
@@ -20,18 +30,7 @@ export interface SettingsAccess {
   setConnectionReference: (userId: string, projectId: string, reference: string | null) => Promise<void>
 }
 
-/** Failure of an assistant operation, with an HTTP status and a message a person can act on. */
-export class AssistantError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-    readonly status: number,
-    readonly details?: Record<string, unknown>,
-  ) {
-    super(message)
-    this.name = 'AssistantError'
-  }
-}
+export { AssistantError }
 
 const PROVIDER_STATUS: Record<ProviderError['kind'], number> = {
   'invalid-credential': 502,
@@ -68,6 +67,15 @@ export interface AssistantBackendOptions {
   /** AI modules and operation catalogue in force (createPolicy with the modules the host collected). Default: the platform's own. */
   policy?: Policy
   log?: { warn: (obj: unknown, msg?: string) => void }
+  /**
+   * AI runtime (mode, developer keys, budget; ADR-0080), read from the environment by the host (`readAiConfig`). Default:
+   * `user` mode, i.e. only the person's own connection (the behaviour before the gateway).
+   */
+  ai?: Partial<AiRuntimeConfig>
+  /** Replace the usage ledger access (tests that check the fail-safe without a database). */
+  metering?: Metering
+  /** Waits between attempts to write an end event (tests). */
+  retryDelaysMs?: number[]
 }
 
 /**
@@ -80,11 +88,21 @@ export class AssistantBackend {
   private readonly doFetch: typeof fetch
   private readonly rules: Policy
   private readonly refreshing = new Map<string, Promise<ConnectionRow>>()
+  readonly runtime: AiRuntimeConfig
+  /** Developer accounts (development mode): provider keys from the server environment. */
+  readonly accounts: DeveloperAccounts
+  /** The single dispatch point for model requests. */
+  readonly gateway: Gateway
 
   constructor(private readonly o: AssistantBackendOptions) {
     this.store = new AssistantStore(o.pool, o.vault)
     this.doFetch = o.fetch ?? fetch
     this.rules = o.policy ?? DEFAULT_POLICY
+    this.runtime = { ...DEFAULT_AI_RUNTIME, ...o.ai, developerKeys: o.ai?.mode === 'development' ? (o.ai.developerKeys ?? {}) : {} }
+    this.accounts = new DeveloperAccounts(this.runtime.developerKeys, o.providers, { log: o.log })
+    this.gateway = new Gateway({ providers: o.providers, accounts: this.accounts, metering: o.metering ?? new PgMetering(o.pool), runtime: this.runtime, log: o.log, retryDelaysMs: o.retryDelaysMs })
+    // Validate developer keys in the background: an invalid key marks its account invalid and never stops the server.
+    if (this.runtime.mode === 'development') void this.accounts.validateAll().catch(() => undefined)
   }
 
   // ---- providers and connection -----------------------------------------------------------------------
@@ -102,6 +120,11 @@ export class AssistantBackend {
   private redirectUri(m: AuthMethod): string | null {
     if (m.kind !== 'oauth' || !this.o.publicOrigin) return null
     return m.oauth.loopbackOnly ? loopbackRedirect(this.o.publicOrigin, m.oauth.callbackPath) : `${this.o.publicOrigin.replace(/\/$/, '')}${m.oauth.callbackPath}`
+  }
+
+  /** Mock mode disables every real source: connecting a real account would only reach it for validation, so it is refused. */
+  private refuseRealAccountInMock(provider: string) {
+    if (this.runtime.mode === 'mock' && provider !== 'fake') throw new AssistantError('mock-mode', 'This server runs in mock mode: real AI accounts are disabled and nothing is sent to a provider. Set EWS_AI_MODE=development with a provider key to use real models.', 409)
   }
 
   private async member(userId: string, projectId: string) {
@@ -123,6 +146,7 @@ export class AssistantBackend {
 
   async connectApiKey(principal: Principal, projectId: string, input: { provider: string; method?: string; apiKey: string; model?: string }): Promise<ConnectionStatus> {
     await this.member(principal.userId, projectId)
+    this.refuseRealAccountInMock(input.provider)
     const found = this.o.providers.method(input.provider, input.method ?? 'api-key')
     if (!found || found.method.kind !== 'api-key') throw new AssistantError('invalid', `Provider “${input.provider}” has no API key connection.`, 422)
     const apiKey = String(input.apiKey ?? '').trim()
@@ -150,6 +174,7 @@ export class AssistantBackend {
   /** Starts a provider sign-in; returns the URL the browser opens. */
   async startOAuth(principal: Principal, projectId: string, input: { provider: string; method: string; returnTo?: string }): Promise<{ authorizationUrl: string }> {
     await this.member(principal.userId, projectId)
+    this.refuseRealAccountInMock(input.provider)
     const found = this.o.providers.method(input.provider, input.method)
     if (!found || found.method.kind !== 'oauth') throw new AssistantError('invalid', `Provider “${input.provider}” has no sign-in method “${input.method}”.`, 422)
     const redirectUri = this.redirectUri(found.method)
@@ -309,7 +334,11 @@ export class AssistantBackend {
    */
   async imageAccess(userId: string, projectId: string) {
     const values = await this.o.settings.effective(userId, projectId)
-    const row = await this.store.connection(userId)
+    // Mock mode disables every real source, the person's connection included (ADR-0080): only a fake-provider connection (the
+    // scripted test provider, which the fake image adapter accepts) is honoured.
+    const mock = this.runtime.mode === 'mock'
+    const found = await this.store.connection(userId)
+    const row = mock && found?.provider !== 'fake' ? undefined : found
     const usable = !!row && row.status !== 'needs-sign-in' && row.status !== 'plan-usage-disabled' && !!this.o.providers.get(row.provider)
     const quality = values['ai.images.quality']
     return {
@@ -319,7 +348,7 @@ export class AssistantBackend {
       dailyLimit: Number(values['ai.images.daily-limit'] ?? 20),
       credential: async () => {
         const current = await this.store.connection(userId)
-        if (!current) throw new ProviderError('invalid-credential', 'No AI account is connected any more.')
+        if (!current || (mock && current.provider !== 'fake')) throw new ProviderError('invalid-credential', 'No AI account is connected any more.')
         return this.credential(current)
       },
     }
@@ -369,18 +398,180 @@ export class AssistantBackend {
     }
   }
 
-  private async audited<T>(principal: Principal, row: ConnectionRow, extra: { projectId?: string; purpose?: string; toolsOffered: number; prompt?: unknown }, run: () => Promise<{ value: T; output?: RespondOutput; called: string[]; refused: string[]; outcome: 'answer' | 'tool-calls' | 'refused' }>): Promise<T> {
+  // ---- routing options, developer status and usage ----------------------------------------------------------
+
+  private listing(evals: Evaluation[], automatic: Evaluation[]) {
+    const auto = new Map(automatic.map((e) => [`${e.candidate.accountId}|${e.candidate.model}`, e]))
+    return evals.map((e) => {
+      const c = e.candidate
+      const a = auto.get(`${c.accountId}|${c.model}`)
+      return {
+        provider: c.provider,
+        providerName: c.providerLabel,
+        model: c.model,
+        label: c.label,
+        source: c.source,
+        billing: c.billing,
+        simulated: c.simulated,
+        chatgptPlan: c.chatgptPlan,
+        known: c.known,
+        ...(c.tier ? { tier: c.tier } : {}),
+        /** Selectable in Manual mode. */
+        available: e.eligible,
+        /** Eligible for the automatic modes. */
+        automatic: !!a?.eligible,
+        priced: !!e.record && isPriced(e.record),
+        verified: e.record?.verified ?? false,
+        ...(e.reason ? { reason: e.reason } : {}),
+        ...(e.eligible && a && !a.eligible && a.reason ? { reason: a.reason } : {}),
+      }
+    })
+  }
+
+  /** All models the person could use, each with whether it is selectable (Manual) or eligible (automatic), and why not. */
+  async routingOptions(principal: Principal, projectId: string) {
+    const { routing } = await this.settingsOf(principal, projectId)
+    const { handle } = await this.connectionHandle(principal.userId)
+    const base = { needTools: true, estimatedInputTokens: 2000, maxOutputTokens: 4000, disallowedProviders: routing.disallowedProviders }
+    const manual = await this.gateway.options(handle, { ...base, mode: 'manual' })
+    const automatic = await this.gateway.options(handle, { ...base, mode: routing.mode === 'manual' ? 'balanced' : routing.mode, remainingBudget: undefined })
+    return {
+      aiMode: this.runtime.mode,
+      mode: routing.mode,
+      modes: ROUTING_MODES.map((m) => ({ value: m.value, label: m.label, description: m.description })),
+      disallowedProviders: [...routing.disallowedProviders],
+      contextMode: routing.contextMode,
+      models: this.listing(manual, automatic),
+    }
+  }
+
+  /** Developer mode status for the developer panel: providers, last four key characters, validation, models, mode, budget. Never a key. */
+  async developerStatus(principal: Principal) {
+    if (this.runtime.mode === 'user') throw new AssistantError('not-available', 'Developer and mock modes are not active on this server.', 404)
+    void principal
+    const base = { needTools: true, estimatedInputTokens: 2000, maxOutputTokens: 4000 }
+    const manual = await this.gateway.options(undefined, { ...base, mode: 'manual' })
+    const automatic = await this.gateway.options(undefined, { ...base, mode: 'balanced' })
+    const rows = this.listing(manual, automatic)
+    const budget = this.runtime.mode === 'development' ? await this.gateway.budget().catch(() => null) : null
+    return {
+      mode: this.runtime.mode,
+      billing: this.runtime.billing,
+      defaultOptimization: this.runtime.defaultOptimization,
+      allowUnverifiedPricing: this.runtime.allowUnverifiedPricing,
+      budget,
+      meteringDegraded: this.gateway.degraded,
+      providers: this.runtime.mode === 'development' ? this.accounts.list().map((a) => ({ ...a, models: rows.filter((r) => r.provider === a.provider) })) : [],
+      personas: this.runtime.mode === 'mock' ? rows.filter((r) => r.simulated) : [],
+    }
+  }
+
+  /** Validates one developer key with the provider's model list (a free call). */
+  async validateDeveloperProvider(principal: Principal, provider: string) {
+    if (this.runtime.mode !== 'development') throw new AssistantError('not-available', 'Developer keys are used in development mode only.', 404)
+    void principal
+    if (!this.accounts.get(provider)) throw new AssistantError('not-found', `Unknown provider “${provider}”.`, 404)
+    const account = await this.accounts.validate(provider)
+    return { provider: account }
+  }
+
+  /** The person's own usage from the ledger: one conversation, or by month (real and simulated apart). */
+  async usage(principal: Principal, q: { conversationId?: string; period?: 'month' | 'day' }) {
+    if (!q.conversationId && !q.period) throw new AssistantError('invalid', 'Give conversationId or period (month or day).', 400)
+    const ledger = new UsageLedger(this.o.pool)
+    const run = async (simulated: boolean) =>
+      (await ledger.aggregate(q.conversationId ? { groupBy: 'conversation', conversationId: q.conversationId, userId: principal.userId, simulated } : { groupBy: 'period', period: q.period, userId: principal.userId, simulated })).map((r) => ({ ...r, simulated }))
+    return {
+      ...(q.conversationId ? { conversationId: q.conversationId } : { period: q.period }),
+      note: 'Costs are estimates from the pricing in force when the request ran, not provider invoices.',
+      usage: [...(await run(false)), ...(await run(true))],
+      ...(this.runtime.mode === 'development' ? { budget: await this.gateway.budget().catch(() => null) } : {}),
+    }
+  }
+
+  // ---- model dispatch through the gateway ------------------------------------------------------------------
+
+  /** Effective settings of the person in a project (membership checked): the policy and the routing choices come from them. */
+  private async settingsOf(principal: Principal, projectId: string) {
+    await this.member(principal.userId, projectId)
+    const values = await this.o.settings.effective(principal.userId, projectId)
+    return { values, policy: this.rules.policyFromSettings(values), routing: routingFromSettings(values, this.runtime.defaultOptimization) }
+  }
+
+  /**
+   * The person's own connection as a model source. Mock mode ignores it entirely (it never even reads it), so a test or
+   * demonstration run can never reach a person's AI account. An unusable connection is reported as `problem`, which is
+   * shown only when nothing else can serve the request.
+   */
+  private async connectionHandle(userId: string): Promise<{ handle?: UserConnectionHandle; problem?: AssistantError }> {
+    if (this.runtime.mode === 'mock') return {}
+    const row = await this.store.connection(userId)
+    if (!row) return {}
+    if (!this.o.providers.get(row.provider)) return { problem: new AssistantError('provider-unavailable', `The provider of your connection (${row.provider}) is not available on this server.`, 409) }
+    if (row.status === 'needs-sign-in') return { problem: new AssistantError('provider-invalid-credential', 'Your sign-in expired. Sign in again in Settings → AI and reasoning.', 409, { kind: 'invalid-credential' }) }
+    if (row.status === 'plan-usage-disabled') return { problem: new AssistantError('plan-usage-disabled', 'ChatGPT plan usage is not enabled for this sign-in. Sign in again and allow plan usage, or connect an API key.', 409) }
+    return { handle: { id: row.id, provider: row.provider, method: row.method, model: row.model, credential: () => this.credential(row) } }
+  }
+
+  private notConnected(): AssistantError {
+    return new AssistantError(
+      'not-connected',
+      this.runtime.mode === 'development'
+        ? 'No AI model is available. Set a provider key in the server environment (see .env.example), or connect an account in Settings → AI and reasoning.'
+        : 'No AI account is connected. Connect one in Settings → AI and reasoning.',
+      409,
+    )
+  }
+
+  /** One gateway call for a person: routing settings, their connection, stickiness and attribution. */
+  private async dispatch(
+    principal: Principal,
+    s: { routing: RoutingSettings; connection: { handle?: UserConnectionHandle; problem?: AssistantError } },
+    c: { projectId: string; conversationId?: string; operationId: string; workflowId: string; manual?: { provider?: string; model?: string }; input: Parameters<Gateway['call']>[0]['input']; signal: AbortSignal; cancelSignal?: AbortSignal },
+  ): Promise<GatewayResult> {
+    try {
+      return await this.gateway.call({
+        userId: principal.userId,
+        projectId: c.projectId,
+        conversationId: c.conversationId,
+        operationId: c.operationId,
+        workflowId: c.workflowId,
+        routing: { mode: s.routing.mode, disallowedProviders: s.routing.disallowedProviders, manual: c.manual },
+        userConnection: s.connection.handle,
+        input: c.input,
+        signal: c.signal,
+        cancelSignal: c.cancelSignal,
+        stickyKey: c.conversationId ? `c:${principal.userId}:${c.conversationId}` : `t:${principal.userId}:${c.projectId}`,
+        stickyTtlMs: c.conversationId ? undefined : 15 * 60_000,
+      })
+    } catch (e) {
+      // Nothing could serve the request: say why the person's own connection was not usable, or that nothing is connected.
+      if (e instanceof RoutingError && e.code === 'no-model-available' && this.runtime.mode !== 'mock') {
+        if (s.connection.problem) throw s.connection.problem
+        if (!s.connection.handle) throw this.notConnected()
+      }
+      throw e
+    }
+  }
+
+  private async audited<T>(
+    principal: Principal,
+    track: { target?: { provider: string; method: string; model: string } },
+    extra: { projectId?: string; purpose?: string; toolsOffered: number; prompt?: unknown },
+    run: () => Promise<{ value: T; output?: RespondOutput; called: string[]; refused: string[]; outcome: 'answer' | 'tool-calls' | 'refused' }>,
+  ): Promise<T> {
     const started = Date.now()
+    const target = () => track.target ?? { provider: 'none', method: 'none', model: 'none' }
     try {
       const r = await run()
       await this.store
-        .audit({ userId: principal.userId, projectId: extra.projectId, provider: row.provider, method: row.method, model: r.output?.model ?? row.model, purpose: extra.purpose, toolsOffered: extra.toolsOffered, toolsCalled: r.called, toolsRefused: r.refused, inputTokens: r.output?.usage?.inputTokens, outputTokens: r.output?.usage?.outputTokens, latencyMs: Date.now() - started, outcome: r.outcome, prompt: extra.prompt })
+        .audit({ userId: principal.userId, projectId: extra.projectId, provider: target().provider, method: target().method, model: r.output?.model ?? target().model, purpose: extra.purpose, toolsOffered: extra.toolsOffered, toolsCalled: r.called, toolsRefused: r.refused, inputTokens: r.output?.usage?.inputTokens, outputTokens: r.output?.usage?.outputTokens, latencyMs: Date.now() - started, outcome: r.outcome, prompt: extra.prompt })
         .catch((e) => this.o.log?.warn({ err: (e as Error).message }, 'audit write failed'))
       return r.value
     } catch (e) {
       const err = providerFailure(e)
       await this.store
-        .audit({ userId: principal.userId, projectId: extra.projectId, provider: row.provider, method: row.method, model: row.model, purpose: extra.purpose, toolsOffered: extra.toolsOffered, toolsCalled: [], toolsRefused: [], latencyMs: Date.now() - started, outcome: 'error', errorCode: err.code, prompt: extra.prompt })
+        .audit({ userId: principal.userId, projectId: extra.projectId, provider: target().provider, method: target().method, model: target().model, purpose: extra.purpose, toolsOffered: extra.toolsOffered, toolsCalled: [], toolsRefused: [], latencyMs: Date.now() - started, outcome: 'error', errorCode: err.code, prompt: extra.prompt })
         .catch(() => undefined)
       throw err
     }
@@ -389,30 +580,40 @@ export class AssistantBackend {
   /** One step of the browser's tool-calling loop. */
   async respond(principal: Principal, request: WireRequest, clientSignal?: AbortSignal): Promise<WireResponse> {
     const projectId = request.turn.context.projectId
-    const policy = await this.policy(principal, projectId)
+    const { policy, routing } = await this.settingsOf(principal, projectId)
     const prepared = this.prepare(principal, request, policy)
-    const { row, provider } = await this.active(principal.userId)
-    const credential = await this.credential(row).catch((e) => {
-      throw providerFailure(e)
-    })
+    const connection = await this.connectionHandle(principal.userId)
     const signal = clientSignal ? AbortSignal.any([clientSignal, AbortSignal.timeout(policy.limits.timeoutSeconds * 1000)]) : AbortSignal.timeout(policy.limits.timeoutSeconds * 1000)
-    const meta = (output: RespondOutput, refused: { name: string; reason: string }[]): ResponseMeta => ({ provider: row.provider, model: output.model ?? row.model, method: row.method, ...(refused.length ? { refused } : {}), usage: output.usage })
+    const meta = (res: GatewayResult, refused: { name: string; reason: string }[]): ResponseMeta => ({ provider: res.target.provider, model: res.output.model ?? res.target.model, method: res.target.method, ...(refused.length ? { refused } : {}), usage: res.usage, routing: res.routing, cost: res.cost })
     const prompt = policy.storePrompts ? { instructions: prepared.instructions, messages: prepared.messages, tools: prepared.tools.map((t) => t.name) } : undefined
+    const track: { target?: { provider: string; method: string; model: string } } = {}
+    const workflowId = randomUUID()
 
-    return this.audited<WireResponse>(principal, row, { projectId, toolsOffered: prepared.tools.length, prompt }, async () => {
+    return this.audited<WireResponse>(principal, track, { projectId, toolsOffered: prepared.tools.length, prompt }, async () => {
       let messages: ProviderMessage[] = prepared.messages
       const refusedAll: { name: string; reason: string }[] = []
-      let last: RespondOutput | undefined
+      let last: GatewayResult | undefined
       // A model that only requests refused operations is told so and asked again (at most twice).
       for (let round = 0; round < 3; round++) {
-        last = await provider.respond({ credential, method: row.method, model: row.model, instructions: prepared.instructions, messages, tools: prepared.tools, maxOutputTokens: policy.limits.outputTokens, signal })
-        if (last.type === 'final') return { value: { type: 'final', text: last.text, meta: meta(last, refusedAll) }, output: last, called: [], refused: refusedAll.map((r) => r.name), outcome: 'answer' }
-        const { allowed, refused } = screenCalls(last, prepared.tools, policy, principal.entitlements, Math.max(0, policy.limits.toolCalls - prepared.callsSoFar), this.rules)
+        last = await this.dispatch(principal, { routing, connection }, {
+          projectId,
+          conversationId: request.turn.conversationId,
+          operationId: 'assistant.respond',
+          workflowId,
+          manual: request.routing,
+          input: { instructions: prepared.instructions, messages, tools: prepared.tools, maxOutputTokens: policy.limits.outputTokens },
+          signal,
+          cancelSignal: clientSignal,
+        })
+        track.target = last.target
+        const out = last.output
+        if (out.type === 'final') return { value: { type: 'final', text: out.text, meta: meta(last, refusedAll) }, output: out, called: [], refused: refusedAll.map((r) => r.name), outcome: 'answer' }
+        const { allowed, refused } = screenCalls(out, prepared.tools, policy, principal.entitlements, Math.max(0, policy.limits.toolCalls - prepared.callsSoFar), this.rules)
         refusedAll.push(...refused.map((r) => ({ name: r.name, reason: r.reason })))
         if (allowed.length) {
           return {
             value: { type: 'tool_calls', calls: allowed.map((c) => ({ id: signCall(this.o.vault, principal.userId, c.callId, c.name, c.arguments), name: c.name, arguments: c.arguments })), meta: meta(last, refusedAll) },
-            output: last,
+            output: out,
             called: allowed.map((c) => c.name),
             refused: refusedAll.map((r) => r.name),
             outcome: 'tool-calls',
@@ -424,24 +625,32 @@ export class AssistantBackend {
         ])]
       }
       const text = `The model asked only for operations your AI settings or subscription do not allow (${[...new Set(refusedAll.map((r) => r.name))].join(', ')}). Nothing was run. You can change what the assistant may do in Settings → AI and reasoning.`
-      return { value: { type: 'final', text, meta: meta(last!, refusedAll) }, output: last, called: [], refused: refusedAll.map((r) => r.name), outcome: 'refused' }
+      return { value: { type: 'final', text, meta: meta(last!, refusedAll) }, output: last!.output, called: [], refused: refusedAll.map((r) => r.name), outcome: 'refused' }
     })
   }
 
   /**
-   * Server-side model access (for example the design reasoning layer's model gateway): the person's
-   * connection, the same limits and audit, no tools unless given. Tools are screened like browser calls.
+   * Server-side model access (for example the design reasoning layer's model gateway): the person's routing choices, the same
+   * limits, metering and audit, no tools unless given. Tools are screened like browser calls.
    */
-  async complete(principal: Principal, input: { projectId: string; purpose: string; instructions?: string; messages: ProviderMessage[]; tools?: ProviderTool[] }, signal?: AbortSignal): Promise<RespondOutput> {
-    const policy = await this.policy(principal, input.projectId)
-    const { row, provider } = await this.active(principal.userId)
-    const credential = await this.credential(row).catch((e) => {
-      throw providerFailure(e)
-    })
+  async complete(principal: Principal, input: { projectId: string; purpose: string; instructions?: string; messages: ProviderMessage[]; tools?: ProviderTool[]; conversationId?: string; workflowId?: string }, signal?: AbortSignal): Promise<RespondOutput> {
+    const { policy, routing } = await this.settingsOf(principal, input.projectId)
+    const connection = await this.connectionHandle(principal.userId)
     const tools = (input.tools ?? []).filter((t) => screenCalls({ type: 'tool_calls', calls: [{ callId: 'x', name: t.name, arguments: {} }] }, [t], policy, principal.entitlements, 1, this.rules).allowed.length)
     const timeout = AbortSignal.timeout(policy.limits.timeoutSeconds * 1000)
-    return this.audited<RespondOutput>(principal, row, { projectId: input.projectId, purpose: input.purpose, toolsOffered: tools.length, prompt: policy.storePrompts ? input : undefined }, async () => {
-      const out = await provider.respond({ credential, method: row.method, model: row.model, instructions: input.instructions ?? INSTRUCTIONS, messages: input.messages, tools, maxOutputTokens: policy.limits.outputTokens, signal: signal ? AbortSignal.any([signal, timeout]) : timeout })
+    const track: { target?: { provider: string; method: string; model: string } } = {}
+    return this.audited<RespondOutput>(principal, track, { projectId: input.projectId, purpose: input.purpose, toolsOffered: tools.length, prompt: policy.storePrompts ? input : undefined }, async () => {
+      const res = await this.dispatch(principal, { routing, connection }, {
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        operationId: `assistant.complete.${input.purpose}`.slice(0, 120),
+        workflowId: input.workflowId ?? randomUUID(),
+        input: { instructions: input.instructions ?? INSTRUCTIONS, messages: input.messages, tools, maxOutputTokens: policy.limits.outputTokens },
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+        cancelSignal: signal,
+      })
+      track.target = res.target
+      const out = res.output
       if (out.type === 'final') return { value: out, output: out, called: [], refused: [], outcome: 'answer' }
       const { allowed, refused } = screenCalls(out, tools, policy, principal.entitlements, policy.limits.toolCalls, this.rules)
       return { value: { ...out, calls: allowed }, output: out, called: allowed.map((c) => c.name), refused: refused.map((r) => r.name), outcome: allowed.length ? 'tool-calls' : 'refused' }

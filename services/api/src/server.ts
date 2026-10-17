@@ -36,7 +36,7 @@ import {
 import { platformMemberships } from './platform/memberships'
 import { SETTINGS_BASE_PATH, SettingsRegistry, settingsPlugin, type SettingsStore } from '@ews/settings-service'
 import type { AdapterRegistry as VisualizationAdapters } from '@ews/visualization-service'
-import { AI_SETTINGS_PAGE, ASSISTANT_BASE_PATH, CredentialVault, ProviderRegistry, assistantPlugin, createFakeProvider, createOpenAIProvider, createPolicy, registerOAuthCallback, type AssistantBackend } from '@ews/assistant-service'
+import { AI_SETTINGS_PAGE, ASSISTANT_BASE_PATH, CredentialVault, ProviderRegistry, assistantPlugin, createFakeProvider, createOpenAIProvider, createPolicy, registerOAuthCallback, type AiRuntimeConfig, type AssistantBackend } from '@ews/assistant-service'
 import { ALL_SERVER_MODULES, INSTALLED_SERVER_MODULES, assertUniqueManifests, collectPolicyContributions, type ApiModuleHost } from './modules'
 import { SAMPLE_TWIN } from './sampleTwin'
 
@@ -65,6 +65,11 @@ export interface ServerOptions {
     publicOrigin?: string
     /** Register the scripted fake provider (tests and development browser flows; never in production). */
     fakeProvider?: boolean
+    /**
+     * AI runtime from `readAiConfig` (ADR-0080): mode (mock, development, user), developer keys, budget. Default: `user`
+     * (people's own connections only). Never honoured in production except `user`.
+     */
+    ai?: Partial<AiRuntimeConfig>
     /** Replace the provider registry (tests). */
     providers?: ProviderRegistry
     fetch?: typeof fetch
@@ -216,7 +221,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   const settingsRegistry = new SettingsRegistry()
   // The AI policy: platform-owned entries plus what the server manifests declare (operations and AI modules).
   const contributions = collectPolicyContributions(ALL_SERVER_MODULES)
-  const policy = createPolicy(contributions.aiModules, contributions.operations)
+  const policy = createPolicy(contributions.aiModules, contributions.operations, { routingDefault: options.assistant?.ai?.defaultOptimization })
   settingsRegistry.register(AI_SETTINGS_PAGE, policy.settingDefinitions)
   settingsRegistry.register(PROJECT_SETTINGS_PAGE, [...PROJECT_SETTING_DEFINITIONS, ...moduleEnablementDefinitions(installedModules.map((m) => ({ id: m.module, name: m.name })))])
   // Module contributions validated on the server (SDK 1.6): the same definitions the tool declares.
@@ -230,7 +235,8 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
   if (assistantKey) {
     const publicOrigin = options.assistant?.publicOrigin
     const providers = options.assistant?.providers ?? new ProviderRegistry().register(createOpenAIProvider({ chatgptSignIn: !production && !!publicOrigin?.startsWith('http://127.0.0.1:'), fetch: options.assistant?.fetch }))
-    if (options.assistant?.fakeProvider && !production && !providers.get('fake')) providers.register(createFakeProvider())
+    // Mock mode always has its personas (the fake provider); `fakeProvider` also registers it for the older test flows.
+    if ((options.assistant?.fakeProvider || options.assistant?.ai?.mode === 'mock') && !production && !providers.get('fake')) providers.register(createFakeProvider())
     registerApiDocs(app, { path: `${ASSISTANT_BASE_PATH}/docs`, openapiUrl: `${ASSISTANT_BASE_PATH}/openapi.json`, title: 'Assistant API' })
     await app.register(assistantPlugin, {
       prefix: ASSISTANT_BASE_PATH,
@@ -239,6 +245,7 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
       providers,
       publicOrigin,
       fetch: options.assistant?.fetch,
+      ai: production ? { mode: 'user' } : options.assistant?.ai,
       authenticate: auth.authenticate,
       roleOf: async (userId, projectId) => (await auth.roleOf(userId, projectId)) ?? null,
       settings: {

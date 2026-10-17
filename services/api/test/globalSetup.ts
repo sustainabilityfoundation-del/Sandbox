@@ -8,6 +8,8 @@ import './providedContext'
 
 /** Starts a disposable real PostgreSQL server for the test run (or uses EWS_TEST_PG_ADMIN_URL). */
 export default async function setup(project: TestProject) {
+  // Automated runs never reach a real AI provider: a key or mode in the shell of whoever runs the tests is dropped (ADR-0080).
+  for (const name of ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_AI_API_KEY', 'XAI_API_KEY', 'EWS_AI_MODE', 'EWS_ASSISTANT_FAKE_PROVIDER']) delete process.env[name]
   const external = process.env.EWS_TEST_PG_ADMIN_URL
   if (external) {
     project.provide('pgAdminUrl', external)

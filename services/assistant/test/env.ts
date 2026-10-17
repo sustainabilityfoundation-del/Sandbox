@@ -16,6 +16,8 @@ import { ProviderRegistry } from '../src/providers/registry'
 import { createFakeProvider } from '../src/providers/fake'
 import { createOpenAIProvider } from '../src/providers/openai'
 import type { AssistantBackend } from '../src/service'
+import type { Metering } from '../src/gateway/metering'
+import { DEVELOPER_KEY_VARIABLES, type AiRuntimeConfig } from '../src/gateway/runtime'
 
 /**
  * A disposable database with the settings and assistant plugins hosted the way services/api hosts them, the
@@ -32,7 +34,10 @@ export interface AiEnv {
   close: () => Promise<void>
 }
 
-export async function createAiEnv(options: { openaiFetch?: typeof fetch } = {}): Promise<AiEnv> {
+// A provider key in the shell of whoever runs the tests must never be picked up (ADR-0080): tests pass explicit configuration.
+for (const name of [...DEVELOPER_KEY_VARIABLES, 'EWS_AI_MODE', 'EWS_ASSISTANT_FAKE_PROVIDER']) delete process.env[name]
+
+export async function createAiEnv(options: { openaiFetch?: typeof fetch; ai?: Partial<AiRuntimeConfig>; metering?: Metering; retryDelaysMs?: number[] } = {}): Promise<AiEnv> {
   const name = `ews_test_${randomBytes(5).toString('hex')}`
   const admin = inject('pgAdminUrl')
   await ensureDatabase(admin, name)
@@ -52,7 +57,7 @@ export async function createAiEnv(options: { openaiFetch?: typeof fetch } = {}):
   const registry = new SettingsRegistry()
   // The policy the host builds: platform entries plus what the installed server manifests declare (module-registration.md).
   const contributions = collectPolicyContributions(ALL_SERVER_MODULES)
-  const policy = createPolicy(contributions.aiModules, contributions.operations)
+  const policy = createPolicy(contributions.aiModules, contributions.operations, { routingDefault: options.ai?.defaultOptimization })
   registry.register(AI_SETTINGS_PAGE, policy.settingDefinitions)
   let store: SettingsStore | undefined
   await app.register(settingsPlugin, { prefix: '/api/settings/v1', pool, registry, authenticate: auth.authenticate, roleOf: auth.roleOf, onReady: (s) => (store = s) })
@@ -67,6 +72,9 @@ export async function createAiEnv(options: { openaiFetch?: typeof fetch } = {}):
     policy,
     publicOrigin: 'http://127.0.0.1:8801',
     fetch: options.openaiFetch,
+    ai: options.ai,
+    metering: options.metering,
+    retryDelaysMs: options.retryDelaysMs,
     authenticate: auth.authenticate,
     roleOf: async (userId, projectId) => (await auth.roleOf(userId, projectId)) ?? null,
     settings: {
