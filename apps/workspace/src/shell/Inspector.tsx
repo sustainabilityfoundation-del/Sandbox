@@ -505,8 +505,8 @@ function SubjectDetails({ subject }: { subject: InspectorSubject }) {
       </header>
       {subject.badges && subject.badges.length > 0 && (
         <div className="ws-insp-status">
-          {subject.badges.map((b) => (
-            <Badge key={b.label} tone={b.tone ?? 'neutral'}>
+          {subject.badges.map((b, i) => (
+            <Badge key={`${i}:${b.label}`} tone={b.tone ?? 'neutral'}>
               {b.label}
             </Badge>
           ))}
@@ -515,8 +515,8 @@ function SubjectDetails({ subject }: { subject: InspectorSubject }) {
       {subject.sections.map((section) => (
         <Section key={section.title} title={section.title}>
           <dl className="ws-props">
-            {section.fields.map((f) => (
-              <div key={f.label} className="ws-prop">
+            {section.fields.map((f, i) => (
+              <div key={`${i}:${f.label}`} className="ws-prop">
                 <dt>{f.label}</dt>
                 <dd>{f.value}</dd>
               </div>

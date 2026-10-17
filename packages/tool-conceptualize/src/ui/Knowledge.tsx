@@ -3,7 +3,7 @@ import { useToolViewState } from '@ews/platform-sdk/react'
 import type { AnyRef, Assumption, CalculationModel, AssumptionStatus, Basis, Concept, ConstraintStatus, Decision, DesignConstraint, DesignEntityType, DesignFunction, DesignRef, Evidence, Graph, GraphNode } from '@ews/conceptualize-client'
 import { useState, type ReactNode } from 'react'
 import { useModuleData, useResource } from '../data'
-import { BASIS, formatDate, formatQuantity, type ConceptualizeViewState, type DesignRecordType } from '../domain'
+import { BASIS, boundText, formatDate, formatQuantity, type ConceptualizeViewState, type DesignRecordType } from '../domain'
 import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, RefLabel, Section } from './common'
 import { CalculationDetail, CalculationEvidence } from './Calculations'
 
@@ -62,25 +62,18 @@ export function RefButton({ target, label }: { target: AnyRef; label: ReactNode 
   return <span>{label}</span>
 }
 
-export function boundText(c: Pick<DesignConstraint, 'bound'>): string {
-  if (!c.bound) return ''
-  const q = c.bound.quantity
-  const v = c.bound.operator === 'in-range' ? formatQuantity(q) : formatQuantity({ unit: q.unit, value: q.value ?? (c.bound.operator.startsWith('<') ? q.max : q.min) ?? null })
-  return `${c.bound.symbol ? `${c.bound.symbol} ` : ''}${c.bound.operator === 'in-range' ? 'in' : c.bound.operator} ${v}`
-}
-
 // ---- Explorer lists -----------------------------------------------------------------------------------------
 
 export function RecordList({ type }: { type: DesignRecordType }) {
   const { client } = useModuleData()
   const [state, setState] = useToolViewState<ConceptualizeViewState>()
   const text = state.search.trim() || undefined
-  const data = useResource<{ id: string; key: string; label: string; status: string; tone: 'neutral' | 'warning' | 'success' | 'danger' | 'info'; basis?: Basis; ai: boolean }[]>(
+  const data = useResource<{ id: string; key: string; label: string; bound?: string; status: string; tone: 'neutral' | 'warning' | 'success' | 'danger' | 'info'; basis?: Basis; ai: boolean }[]>(
     async () => {
       if (type === 'function') return (await client.functions({ text })).map((f) => ({ id: f.id, key: f.key, label: f.name, status: f.status, tone: f.status === 'active' ? 'success' : 'neutral', ai: f.provenance.sourceKind === 'assistant' }))
       if (type === 'calculation') return (await client.calculationModels({ text })).map((m) => ({ id: m.id, key: m.key, label: m.name, status: m.validationStatus, tone: m.validationStatus === 'validated' ? 'success' : m.validationStatus === 'deprecated' ? 'neutral' : 'warning', basis: m.basis, ai: m.provenance.sourceKind === 'assistant' }))
-      if (type === 'constraint') return (await client.constraints({ text })).map((c) => ({ id: c.id, key: c.key, label: `${c.statement}${c.bound ? ` (${boundText(c)})` : ''}`, status: c.status, tone: CONSTRAINT_TONE[c.status], basis: c.basis, ai: c.provenance.sourceKind === 'assistant' }))
-      return (await client.assumptions({ text })).map((a) => ({ id: a.id, key: a.key, label: `${a.statement}${a.quantity ? ` ${formatQuantity(a.quantity)}` : ''}`, status: a.validationStatus, tone: VALIDATION_TONE[a.validationStatus], basis: a.basis, ai: a.provenance.sourceKind === 'assistant' }))
+      if (type === 'constraint') return (await client.constraints({ text })).map((c) => ({ id: c.id, key: c.key, label: c.statement, bound: boundText(c), status: c.status, tone: CONSTRAINT_TONE[c.status], basis: c.basis, ai: c.provenance.sourceKind === 'assistant' }))
+      return (await client.assumptions({ text })).map((a) => ({ id: a.id, key: a.key, label: a.statement, bound: a.quantity ? formatQuantity(a.quantity) : undefined, status: a.validationStatus, tone: VALIDATION_TONE[a.validationStatus], basis: a.basis, ai: a.provenance.sourceKind === 'assistant' }))
     },
     [client, type, text],
   )
@@ -96,9 +89,14 @@ export function RecordList({ type }: { type: DesignRecordType }) {
     <ul className="con-results" aria-label={`${TYPE_LABEL[type]}s`} data-help-id={`conceptualize.knowledge.${type}s`}>
       {data.data.map((r) => (
         <li key={r.id} className={state.record?.id === r.id ? 'is-open' : undefined}>
-          <Button size="sm" variant="quiet" className="con-tree-label" onPress={() => setState({ record: { type, id: r.id }, conceptId: null })}>
-            <span className="con-key">{r.key}</span> {r.label.length > 80 ? `${r.label.slice(0, 79)}…` : r.label}
+          <Button size="sm" variant="quiet" className="con-tree-label con-record-label" data-record-key={r.key} onPress={() => setState({ record: { type, id: r.id }, conceptId: null })}>
+            <span className="con-key">{r.key}</span> {r.label}
           </Button>
+          {r.bound && (
+            <span className="con-bound font-mono" data-testid="record-bound" data-help-id={`conceptualize.knowledge.${type}.bound`}>
+              {r.bound}
+            </span>
+          )}
           <span className="con-tree-badges">
             <Badge tone={r.tone}>{r.status}</Badge>
             {r.basis && <BasisBadge basis={r.basis} />}

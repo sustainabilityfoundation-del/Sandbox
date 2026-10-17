@@ -21,7 +21,14 @@ revisions and provenance (person, or assistant proposal and conversation):
 
 In the **Explorer**, choose **Functions**, **Constraints** or **Assumptions** in the record-type list next
 to the search field. The list shows each record's status and **basis**; search filters by words. Choose a
-record to open its inspector. **Create function** adds a Function directly.
+record to open its detail. The list shows a constraint's bound in full (symbol, operator, value, unit and the
+tolerance or range) under its statement: the statement wraps and nothing is cut off, also on a phone.
+**Create function** adds a Function directly.
+
+The workspace **Inspector** (right-hand panel, first tab) follows what you open here: a Concept, Function,
+Constraint, Assumption or the alternative set shown in the Alternative Explorer. It shows the key (for example
+CST-001), status, basis and, for a Constraint, the bound. **Clear selection** in the Inspector empties it;
+selecting an object in the product tree replaces it.
 
 ## Functions
 

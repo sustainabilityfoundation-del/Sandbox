@@ -24,7 +24,7 @@ export const conceptualizeTool = defineTool<ConceptualizeViewState>({
   category: 'Conceptual design',
   icon: 'category',
   version: pkg.version,
-  sdkVersion: '^1.5.0',
+  sdkVersion: '^1.16.0',
   entitlement: 'tool:conceptualize',
   supportedObjectTypes: ['assembly', 'part', 'sysml-element', 'cad-representation', 'requirement'],
   view: lazy(() => import('./ConceptualizeView')),

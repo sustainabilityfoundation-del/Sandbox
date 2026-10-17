@@ -1,11 +1,12 @@
 import { Badge, Button, Dialog, EmptyState, Notice, Select, TextField } from '@ews/design-system'
-import { useToolViewState } from '@ews/platform-sdk/react'
+import { useInspectorSubject, useToolViewState } from '@ews/platform-sdk/react'
 import type { AlternativeSet, Concept, Criterion, DecisionOutcomeKind, Score, TradeStudy } from '@ews/conceptualize-client'
 import { useState } from 'react'
 import { useModuleData, useResource } from '../data'
 import { KIND_LABEL, QUALITATIVE, formatQuantity, type ConceptualizeViewState } from '../domain'
 import { ApiErrorNotice, BasisBadge, ConceptLinkButton, MaturityBadge, ProvenanceBadge, RefLabel, Section } from './common'
 import { DecisionList } from './Workspace'
+import { alternativeSetSubject } from '../inspectorSubjects'
 
 const MEMBER_TONE = { candidate: 'neutral', selected: 'success', rejected: 'danger', deferred: 'warning', withdrawn: 'neutral' } as const
 
@@ -273,6 +274,7 @@ function SetView({ set }: { set: AlternativeSet }) {
   const [error, setError] = useState<unknown>(null)
   const byId = new Map((concepts.data ?? []).map((c) => [c.id, c]))
   const parent = byId.get(set.parentId)
+  useInspectorSubject(alternativeSetSubject(set, (id) => (byId.get(id) ? `${byId.get(id)!.key} ${byId.get(id)!.name}` : 'Alternative')))
   const run = async (fn: () => Promise<unknown>) => {
     setError(null)
     try {
