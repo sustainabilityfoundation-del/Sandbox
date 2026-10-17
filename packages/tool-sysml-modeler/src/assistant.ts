@@ -1,6 +1,6 @@
 import { ActionError, argOptionalString, argString, type RequirementSummary, type AssistantActionContext, type AssistantActionDefinition, type AssistantContribution, type ServiceProposal, type ServiceProposalItem } from '@ews/platform-sdk'
 import { SysmlClientError, type SysmlClient, type TransactionOutcome } from '@ews/sysml-client'
-import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, applyTransaction, checkCommandShape, findElements, isKindOf, loadText, validate, relationshipMatrix, requirementCoverage, impact, incomingReferences, isTextEditableNamespace, findManagedRequirementElement, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
+import { COMMAND_SCHEMAS, CREATABLE_KINDS, RULES, applyTransaction, checkCommandShape, findElements, isKindOf, loadText, validate, relationshipMatrix, requirementCoverage, impact, incomingReferences, isTextEditableNamespace, findManagedRequirementElement, newerRevisionNotices, resolveRef, semanticsOf, serialize, serializeElement, summarize, type Command, type Model } from '@ews/sysml-core'
 import { actionFlowContext, actionFlowView, stateTransitionContext, stateTransitionView } from './projection/behavior'
 import type { Graph } from './projection/graph'
 import { existingSession, getClient } from './session'
@@ -89,7 +89,7 @@ function previewItems(model: Model, out: TransactionOutcome): ServiceProposalIte
   return items
 }
 
-async function propose(ctx: AssistantActionContext, args: Record<string, unknown>, commands: Command[], title: string, explanation: string): Promise<ServiceProposal | { kind: 'data'; summary: string; data: unknown }> {
+async function propose(ctx: AssistantActionContext, args: Record<string, unknown>, commands: Command[], title: string, explanation: string, notices: string[] = []): Promise<ServiceProposal | { kind: 'data'; summary: string; data: unknown }> {
   const t = await target(ctx, argOptionalString(args, 'projectId'))
   let dry: TransactionOutcome
   try {
@@ -101,7 +101,7 @@ async function propose(ctx: AssistantActionContext, args: Record<string, unknown
     }
     throw e
   }
-  if (!dry.changes.length) return { kind: 'data', summary: 'The model already contains this; nothing to change, so no proposal was made.', data: { changed: false } }
+  if (!dry.changes.length) return { kind: 'data', summary: `The model already contains this; nothing to change, so no proposal was made.${notices.length ? ` Notice: ${notices.join('; ')}.` : ''}`, data: { changed: false, ...(notices.length ? { notices } : {}) } }
   const assumptions = Array.isArray(args.assumptions) ? (args.assumptions as unknown[]).map(String).slice(0, 20) : []
   let commitId: string | undefined
   return {
@@ -109,7 +109,7 @@ async function propose(ctx: AssistantActionContext, args: Record<string, unknown
     module: MODULE,
     title,
     explanation,
-    preview: previewItems(t.model, dry),
+    preview: [...previewItems(t.model, dry), ...notices.map((n) => ({ label: 'Notice', proposed: n, basis: 'evidence' as const }))],
     assumptions: [
       ...assumptions,
       `Prepared against commit ${t.headCommitId.slice(0, 8)}; if the same elements change before you apply, Apply is refused and nothing is written.`,
@@ -528,7 +528,8 @@ const importRequirementAction: AssistantActionDefinition = {
       return `${req.key} “${req.title}” (revision ${req.revision}) ${existing ? `reuses ${s.qualifiedName(existing['@id']) ?? existing['@id']} (no second element)` : `becomes a requirement in ${s.qualifiedName(ownerId) ?? 'the model root'}`}`
     })
     const keys = reqs.map((r) => r.key).join(', ')
-    return propose(ctx, args, commands, `Bring ${keys} into the System Model`, argOptionalString(args, 'explanation') ?? `${parts.join('; ')}${targets.length ? `; satisfied by ${by.join(', ')}` : ''}. Their text stays in Requirements Management.`)
+    const notices = newerRevisionNotices(t.model, reqs)
+    return propose(ctx, args, commands, `Bring ${keys} into the System Model`, argOptionalString(args, 'explanation') ?? `${parts.join('; ')}${targets.length ? `; satisfied by ${by.join(', ')}` : ''}. Their text stays in Requirements Management.${notices.length ? ` Notice: ${notices.join('; ')}.` : ''}`, notices)
   },
 }
 

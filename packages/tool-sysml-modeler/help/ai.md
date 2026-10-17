@@ -35,6 +35,10 @@ elements proposed in the same turn get their UUID only when you apply that propo
 afterwards with `link_product_element`. The result of an applied `create_project` names the project ID
 for later operations.
 
+**No-change proposals.** Every propose operation (`propose_commands`, `propose_text`, `satisfy_requirement`, `import_requirement`, `link_requirement`, `link_product_element`, `create_project` on an existing model) first runs a dry run. When the dry run changes nothing, the operation returns `kind: 'data'` (`changed: false`, with the reason in the summary) instead of a proposal card, so there is nothing to apply. When `import_requirement` reuses a requirement whose pinned revision is older than the current managed revision, the proposal (or the summary) carries a notice "newer revision REQ-001 rev N available; pin kept"; the pin is never changed automatically.
+
+**Requirement text.** `satisfy_requirement` and `import_requirement` no longer write the `doc /* title: statement */` comment into the model. The model keeps only the UUID, pinned revision, key and title (metadata); the statement stays in Requirements Management.
+
 **Proposals.** The assistant first runs the change as a dry run. A change that would introduce
 validation errors is not proposed. The proposal card lists every element that would be created,
 updated or deleted, the warnings the change introduces, and the assumptions. **Apply** commits it

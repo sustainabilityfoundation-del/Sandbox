@@ -7,7 +7,7 @@ import { Builder, patch } from '../syntax/build'
 import type { Range } from '../syntax/lexer'
 import { parse, parseExpression } from '../syntax/parser'
 import type { Diagnostic } from '../validation/diagnostic'
-import { referencedRequirement, satisfyingChain } from '../query/matrix'
+import { managedOf, referencedRequirement, satisfyingChain } from '../query/matrix'
 import { preserveIdentity } from './reconcile'
 
 /**
@@ -115,6 +115,8 @@ export interface CommandOutcome {
   elementId?: string
   /** importRequirement: the element already existed and was reused. */
   reused?: boolean
+  /** Visible notices (importRequirement: a newer revision is available; the pin is kept). */
+  notices?: string[]
   /** Diagnostics from parsing text or expressions (only errors abort). */
   diagnostics?: Diagnostic[]
 }
@@ -594,16 +596,35 @@ function importRequirement(ctx: CommandContext, cmd: Extract<Command, { op: 'imp
     } catch {
       resolved = undefined // a feature chain such as motor.power: resolved when built
     }
-    if (resolved) {
-      by = resolved['@id']
-      const s = new Semantics(model)
-      const have = [...model.elements()].some((e) => e['@type'] === 'SatisfyRequirementUsage' && referencedRequirement(s, e['@id']) === subject['@id'] && satisfyingChain(s, e['@id']).join('.') === resolved!['@id'])
-      if (have) continue
-    }
+    const s = new Semantics(model)
+    if (resolved) by = resolved['@id']
+    // Already satisfied? A resolved target is compared by id; a feature chain (motor.power) by its dotted name text.
+    const chainText = by.replace(/'/g, '').replace(/s*.s*/g, '.')
+    const have = [...model.elements()].some(
+      (e) =>
+        e['@type'] === 'SatisfyRequirementUsage' &&
+        referencedRequirement(s, e['@id']) === subject['@id'] &&
+        (resolved ? satisfyingChain(s, e['@id']).join('.') === resolved['@id'] : satisfyingChain(s, e['@id']).map((id) => s.name(id) ?? '').join('.') === chainText),
+    )
+    if (have) continue
     executeCommand(ctx, { op: 'satisfy', ownerId: satOwner, requirementId: subject['@id'], by })
   }
   if (cmd.ref) placeholders.set(cmd.ref.startsWith('$') ? cmd.ref : `$${cmd.ref}`, req['@id'])
-  return { elementId: req['@id'], reused }
+  const notices = reused ? newerRevisionNotices(model, [{ id: requirementId, key, revision: cmd.revision }]) : []
+  return { elementId: req['@id'], reused, ...(notices.length ? { notices } : {}) }
+}
+
+/** For managed requirements already in the model: a notice when the current managed revision is newer than the pinned one (the pin is kept, never changed here). */
+export function newerRevisionNotices(model: Model, items: { id: string; key: string; revision?: number }[]): string[] {
+  const s = new Semantics(model)
+  const out: string[] = []
+  for (const it of items) {
+    if (it.revision === undefined) continue
+    const el = findManagedRequirementElement(model, it.id)
+    const pinned = el ? managedOf(s, el['@id'])?.revision : undefined
+    if (pinned !== undefined && it.revision > pinned) out.push(`newer revision ${it.key} rev ${it.revision} available; pin kept (pinned rev ${pinned})`)
+  }
+  return out
 }
 
 function topOwner(s: Semantics, id: string): string {

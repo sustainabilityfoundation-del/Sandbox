@@ -2,7 +2,7 @@ import { Badge, Button, Checkbox, ComboBox, Dialog, Notice } from '@ews/design-s
 import type { RequirementSummary } from '@ews/platform-sdk'
 import { usePlatformServices, useSharedContext } from '@ews/platform-sdk/react'
 import type { TransactionOutcome } from '@ews/sysml-client'
-import { findManagedRequirementElement, isKindOf, semanticsOf, type Command, type Model } from '@ews/sysml-core'
+import { findManagedRequirementElement, isKindOf, newerRevisionNotices, semanticsOf, type Command, type Model } from '@ews/sysml-core'
 import { useEffect, useMemo, useState } from 'react'
 import { message, type ModelerSession } from '../session'
 import { ChangeList } from './common'
@@ -62,6 +62,7 @@ export function ImportRequirementsDialog({ session, model }: { session: ModelerS
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<TransactionOutcome | null>(null)
   const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState<{ number?: number; notices: string[] } | null>(null)
   useEffect(() => {
     if (!open) return
     setPicked([])
@@ -69,6 +70,7 @@ export function ImportRequirementsDialog({ session, model }: { session: ModelerS
     setPartLabel('')
     setError(null)
     setPreview(null)
+    setDone(null)
   }, [open])
   const s = semanticsOf(model)
   const parts = useMemo(
@@ -89,6 +91,7 @@ export function ImportRequirementsDialog({ session, model }: { session: ModelerS
       .filter((r) => picked.includes(r.id))
       .map((r) => ({ op: 'importRequirement', ownerId, requirementId: r.id, key: r.key, title: r.title, revision: r.revision, ...(by ? { satisfiedBy: by } : {}) }))
   }
+  const noticesNow = () => newerRevisionNotices(model, commands().map((c) => ({ id: (c as { requirementId: string }).requirementId, key: (c as { key: string }).key, revision: (c as { revision?: number }).revision })))
   const act = async (dry: boolean) => {
     setBusy(true)
     setError(null)
@@ -100,8 +103,10 @@ export function ImportRequirementsDialog({ session, model }: { session: ModelerS
           setError('Everything selected is already in the model (same requirement, same satisfy links); nothing to change.')
           return
         }
+        const notices = noticesNow()
         await session.run(commands(), { reason: `Brought ${picked.length} managed requirement(s) into the System Model` })
-        update({ dialog: null, tab: 'matrix', matrix: 'satisfy' })
+        if (notices.length) setDone({ notices })
+        else update({ dialog: null, tab: 'matrix', matrix: 'satisfy' })
       }
     } catch (e) {
       setError(message(e))
@@ -152,7 +157,9 @@ export function ImportRequirementsDialog({ session, model }: { session: ModelerS
           />
         )}
         {error && <Notice tone="danger" title="Not brought in">{error}</Notice>}
-        {preview && <ChangeList outcome={preview} />}
+        {(done ? done.notices : preview ? noticesNow() : []).map((n) => <Notice key={n} tone="warning" title={done ? 'Brought in; note' : 'Note'}>{n}</Notice>)}
+        {preview && !done && <ChangeList outcome={preview} />}
+        {done && <p className="smod-muted">Committed. <Button size="sm" variant="text" onPress={() => update({ dialog: null, tab: 'matrix', matrix: 'satisfy' })}>Show the matrix</Button></p>}
       </div>
     </Dialog>
   )

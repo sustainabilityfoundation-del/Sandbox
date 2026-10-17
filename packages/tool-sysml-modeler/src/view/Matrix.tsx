@@ -17,6 +17,8 @@ const MATRIX_HELP: Record<'satisfy' | 'allocate' | 'connect', string> = {
   connect: 'Parts of the definition shown in the Interconnection View, and the connections, interfaces, flows and bindings between them.',
 }
 
+const NEEDS_SERVICE = 'Needs the Requirements service, which is not available here, so managed requirements cannot be listed or brought in.'
+
 const SHORT: Record<string, string> = { SatisfyRequirementUsage: 'satisfy', AllocationUsage: 'allocate', ConnectionUsage: 'conn', InterfaceUsage: 'intf', FlowUsage: 'flow', BindingConnectorAsUsage: 'bind' }
 
 export function MatrixView({ model, scopeId, connectContext, revision }: { model: Model; scopeId: string; connectContext: string | null; revision: number }) {
@@ -38,8 +40,12 @@ export function MatrixView({ model, scopeId, connectContext, revision }: { model
         {kind === 'satisfy' && (
           <>
             <span className="smod-spacer" />
-            <Button size="sm" icon="requirement" onPress={openImport} isDisabled={managed.items === null} data-help-id="sysml-modeler.import-requirements" aria-describedby="smod-import-reason">Bring in managed requirements</Button>
-            {managed.items === null && <span id="smod-import-reason" className="smod-muted" role="note" title="Needs the Requirements service">Needs the Requirements service, which is not available here.</span>}
+            {managed.items === null ? (
+              <Button size="sm" icon="requirement" aria-disabled="true" aria-label={`Bring in managed requirements (unavailable: ${NEEDS_SERVICE})`} aria-describedby="smod-import-reason" className="opacity-40" onPress={() => {}} data-help-id="sysml-modeler.import-requirements">Bring in managed requirements</Button>
+            ) : (
+              <Button size="sm" icon="requirement" onPress={openImport} data-help-id="sysml-modeler.import-requirements">Bring in managed requirements</Button>
+            )}
+            {managed.items === null && <span id="smod-import-reason" className="smod-muted" role="note">{NEEDS_SERVICE}</span>}
           </>
         )}
       </div>
@@ -51,14 +57,14 @@ export function MatrixView({ model, scopeId, connectContext, revision }: { model
           title="No requirements in the model yet"
           action={
             managed.items === null ? (
-              <Button icon="requirement" isDisabled aria-describedby="smod-import-reason-empty">Bring in managed requirements</Button>
+              <Button icon="requirement" aria-disabled="true" aria-label={`Bring in managed requirements (unavailable: ${NEEDS_SERVICE})`} aria-describedby="smod-import-reason-empty" className="opacity-40" onPress={() => {}}>Bring in managed requirements</Button>
             ) : (
               <Button variant="filled" icon="requirement" onPress={openImport} data-help-id="sysml-modeler.import-requirements">Bring in managed requirements</Button>
             )
           }
         >
           Managed requirements appear here once they are brought into the System Model.{managedCount ? ` This project has ${managedCount} managed requirement${managedCount === 1 ? '' : 's'}.` : ''}
-          {managed.items === null && <span id="smod-import-reason-empty" title="Needs the Requirements service"> The Requirements service is not available here, so they cannot be listed or brought in.</span>}
+          {managed.items === null && <span id="smod-import-reason-empty"> {NEEDS_SERVICE}</span>}
         </EmptyState>
       )}
       {mx && (mx.rows.length === 0 ? (

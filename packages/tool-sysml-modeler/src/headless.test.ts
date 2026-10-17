@@ -119,7 +119,8 @@ describe('import_requirement (AUD-5)', () => {
   }
 
   it('is previewed, pins id/revision/key/title, adds satisfy, and a second import changes nothing (one element)', async () => {
-    const { client, run } = withTwo()
+    const h = withTwo()
+    const { client, run } = h
     const first = (await run('import_requirement', { requirement: 'REQ-002', satisfiedBy: ['ActuatorSystem::Mechanical::Rod'] })) as ServiceProposal
     expect(first.kind).toBe('service-proposal')
     expect(first.preview.length).toBeGreaterThan(0)
@@ -132,6 +133,13 @@ describe('import_requirement (AUD-5)', () => {
     const again = (await run('import_requirement', { requirement: 'REQ-002', satisfiedBy: ['ActuatorSystem::Mechanical::Rod'] })) as { kind: string; summary: string }
     expect(again.kind).toBe('data')
     expect(again.summary).toMatch(/already contains this; nothing to change/)
+    // A newer managed revision is announced in the proposal and the result; the pin is kept.
+    const bumped = { ...REQ2, revision: 3 }
+    ;(h.ctx.services as unknown as { requirements: { get: (id: string) => Promise<unknown>; resolve: (k: string) => Promise<unknown> } }).requirements.resolve = async (k) => (k === 'REQ-002' ? bumped : undefined)
+    ;(h.ctx.services as unknown as { requirements: { get: (id: string) => Promise<unknown> } }).requirements.get = async (id) => (id === REQ2.id ? bumped : undefined)
+    const stale = (await run('import_requirement', { requirement: 'REQ-002', satisfiedBy: ['ActuatorSystem::Mechanical::Rod'] })) as { kind: string; summary: string }
+    expect(stale.summary).toMatch(/newer revision REQ-002 rev 3 available; pin kept/)
+    expect(requirementCoverage(await modelOf(client)).requirements.find((r) => r.managed?.requirementId === REQ2.id)?.managed?.revision).toBe(2)
     // A different satisfying part adds only the missing link, on the same element.
     const more = (await run('import_requirement', { requirement: 'REQ-002', satisfiedBy: ['ActuatorSystem::Mechanical::Rod', 'ActuatorSystem::Mechanical::Gearbox'] })) as ServiceProposal
     await more.apply({ conversationId: 'c', proposalId: 'p2', messageId: 'm' })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveRef } from './commands/commands'
+import { newerRevisionNotices, resolveRef } from './commands/commands'
 import { relationshipMatrix, requirementCoverage } from './query/matrix'
 import { applyChanges, diffModels, invertChanges } from './commands/changes'
 import { COMMAND_SCHEMAS } from './commands/schemas'
@@ -485,6 +485,27 @@ describe('importRequirement (AUD-5): managed requirements enter the model once',
     expect(mx.rows[0]).toMatchObject({ displayId: 'REQ-001', title: 'Six bits "hex"' })
     expect(mx.cols.map((x) => x.label).sort()).toEqual(['A::Cover', 'A::HolderBlock'])
     expect(mx.cells).toHaveLength(2)
+  })
+
+  it('a feature-chain target (motor.power) is not satisfied twice by a re-import', () => {
+    const m = model('package A { part def Motor { attribute power; } part motor : Motor; }')
+    const a = imp(m, { satisfiedBy: ['motor.power'] })
+    const count = (x: Model) => [...x.elements()].filter((e) => e['@type'] === 'SatisfyRequirementUsage').length
+    expect(count(a.model)).toBe(1)
+    const b = imp(a.model, { satisfiedBy: ['motor.power'] })
+    expect(count(b.model)).toBe(1)
+    expect(b.changes).toEqual([])
+  })
+
+  it('reusing a requirement pinned at an older revision returns a notice and keeps the pin', () => {
+    const once = imp(base())
+    expect(once.commandResults[0].notices).toBeUndefined()
+    const newer = imp(once.model, { revision: 5 })
+    expect(newer.commandResults[0].notices).toEqual(['newer revision REQ-001 rev 5 available; pin kept (pinned rev 3)'])
+    expect(usagesOf(newer.model, R1)[0].managed?.revision).toBe(3)
+    expect(newer.changes).toEqual([])
+    expect(imp(once.model, { revision: 3 }).commandResults[0].notices).toBeUndefined()
+    expect(newerRevisionNotices(once.model, [{ id: R1, key: 'REQ-001', revision: 4 }])).toHaveLength(1)
   })
 
   it('two managed requirements give two rows; invalid input is rejected', () => {

@@ -30,7 +30,7 @@ export { validate, expectedTypeKinds, RULES, CAD_REF, cadRepresentations, readCa
 export { diagnosticKey, type Diagnostic, type Severity } from './validation/diagnostic'
 export * from './units/units'
 export { evaluate, featureValue, formatValue, quantityDimension, type Value } from './units/evaluate'
-export { executeCommand, findManagedRequirementElement, resolveRef, splitQualifiedName, removeSubtree, isBodyRelationship, isTextEditableNamespace, CommandError, CREATABLE_KINDS, CONNECT_KINDS, METADATA_KINDS, type Command, type CommandContext, type CreatableKind, type ConnectKind } from './commands/commands'
+export { executeCommand, findManagedRequirementElement, newerRevisionNotices, resolveRef, splitQualifiedName, removeSubtree, isBodyRelationship, isTextEditableNamespace, CommandError, CREATABLE_KINDS, CONNECT_KINDS, METADATA_KINDS, type Command, type CommandContext, type CreatableKind, type ConnectKind } from './commands/commands'
 export { applyTransaction, affectedElements, diagnosticsDelta, type TransactionInput, type TransactionResult, type ValidationPolicy, type DiagnosticsDelta } from './commands/transaction'
 export { diffModels, applyChanges, invertChanges, summarizeChanges, describeSummary, type ElementChange, type ChangeSummaryItem } from './commands/changes'
 export { COMMAND_SCHEMAS, checkCommandShape, type CommandSchema } from './commands/schemas'

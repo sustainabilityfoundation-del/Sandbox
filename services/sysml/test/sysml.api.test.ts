@@ -295,8 +295,11 @@ describe('importRequirement command (AUD-5, database)', () => {
     expect(after).toContain('requirementKey = "REQ-AUD5"')
     expect(after.split(`requirement <'REQ-AUD5'>`)).toHaveLength(2)
     expect(after.split("satisfy 'REQ-AUD5' by").length).toBe(2)
+    const headBefore = (await head()).commitId
     const second = await tx([command], { headers: idem() })
-    expect(second.body.changes?.length ?? second.body.commit?.changeCount ?? 0).toBe(0)
+    expect(second.status).toBe(422)
+    expect(JSON.stringify(second.body)).toContain('change nothing')
+    expect((await head()).commitId).toBe(headBefore)
     expect((await textOf()).split(`requirementId = "${RID}"`)).toHaveLength(2)
     const bad = await tx([{ ...command, requirementId: 'REQ-AUD5' }], { dryRun: true })
     expect(bad.status).toBe(422)
