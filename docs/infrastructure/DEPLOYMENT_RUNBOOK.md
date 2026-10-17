@@ -50,10 +50,26 @@ After A4, `npx cdk diff <stack> --profile <PROFILE>` (run in `infra/aws`) shows 
 
 ## A4. Bootstrap (writes to the member account, once per account and region)
 
+**Do not use the default bootstrap.** By default the CloudFormation execution role has `AdministratorAccess`, which would make the GitHub deploy
+role (it may assume the CDK deploy role) an account administrator. Create the scoped execution policies first (two managed policies, because one
+is limited to 6,144 characters; both are in the repository: `infra/aws/policies/cfn-execution-dev-1.json` and `-2.json`), then bootstrap with them:
+
 ```sh
 cd infra/aws
-npx cdk bootstrap aws://<ACCOUNT>/<REGION> --profile <PROFILE>
+aws iam create-policy --policy-name EwsCfnExecutionDev1 --policy-document file://policies/cfn-execution-dev-1.json --profile <PROFILE>
+aws iam create-policy --policy-name EwsCfnExecutionDev2 --policy-document file://policies/cfn-execution-dev-2.json --profile <PROFILE>
+npx cdk bootstrap aws://<ACCOUNT>/<REGION> --profile <PROFILE> \
+  --cloudformation-execution-policies arn:aws:iam::<ACCOUNT>:policy/EwsCfnExecutionDev1,arn:aws:iam::<ACCOUNT>:policy/EwsCfnExecutionDev2
 ```
+
+What the policies allow: create, change and delete only the resource types in [DEV_STACK_RESOURCES.md](DEV_STACK_RESOURCES.md) (EC2 networking, RDS, EFS, ECS, ECR
+`ews/*`, load balancing, log groups `/ews/*`, Secrets Manager `ews/*`, the `ews-*-site-*` bucket, CloudFront, Application Auto Scaling, Lambda `Ews-*`);
+IAM only for roles named `Ews-*` and `ews-gh-deploy-dev`, the GitHub identity provider and a fixed list of service-linked roles; role attachment is limited to
+the Lambda basic-execution policy. They are **derived from the templates and not yet tested against AWS**: the first deploy may be refused for a missing
+action. Add that one action to the policy (`aws iam create-policy-version --set-as-default`) and note it in this file; never fall back to `AdministratorAccess` without the owner's explicit decision.
+Known limit: a role named `Ews-*` can be given inline permissions by a template, so a malicious change merged to `main` could still escalate. The guard against that
+is review: **turn on branch protection for `main`** (GitHub, Settings, Branches: require a pull request and one approval, require the CI checks including `infra`, block force pushes,
+include administrators), because the OIDC role trusts the `main` branch. A permissions boundary on the created roles is the stronger follow-up (production).
 
 This creates the CDK toolkit stack `CDKToolkit`: an S3 bucket for deployment files, an ECR repository for CDK assets, an SSM parameter and
 five IAM roles (deploy, file publishing, image publishing, lookup, CloudFormation execution). The default qualifier `hnb659fds` is assumed by the
@@ -122,13 +138,16 @@ Wait and check the exit code as in A5 step 4. Never run this against production 
 
 The whole dev site (pages and `/api/*`) sits behind HTTP basic authentication done by the CloudFront Function `ews-dev-gate`
 ([functions/gate.js](../../infra/aws/functions/gate.js)). It compares the browser's credential with salted SHA-256 hashes stored in the Key Value Store
-`ews-dev-gate`, key `gate`. The password itself is never stored anywhere; with no entry the site answers 503 (fail closed). Use a long random password
-(16+ characters) from a password manager and share it with testers out of band.
+`ews-dev-gate`, key `gate`. The password itself is never stored anywhere; with no entry the site answers 503 (fail closed). The password must be **at least 24 characters
+and random**: `npm run gate:hash` refuses shorter ones and generates a 32-character one if you just press Enter (shown once on your terminal; put it in a password manager).
+Share it with testers out of band. Basic authentication has no lockout, so a rate limit is a follow-up: an AWS WAF web ACL on the distribution with a
+rate-based rule (for example 100 requests per 5 minutes per IP on all paths, and a stricter rule on responses with status 401) and the AWS managed IP reputation list
+(about USD 5 a month plus about 1 per rule and 0.60 per million requests, not in the stack or the cost estimate yet; before production the gate is replaced by Cognito).
 
 **Set it.**
 ```sh
 cd infra/aws
-npm run gate:hash -- --user ews          # asks for the password without showing it; prints ONE line:  <salt>$<hash>   (the hash is not the password)
+npm run gate:hash -- --user ews          # asks for the password without showing it (Enter generates one); prints ONE line:  <salt>$<hash>   (the hash is not the password)
 KVS=<GateStoreArn from the Ews-Dev-Edge outputs>
 ETAG=$(aws cloudfront-keyvaluestore describe-key-value-store --kvs-arn $KVS --query ETag --output text --profile <PROFILE>)
 aws cloudfront-keyvaluestore put-key --kvs-arn $KVS --key gate --value '<the line printed above>' --if-match $ETAG --profile <PROFILE>
@@ -142,7 +161,7 @@ Changes reach the edge within a minute. Test with `curl -s -o /dev/null -w '%{ht
 
 **Lock everyone out now:** `aws cloudfront-keyvaluestore delete-key --kvs-arn $KVS --key gate --if-match $ETAG --profile <PROFILE>` (the site answers 503).
 The user name is part of the hash: change it by generating a new entry with another `--user`. The hash and salt are readable by anyone who can read the
-Key Value Store, so a weak password can be guessed offline; hence the length rule. This gate is a prototype measure until Cognito sign-in (before production).
+Key Value Store, so a weak password can be guessed offline; hence the 24-character minimum. This gate is a prototype measure until Cognito sign-in (before production).
 
 ## A8. Operate
 

@@ -35,13 +35,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: infra/aws/package-lock.json
-      - run: npm ci --prefix infra/aws
+      - run: npm ci --ignore-scripts --prefix infra/aws
       - run: npm run typecheck --prefix infra/aws
       - run: npm test --prefix infra/aws
       - name: Synthesize (offline, no AWS access)
@@ -68,8 +68,8 @@ jobs:
         run: |
           if [ -z "$ROLE" ]; then echo "Set the repository variable AWS_DEPLOY_ROLE_ARN (stack Ews-GithubOidc output DeployRoleArn)." >&2; exit 1; fi
           case "$AWS_REGION" in *[!a-z0-9-]*|'') echo "Unexpected region." >&2; exit 1;; esac
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
       - name: Image tag
@@ -80,12 +80,18 @@ jobs:
           TAG="${INPUT_TAG:-${GITHUB_SHA::12}}"
           case "$TAG" in *[!A-Za-z0-9._-]*|'') echo "Unexpected image tag." >&2; exit 1;; esac
           echo "value=$TAG" >> "$GITHUB_OUTPUT"
-      - uses: aws-actions/configure-aws-credentials@v4
+      # No install script and no build step runs with the deploy role: dependencies are installed with --ignore-scripts and
+      # the site is built BEFORE credentials are configured.
+      - run: npm ci --ignore-scripts --prefix infra/aws
+      - name: Build the static site (no AWS credentials yet)
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ inputs.region }}
           role-session-name: ews-gh-deploy-dev
-      - run: npm ci --prefix infra/aws
 
       - name: Deploy the data stack (VPC, database, file system, secrets, image repository)
         working-directory: infra/aws
@@ -136,14 +142,12 @@ jobs:
         working-directory: infra/aws
         run: npx cdk deploy Ews-Dev-Edge --exclusively --require-approval never
 
-      - name: Build and publish the static site
+      - name: Publish the static site (built above)
         run: |
           set -eu
           out() { aws cloudformation describe-stacks --stack-name Ews-Dev-Edge --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
           BUCKET="$(out SiteBucket)"; DIST="$(out DistributionId)"
           for v in "$BUCKET" "$DIST"; do case "$v" in *[!A-Za-z0-9._-]*|'') echo "Unexpected stack output." >&2; exit 1;; esac; done
-          npm ci
-          npm run build
           aws s3 sync dist/ "s3://$BUCKET/" --delete --exclude "*.html" --cache-control "public,max-age=3600"
           aws s3 sync dist/ "s3://$BUCKET/" --exclude "*" --include "*.html" --cache-control "no-cache"
           aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/*" >/dev/null

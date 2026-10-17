@@ -59,10 +59,15 @@ describe('dev stack (environment-agnostic synth)', () => {
       }
       const groups = JSON.stringify(b.tpl.data.findResources('AWS::EC2::SecurityGroup'))
       expect(groups).not.toContain('0.0.0.0/0/')
-      // The one CIDR rule is the ALB's, restricted to the VPC range.
-      const alb = Object.values(b.tpl.data.findResources('AWS::EC2::SecurityGroup')).find((g) => JSON.stringify(g).includes('CloudFront VPC origin'))
-      expect(JSON.stringify(alb)).toContain('"CidrBlock"') // the VPC's own range, not the internet
-      expect(JSON.stringify(alb)).not.toContain('0.0.0.0/0')
+      // No CIDR rule anywhere in the data stack (not even the VPC range); the ALB admits only the CloudFront VPC-origin group.
+      expect(groups).not.toContain('SecurityGroupIngress') // no inline ingress at all; the rules above are all group-to-group
+    })
+
+    it('admits the ALB only from the CloudFront VPC-origin security group', () => {
+      b.tpl.edge.hasResourceProperties('AWS::EC2::SecurityGroupIngress', { IpProtocol: 'tcp', FromPort: 80, ToPort: 80, SourceSecurityGroupId: Match.anyValue(), GroupId: Match.anyValue() })
+      const rule = Object.values(b.tpl.edge.findResources('AWS::EC2::SecurityGroupIngress'))[0] as { Properties: Record<string, unknown> }
+      expect(rule.Properties.CidrIp).toBeUndefined()
+      expect(JSON.stringify(b.tpl.edge.findResources('Custom::AWS'))).toContain('CloudFront-VPCOrigins-Service-SG')
     })
 
     it('encrypts EFS and retains it', () => {

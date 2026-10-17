@@ -6,8 +6,9 @@
 .git
 .claude
 .data
-.env
-.env.*
+**/.env*
+**/*.pem
+**/*.key
 docs
 infra
 tests/e2e

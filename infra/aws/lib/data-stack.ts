@@ -44,11 +44,10 @@ export class DataStack extends cdk.Stack {
     })
 
     // Security groups (all rules live in this stack so the other stacks cannot create a dependency cycle).
-    this.albSg = new ec2.SecurityGroup(this, 'AlbSg', { vpc: this.vpc, description: 'Internal ALB: HTTP from inside the VPC (CloudFront VPC origin)', allowAllOutbound: false })
+    this.albSg = new ec2.SecurityGroup(this, 'AlbSg', { vpc: this.vpc, description: 'Internal ALB: HTTP from the CloudFront VPC-origin security group only (rule added by the Edge stack)', allowAllOutbound: false })
     this.taskSg = new ec2.SecurityGroup(this, 'TaskSg', { vpc: this.vpc, description: 'API and migration tasks: inbound from the ALB only; outbound for ECR, Secrets Manager, logs, AI providers' })
     const dbSg = new ec2.SecurityGroup(this, 'DbSg', { vpc: this.vpc, description: 'RDS: PostgreSQL from the tasks only', allowAllOutbound: false })
     const efsSg = new ec2.SecurityGroup(this, 'EfsSg', { vpc: this.vpc, description: 'EFS: NFS from the tasks only', allowAllOutbound: false })
-    this.albSg.addIngressRule(ec2.Peer.ipv4(this.vpc.vpcCidrBlock), ec2.Port.tcp(80), 'CloudFront VPC origin network interfaces (inside the VPC)')
     this.albSg.addEgressRule(this.taskSg, ec2.Port.tcp(API_PORT), 'to the tasks')
     this.taskSg.addIngressRule(this.albSg, ec2.Port.tcp(API_PORT), 'from the ALB')
     dbSg.addIngressRule(this.taskSg, ec2.Port.tcp(5432), 'PostgreSQL from the tasks')

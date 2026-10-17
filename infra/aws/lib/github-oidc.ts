@@ -75,9 +75,19 @@ export class GithubDeployRole extends Construct {
       conditions: { StringEquals: { 'iam:PassedToService': 'ecs-tasks.amazonaws.com' } },
     }))
     this.role.addToPolicy(new iam.PolicyStatement({
-      sid: 'ObserveEcs',
-      actions: ['ecs:DescribeTasks', 'ecs:DescribeServices', 'ecs:DescribeTaskDefinition', 'ecs:ListTasks', 'ecs:StopTask'],
-      resources: ['*'],
+      sid: 'ObserveAndStopEcsTasksInTheDevCluster',
+      actions: ['ecs:DescribeTasks', 'ecs:StopTask'],
+      resources: [`arn:${partition}:ecs:${region}:${account}:task/ews-dev/*`],
+    }))
+    this.role.addToPolicy(new iam.PolicyStatement({
+      sid: 'ObserveEcsService',
+      actions: ['ecs:DescribeServices'],
+      resources: [`arn:${partition}:ecs:${region}:${account}:service/ews-dev/*`],
+    }))
+    this.role.addToPolicy(new iam.PolicyStatement({
+      sid: 'ListEcs',
+      actions: ['ecs:DescribeTaskDefinition', 'ecs:ListTasks'],
+      resources: ['*'], // these two calls do not support resource-level permissions
     }))
     this.role.addToPolicy(new iam.PolicyStatement({
       sid: 'SyncSiteBucket',

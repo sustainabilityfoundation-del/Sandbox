@@ -15,6 +15,6 @@ export function buildApp(app: cdk.App, cfg: EwsConfig) {
   const data = new DataStack(app, stackName(cfg, 'Data'), cfg)
   const migrate = new MigrateStack(app, stackName(cfg, 'Migrate'), cfg, data)
   const application = new AppStack(app, stackName(cfg, 'App'), cfg, data)
-  const edge = new EdgeStack(app, stackName(cfg, 'Edge'), cfg, application)
+  const edge = new EdgeStack(app, stackName(cfg, 'Edge'), cfg, application, data)
   return { oidc, data, migrate, application, edge }
 }

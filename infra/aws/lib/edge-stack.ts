@@ -4,7 +4,10 @@ import * as cdk from 'aws-cdk-lib'
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront'
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins'
 import * as s3 from 'aws-cdk-lib/aws-s3'
+import * as ec2 from 'aws-cdk-lib/aws-ec2'
+import * as cr from 'aws-cdk-lib/custom-resources'
 import { Construct } from 'constructs'
+import type { DataStack } from './data-stack'
 import type { AppStack } from './app-stack'
 import { type EwsConfig, siteBucketName, stackName } from './config'
 
@@ -21,7 +24,7 @@ export class EdgeStack extends cdk.Stack {
   readonly distribution: cloudfront.Distribution
   readonly gateStore: cloudfront.KeyValueStore
 
-  constructor(scope: Construct, id: string, cfg: EwsConfig, app: AppStack, props: cdk.StackProps = {}) {
+  constructor(scope: Construct, id: string, cfg: EwsConfig, app: AppStack, data: DataStack, props: cdk.StackProps = {}) {
     super(scope, id, { ...props, env: cfg.env, stackName: stackName(cfg, 'Edge'), description: 'EWS dev: CloudFront, static site bucket and the password gate.' })
 
     this.bucket = new s3.Bucket(this, 'Site', {
@@ -79,6 +82,29 @@ export class EdgeStack extends cdk.Stack {
       httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
       enableLogging: false,
+    })
+
+    // The ALB admits HTTP from the security group CloudFront creates for VPC origins ("CloudFront-VPCOrigins-Service-SG"), and from nothing
+    // else. CloudFormation does not return that group's ID, so a read-only EC2 DescribeSecurityGroups call finds it once the distribution
+    // exists (the pattern in the aws-cloudfront-origins documentation).
+    const findOriginSg = new cr.AwsCustomResource(this, 'FindVpcOriginSg', {
+      onCreate: {
+        service: 'ec2',
+        action: 'describeSecurityGroups',
+        parameters: { Filters: [{ Name: 'vpc-id', Values: [data.vpc.vpcId] }, { Name: 'group-name', Values: ['CloudFront-VPCOrigins-Service-SG'] }] },
+        physicalResourceId: cr.PhysicalResourceId.of('CloudFront-VPCOrigins-Service-SG'),
+      },
+      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({ resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE }),
+      installLatestAwsSdk: false, // use the SDK in the Lambda runtime; nothing is downloaded at deployment time
+    })
+    findOriginSg.node.addDependency(this.distribution)
+    new ec2.CfnSecurityGroupIngress(this, 'AlbFromVpcOrigin', {
+      groupId: data.albSg.securityGroupId,
+      ipProtocol: 'tcp',
+      fromPort: 80,
+      toPort: 80,
+      sourceSecurityGroupId: findOriginSg.getResponseField('SecurityGroups.0.GroupId'),
+      description: 'CloudFront VPC origin',
     })
 
     new cdk.CfnOutput(this, 'SiteUrl', { value: `https://${this.distribution.distributionDomainName}/` })
