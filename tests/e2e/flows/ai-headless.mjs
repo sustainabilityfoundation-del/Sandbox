@@ -142,6 +142,8 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, EXPECTED_REFUSALS, re
   const { cadSession } = await import(`/workspace/@fs/${repoFs}/packages/tool-cad-modeler/src/session.ts`)
   const open = await cadSession.openFromStore('PRJ-ACT100', cadId, undefined, { activate: false })
   await open.engine.execute({ commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'af', expression: '7.2' } }], label: 'Local edit', source: 'user' })
+  // An applied intent, so the context and gap reads have something to read (interpret_intent only proposes).
+  const headlessIntent = await hpost('/intents', { designObject: `Headless intent ${stamp}`, role: 'standalone', integration: 'standalone', rationale: 'headless flow' })
   const examples = {
     read_object: { id: 'ROD-120' },
     search_objects: { query: 'rod' },
@@ -164,8 +166,8 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, EXPECTED_REFUSALS, re
     'conceptualize.propose_decision': { conceptId: alternative, rationale: 'headless flow' },
     'conceptualize.link_artifact': { conceptId: actuator, artifactId: 'ROD-120' },
     'conceptualize.interpret_intent': { designObject: `Headless intent ${stamp}`, role: 'standalone', integration: 'standalone', rationale: 'headless flow', objectives: ['Holds a load'] },
-    'conceptualize.read_context': {},
-    'conceptualize.identify_gaps': {},
+    'conceptualize.read_context': { intentId: headlessIntent.id },
+    'conceptualize.identify_gaps': { intentId: headlessIntent.id },
     'conceptualize.propose_requirement': { conceptId: actuator },
     'conceptualize.request_realization': { conceptId: actuator, targetModule: 'cad' },
     'conceptualize.next_steps': { conceptId: actuator },
