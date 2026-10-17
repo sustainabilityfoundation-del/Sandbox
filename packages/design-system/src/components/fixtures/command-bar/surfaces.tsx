@@ -11,6 +11,7 @@ import { CommandSessionStrip } from '../../CommandSessionStrip'
 import { ContextCommands } from '../../ContextCommands'
 import { DockPanel } from '../../DockPanel'
 import { MenuBar, type MenuBarMenu } from '../../MenuBar'
+import { MenuButton, MenuItem, MenuSection } from '../../Overlays'
 import { ToolPalette } from '../../ToolPalette'
 
 declare global {
@@ -268,6 +269,28 @@ function QuickPage() {
   return <QuickBar commands={[ready('q-save', 'Save', { icon: 'save' }), partial('q-export', 'Export'), planned('q-redo', 'Redo', { icon: 'reset' }), unavailable('q-open', 'Reopen')]} />
 }
 
+// A MenuSection with checked items: every selection change is recorded as "select:<sorted ids>".
+function SectionPage() {
+  const [selected, setSelected] = useState<Set<string>>(new Set(['grid']))
+  return (
+    <MenuButton label="Show" text="Show">
+      <MenuSection
+        title="Overlays"
+        selectionMode="multiple"
+        selectedKeys={selected}
+        onSelectionChange={(keys) => {
+          const next = keys === 'all' ? new Set(['grid', 'axes']) : keys
+          window.__calls.push(`select:${[...next].sort().join(',')}`)
+          setSelected(next)
+        }}
+      >
+        <MenuItem id="grid">Grid</MenuItem>
+        <MenuItem id="axes">Axes</MenuItem>
+      </MenuSection>
+    </MenuButton>
+  )
+}
+
 function Page() {
   switch (surface) {
     case 'menubar':
@@ -282,6 +305,8 @@ function Page() {
       return <DockPage />
     case 'quick':
       return <QuickPage />
+    case 'section':
+      return <SectionPage />
     default:
       return <BarPage />
   }

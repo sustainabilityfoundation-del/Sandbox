@@ -50,6 +50,8 @@ describe.skipIf(!haveChrome)('command surfaces in a browser', () => {
     if (shots) mkdirSync(shots, { recursive: true })
   }, 90_000)
 
+  // 60 s: closing Chromium and the Vite server can take well over the default hook timeout when several
+  // suites (or agents) run in parallel on one machine (see the testTimeout note in vitest.config.ts).
   afterAll(async () => {
     await browser?.close()
     await server?.close()
@@ -129,6 +131,12 @@ describe.skipIf(!haveChrome)('command surfaces in a browser', () => {
     it('underlines mnemonics only while key tips are active, and a mnemonic letter opens the menu', async () => {
       const off = await open('c=menubar&layout=desktop')
       expect(await off.locator('u[data-mnemonic]').count()).toBe(0)
+      // Without key tips a menu's mnemonic letter is inert: it does not open the menu.
+      await off.getByRole('menuitem', { name: 'File' }).focus()
+      await off.keyboard.press('v')
+      await off.waitForTimeout(200)
+      expect(await off.getByRole('menu').count()).toBe(0)
+      expect(await activeLabel(off)).toBe('File')
       await off.close()
       const page = await open('c=menubar&layout=desktop&keytips=1')
       expect(await page.locator('[role="menubar"] u[data-mnemonic]').allTextContents()).toEqual(['F', 'E', 'V'])
@@ -405,6 +413,20 @@ describe.skipIf(!haveChrome)('command surfaces in a browser', () => {
       const phone = await open('c=dock&layout=phone', { width: 390, height: 700 })
       await phone.getByRole('dialog', { name: 'Browser' }).waitFor()
       await phone.close()
+    })
+  })
+
+  // ---- MenuSection ----------------------------------------------------------------------------------
+
+  describe('MenuSection', () => {
+    it('reports selection changes of its checked items through onSelectionChange', async () => {
+      const page = await open('c=section')
+      await page.getByRole('button', { name: 'Show' }).click()
+      await page.getByRole('menu').waitFor()
+      expect(await page.getByRole('menuitemcheckbox', { name: 'Grid' }).getAttribute('aria-checked')).toBe('true')
+      await page.getByRole('menuitemcheckbox', { name: 'Axes' }).click()
+      await expect.poll(() => calls(page)).toEqual(['select:axes,grid'])
+      await page.close()
     })
   })
 

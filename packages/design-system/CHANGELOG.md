@@ -26,6 +26,9 @@ still imports no SDK; every surface takes neutral models. No new dependency (Rea
 - **Smaller changes:** `ToolbarGroup` accepts `description`; `MenuSection` accepts `flush`, `label`, `selectionMode` and `selectedKeys`
   (checked items); `MenuItem` accepts `tone="muted"`; a command button now passes keys it does not handle on to its parents (an
   `onKeyDown` handler on a React Aria control otherwise stops them).
+- **Review fixes (same release):** a `MenuBar` menu mnemonic now opens its menu only while `keyTips` is set (item mnemonics already were),
+  and `MenuSection` passes `onSelectionChange` through to React Aria; item mnemonics apply to a menu's direct items only, and
+  `CommandButton` invokes `state.onInvoke` directly under the same ready-or-partial check that `activateCommand` makes for the other surfaces.
 
 ## 1.2.0 (16 October 2026): CommandBar
 
