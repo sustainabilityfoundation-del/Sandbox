@@ -57,6 +57,7 @@
                 "rationale": "The holder mounts to the person's cordless drill, so it works with an existing system. (Plumbing script: a live run asks which model first; here the later steps carry a stated assumption.)",
                 "externalSystems": [
                   {
+                    "id": "sys-1",
                     "name": "Cordless drill (compatibility description only)",
                     "role": "host",
                     "description": "A Milwaukee-compatible cordless drill; its model and accessory interface are not identified.",
@@ -73,7 +74,7 @@
                     "id": "N1",
                     "text": "Identify the drill model and the features it offers for mounting accessories",
                     "tier": 1,
-                    "subject": "Cordless drill",
+                    "subject": "sys-1",
                     "route": "ask-user",
                     "state": "open"
                   }

@@ -16,6 +16,7 @@
                 "rationale": "The holder attaches to the person's own cordless drill, so it works with an existing system whose model is not stated.",
                 "externalSystems": [
                   {
+                    "id": "sys-1",
                     "name": "Cordless drill (make and model not stated)",
                     "role": "host",
                     "description": "The person's cordless drill; the request does not say which model it is.",

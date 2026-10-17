@@ -172,6 +172,12 @@ describe('identify_gaps (deterministic, from the structure)', () => {
     expect(g.systemGaps).toEqual([])
     expect(g.researchItems).toEqual([])
   })
+  it('gives each system a stable id that survives revisions that omit it', async () => {
+    const created = (await post('/intents', hostedIntent)).body
+    expect(created.externalSystems[0].id).toBe('sys-1')
+    const r = await env.call('eli', 'PATCH', `${BASE}/intents/${created.id}`, { expectedRevision: 1, externalSystems: [{ ...hostedIntent.externalSystems[0], identified: true }] })
+    expect(r.body.externalSystems[0]).toMatchObject({ id: 'sys-1', identified: true })
+  })
   it('follows revisions: identifying the system closes the gap, an earlier revision keeps its gaps', async () => {
     const created = (await post('/intents', hostedIntent)).body
     await env.call('eli', 'PATCH', `${BASE}/intents/${created.id}`, { expectedRevision: 1, externalSystems: [{ ...hostedIntent.externalSystems[0], identified: true }] })

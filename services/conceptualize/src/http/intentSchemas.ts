@@ -10,6 +10,7 @@ const Text = (max: number, min = 0) => Type.String({ minLength: min, maxLength: 
 
 export const IntentSystem = Type.Object(
   {
+    id: Type.Optional(Text(40, 1)),
     name: Text(200, 1),
     role: Text(100),
     description: Text(2000),
@@ -25,7 +26,7 @@ export const InformationNeed = Type.Object(
     id: Text(40, 1),
     text: Text(1000, 1),
     tier: Type.Union([Type.Literal(1), Type.Literal(2), Type.Literal(3), Type.Literal(4)], { description: '1 essential, 2 concept, 3 detail, 4 immaterial' }),
-    subject: Type.Optional(Text(200)),
+    subject: Type.Optional(Text(200, 0)),
     route: L(NEED_ROUTES),
     state: L(NEED_STATES),
   },

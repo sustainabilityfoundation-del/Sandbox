@@ -29,6 +29,8 @@ export type GapTier = (typeof GAP_TIERS)[number]
 const TIER_OF_NEED: Record<1 | 2 | 3 | 4, GapTier> = { 1: 'essential', 2: 'concept', 3: 'detail', 4: 'immaterial' }
 
 export interface IntentSystem {
+  /** Stable id (sys-1, ...), assigned by the service; a need's subject points at it. */
+  id?: string
   name: string
   role: string
   description: string
@@ -111,6 +113,8 @@ export interface IntentGap {
   ref?: string
   /** Every ID this gap answers to: its own plus the information needs merged into it (structure gap and need about the same system). */
   ids?: string[]
+  /** Internal: what a need's subject may name to point at this system (its id, or its product element as module:id). Never a name. */
+  systemKeys?: string[]
 }
 export interface IntentGaps {
   gaps: IntentGap[]
@@ -160,17 +164,11 @@ export function structureGaps(c: IntentContent): IntentGap[] {
         source: 'structure',
         subject: s.name,
         ref: String(i),
+        systemKeys: [s.id, s.productElement ? `${s.productElement.module}:${s.productElement.id}` : undefined].filter((k): k is string => !!k),
       })
     })
   }
   return gaps
-}
-
-/** A need's subject names a system when it equals the system's name or one contains the other (case-insensitive). */
-function sameSubject(system: string | undefined, subject: string | undefined): boolean {
-  const a = (system ?? '').trim().toLowerCase()
-  const b = (subject ?? '').trim().toLowerCase()
-  return a !== '' && b !== '' && (a.includes(b) || b.includes(a))
 }
 
 /** The gaps of one intent revision (see structureGaps for the structural ones). */
@@ -180,7 +178,7 @@ export function computeGaps(c: IntentContent): IntentGaps {
   for (const n of c.informationNeeds) {
     if (n.state !== 'open') continue
     // An open need about a system that already has a structural gap is the same gap: one entry keeping both IDs.
-    const twin = n.subject ? systemGaps.find((g) => g.source === 'structure' && g.ref !== undefined && sameSubject(g.subject, n.subject)) : undefined
+    const twin = n.subject ? systemGaps.find((g) => g.source === 'structure' && g.ref !== undefined && n.subject !== undefined && g.systemKeys?.includes(n.subject)) : undefined
     if (twin) {
       twin.ids = [...(twin.ids ?? [twin.id]), `need-${n.id}`]
       if (GAP_TIERS.indexOf(TIER_OF_NEED[n.tier]) < GAP_TIERS.indexOf(twin.tier)) twin.tier = TIER_OF_NEED[n.tier]
@@ -194,11 +192,12 @@ export function computeGaps(c: IntentContent): IntentGaps {
   const covered = new Set(c.questions.filter((q) => q.state === 'open' && q.needId).map((q) => q.needId as string))
   const isCovered = (g: IntentGap) => (g.ids ?? [g.id]).some((id) => covered.has(id) || covered.has(id.replace(/^need-/, ''))) || (g.source === 'information-need' && covered.has(g.ref as string))
   const unaskedEssential = gaps.filter((g) => g.tier === 'essential' && g.route === 'ask-user' && !isCovered(g))
+  const out = (list: IntentGap[]) => list.map(({ systemKeys: _keys, ...g }) => g)
   return {
-    gaps,
+    gaps: out(gaps),
     counts,
-    researchItems: gaps.filter((g) => g.tier === 'essential' && g.route === 'research'),
-    unaskedEssential,
-    systemGaps,
+    researchItems: out(gaps.filter((g) => g.tier === 'essential' && g.route === 'research')),
+    unaskedEssential: out(unaskedEssential),
+    systemGaps: out(systemGaps),
   }
 }

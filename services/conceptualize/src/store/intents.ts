@@ -158,11 +158,31 @@ async function insertRevision(ctx: Ctx, id: string, revision: number, c: Content
   )
 }
 
-const trimmed = (c: Content): Content => ({
+/** Gives every system a stable id: its own, else the one at the same position before, else the next free sys-N. */
+function withSystemIds(systems: Content['externalSystems'], previous: Content['externalSystems'] = []): Content['externalSystems'] {
+  const used = new Set(systems.map((s) => s.id).filter(Boolean) as string[])
+  let n = 0
+  const next = () => {
+    while (used.has(`sys-${++n}`));
+    used.add(`sys-${n}`)
+    return `sys-${n}`
+  }
+  return systems.map((s, i) => {
+    if (s.id) return s
+    const kept = previous[i]?.id
+    if (kept && !used.has(kept)) {
+      used.add(kept)
+      return { ...s, id: kept }
+    }
+    return { ...s, id: next() }
+  })
+}
+
+const trimmed = (c: Content, previous?: Content['externalSystems']): Content => ({
   ...c,
   designObject: c.designObject.trim(),
   rationale: c.rationale.trim(),
-  externalSystems: c.externalSystems.map((s) => ({ ...s, name: s.name.trim(), role: s.role.trim(), description: s.description.trim() })),
+  externalSystems: withSystemIds(c.externalSystems, previous).map((s) => ({ ...s, name: s.name.trim(), role: s.role.trim(), description: s.description.trim() })),
   objectives: c.objectives.map((o) => o.trim()),
   environment: c.environment.map((o) => o.trim()),
   assumptions: [...new Set(c.assumptions)],
@@ -208,7 +228,7 @@ export async function updateIntent(ctx: Ctx, id: string, patch: IntentPatchDto, 
   const current = await lock(ctx, id)
   if (patch.status === 'retired' && ctx.provenance.sourceKind === 'assistant') throw forbidden('Retiring an intent is an action for a person; the assistant cannot retire it.')
   if (current.revision !== expected) throw conflict(`${current.key} changed since revision ${expected} (now ${current.revision}). Reload; nothing was overwritten.`, current.revision)
-  const before: Content = { designObject: current.designObject, role: current.role, integration: current.integration, rationale: current.rationale, externalSystems: current.externalSystems as Content['externalSystems'], objectives: current.objectives, environment: current.environment, informationNeeds: current.informationNeeds as Content['informationNeeds'], assumptions: current.assumptions, questions: current.questions as Content['questions'], basis: current.basis }
+  const before: Content = { designObject: current.designObject, role: current.role, integration: current.integration, rationale: current.rationale, externalSystems: withSystemIds(current.externalSystems as Content['externalSystems']), objectives: current.objectives, environment: current.environment, informationNeeds: current.informationNeeds as Content['informationNeeds'], assumptions: current.assumptions, questions: current.questions as Content['questions'], basis: current.basis }
   const merged = await validate(
     ctx,
     trimmed({
@@ -223,7 +243,7 @@ export async function updateIntent(ctx: Ctx, id: string, patch: IntentPatchDto, 
       assumptions: patch.assumptions ?? before.assumptions,
       questions: (patch.questions ?? before.questions) as Content['questions'],
       basis: patch.basis ?? (ctx.provenance.sourceKind === 'assistant' ? defaultBasis(ctx) : before.basis),
-    }),
+    }, before.externalSystems),
   )
   const reason = (patch.reason ?? '').trim()
   const changed = CONTENT_FIELDS.filter((f) => !same(merged[f], before[f]))
