@@ -155,9 +155,9 @@ export function useInspectorSubject(subject: InspectorSubject | null): void {
   latest.current = subject
   const key = subject ? JSON.stringify(subject) : ''
   useEffect(() => {
-    api.setInspectorSubject(latest.current)
+    api.setInspectorSubject?.(latest.current)
   }, [api, key])
-  useEffect(() => () => api.setInspectorSubject(null), [api])
+  useEffect(() => () => api.setInspectorSubject?.(null), [api])
 }
 
 /** Remembers and restores the scroll position of a scrollable element, per view instance. */

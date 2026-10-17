@@ -14,6 +14,11 @@ describe('boundText', () => {
     expect(boundText({ bound: { operator: '>=', quantity: { unit: 'mm', min: 3 } } })).toBe('>= 3 mm')
     expect(boundText({ bound: null })).toBe('')
   })
+  it('shows the min–max range of an = bound with no nominal value, and the limit of a one-sided bound with no value', () => {
+    expect(boundText({ bound: { symbol: 'L', operator: '=', quantity: { unit: 'mm', min: 99, max: 101 } } })).toBe('L = 99–101 mm')
+    expect(boundText({ bound: { operator: '<=', quantity: { unit: 'kg', max: 12 } } })).toBe('<= 12 kg')
+    expect(boundText({ bound: { operator: '<', quantity: { unit: 'kg', max: 5 } } })).toBe('< 5 kg')
+  })
 })
 
 describe('constraintSubject', () => {

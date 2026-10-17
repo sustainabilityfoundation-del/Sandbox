@@ -118,7 +118,7 @@ export function boundText(c: Pick<DesignConstraint, 'bound'>): string {
   if (!c.bound) return ''
   const { operator, symbol, quantity: q } = c.bound
   const v =
-    operator === 'in-range' || q.value != null
+    operator === 'in-range' || operator === '=' || q.value != null
       ? formatQuantity(q)
       : formatQuantity({ unit: q.unit, value: (operator.startsWith('<') ? q.max : q.min) ?? null })
   return `${symbol ? `${symbol} ` : ''}${operator === 'in-range' ? 'in' : operator} ${v}`.trim()

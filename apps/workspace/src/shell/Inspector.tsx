@@ -19,7 +19,7 @@ import { FreshnessBadge, OBJECT_TYPE_LABEL, ObjectRef, RequirementStatusBadge, R
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { selectInView, sharedContextOf } from '../platform/api'
 import { RETIRED_TOOLS, toolName } from '../platform/registry'
-import { useWorkspaceStore } from '../platform/store'
+import { activeSubjectViewId, useWorkspaceStore } from '../platform/store'
 import { workspaceServices } from '../platform/services'
 import type { ArtifactModule, InspectorSubject } from '@ews/platform-sdk'
 import { ViewControls } from './WorkArea'
@@ -547,8 +547,8 @@ export function Inspector({
   const configurationId = useWorkspaceStore((s) => sharedContextOf(s, viewId).configurationId)
   const objects = selectedIds.map((id) => model.get(id)).filter((o): o is EngineeringObject => !!o)
   // A record the active tool contributed (SDK 1.16) wins over the model selection; only the main inspector follows it.
-  const activeToolId = useWorkspaceStore((s) => s.activeToolId)
-  const subject = useWorkspaceStore((s) => (viewId === 'inspector' && s.activeToolId ? s.inspectorSubjects[s.activeToolId] : undefined))
+  const subjectViewId = useWorkspaceStore((s) => (viewId === 'inspector' ? activeSubjectViewId(s) : undefined))
+  const subject = useWorkspaceStore((s) => (subjectViewId ? s.inspectorSubjects[subjectViewId] : undefined))
   const setSubject = useWorkspaceStore((s) => s.setInspectorSubject)
 
   if (subject) {
@@ -556,11 +556,11 @@ export function Inspector({
       <div className="ws-inspector" data-view-id={viewId}>
         <div className="ws-inspector-bar">
           <ViewControls viewId={viewId} detach={detachable ? { kind: 'inspector' } : undefined} />
-          <Button size="sm" variant="text" icon="close" onPress={() => activeToolId && setSubject(activeToolId, null)}>
+          <Button size="sm" variant="text" icon="close" onPress={() => subjectViewId && setSubject(subjectViewId, null)}>
             Clear selection
           </Button>
         </div>
-        <div className="ws-inspector-body">
+        <div className="ws-inspector-body" aria-live="polite">
           <SubjectDetails subject={subject} />
         </div>
       </div>

@@ -152,7 +152,7 @@ export interface ToolApi<VS = unknown> {
    * records that are not engineering objects of the shared model. `null` clears it. Selecting an engineering
    * object still goes through `select`.
    */
-  setInspectorSubject: (subject: InspectorSubject | null) => void
+  setInspectorSubject?: (subject: InspectorSubject | null) => void
 }
 
 export type ToolbarItem =

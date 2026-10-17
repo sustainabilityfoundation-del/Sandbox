@@ -474,7 +474,9 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
         const openToolIds = s.openToolIds.filter((t) => t !== id)
         const activeToolId =
           s.activeToolId === id ? (openToolIds[Math.min(index, openToolIds.length - 1)] ?? null) : s.activeToolId
-        return { openToolIds, activeToolId }
+        // Drop the closed tool's Inspector records (every view of it).
+        const inspectorSubjects = Object.fromEntries(Object.entries(s.inspectorSubjects).filter(([viewId]) => toolIdOfView(viewId) !== id))
+        return { openToolIds, activeToolId, inspectorSubjects }
       }),
 
     toggleFavorite: (id) =>
@@ -674,3 +676,11 @@ useWorkspaceStore.subscribe((state) => {
 
 // Don't lose the last few changes if the page is closed or reloaded mid-debounce.
 if (typeof window !== 'undefined') window.addEventListener('pagehide', flushSession)
+
+/** The view whose Inspector record the Inspector shows: the active tool's main view, else another view of that tool. */
+export function activeSubjectViewId(s: Pick<WorkspaceState, 'activeToolId' | 'inspectorSubjects'>): string | undefined {
+  const tool = s.activeToolId
+  if (!tool) return undefined
+  if (tool in s.inspectorSubjects) return tool
+  return Object.keys(s.inspectorSubjects).find((v) => toolIdOfView(v) === tool)
+}
