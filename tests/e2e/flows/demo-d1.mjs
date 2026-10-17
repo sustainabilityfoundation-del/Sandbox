@@ -1,7 +1,7 @@
 // Demonstration D1 PLUMBING test (docs/specifications/demo-ai-engineering.md). The FAKE provider replays a
 // recorded tool-call script (tests/e2e/fixtures/fake-scripts/d1-plumbing.json) through the real workspace,
 // assistant service, policy, previews, Apply and the real module services (Project Management, Conceptualize,
-// Requirements, SysML Modeler, CAD Modeler with the OCCT kernel). It proves the plumbing; it is NOT a model run and
+// Requirements, System Model, CAD Modeler with the OCCT kernel). It proves the plumbing; it is NOT a model run and
 // does NOT count as D1 acceptance. The live run with a real model follows docs/modules/ai-interface/d1-live-run.md.
 //
 // Start the stack with the fake provider and its scripts: `npm run ai:dev:fake`

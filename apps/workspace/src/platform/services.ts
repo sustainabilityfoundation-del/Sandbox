@@ -75,7 +75,7 @@ function createConcepts(settings: ServiceSettings): ConceptsService {
 }
 
 /**
- * SysML Modeler read service (SDK 1.8). API mode only: in demo mode the SysML Modeler keeps its own in-browser
+ * System Model read service (SDK 1.8). API mode only: in demo mode the System Model keeps its own in-browser
  * repository, which other modules cannot read, so the service is absent ("module unavailable").
  */
 function createSysml(settings: ServiceSettings): SysmlModelService | undefined {

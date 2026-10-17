@@ -5,7 +5,6 @@ import { useWorkspaceStore } from '../platform/store'
 import { AppIcon, Avatar, Button, Dialog, Icon, IconButton, Notice, PopoverButton, Select, cx } from '@ews/design-system'
 import { PLANS, canOpenTool, useEntitlements } from '../platform/entitlements'
 import { openToolOrExplain } from '../platform/api'
-import { isDemoTool } from '../platform/demoTools'
 import { getTools } from '../platform/registry'
 import { serviceSettings } from '../platform/services'
 import { GlobalSearch } from './GlobalSearch'
@@ -121,7 +120,7 @@ function ModuleNav() {
             variant="quiet"
             size="sm"
             aria-current={active ? 'page' : undefined}
-            aria-label={`${tool.name}${isDemoTool(tool.id) ? ' (demo)' : ''}${allowed ? '' : ' (not in your subscription)'}`}
+            aria-label={`${tool.name}${allowed ? '' : ' (not in your subscription)'}`}
             onPress={() => openToolOrExplain(tool.id)}
             className={cx('ws-module-link', active && 'is-active')}
           >

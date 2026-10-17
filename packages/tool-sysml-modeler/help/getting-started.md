@@ -7,7 +7,7 @@ keywords: [start, first steps, tutorial, example, begin]
 related: [sysml-modeler.example, sysml-modeler.tutorial.first-model, sysml-modeler.history]
 ---
 
-1. Open **SysML Modeler** from the tools menu. In development the API seeds the example
+1. Open **System Model** from the tools menu. In development the API seeds the example
    *Electromechanical linear actuator* for project PRJ-ACT100 ([the example](help:sysml-modeler.example)).
 2. The status bar shows the project, the **branch** (`main`), the **commit number**, and whether
    you work against the **API (PostgreSQL)** or **Local (this browser)**.

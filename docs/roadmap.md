@@ -27,10 +27,10 @@ validated commands and recorded verification; one end-to-end cross-module workfl
 | Help system: Help menu, Help Centre, F1, tutorials, API reference, assistant access (Requirements documented; SysML and CAD pending) | Implemented (sprint 005) |
 | Requirements service: PostgreSQL API, collections, attributes, reviews, requirement baselines, quality checks, ReqIF exchange | Implemented (sprint 001; see [progress](specifications/requirements-management-progress.md)) |
 | Conceptualize: concepts, decomposition, alternatives, trade studies, decisions, evidence, implementations | Implemented (see [progress](specifications/conceptualize-progress.md)) |
-| SysML Modeler: SysML v2 textual subset, versioned repository, validation, views, requirement links | Experimental (Phase 1 and first Phase 2 slice; [conformance](modules/sysml/conformance.md)) |
-| SysML modelling, illustrative tool (subset: parts, requirement usages, connections, satisfy; not SysML v2 compliant) | Experimental |
+| System Model: SysML v2 textual subset, versioned repository, validation, views, requirement links | Experimental (Phase 1 and first Phase 2 slice; [conformance](modules/sysml/conformance.md)) |
+| SysML modelling, illustrative tool (subset: parts, requirement usages, connections, satisfy; not SysML v2 compliant) | Retired from the interface ([ADR-0077](decisions/0077-retire-illustrative-tools-system-model.md)); package and data kept |
 | CAD Modeler: Open CASCADE kernel, sketches with constraints, extrude, revolve, regeneration, STEP export | Experimental (Phase 1; [CAD roadmap](modules/cad/roadmap.md)) |
-| Mechanical CAD, mock tool (mock geometry kept for existing workflows) | Experimental |
+| Mechanical CAD, mock tool (mock geometry kept for existing workflows) | Retired from the interface (ADR-0077, amends ADR-0027 phase 4); package and data kept |
 | Design reasoning layer: architecture and proposed ADRs 0039–0046 | Proposed; libraries integrated: validation prototype (R1) and calculation engine (R3) in `packages/design-reasoning-core`, `packages/engineering-calc`; actuator and new-project scenarios tested against the real Conceptualize and Requirements APIs (`npm run reasoning:test:db`), calculation storage steps adapter-backed until CR-C8; no service or UI yet |
 | AI connection: provider-neutral backend, own OpenAI account (API key, or Sign in with ChatGPT when run locally), Settings centre with server-enforced AI access policy | Integrated and tested against a fake provider; live provider not verified ([brief](specifications/ai-connection.md)) |
 | Shared identities, `represents` links, explicit cross-tool mapping | Implemented |

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "SysML Modeler: SysML v2 (subset) modeling environment for the engineering workspace — model browser, textual editor, projected views, property editing, validation, history and AI operations.",
+  "description": "System Model: SysML v2 (subset) modeling environment for the engineering workspace — model browser, textual editor, projected views, property editing, validation, history and AI operations.",
   "exports": {
     ".": "./src/index.ts"
   },

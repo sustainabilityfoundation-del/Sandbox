@@ -12,13 +12,13 @@ import { INITIAL_VIEW_STATE, type ModelerViewState } from './state'
 export type { ModelerViewState } from './state'
 
 /**
- * The SysML Modeler's client module (docs/specifications/module-registration.md, M3): its manifest (capability entries) and its
+ * The System Model's client module (docs/specifications/module-registration.md, M3): its manifest (capability entries) and its
  * tool. The workspace lists it in `INSTALLED_MODULES`; API mode follows the Requirements service mode (API → /api/sysml/v1 as the
  * development user; demo → explicit in-browser repository).
  */
 export function sysmlModelerModule(): ClientModule {
   return {
-    manifest: { schemaVersion: 1, id: 'sysml-modeler', name: 'SysML Modeler', capabilities: SYSML_MODELER_CAPABILITIES, entitlement: 'tool:sysml' },
+    manifest: { schemaVersion: 1, id: 'sysml-modeler', name: 'System Model', capabilities: SYSML_MODELER_CAPABILITIES, entitlement: 'tool:sysml' },
     tool: (env: ModuleHostEnv) => createSysmlModelerTool(env.requirementsMode === 'demo' ? { mode: 'local' } : { mode: 'api', baseUrl: '/api/sysml/v1', devUser: env.devUser }),
   }
 }
@@ -38,7 +38,7 @@ export interface SysmlModelerOptions {
 }
 
 /**
- * The SysML Modeler tool (ID `sysml-modeler`, contracts §1). Until the SDK offers a SysML service
+ * The System Model tool (ID `sysml-modeler`, contracts §1). Until the SDK offers a SysML service
  * (change request CR-SYSML-01), the host creates the tool with the client configuration it wants.
  */
 export function createSysmlModelerTool(options: SysmlModelerOptions = {}): ToolDefinition<ModelerViewState> {
@@ -46,7 +46,7 @@ export function createSysmlModelerTool(options: SysmlModelerOptions = {}): ToolD
   configureClient(client)
   return defineTool<ModelerViewState>({
     id: 'sysml-modeler',
-    name: 'SysML Modeler',
+    name: 'System Model',
     description: 'SysML v2 modeling (supported subset): model browser, textual notation editor, General and Interconnection views, properties, validation, versioned history with undo, and AI operations on the same typed commands.',
     category: 'Systems engineering',
     icon: 'sysml',

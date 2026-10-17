@@ -142,7 +142,7 @@ coordinator's own model is switched by the owner with /model.
 
 ## Owner decisions, 16 October 2026 (owner's words in the session)
 - Old illustrative tools: "Yes remove the two old ones" (hide from UI and AI; data and IDs kept). Running on branch
-  ui/retire-illustrative-rename-system-model, ADR-0076.
+  ui/retire-illustrative-rename-system-model, ADR-0077.
 - "change the SysMl Menu to System Model, I think it's better to have it agnostic of the underlying language" (display name only;
   IDs unchanged). Same branch.
 - CAD name: "yes leave it CAD" (display "CAD", dropping "Modeler", after sprint C1 merges).

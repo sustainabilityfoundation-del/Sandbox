@@ -20,7 +20,7 @@ Open a requirement and choose the **Trace** tab (or **Trace** in the toolbar).
 
 Components come from the shared product structure; the Requirements service never copies them.
 To allocate, choose **Allocate to**: a **Component (shared twin)**, a **Product element** (its ID in
-the project's product structure) or a **SysML element** (searched in the SysML Modeler). The server
+the project's product structure) or a **SysML element** (searched in the System Model). The server
 checks that the target exists in this project and refuses the change if the requirement changed since
 you opened it. A SysML allocation records the element's commit number.
 

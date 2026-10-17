@@ -47,7 +47,7 @@ export interface ServerOptions {
   storage: ObjectStorage
   production?: boolean
   twin?: TwinDirectory
-  /** SysML Modeler elements as allocation targets (default: the in-process SysML service). */
+  /** System Model elements as allocation targets (default: the in-process SysML service). */
   sysml?: SysmlElementDirectory
   logger?: boolean
   eventPollMs?: number

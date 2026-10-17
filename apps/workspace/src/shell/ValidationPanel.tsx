@@ -15,7 +15,7 @@ export interface ValidationSummary {
 
 /**
  * Workspace-level validation status from real platform data: potentially stale evidence (input revisions changed)
- * and save failures. Module validation (for example SysML Modeler's validation tab) stays in its module.
+ * and save failures. Module validation (for example System Model's validation tab) stays in its module.
  */
 export function useValidationSummary(): ValidationSummary {
   const model = useWorkspaceStore((s) => s.model)

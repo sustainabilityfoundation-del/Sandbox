@@ -1,7 +1,7 @@
 # Module: SysML Modelling
 
 Package: `packages/tool-sysml` (version 1.0.0, SDK `^1.0.0`, entitlement `tool:sysml`).
-Status: **Experimental** (Phase 1). Working rules: [AGENTS.md](../../packages/tool-sysml/AGENTS.md).
+Status: **Retired from the interface** (ADR-0077, 16 October 2026): the tool is no longer registered, shown or offered to the AI; the package, the twin data (`sysml-element`, `represents`) and the ID `sysml` are kept. The tool users see is the System Model (`docs/modules/sysml/`). Historical specification follows. Working rules: [AGENTS.md](../../packages/tool-sysml/AGENTS.md).
 
 ## Owns
 

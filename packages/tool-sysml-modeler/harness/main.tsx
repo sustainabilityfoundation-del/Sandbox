@@ -1,4 +1,4 @@
-// Standalone harness: the SysML Modeler alone, on a mock platform host.
+// Standalone harness: the System Model alone, on a mock platform host.
 // Default: local mode (the repository runs in this browser, persisted in localStorage, seeded with
 // the actuator example). ?mode=api&user=eli uses the SysML API (proxied /api). Never switches silently.
 import '@ews/design-system/styles.css'

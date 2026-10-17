@@ -1,4 +1,4 @@
-# SysML Modeler: formal functional requirements
+# System Model: formal functional requirements
 
 Status: Proposed. Each requirement has an ID (`SYS-FR-<area>-<nn>`), a normative statement ("shall"), its
 source in the brief (`B§…`) or research backlog (`BL-…`, [backlog](../../research/sysml/backlog.md)), the
@@ -7,7 +7,7 @@ phase that delivers it, and its status. Status values: **Implemented** (works, t
 **Planned**. Status is maintained in this file and summarized in the progress file; it is never raised
 without a test.
 
-Conventions: "the module" = the SysML Modeler (core, service, client, tool). "Element" = a KerML/SysML v2
+Conventions: "the module" = the System Model (core, service, client, tool). "Element" = a KerML/SysML v2
 model element in the sense of the specifications (relationships are elements too).
 
 ## CORE: semantic model and language
@@ -88,7 +88,7 @@ model element in the sense of the specifications (relationships are elements too
 | ID | Requirement | Source | Phase | Status |
 | --- | --- | --- | --- | --- |
 | SYS-FR-INT-01 | Requirement usages that stand for managed requirements shall reference them by canonical UUID and revision via `RequirementsService`; SysML shall store no competing requirement text. | B§5.C, contracts §5 | 3 | Implemented (link with pinned revision, live text, stale pin, update pin, unlink, assistant link_requirement); coverage analysis planned |
-| SYS-FR-INT-02 | Concepts shall link to SysML Modeler elements through `ArtifactRef` with element UUID and commit number. | B§7, contracts §5 | 3 | Planned (scheme proposed: contract change request) |
+| SYS-FR-INT-02 | Concepts shall link to System Model elements through `ArtifactRef` with element UUID and commit number. | B§7, contracts §5 | 3 | Planned (scheme proposed: contract change request) |
 | SYS-FR-INT-03 | Part usages shall link to CAD parts/assemblies with interface traceability and mass properties through an agreed contract. | B§8 | 3 | Planned (proposal; coordinator reconciles) |
 | SYS-FR-INT-04 | Traceability matrices, coverage and gap analysis across requirements and model. | B§5.C | 3 | Planned |
 | SYS-FR-INT-05 | Analysis/simulation modules shall exchange parameters and results through versioned APIs. | B§8 | 4 | Planned |

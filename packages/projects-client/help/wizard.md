@@ -20,8 +20,8 @@ related: [projects.home, projects.overview-panel, projects.troubleshooting]
      few starter tasks). No template creates requirements, concepts, models or CAD documents.
 7. Choose **Create and open**. You become the project's administrator and the window opens the new project.
 
-A new project opens the real modules: **Requirements, Conceptualize, SysML Modeler and CAD Modeler**. The
-illustrative SysML tool and the mock CAD tool (marked *Demo*) stay available from the tool list.
+A new project opens the real modules: **Requirements, Conceptualize, System Model and CAD Modeler**. The
+earlier illustrative SysML tool and mock CAD tool are no longer offered (their data in the example project stays readable).
 
 On the server, one transaction records the project, its first revision, your administrator membership and every
 module's provisioning state. Modules create their project space when you first add something; nothing is seeded.

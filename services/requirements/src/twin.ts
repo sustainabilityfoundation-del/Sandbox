@@ -46,7 +46,7 @@ export function composeTwinDirectory(...directories: TwinDirectory[]): TwinDirec
   }
 }
 
-/** A SysML Modeler element the host found: `id` is `<sysmlProjectId>/<elementId>`. */
+/** A System Model element the host found: `id` is `<sysmlProjectId>/<elementId>`. */
 export interface SysmlElementInfo {
   id: string
   name: string
@@ -56,7 +56,7 @@ export interface SysmlElementInfo {
 }
 
 /**
- * Validates allocation targets in the SysML Modeler (D1, requirements.allocate). Supplied by the host,
+ * Validates allocation targets in the System Model (D1, requirements.allocate). Supplied by the host,
  * which may read the SysML service in process; without it, SysML allocations are refused.
  */
 export interface SysmlElementDirectory {

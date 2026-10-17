@@ -9,7 +9,7 @@ import { createSysmlEventHub } from '../src/events'
 import { SysmlRepository } from '../src/repository'
 
 /**
- * D1-SYS (demo-ai-engineering.md, step 4): the architecture step through the SysML Modeler assistant
+ * D1-SYS (demo-ai-engineering.md, step 4): the architecture step through the System Model assistant
  * operations, headless, over HTTP against the real API and PostgreSQL, in a NEW, empty platform project.
  * Then Project Management's view of the result through the SysML artifact source.
  */

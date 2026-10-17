@@ -66,15 +66,14 @@ operations that simulate engineering results. This does not take priority over D
 
 Every workspace package and service has exactly one owner. The current tools are **System Model** (display name; IDs
 `sysml-modeler`, `tool:sysml`) and **CAD** (display name; IDs `cad-modeler`, `tool:cad`). The illustrative `sysml` and `cad`
-tools are being retired from the interface, data and IDs kept (branch `ui/retire-illustrative-rename-system-model`,
-retirement ADR on that branch, pending merge); do not extend them.
+tools are retired from the interface (ADR-0077); data and IDs kept; do not extend them.
 
 | Area | Packages | Owns |
 | --- | --- | --- |
 | Platform | `apps/workspace`, `packages/platform-sdk`, `packages/model-service`, `packages/design-system`, `services/api` | Shell, navigation, tool registry, installed-module lists (client and server), subscriptions and entitlements, shared context, windows, assistant execution, the SDK contract and capability registry, the shared twin and repository, the component library and icons; the API host (`services/api`: composes the installed server modules, development identities, entitlement and role checks, event stream) |
 | Requirements | `packages/tool-requirements`, `packages/requirements-client`, `packages/reqif`, `services/requirements` | Requirements views, toolbar, commands, private view state, requirement domain logic, assistant actions; the Requirements service and API, the browser client, ReqIF import and export ([contracts](docs/specifications/requirements-contracts.md), [ADR-0011](docs/decisions/0011-requirements-service-boundary.md)) |
-| SysML tool (illustrative, being retired) | `packages/tool-sysml` | Diagram, property panel, text notation, SysML domain logic, assistant actions |
-| CAD tool (illustrative, being retired) | `packages/tool-cad` | Mock geometry, dimensions, visibility, CAD domain logic, assistant actions ([ADR-0027](docs/decisions/0027-cad-mock-tool-replacement.md)) |
+| SysML tool (retired from the interface, [ADR-0077](docs/decisions/0077-retire-illustrative-tools-system-model.md)) | `packages/tool-sysml` | Diagram, property panel, text notation, SysML domain logic, assistant actions |
+| CAD tool (retired from the interface, [ADR-0077](docs/decisions/0077-retire-illustrative-tools-system-model.md)) | `packages/tool-cad` | Mock geometry, dimensions, visibility, CAD domain logic, assistant actions ([ADR-0027](docs/decisions/0027-cad-mock-tool-replacement.md)) |
 | Conceptualize | `packages/tool-conceptualize`, `packages/conceptualize-client`, `services/conceptualize` | Concepts, alternatives, trade studies, decisions, evidence, implementations ([contracts](docs/specifications/conceptualize-contracts.md)) |
 | CAD Modeler (displayed "CAD") | `packages/cad-core`, `packages/cad-kernel`, `packages/cad-client`, `services/cad`, `packages/tool-cad-modeler` | Native parametric model, commands, OCCT kernel adapter, document service and API, browser client, modeler UI ([contracts](docs/specifications/cad-program-contracts.md)) |
 | SysML Modeler (displayed "System Model") | `packages/sysml-core`, `services/sysml`, `packages/sysml-client`, `packages/tool-sysml-modeler` | SysML v2 semantic core, repository and API, modeler UI ([contracts](docs/specifications/sysml-program-contracts.md)) |

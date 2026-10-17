@@ -37,7 +37,7 @@ describe('C1: provisioning states and per-project workspace defaults', () => {
     expect(hosted.every((m: { reason?: string }) => !!m.reason)).toBe(true)
     expect(ctx.workspace.defaultTools).toEqual(['requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler'])
     const legacy = (await env.call('ada', 'GET', `${P('PRJ-ACT100')}/context`)).body
-    expect(legacy.workspace.defaultTools).toEqual(['requirements', 'sysml', 'cad', 'conceptualize'])
+    expect(legacy.workspace.defaultTools).toEqual(['requirements', 'sysml-modeler', 'cad-modeler', 'conceptualize'])
     // Retrying is idempotent and keeps the states.
     const retry = await env.call('eli', 'POST', `${P(p.id)}/provision?force=true`)
     expect(retry.status).toBe(200)

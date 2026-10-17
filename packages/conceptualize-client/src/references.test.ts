@@ -55,7 +55,7 @@ describe('Project Management registry port (SDK 1.7)', () => {
   })
 })
 
-describe('SysML Modeler adapter (labelled, until SDK 1.8)', () => {
+describe('System Model adapter (labelled, until SDK 1.8)', () => {
   const routes: Record<string, unknown> = {
     '/api/sysml/v1/projects/p1': { name: 'Drill rig', defaultBranch: { '@id': 'b1' } },
     '/api/sysml/v1/projects/p1/branches/b1': { head: { '@id': 'c9' } },
@@ -82,7 +82,7 @@ describe('SDK 1.8 read clients (PlatformServices.sysml, .cad)', () => {
   const SP = '5f1c2e9a-0000-4000-8000-0000000000aa'
   const EL = '3f1c2e9a-0000-4000-8000-000000000001'
   const DOC = '7e57c0de-0000-4000-8000-00000000cad1'
-  it('resolves SysML Modeler elements and reports missing and forbidden honestly', async () => {
+  it('resolves System Model elements and reports missing and forbidden honestly', async () => {
     const sysml = {
       contractVersion: '1.0.0',
       mode: 'api' as const,
@@ -99,7 +99,7 @@ describe('SDK 1.8 read clients (PlatformServices.sysml, .cad)', () => {
         ),
     }
     const [port] = referencePortsFor({ sysml })
-    expect(port).toMatchObject({ adapter: false, name: 'SysML Modeler (SDK read client)' })
+    expect(port).toMatchObject({ adapter: false, name: 'System Model (SDK read client)' })
     expect(await port.resolve('PRJ-1', { module: 'sysml', id: `${SP}/${EL}`, revision: 3 })).toEqual({ state: 'found', label: 'Holder (PartDefinition)', latest: 5 })
     expect((await port.resolve('PRJ-1', { module: 'sysml', id: `${SP}/gone` })).state).toBe('missing')
     expect((await port.resolve('PRJ-1', { module: 'sysml', id: `${SP}/forbidden` })).state).toBe('unavailable')

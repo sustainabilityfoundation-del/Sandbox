@@ -13,7 +13,7 @@ related: [conceptualize.concept.model, conceptualize.alternatives]
   linear force within a 100 mm envelope.*
 - *Create a concept: …*, *Decompose CON-018 into drive, guide and housing*
 - *Compare the alternatives of CON-005*, *Pursue CON-019*, *What are the next steps for CON-001?*
-- *Link CON-019 to <sysmlProjectId>/<elementId>* (a SysML Modeler element; twin IDs such as CAD-120 only in
+- *Link CON-019 to <sysmlProjectId>/<elementId>* (a System Model element; twin IDs such as CAD-120 only in
   the PRJ-ACT100 demo), *Propose requirements for CON-018*, *Request CAD generation for CON-019*
 - Design knowledge: *Convert CON-005 to a function*, *Create a function "Reject heat" performed by CON-006*,
   *Promote the constraints of CON-001*, *Record an assumption for CON-001: rod ends are pinned*,

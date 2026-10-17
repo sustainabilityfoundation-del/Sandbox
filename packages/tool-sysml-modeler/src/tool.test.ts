@@ -109,7 +109,7 @@ describe('behaviour views (projections of actions and states)', () => {
 describe('tool definition', () => {
   it('has the agreed identity and a valid help manifest that maps every toolbar item and action', () => {
     const tool = createSysmlModelerTool({ client: createLocalSysmlClient({ seed: true }) })
-    expect(tool).toMatchObject({ id: 'sysml-modeler', name: 'SysML Modeler', category: 'Systems engineering', entitlement: 'tool:sysml' })
+    expect(tool).toMatchObject({ id: 'sysml-modeler', name: 'System Model', category: 'Systems engineering', entitlement: 'tool:sysml' })
     expect(validateHelpManifest(tool.help!)).toEqual([])
     const items = tool.toolbar({ api: { updateViewState: () => undefined } as never, viewState: tool.initialViewState, context: { projectId: 'PRJ-ACT100' } as never, model: undefined as never, selection: [] })
     const mapped = new Set(tool.help!.contextMappings.map((c) => c.toolbarItem).filter(Boolean))

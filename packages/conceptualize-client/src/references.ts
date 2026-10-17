@@ -92,7 +92,7 @@ export function createRegistryReferencePort(projects: ProjectsService): Referenc
 }
 
 /**
- * ADAPTER until SDK 1.8 (`PlatformServices.sysml`): reads the SysML Modeler HTTP API. Resolves an element
+ * ADAPTER until SDK 1.8 (`PlatformServices.sysml`): reads the System Model HTTP API. Resolves an element
  * at the head of the SysML project's default branch and reports the head commit number. It checks
  * existence only, not whether the element changed since the pinned commit.
  */
@@ -100,13 +100,13 @@ export function createSysmlModelerReferenceAdapter(options: { baseUrl: string; d
   const f = options.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
   const get = async (path: string) => {
     const res = await f(`${options.baseUrl}${path}`, { headers: { Accept: 'application/json', ...(options.devUser ? { 'X-Dev-User': options.devUser } : {}) } })
-    // 404: unknown; 400: not a SysML Modeler ID (project and element IDs are UUIDs).
+    // 404: unknown; 400: not a System Model ID (project and element IDs are UUIDs).
     if (res.status === 404 || res.status === 400) return null
-    if (!res.ok) throw new Error(`SysML Modeler answered ${res.status}`)
+    if (!res.ok) throw new Error(`System Model answered ${res.status}`)
     return res.json() as Promise<Record<string, unknown>>
   }
   return {
-    name: 'SysML Modeler HTTP adapter (until the SDK 1.8 read client)',
+    name: 'System Model HTTP adapter (until the SDK 1.8 read client)',
     adapter: true,
     supports: (ref) => ref.module === 'sysml' && referenceKind(ref) === 'sysml-model-element',
     async resolve(_projectId, ref) {
@@ -132,21 +132,21 @@ export function createSysmlModelerReferenceAdapter(options: { baseUrl: string; d
   }
 }
 
-/** SDK 1.8 read client of the SysML Modeler (`PlatformServices.sysml`). */
+/** SDK 1.8 read client of the System Model (`PlatformServices.sysml`). */
 export function createSysmlServicePort(sysml: SysmlModelService): ReferencePort {
   return {
-    name: 'SysML Modeler (SDK read client)',
+    name: 'System Model (SDK read client)',
     adapter: false,
     supports: (ref) => ref.module === 'sysml' && referenceKind(ref) === 'sysml-model-element',
     async resolve(projectId, ref) {
       try {
         const [r] = await sysml.resolve(projectId, [{ module: 'sysml', kind: 'sysml-model-element', id: ref.id, ...(ref.revision ? { revision: ref.revision } : {}) }])
-        if (!r || r.status === 'missing') return { state: 'missing', detail: 'The SysML Modeler has no such element in this project (or at that commit).' }
-        if (r.status === 'forbidden') return { state: 'unavailable', detail: 'You may not read the SysML Modeler here (entitlement or membership).' }
+        if (!r || r.status === 'missing') return { state: 'missing', detail: 'The System Model has no such element in this project (or at that commit).' }
+        if (r.status === 'forbidden') return { state: 'unavailable', detail: 'You may not read the System Model here (entitlement or membership).' }
         const e = r.element
         return { state: 'found', label: `${e.name ?? e.shortName ?? e.elementId} (${e.metaclass})`, latest: e.latestRevision }
       } catch (err) {
-        return { state: 'unavailable', detail: `SysML Modeler not reachable: ${err instanceof Error ? err.message : String(err)}` }
+        return { state: 'unavailable', detail: `System Model not reachable: ${err instanceof Error ? err.message : String(err)}` }
       }
     },
   }

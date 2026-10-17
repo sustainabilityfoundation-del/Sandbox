@@ -18,7 +18,7 @@ export interface Principal {
 export interface HostServices {
   pool: Pool
   twin: TwinDirectory
-  /** SysML Modeler elements as allocation targets (optional; without it SysML allocations are refused). */
+  /** System Model elements as allocation targets (optional; without it SysML allocations are refused). */
   sysml?: SysmlElementDirectory
   storage: ObjectStorage
   events: EventHub

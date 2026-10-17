@@ -7,7 +7,7 @@ keywords: [language, sysml v2, textual notation, grammar, supported, unsupported
 related: [sysml-modeler.text, sysml-modeler.validation, sysml-modeler.troubleshooting]
 ---
 
-The SysML Modeler implements a **subset** of SysML v2 (OMG SysML 2.0 and KerML 1.0). It makes **no
+The System Model implements a **subset** of SysML v2 (OMG SysML 2.0 and KerML 1.0). It makes **no
 conformance claim**. Unsupported constructs are always reported as errors (`SYSML-SYNTAX-UNSUPPORTED`)
 and never dropped silently.
 
