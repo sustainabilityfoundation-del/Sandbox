@@ -117,6 +117,14 @@ Legal, licence and commercial-terms questions stay listed for the owner and do n
 ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only) producing the §20 report; practice research
 (NASA SE Handbook, interface management, INCOSE, 15288/29148 summaries, SysML interfaces) on branch research/ecii-practice.
 
+## Integration queue update (17 October 2026, 00:15 EDT)
+Merged: ui/retire-illustrative-rename-system-model (c5eab9f; 16/16 e2e; services/api infrastructure restart test fails only under
+load, follow-up AUD-14 to make it load-tolerant). In integration: feature/ct-2c2-sdk (f345ecb in ../Sandbox-integration). Next:
+cad/c1-sketching-reliability; feature/ai-infra-a-core (review fixes running); feature/ecii-1-intent (review fixes running: scoped
+instruction wording, basis enforcement, no assistant retire, deduplicated gaps); fix/aud-5-sysml-matrix (implementing). Context
+engineering accepted as ECII plan Amendment 2. Integration audit: [integration-audit-2026-10-16.md](integration-audit-2026-10-16.md).
+Owner action outstanding: restart `npm run dev` (API still on 07:45 code).
+
 ## Integration queue (16 October 2026, 22:15 EDT)
 Integration runs use the separate worktree ../Sandbox-integration; the main checkout stays on main (the owner's dev server).
 Order (reviewer): (1) ui/retire-illustrative-rename-system-model (approved; review fixes in, main merged at 3dc5291);
