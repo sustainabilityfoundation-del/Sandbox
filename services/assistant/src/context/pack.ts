@@ -38,22 +38,53 @@ export const SECTIONS = SECTION_ORDER
 /** Identity of an item: the reference without its revision (Design Reasoning `refKey`) plus kind and the fields it carries. */
 export const itemKey = (item: ContextSnapshotItem): string => `${refKey(item.ref as unknown as AnyRef)}#${item.ref.kind ?? ''}#${[...item.fields].sort().join(',')}`
 
-const clean = (s: string): string => s.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ')
+/**
+ * Folds ANY text into one plain line: every control character, Unicode line or paragraph separator and run of whitespace becomes
+ * one space. Applied to every field that reaches a rendered block (labels, statuses, summaries, quantity names, units and datums,
+ * reference parts, readiness issues), so data can never start a new line or forge a block marker.
+ */
+export const fold = (s: unknown): string => String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\s]+/g, ' ').trim()
 
-/** One-line text of a quantity, exactly as stored. */
+/** One-line text of a quantity, exactly as stored (numbers are never touched; the words around them are folded). */
 export function quantityText(q: NonNullable<NonNullable<ContextSnapshotItem['projection']>['quantities']>[number]): string {
   const tol = q.tolerance ? ` (-${q.tolerance.minus}/+${q.tolerance.plus})` : ''
-  return `${q.name} = ${q.value} ${q.unit}${tol}${q.datum ? ` from ${q.datum}` : ''}`
+  return `${fold(q.name)} = ${q.value} ${fold(q.unit)}${tol}${q.datum ? ` from ${fold(q.datum)}` : ''}`
 }
 
-/** The text an item contributes to a rendered block. Newlines are folded so an item stays one line (data cannot open a new section). */
+/** The text an item contributes to a rendered block: always exactly one line, starting with "- ". */
 export function itemLine(item: ContextSnapshotItem): string {
   const p = item.projection
-  const flags = [`r${item.revision ?? '-'}`, item.mandatory && 'mandatory', item.stale && 'STALE (a newer revision exists)', p?.status].filter(Boolean).join(', ')
-  const head = `- ${item.ref.module}:${item.ref.kind ?? item.ref.type ?? 'item'}:${item.ref.id}${item.fields.length && item.ref.module === 'conceptualize' && item.ref.kind === 'intent' ? `[${item.fields.join(',')}]` : ''} ${p?.label ? clean(p.label) : ''} (${flags})`
-  const summary = p?.summary ? ` ${clean(p.summary).replace(/\s+/g, ' ').trim()}` : ''
+  const flags = [`r${item.revision ?? '-'}`, item.mandatory && 'mandatory', item.stale && 'STALE (a newer revision exists)', p?.status && fold(p.status)].filter(Boolean).join(', ')
+  const sub = item.fields.length && item.ref.module === 'conceptualize' && item.ref.kind === 'intent' ? `[${item.fields.map(fold).join(',')}]` : ''
+  const head = `- ${fold(item.ref.module)}:${fold(item.ref.kind ?? item.ref.type ?? 'item')}:${fold(item.ref.id)}${sub} ${p?.label ? fold(p.label) : ''} (${flags})`
+  const summary = p?.summary ? ` ${fold(p.summary)}` : ''
   const quantities = p?.quantities?.length ? ` Values: ${p.quantities.map(quantityText).join('; ')}.` : ''
   return `${head}${summary}${quantities}`
+}
+
+/** Text shown instead of data the person chose not to share (same wording as operation results). */
+export const WITHHELD = '[withheld by your AI data-sharing settings]'
+
+/**
+ * Applies the person's `ai.sharing.*` settings to items before they are packed or returned (the same rules as operation
+ * results, `redact` in wire.ts): without requirement text, the statements of requirements, constraints and decisions are
+ * withheld; without element details, every value and every free-text summary is withheld except the objective, the unknowns and
+ * the readiness. Identity (reference, revision, label, status) always stays.
+ */
+export function applySharing(items: ContextSnapshotItem[], sharing: { requirementText: boolean; elementDetails: boolean }): ContextSnapshotItem[] {
+  if (sharing.requirementText && sharing.elementDetails) return items
+  return items.map((item) => {
+    const p = item.projection
+    if (!p) return item
+    const section = item.section ?? 'background'
+    const statement = section === 'requirements' || section === 'constraints' || section === 'decisions'
+    const detail = !['objective', 'unknowns', 'readiness'].includes(section)
+    const hideText = (!sharing.requirementText && statement) || (!sharing.elementDetails && detail)
+    const hideValues = !sharing.elementDetails
+    if (!hideText && !hideValues) return item
+    const { quantities, summary, ...rest } = p
+    return { ...item, projection: { ...rest, ...(hideText && summary ? { summary: WITHHELD } : summary ? { summary } : {}), ...(!hideValues && quantities ? { quantities } : {}) } }
+  })
 }
 
 /** Bounds free text and drops items that are not references. */
@@ -73,6 +104,8 @@ export interface PackResult {
   omitted: ContextOmission[]
   used: ContextBudgetUsage
   overBudget: boolean
+  /** Plain-language notes (for example mandatory items cut at the absolute limit); stored with the package and shown in the rendered context. */
+  notes: string[]
 }
 
 /** Merges duplicates: the highest rank and revision win, mandatory wins over not mandatory. */
@@ -99,12 +132,19 @@ export function pack(input: ContextSnapshotItem[], budget: ContextBudget, carrie
   const kept: ContextSnapshotItem[] = []
   const dropped: ContextRef[] = []
   let droppedCount = 0
+  let truncated = 0
   const used: ContextBudgetUsage = { estimatedTokens: 0, items: 0, bytes: 0 }
   for (const item of clean) {
     const tokens = item.estimatedTokens ?? estimateTokens(itemLine(item))
     const bytes = itemBytes(item)
     const fits = used.items + 1 <= budget.maxItems && used.estimatedTokens + tokens <= budget.maxTokens && used.bytes + bytes <= budget.maxBytes
-    if (item.mandatory || fits) {
+    // The absolute ceiling (400 items, 256 KB) holds even for mandatory items: they are kept up to it, never beyond.
+    const withinHard = used.items + 1 <= MAX_ITEMS && used.bytes + bytes <= MAX_BYTES
+    if (item.mandatory && !withinHard) {
+      truncated++
+      droppedCount++
+      if (dropped.length < 200) dropped.push(item.ref)
+    } else if ((item.mandatory || fits) && withinHard) {
       kept.push(item)
       used.items++
       used.estimatedTokens += tokens
@@ -114,8 +154,9 @@ export function pack(input: ContextSnapshotItem[], budget: ContextBudget, carrie
       if (dropped.length < 200) dropped.push(item.ref)
     }
   }
-  const overBudget = used.items > budget.maxItems || used.estimatedTokens > budget.maxTokens || used.bytes > budget.maxBytes
+  const overBudget = truncated > 0 || used.items > budget.maxItems || used.estimatedTokens > budget.maxTokens || used.bytes > budget.maxBytes
   const omitted: ContextOmission[] = [...carried]
   if (droppedCount) omitted.push({ reason: 'budget', count: droppedCount, refs: dropped })
-  return { items: kept, omitted, used, overBudget }
+  const notes = truncated ? [`${truncated} mandatory record${truncated === 1 ? ' was' : 's were'} left out because the absolute limit of ${MAX_ITEMS} items and ${MAX_BYTES / 1024} KB per package was reached; the package is over budget and incomplete.`] : []
+  return { items: kept, omitted, used, overBudget, notes }
 }

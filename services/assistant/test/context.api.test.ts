@@ -215,7 +215,7 @@ describe('context_id chain and injection', () => {
     try {
       const ask = (user: string, extra: Record<string, unknown> = {}) => {
         const req = wireRequest('hello', ['read_help'])
-        return env.call(user, 'POST', `${A}/respond`, { ...req, turn: { ...req.turn, context: { ...req.turn.context, projectId: P }, conversationId: `CONV-${randomBytes(3).toString('hex')}`, ...extra } })
+        return env.call(user, 'POST', `${A}/respond`, { ...req, turn: { ...req.turn, context: { ...req.turn.context, projectId: P }, conversationId: 'CONV-FIXED', ...extra } })
       }
       expect((await ask('eli')).status).toBe(200)
       expect(s.calls.at(-1)!.input.context).toBeUndefined()
@@ -250,5 +250,140 @@ describe('context_id chain and injection', () => {
     } finally {
       s.restore()
     }
+  })
+})
+
+// ---- CE-1 review fixes: AI access and sharing settings, ceiling, truncation, conversation reuse --------------------------------
+
+const B = '/api/settings/v1'
+async function setUserValues(user: string, values: Record<string, unknown>) {
+  const v = (await env.call(user, 'GET', `${B}/values?projectId=${P}`)).body
+  const r = await env.call(user, 'PUT', `${B}/users/me/values?projectId=${P}`, { values }, { 'if-match': v.user.etag })
+  expect(r.status).toBe(200)
+}
+async function setProjectValues(values: Record<string, unknown>) {
+  const v = (await env.call('ada', 'GET', `${B}/values?projectId=${P}`)).body
+  const r = await env.call('ada', 'PUT', `${B}/projects/${P}/values`, { values }, { 'if-match': v.project.etag })
+  expect(r.status).toBe(200)
+}
+const modulesOf = (pkg: ContextPackage) => [...new Set(pkg.items.map((i) => i.selectedBy ?? i.ref.module))].sort()
+const spyGateway = () => {
+  const calls: GatewayCall[] = []
+  const backend = env.server.assistant()!
+  const original = backend.gateway.call.bind(backend.gateway)
+  backend.gateway.call = (async (c: GatewayCall) => (calls.push(c), original(c))) as typeof backend.gateway.call
+  return { calls, restore: () => (backend.gateway.call = original) }
+}
+const askAs = (user: string, conversationId = `CONV-${randomBytes(3).toString('hex')}`) => {
+  const req = wireRequest('hello', ['read_help'])
+  return env.call(user, 'POST', `${A}/respond`, { ...req, turn: { ...req.turn, context: { ...req.turn.context, projectId: P }, conversationId } })
+}
+
+describe('AI access and data-sharing settings bind platform context', () => {
+  it('a module whose AI access is off contributes nothing, by the person or by a project limit', async () => {
+    expect(modulesOf(pkgOf(await assemble('eli')))).toEqual(['conceptualize', 'projects'])
+    await setUserValues('eli', { 'ai.access.conceptualize': 'off' })
+    const noConcepts = pkgOf(await assemble('eli'))
+    expect(modulesOf(noConcepts)).toEqual(['projects'])
+    expect(noConcepts.selectors.map((s) => s.module)).toEqual(['projects'])
+    expect(JSON.stringify(noConcepts)).not.toContain('Pin diameter')
+    await setUserValues('eli', { 'ai.access.conceptualize': null, 'ai.access.projects': 'off' })
+    expect(modulesOf(pkgOf(await assemble('eli')))).toEqual(['conceptualize'])
+    await setUserValues('eli', { 'ai.access.projects': null })
+    // the same through the project limit set by an administrator
+    await setProjectValues({ 'ai.ceiling.conceptualize': 'off' })
+    expect(modulesOf(pkgOf(await assemble('eli')))).toEqual(['projects'])
+    await setProjectValues({ 'ai.ceiling.conceptualize': null })
+    expect(modulesOf(pkgOf(await assemble('eli')))).toEqual(['conceptualize', 'projects'])
+  })
+
+  it('the standing digest respects a module that is off', async () => {
+    const s = spyGateway()
+    try {
+      await setUserValues('eli', { 'ai.context.mode': 'digest', 'ai.access.conceptualize': 'off' })
+      expect((await askAs('eli')).status).toBe(200)
+      const call = s.calls.at(-1)!
+      const text = call.input.context?.blocks.map((b) => b.text).join('\n') ?? ''
+      expect(text).not.toContain('Holder for an existing apparatus')
+      if (call.contextId) {
+        const snap = (await env.pool.query('SELECT package FROM assistant.context_snapshots WHERE id = $1', [call.contextId])).rows[0].package as ContextPackage
+        expect(JSON.stringify(snap)).not.toContain('Holder for an existing apparatus')
+      }
+    } finally {
+      s.restore()
+      await setUserValues('eli', { 'ai.context.mode': null, 'ai.access.conceptualize': null })
+    }
+  })
+
+  it('ai.sharing settings apply to projections: no element details, no requirement text', async () => {
+    await setUserValues('eli', { 'ai.sharing.element-details': false })
+    const noDetails = pkgOf(await assemble('eli'))
+    expect(noDetails.items.every((i) => !i.projection?.quantities?.length)).toBe(true)
+    const hardItem = noDetails.items.find((i) => i.ref.id === hard.id)!
+    expect(hardItem.projection?.summary).toBe('[withheld by your AI data-sharing settings]')
+    expect(hardItem.mandatory).toBe(true) // identity and the mandatory mark stay
+    expect(JSON.stringify(noDetails)).not.toContain('Pin diameter fits')
+    await setUserValues('eli', { 'ai.sharing.element-details': null, 'ai.sharing.requirement-text': false })
+    const noText = pkgOf(await assemble('eli'))
+    expect(noText.items.find((i) => i.ref.id === hard.id)?.projection?.summary).toBe('[withheld by your AI data-sharing settings]')
+    expect(noText.items.find((i) => i.ref.id === hard.id)?.projection?.quantities?.length).toBeGreaterThan(0)
+    // a stored snapshot is re-filtered when read under stricter settings
+    await setUserValues('eli', { 'ai.sharing.requirement-text': null })
+    const stored = pkgOf(await assemble('eli'))
+    expect(JSON.stringify(stored)).toContain('Pin diameter fits')
+    await setUserValues('eli', { 'ai.sharing.element-details': false })
+    const reread = await retrieve('eli', { contextId: stored.contextId })
+    expect(JSON.stringify(reread.body)).not.toContain('"quantities"')
+    expect(JSON.stringify(reread.body)).not.toContain('Pin diameter fits')
+    await setUserValues('eli', { 'ai.sharing.element-details': null })
+  })
+
+  it('the project limit ai.context-ceiling.mode = off refuses assemble and retrieve and stops injection', async () => {
+    const pkg = pkgOf(await assemble('eli'))
+    await setUserValues('eli', { 'ai.context.mode': 'full' })
+    await setProjectValues({ 'ai.context-ceiling.mode': 'off' })
+    const s = spyGateway()
+    try {
+      const a = await assemble('eli')
+      expect(a.status).toBe(403)
+      expect(a.body.error.code).toBe('context-not-allowed')
+      expect((await retrieve('eli', { contextId: pkg.contextId })).status).toBe(403)
+      expect((await askAs('eli')).status).toBe(200)
+      expect(s.calls.at(-1)!.input.context).toBeUndefined()
+      expect(s.calls.at(-1)!.contextId).toBeUndefined()
+    } finally {
+      s.restore()
+      await setProjectValues({ 'ai.context-ceiling.mode': null })
+      await setUserValues('eli', { 'ai.context.mode': null })
+    }
+    expect((await assemble('eli')).status).toBe(200)
+  })
+
+  it('AI access to Platform context off, or the read class off, refuses the operations', async () => {
+    await setUserValues('eli', { 'ai.access.context': 'off' })
+    expect((await assemble('eli')).status).toBe(403)
+    await setUserValues('eli', { 'ai.access.context': null, 'ai.operations.read': false })
+    expect((await assemble('eli')).status).toBe(403)
+    await setUserValues('eli', { 'ai.operations.read': null })
+    expect((await assemble('eli')).status).toBe(200)
+  })
+})
+
+describe('snapshot integrity and reuse', () => {
+  it('TRUNCATE is refused like update and delete (the foreign key alone would not stop a TRUNCATE of both tables)', async () => {
+    await expect(env.pool.query('TRUNCATE assistant.context_snapshots, assistant.proposals')).rejects.toThrow(/immutable/)
+  })
+
+  it('a reused snapshot never carries one conversation into another', async () => {
+    const one = pkgOf(await assemble('eli', { conversationId: 'CONV-ONE' }))
+    const again = pkgOf(await assemble('eli', { conversationId: 'CONV-ONE' }))
+    const two = pkgOf(await assemble('eli', { conversationId: 'CONV-TWO' }))
+    expect(again.contextId).toBe(one.contextId)
+    expect(two.contextId).not.toBe(one.contextId)
+    const rows = (await env.pool.query('SELECT id, conversation_id FROM assistant.context_snapshots WHERE id = ANY($1) ORDER BY conversation_id', [[one.contextId, two.contextId]])).rows
+    expect(rows).toEqual([
+      { id: one.contextId, conversation_id: 'CONV-ONE' },
+      { id: two.contextId, conversation_id: 'CONV-TWO' },
+    ])
   })
 })

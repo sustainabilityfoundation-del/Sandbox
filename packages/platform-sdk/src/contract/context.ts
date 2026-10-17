@@ -110,7 +110,7 @@ export type ContextOmission =
 // ---------------------------------------------------------------------------------------------------------------------
 
 /**
- * Context budget. The assembler uses the smaller of setting `ai.context.maxTokens` (default 12,000) and a quarter of the
+ * Context budget. The assembler uses the smaller of setting `ai.context.max-tokens` (default 12,000) and a quarter of the
  * model's context limit; at most 400 items and 256 KB per snapshot (ADR-0085).
  */
 export interface ContextBudget {

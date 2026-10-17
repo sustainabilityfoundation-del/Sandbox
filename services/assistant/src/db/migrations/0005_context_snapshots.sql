@@ -30,6 +30,8 @@ END;
 $$;
 CREATE TRIGGER context_snapshots_no_change BEFORE UPDATE OR DELETE ON assistant.context_snapshots
   FOR EACH ROW EXECUTE FUNCTION assistant.context_snapshots_immutable();
+CREATE TRIGGER context_snapshots_no_truncate BEFORE TRUNCATE ON assistant.context_snapshots
+  FOR EACH STATEMENT EXECUTE FUNCTION assistant.context_snapshots_immutable();
 
 -- The chain artifact -> proposal -> snapshot (usage_events.context_id stays an unconstrained column: the ledger is insert-only and must always record).
 ALTER TABLE assistant.proposals ADD CONSTRAINT proposals_context_snapshot FOREIGN KEY (context_id) REFERENCES assistant.context_snapshots (id);

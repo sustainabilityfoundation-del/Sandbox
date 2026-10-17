@@ -36,6 +36,13 @@ export interface SettingsAccess {
 
 export { AssistantError }
 
+interface ContextGate {
+  ok: boolean
+  reason: string
+  allow: (module: string) => boolean
+  sharing: { requirementText: boolean; elementDetails: boolean }
+}
+
 const PROVIDER_STATUS: Record<ProviderError['kind'], number> = {
   'invalid-credential': 502,
   'not-permitted': 502,
@@ -624,8 +631,8 @@ export class AssistantBackend {
   }
 
   /** The context for one turn, or undefined when the setting is off, no selectors exist or assembly failed. */
-  private async injectContext(principal: Principal, request: WireRequest, routing: RoutingSettings, forward: Record<string, string>) {
-    if (routing.contextMode === 'off' || !this.contexts?.selectorCount) return undefined
+  private async injectContext(principal: Principal, request: WireRequest, routing: RoutingSettings, forward: Record<string, string>, gate: ContextGate) {
+    if (routing.contextMode === 'off' || !gate.ok || !this.contexts?.selectorCount) return undefined
     try {
       const task: ContextTask = { operation: request.turn.task?.operation ?? 'assistant.respond', targets: (request.turn.task?.targets ?? []) as ArtifactRef[] }
       const pkg = await this.contexts.assemble(principal, forward, {
@@ -636,6 +643,8 @@ export class AssistantBackend {
         conversationId: request.turn.conversationId,
         maxTokens: routing.contextMaxTokens,
         modelContextLimit: await this.contextLimit(principal, routing, request.routing),
+        allow: gate.allow,
+        sharing: gate.sharing,
       })
       const bundle = renderBundle(pkg)
       return bundle.blocks.length ? { bundle, contextId: pkg.contextId } : undefined
@@ -643,6 +652,20 @@ export class AssistantBackend {
       this.o.log?.warn({ err: (e as Error).message }, 'context assembly failed; the turn goes without platform context')
       return undefined
     }
+  }
+
+  /**
+   * What the person's AI settings allow for platform context: nothing when the project limit `ai.context-ceiling.mode` is off, when AI
+   * access to the Platform context module is off or the read class is off; otherwise only the modules whose AI access is not off
+   * (an unknown module counts as off), with the `ai.sharing.*` settings applied to what is shared.
+   */
+  private contextGate(policy: AiPolicy, values: Record<string, SettingValue>): ContextGate {
+    const sharing = { requirementText: policy.sharing.requirementText, elementDetails: policy.sharing.elementDetails }
+    const allow = (module: string) => (policy.modules[module] ?? 'off') !== 'off'
+    if (values['ai.context-ceiling.mode'] === 'off') return { ok: false, reason: 'Platform context is switched off by the project limit set by an administrator.', allow, sharing }
+    if (!allow('context')) return { ok: false, reason: 'AI access to Platform context is off in your AI settings.', allow, sharing }
+    if (!policy.operations.read) return { ok: false, reason: 'The operation class “Read objects” is off in your AI settings.', allow, sharing }
+    return { ok: true, reason: '', allow, sharing }
   }
 
   private requireContexts(): ContextAssembler {
@@ -653,7 +676,9 @@ export class AssistantBackend {
   /** `context.assemble`: assembles (or reuses) a snapshot for a task as the person. Explicit and read-only; works in every context mode (the mode only governs what is added to requests automatically). */
   async assembleContext(principal: Principal, forward: Record<string, string>, input: { projectId: string; operation?: string; targets?: ArtifactRef[]; mode?: Exclude<ContextMode, 'off'>; conversationId?: string; configurationId?: string }): Promise<{ package: ContextPackage; text: { blocks: { id: string; trust: string; text: string }[] } }> {
     const contexts = this.requireContexts()
-    const { routing } = await this.settingsOf(principal, input.projectId)
+    const { values, policy, routing } = await this.settingsOf(principal, input.projectId)
+    const gate = this.contextGate(policy, values)
+    if (!gate.ok) throw new AssistantError('context-not-allowed', gate.reason, 403)
     const pkg = await contexts.assemble(principal, forward, {
       projectId: input.projectId,
       mode: input.mode ?? 'full',
@@ -662,19 +687,25 @@ export class AssistantBackend {
       conversationId: input.conversationId,
       maxTokens: routing.contextMaxTokens,
       modelContextLimit: await this.contextLimit(principal, routing),
+      allow: gate.allow,
+      sharing: gate.sharing,
     })
     return { package: pkg, text: { blocks: renderBundle(pkg).blocks.map((b) => ({ id: b.id, trust: b.trust, text: b.text })) } }
   }
 
   /** `context.retrieve`: items of a stored snapshot (stale ones flagged), plus fresh reads of references it left out. */
   async retrieveContext(principal: Principal, forward: Record<string, string>, input: { projectId: string; contextId: string; refs?: ArtifactRef[] }) {
-    return this.requireContexts().retrieve(principal, forward, input)
+    const contexts = this.requireContexts()
+    const { values, policy } = await this.settingsOf(principal, input.projectId)
+    const gate = this.contextGate(policy, values)
+    if (!gate.ok) throw new AssistantError('context-not-allowed', gate.reason, 403)
+    return contexts.retrieve(principal, forward, { ...input, allow: gate.allow, sharing: gate.sharing })
   }
 
   /** One step of the browser's tool-calling loop. */
   async respond(principal: Principal, request: WireRequest, clientSignal?: AbortSignal, forward: Record<string, string> = {}): Promise<WireResponse> {
     const projectId = request.turn.context.projectId
-    const { policy, routing } = await this.settingsOf(principal, projectId)
+    const { values, policy, routing } = await this.settingsOf(principal, projectId)
     const prepared = this.prepare(principal, request, policy)
     const connection = await this.connectionHandle(principal.userId)
     const signal = clientSignal ? AbortSignal.any([clientSignal, AbortSignal.timeout(policy.limits.timeoutSeconds * 1000)]) : AbortSignal.timeout(policy.limits.timeoutSeconds * 1000)
@@ -684,7 +715,7 @@ export class AssistantBackend {
     const workflowId = randomUUID()
     // Platform context (ECII Amendment 2): behind ai.context.mode, default off. Assembled on the server as the person; a failure
     // never costs the turn, it just goes without context.
-    const injected = await this.injectContext(principal, request, routing, forward)
+    const injected = await this.injectContext(principal, request, routing, forward, this.contextGate(policy, values))
 
     return this.audited<WireResponse>(principal, track, { projectId, toolsOffered: prepared.tools.length, prompt }, async () => {
       let messages: ProviderMessage[] = prepared.messages

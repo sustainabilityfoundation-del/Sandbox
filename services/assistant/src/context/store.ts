@@ -30,11 +30,11 @@ interface Row {
 export class ContextStore {
   constructor(private readonly pool: Pool) {}
 
-  /** The newest snapshot of this person and project with the same content, if any. */
-  async findSame(projectId: string, actorId: string, mode: string, hash: string): Promise<ContextPackage | undefined> {
+  /** The newest snapshot of this person, project and conversation with the same content, if any (never one from another conversation). */
+  async findSame(projectId: string, actorId: string, mode: string, hash: string, conversationId?: string): Promise<ContextPackage | undefined> {
     const { rows } = await this.pool.query<Row>(
-      `SELECT package FROM assistant.context_snapshots WHERE project_id = $1 AND actor_id = $2 AND mode = $3 AND content_hash = $4 ORDER BY created_at DESC LIMIT 1`,
-      [projectId, actorId, mode, hash],
+      `SELECT package FROM assistant.context_snapshots WHERE project_id = $1 AND actor_id = $2 AND mode = $3 AND content_hash = $4 AND conversation_id IS NOT DISTINCT FROM $5 ORDER BY created_at DESC LIMIT 1`,
+      [projectId, actorId, mode, hash, conversationId ?? null],
     )
     return rows[0]?.package
   }

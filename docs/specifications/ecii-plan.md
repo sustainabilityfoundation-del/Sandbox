@@ -169,7 +169,7 @@ main 372dea4); accepted by the coordinator.
 - **Package.** An execution snapshot of `ArtifactRef`s with exact revisions plus bounded projections (quantities with unit, tolerance
   and datum, or summaries up to 2,000 characters; never document bytes). Immutable `assistant.context_snapshots`;
   `proposals.context_id` and `usage_events.context_id` give the chain artifact → proposal → snapshot. Stale items are flagged, not
-  rewritten. Budget: the smaller of setting `ai.context.maxTokens` (12,000) and a quarter of the model's context limit; at most 400
+  rewritten. Budget: the smaller of setting `ai.context.max-tokens` (12,000) and a quarter of the model's context limit; at most 400
   items and 256 KB per snapshot. Mandatory items (safety-relevant constraints, critical interfaces, material unknowns) are never
   dropped or summarised; if they alone exceed the budget the package is marked `overBudget`; numbers are never compressed.
 - **Path to the model.** Assembled on the server (the browser sends only `turn.task`: operation and target refs). A standing digest each

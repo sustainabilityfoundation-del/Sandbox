@@ -76,7 +76,7 @@ describe('AI policy from the installed manifests', () => {
     expect(policy.classify('sysml-modeler.read_element')?.module.id).toBe('sysml-modeler')
   })
 
-  it('keeps the AI module order and the order of the AI settings rows exactly as before the manifests (b845b0d)', () => {
+  it('keeps the AI module order and the order of the AI settings rows: the manifest modules keep their historic order and the platform tail (reasoning, help, context) follows (b845b0d, CE-1)', () => {
     const base = ['workspace', 'requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'projects', 'reasoning', 'help', 'context']
     expect(policy.modules.map((m) => m.id)).toEqual(base)
     const rows = (defs: { id: string }[], prefix: string) => defs.filter((d) => d.id.startsWith(prefix)).map((d) => d.id.slice(prefix.length))
