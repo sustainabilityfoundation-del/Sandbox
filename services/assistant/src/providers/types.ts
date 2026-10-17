@@ -8,6 +8,8 @@
  * log credentials, prompts or tool results.
  */
 
+import type { ContextBlock, ContextBundle } from '@ews/platform-sdk'
+
 /** A provider-neutral conversation item. Tool names are the platform's (e.g. `requirements.update`). */
 export type ProviderMessage =
   | { type: 'message'; role: 'user' | 'assistant'; text: string }
@@ -55,17 +57,8 @@ export interface RespondInput {
   context?: ContextBundle
 }
 
-export interface ContextBlock {
-  id: string
-  text: string
-  trust: 'platform-data' | 'external-data'
-  /** Stable across turns, so a provider with prompt caching may cache it. */
-  cacheable: boolean
-}
-
-export interface ContextBundle {
-  blocks: ContextBlock[]
-}
+/** The neutral context blocks are the SDK 1.15 types (ADR-0085): one declaration, shared by the assembler and the adapters. */
+export type { ContextBlock, ContextBundle }
 
 /** What an adapter supports. Declared by every adapter; the model registry refines it per model. */
 export interface ProviderCapabilities {

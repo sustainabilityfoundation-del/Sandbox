@@ -29,3 +29,4 @@ export { route, evaluate, RoutingError, type Candidate, type Evaluation, type Ro
 export { ROUTING_MODES, ROUTING_PROVIDERS, CONTEXT_MODES, routingFromSettings, type RoutingMode, type RoutingDefault, type ContextMode, type RoutingSettings } from './orchestrator/settings'
 export type { ContextBlock, ContextBundle } from './providers/types'
 export { UsageLedger, LedgerError, priceUsage, syncPricing, sanitizeRaw, type UsageEventInput, type UsageEventRow, type AggregateQuery, type AggregateRow } from './ledger'
+export { ContextAssembler, ContextStore, contentHash, budgetFor, estimateTokens, pack, renderBundle, digestText, toManifest, newContextId, DIGEST_SECTIONS, DEFAULT_MAX_TOKENS, MAX_ITEMS, MAX_BYTES, SUMMARY_LIMIT, type ContextSelectorSpec, type AssembleInput } from './context'

@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastif
 import { migrateAssistant } from './db/migrate'
 import { AssistantBackend, AssistantError, type AssistantBackendOptions, type Principal } from './service'
 import { WIRE_REQUEST_SCHEMA, type WireRequest } from './wire'
+import type { ArtifactRef } from '@ews/platform-sdk'
 import { ProposalService, type ModuleApi, type ModuleCaller, type ProposalInput } from './proposals'
 
 export const ASSISTANT_BASE_PATH = '/api/assistant/v1'
@@ -85,8 +86,25 @@ export const assistantPlugin: FastifyPluginAsync<AssistantPluginOptions> = async
     request.raw.on('close', () => {
       if (!request.raw.complete) controller.abort()
     })
-    return backend.respond(principal, request.body as WireRequest, controller.signal)
+    return backend.respond(principal, request.body as WireRequest, controller.signal, auth(request))
   })
+
+  // ---- platform context (ECII Amendment 2, ADR-0085): read operations behind context.assemble / context.retrieve -------------
+  const CTX_ID = { type: 'string', pattern: '^CTX-[A-Z0-9]{4,20}$', maxLength: 30 }
+  const TARGETS = { type: 'array', maxItems: 50, items: { type: 'object', required: ['module', 'id'], additionalProperties: false, properties: { module: { type: 'string', maxLength: 40 }, id: { type: 'string', minLength: 1, maxLength: 300 }, revision: { type: 'integer', minimum: 1 }, kind: { type: 'string', maxLength: 60 }, label: { type: 'string', maxLength: 300 } } } }
+  app.post(
+    '/context/assemble',
+    { schema: { body: { type: 'object', required: ['projectId'], additionalProperties: false, properties: { projectId: PROJECT, operation: { type: 'string', minLength: 1, maxLength: 200 }, targets: TARGETS, mode: { enum: ['digest', 'full'] }, conversationId: { type: 'string', maxLength: 100 }, configurationId: { type: 'string', maxLength: 100 } } } } },
+    async (request) => {
+      const b = request.body as { projectId: string; operation?: string; targets?: ArtifactRef[]; mode?: 'digest' | 'full'; conversationId?: string; configurationId?: string }
+      return backend.assembleContext(await who(request), auth(request), b)
+    },
+  )
+  app.post(
+    '/context/retrieve',
+    { schema: { body: { type: 'object', required: ['projectId', 'contextId'], additionalProperties: false, properties: { projectId: PROJECT, contextId: CTX_ID, refs: TARGETS } } } },
+    async (request) => backend.retrieveContext(await who(request), auth(request), request.body as { projectId: string; contextId: string; refs?: ArtifactRef[] }),
+  )
 
   // ---- routing, developer mode and usage (ADR-0080) ---------------------------------------------------------
   app.get('/routing/options', { schema: { querystring: projectQuery } }, async (request) => backend.routingOptions(await who(request), pid(request)))
@@ -127,7 +145,7 @@ export const assistantPlugin: FastifyPluginAsync<AssistantPluginOptions> = async
           required: ['projectId', 'conversationId', 'key', 'kind', 'module', 'title', 'preview'],
           additionalProperties: false,
           properties: {
-            projectId: PROJECT, conversationId: { type: 'string', maxLength: 100 }, messageId: { type: 'string', maxLength: 100 }, key: { type: 'string', maxLength: 60 },
+            projectId: PROJECT, conversationId: { type: 'string', maxLength: 100 }, messageId: { type: 'string', maxLength: 100 }, key: { type: 'string', maxLength: 60 }, contextId: { type: 'string', pattern: '^CTX-[A-Z0-9]{4,20}$', maxLength: 30 },
             kind: { enum: ['declarative', 'twin', 'closure'] }, module: { type: 'string', maxLength: 60 }, title: { type: 'string', minLength: 1, maxLength: 300 }, explanation: { type: 'string', maxLength: 4000 },
             preview: {}, assumptions: { type: 'array', maxItems: 50, items: { type: 'string', maxLength: 2000 } }, operations: { type: 'array', maxItems: 50, items: MODULE_OPERATION }, expected: { type: 'array', maxItems: 50, items: EXPECTED },
             confirmation: { type: 'object', required: ['phrase', 'prompt'], properties: { phrase: { type: 'string', maxLength: 200 }, prompt: { type: 'string', maxLength: 1000 } } },
@@ -221,6 +239,8 @@ export function assistantOpenApi() {
       '/connection/model': { put: { operationId: 'putModel', tags: ['Connection'], summary: 'Choose the model', security, requestBody: json({ type: 'object', required: ['model'], properties: { model: { type: 'string' } } }), responses: ok('Updated') } },
       '/connection/test': { post: { operationId: 'testConnection', tags: ['Connection'], summary: 'Test the connection with a cheap provider call', security, responses: ok('Reachable') } },
       '/policy': { get: { operationId: 'getPolicy', tags: ['Policy'], summary: 'Your effective AI access policy (settings clamped to project limits) and the operation catalogue', security, parameters: [projectId], responses: ok('Policy') } },
+      '/context/assemble': { post: { operationId: 'assembleContext', tags: ['Context'], summary: 'context.assemble: assemble (or reuse) an immutable context snapshot for a task, as you. References with exact revisions plus bounded projections, mandatory items first, within the budget; read-only', security, requestBody: json({ type: 'object', required: ['projectId'], properties: { projectId: { type: 'string' }, operation: { type: 'string' }, targets: { type: 'array', items: { type: 'object' } }, mode: { enum: ['digest', 'full'] } } }), responses: ok('{ package, text }: the ContextPackage (contextId CTX-…) and its rendered blocks (platform-data, and external-data for project documents)') } },
+      '/context/retrieve': { post: { operationId: 'retrieveContext', tags: ['Context'], summary: 'context.retrieve: items of a stored snapshot with stale ones flagged (the snapshot never changes), and fresh reads of references it left out; 404 for another project’s or person’s snapshot', security, requestBody: json({ type: 'object', required: ['projectId', 'contextId'], properties: { projectId: { type: 'string' }, contextId: { type: 'string' }, refs: { type: 'array', items: { type: 'object' } } } }), responses: ok('Items, fetched, notFound, stale count') } },
       '/preview': { post: { operationId: 'previewRequest', tags: ['Policy'], summary: 'What would be sent to the provider for this request (nothing is sent)', security, requestBody: json({ $ref: '#/components/schemas/AssistantRequest' }), responses: ok('Preview') } },
       '/respond': { post: { operationId: 'respond', tags: ['Assistant'], summary: 'One step of the tool-calling loop: tool calls (signed) or a final answer', security, requestBody: json({ $ref: '#/components/schemas/AssistantRequest' }), responses: ok('AssistantResponse') } },
       '/proposals': {
