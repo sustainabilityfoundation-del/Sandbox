@@ -8,7 +8,7 @@
 - **In progress:** none
 - **Next actions:** 1. coordinator reviews and merges C (and B); 2. B: adapters register in the `ProviderRegistry`, which turns "adapter pending" providers usable with no gateway change, and add model-registry entries with tiers (the balanced mode falls back to "best available" while tiers are empty); 3. D: model selector over `GET /routing/options`, usage badge, Developer section over `GET /developer/status`
 - **Blockers and open change requests:** none
-- **Decisions needing the coordinator:** ADR-0080 acceptance; the default of `npm run dev` is now mock mode (stored connections ignored; real use needs `EWS_AI_MODE=development` and a key); a ChatGPT-plan connection works only with Model selection = Manual until D adds the selector
+- **Decisions needing the coordinator:** ADR-0080 acceptance; the default mode is `user` (unchanged owner workflow); mock only when explicit; a ChatGPT-plan connection works only with Model selection = Manual until D adds the selector
 - **Verification:** see "Increment C" below (A's results under "Increment A")
 
 Brief: [ai-infrastructure-brief.md](ai-infrastructure-brief.md). Plan: [ai-infrastructure-plan.md](ai-infrastructure-plan.md).
@@ -39,7 +39,7 @@ Design: [orchestration.md](../modules/ai-interface/orchestration.md), [ADR-0080]
 | Orchestrator: balanced, quality, economy, manual; Phase 1 filters and scoring; stickiness; ChatGPT plan Manual only; Manual never falls back | done |
 | Settings `ai.routing.mode`, `ai.routing.providers.<provider>`, `ai.context.mode` with project ceilings (`pair()` moved to `settingsPair.ts`) | done |
 | `RouteDecision` in `ResponseMeta` (`routing`, extended `usage`, `cost`) | done |
-| `EWS_AI_MODE` mock (default; every real source off, stored connections ignored, real connect refused) and development; `readAiConfig` in `services/api/src/config.ts`; budget, optimization and unverified-pricing variables; test environments clear the keys | done |
+| `EWS_AI_MODE` mock (explicit only; every real source off, stored connections ignored, real connect refused) and development; `readAiConfig` in `services/api/src/config.ts`; budget, optimization and unverified-pricing variables; test environments clear the keys | done |
 | `GET /developer/status`, `POST /developer/providers/:id/validate`, `GET /usage`, `GET /routing/options` | done |
 | `RespondInput.context` (OpenAI developer message; fake ignores); migration 0004 `context_id` on `usage_events` and `proposals`; no assembler | done |
 | ADR-0080, orchestration.md, `.env.example`, AGENTS.md rules | done |
@@ -65,8 +65,8 @@ the ledger then held 51 simulated requests and no real one.
 - Not done by design (later increments): UI (selector, usage badge, developer panel: D), Anthropic/Google/xAI adapters (B),
   outdated-pricing warnings, credits, task classifier and provider fallback (Phase 2), the context assembler (CE-1).
 - Open issues from C (for the coordinator):
-  1. The default of `npm run dev` is now mock: stored connections are ignored and real accounts cannot be connected until
-     `EWS_AI_MODE=development` (with a key) is set. This is the owner's rule enforced in code; document it in the owner walkthrough.
+  1. (Resolved) The default is `user` mode: `npm run dev` keeps using stored connections. Mock is explicit and every automated stack
+     sets it (`ai:dev:fake`, e2e recipes, test environments).
   2. With the default `balanced` mode and no tiers in the OpenAI registry entries, balanced picks the cheapest available registry
      model ("best available"); B should add `qualityTier` values so the Phase 1 scoring is meaningful.
   3. A ChatGPT-plan connection needs Model selection = Manual (settings page) until D adds the selector.

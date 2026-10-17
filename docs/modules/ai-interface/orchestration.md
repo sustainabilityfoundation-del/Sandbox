@@ -24,11 +24,12 @@ request carries `turn.conversationId`.
 
 | Mode | Sources | Notes |
 | --- | --- | --- |
-| `mock` (default) | mock personas (the scripted fake provider: `fake-small` tier 1, `fake-large` tier 2) | No credentials. **Every real source is off, including stored user connections.** Connecting a real account answers 409 `mock-mode`. Rows are `source=mock`, `billing=mock`, `simulated=true`, cost 0. All integration and end-to-end runs use it |
+| `mock` (explicit: `EWS_AI_MODE=mock` or `EWS_ASSISTANT_FAKE_PROVIDER=1`) | mock personas (the scripted fake provider: `fake-small` tier 1, `fake-large` tier 2) | No credentials. **Every real source is off, including stored user connections.** Connecting a real account answers 409 `mock-mode`. Rows are `source=mock`, `billing=mock`, `simulated=true`, cost 0. All integration and end-to-end runs use it |
 | `development` | developer keys from `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (alias `GOOGLE_AI_API_KEY`), `XAI_API_KEY`; plus the person's connection | Never in production; keys read only in this mode. Meter-only: nothing is charged to a person. A key for a provider with no adapter is "adapter pending" and never called |
-| `user` | the person's own connection | Production, and the default for a host that passes no configuration (the behaviour before the gateway) |
+| `user` (**default**) | the person's own connection | `EWS_AI_MODE` unset and no fake flag, and production. Behaves as before the gateway; developer keys are not read; usage is metered as `consumer-plan` or `byok` |
 
-`EWS_ASSISTANT_FAKE_PROVIDER=1` is an alias for mock. Development with no key falls back to mock (with a warning). See
+`EWS_ASSISTANT_FAKE_PROVIDER=1` is an alias for mock. Development with no key falls back to user mode (with a warning). Every
+automated stack sets mock explicitly (`npm run ai:dev:fake`, the e2e recipes, test environments). See
 [`.env.example`](../../../.env.example) for all variables.
 
 ## Selection

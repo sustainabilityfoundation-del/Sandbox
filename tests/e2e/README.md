@@ -17,6 +17,12 @@ npm run e2e -- platform help    # selected flows
 | `E2E_OUTPUT` | `tests/e2e/.output` (git-ignored) | Screenshots |
 | `E2E_HEADED` | unset | Show the browser |
 
+**AI mode.** Flows must run against an API started in mock mode: `npm run ai:dev:fake` (sets `EWS_AI_MODE=mock`), or your own
+`npm run dev:api` with `EWS_AI_MODE=mock` (and `EWS_ASSISTANT_FAKE_PROVIDER=1`, `EWS_ASSISTANT_FAKE_SCRIPTS` for `demo-d1`). Mock mode
+ignores every stored connection, so a flow can never reach a person's connected AI account. A plain `npm run dev` is `user` mode
+(people's own connections, as before): do not point flows at it. After a run `GET /api/assistant/v1/usage?period=month` must list
+simulated rows only.
+
 Flows (`flows/*.mjs`, one process each, exit code 0 = pass): `platform` (subscriptions, shared context, upgrade
 of version 0.1 data, retired illustrative tools absent and their data kept, detached windows, failure isolation, icons), `help`, `coverage`,
 `integration`, `vision`, `conceptualize`, `sysml-modeler`, `cad-modeler` (the workspace AI path, then click-to-draw by mouse, touch and keyboard, and Repair reference; fixture `fixtures/cad/slotted-block.ewscad`), `cad-modeler-persistence` (CAD service revisions,

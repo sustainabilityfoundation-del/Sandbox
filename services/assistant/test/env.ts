@@ -35,7 +35,9 @@ export interface AiEnv {
 }
 
 // A provider key in the shell of whoever runs the tests must never be picked up (ADR-0080): tests pass explicit configuration.
-for (const name of [...DEVELOPER_KEY_VARIABLES, 'EWS_AI_MODE', 'EWS_ASSISTANT_FAKE_PROVIDER']) delete process.env[name]
+for (const name of DEVELOPER_KEY_VARIABLES) delete process.env[name]
+// Automated runs are mock explicitly (ADR-0080): anything that reads the environment ignores stored connections.
+process.env.EWS_AI_MODE = 'mock'
 
 export async function createAiEnv(options: { openaiFetch?: typeof fetch; ai?: Partial<AiRuntimeConfig>; metering?: Metering; retryDelaysMs?: number[] } = {}): Promise<AiEnv> {
   const name = `ews_test_${randomBytes(5).toString('hex')}`

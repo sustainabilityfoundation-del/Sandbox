@@ -38,12 +38,12 @@ No dependency is added in this increment.
 
 | Mode | Sources | Billing | Ledger |
 | --- | --- | --- | --- |
-| `mock` (default) | the scripted fake provider as mock personas only. **Every real source is disabled, including a person's stored connection.** Connecting a real account is refused (409 `mock-mode`); image generation honours only a fake-provider connection | `mock` | `source=mock`, `simulated=true`, cost 0 |
+| `mock` (explicit only: `EWS_AI_MODE=mock` or `EWS_ASSISTANT_FAKE_PROVIDER=1`) | the scripted fake provider as mock personas only. **Every real source is disabled, including a person's stored connection.** Connecting a real account is refused (409 `mock-mode`); image generation honours only a fake-provider connection | `mock` | `source=mock`, `simulated=true`, cost 0 |
 | `development` (explicit, never in production) | developer keys from the server environment, plus the person's own connection | `meter_only`: usage and estimated cost recorded, no credits, no payment | `source=developer-key`, `billing=meter_only` |
-| `user` (production; also the default when a host passes no configuration) | the person's own connection only | `byok` or `consumer-plan` | `source=user-connection` |
+| `user` (**the default**: `EWS_AI_MODE` unset and no fake flag; production) | the person's own connection only; developer keys are not read | `byok` or `consumer-plan` | `source=user-connection` |
 
-`EWS_ASSISTANT_FAKE_PROVIDER=1` stays as an alias for mock mode. Development without any provider key falls back to mock with a
-warning. In production `EWS_AI_MODE` and the fake provider alias are ignored (with a warning). Developer keys are read **only** in
+`EWS_ASSISTANT_FAKE_PROVIDER=1` stays as an alias for mock mode. Development without any provider key falls back to user mode with a
+warning. Every automated stack sets mock explicitly (`npm run ai:dev:fake`, the e2e recipes, the test environments). In production `EWS_AI_MODE` and the fake provider alias are ignored (with a warning). Developer keys are read **only** in
 development mode and never in production, so a key already in a shell is not picked up by accident; the test environments clear the
 variables. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (alias `GOOGLE_AI_API_KEY`), `XAI_API_KEY`;
 `EWS_AI_MONTHLY_DEV_BUDGET_USD` (25, one cap across providers), `EWS_AI_DEFAULT_OPTIMIZATION` (balanced),
@@ -108,9 +108,9 @@ No library is added or linked. Nothing changes the licence position of ADR-0079 
 
 ## Consequences
 
-- Default behaviour of `npm run dev` changes: without configuration the assistant answers with simulated mock personas and
-  ignores stored connections, so no automated or casual run can reach the owner's account. Real use needs
-  `EWS_AI_MODE=development` and a key. Stored connections keep working in `user` mode and in development mode.
+- `npm run dev` keeps its behaviour: without configuration the mode is `user` and a stored connection (the owner's ChatGPT sign-in)
+  works as before, now metered as `consumer-plan` or `byok`. Automated runs never reach it because they set mock explicitly, and
+  mock ignores stored connections. Developer keys need `EWS_AI_MODE=development`.
 - A ChatGPT-plan connection is used only when the person sets Model selection to Manual (Settings → AI and reasoning); until the
   UI increment adds the model selector this is done in the settings page.
 - A person's own connection contributes its selected model only; changing it is `PUT /connection/model`.

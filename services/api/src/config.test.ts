@@ -5,9 +5,11 @@ import { readAiConfig } from './config'
 const KEY = 'sk-test-0123456789abcdef'
 
 describe('readAiConfig', () => {
-  it('defaults to mock mode and ignores keys that happen to be in the environment', () => {
+  it('defaults to user mode (own connections, as before) and ignores keys that happen to be in the environment', () => {
     const { config } = readAiConfig({ OPENAI_API_KEY: KEY }, false)
-    expect(config.mode).toBe('mock')
+    expect(config.mode).toBe('user')
+    expect(readAiConfig({}, false).config.mode).toBe('user')
+    expect(readAiConfig({ EWS_AI_MODE: 'mock' }, false).config.mode).toBe('mock')
     expect(config.developerKeys).toEqual({})
   })
 
@@ -22,9 +24,9 @@ describe('readAiConfig', () => {
     expect(readAiConfig({ EWS_AI_MODE: 'development', GEMINI_API_KEY: 'primary', GOOGLE_AI_API_KEY: 'alias' }, false).config.developerKeys.google).toBe('primary')
   })
 
-  it('development without any key falls back to mock and says so, without naming a key', () => {
+  it('development without any key falls back to user mode and says so, without naming a key', () => {
     const r = readAiConfig({ EWS_AI_MODE: 'development' }, false)
-    expect(r.config.mode).toBe('mock')
+    expect(r.config.mode).toBe('user')
     expect(r.warnings.join(' ')).toMatch(/no provider key/)
   })
 

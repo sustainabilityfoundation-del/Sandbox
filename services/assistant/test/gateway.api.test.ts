@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { readAiConfig } from '../../api/src/config'
 import { PgMetering } from '../src/gateway/metering'
 import { UsageLedger } from '../src/ledger'
 import { createAiEnv, PROJECT, wireRequest, type AiEnv } from './env'
@@ -324,6 +325,36 @@ describe('mock mode', () => {
     }
     expect((await ask(env, 'eli', 'hello')).status).toBe(200)
     expect(env.fake.calls.length).toBe(before + 1)
+  })
+})
+
+describe('defaults from the environment', () => {
+  const store = (env: AiEnv) => env.backend().store.saveConnection({ userId: 'eli', provider: 'fake', method: 'api-key', accountLabel: 'Fake, key ending 6789', keyLast4: '6789', secret: { kind: 'api-key', apiKey: 'fake-owner-secret-0123456789' }, model: 'fake-large' })
+
+  it('mode unset: a stored connection is used exactly as before, and metered as byok', async () => {
+    const env = await createAiEnv({ ai: readAiConfig({}, false).config })
+    try {
+      await store(env)
+      const r = await ask(env, 'eli', 'hello', {}, { conversationId: 'CONV-USER' })
+      expect(r.body.meta).toMatchObject({ provider: 'fake', model: 'fake-large', routing: { source: 'user-connection', billing: 'byok', simulated: false } })
+      expect((await rows(env, `conversation_id = 'CONV-USER'`)).every((e) => e.source === 'user-connection' && e.billing === 'byok')).toBe(true)
+      expect(env.fake.calls.at(-1)!.credential).toMatchObject({ apiKey: 'fake-owner-secret-0123456789' })
+    } finally {
+      await env.close()
+    }
+  })
+
+  it('fake-provider flag: a stored connection is ignored and only simulated rows are written', async () => {
+    const env = await createAiEnv({ ai: readAiConfig({ EWS_ASSISTANT_FAKE_PROVIDER: '1' }, false).config })
+    try {
+      await store(env)
+      const r = await ask(env, 'eli', 'hello')
+      expect(r.body.meta.routing).toMatchObject({ source: 'mock', simulated: true })
+      expect(env.fake.calls.at(-1)!.credential).not.toMatchObject({ apiKey: 'fake-owner-secret-0123456789' })
+      expect((await rows(env, `source <> 'mock' OR simulated = false`))).toEqual([])
+    } finally {
+      await env.close()
+    }
   })
 })
 

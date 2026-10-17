@@ -58,8 +58,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
 
 /**
  * AI runtime configuration, read on the server only (ADR-0080; `.env.example`):
- * - `EWS_AI_MODE=mock|development`; default mock. `EWS_ASSISTANT_FAKE_PROVIDER=1` is an alias for mock. Development without a
- *   provider key falls back to mock. Production ignores both and uses people's own connections only.
+ * - Default `user`: people's own connections, developer keys NOT read. `mock` only when `EWS_AI_MODE=mock` or
+ *   `EWS_ASSISTANT_FAKE_PROVIDER=1`; `development` only when `EWS_AI_MODE=development` (without a provider key: user). Production ignores both and uses people's own connections only.
  * - Developer keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` or `GOOGLE_AI_API_KEY`, `XAI_API_KEY`) are read only
  *   in development mode and never in production, so a key in a developer's shell is not picked up by accident.
  * - `EWS_AI_MONTHLY_DEV_BUDGET_USD` (default 25; one cap across providers), `EWS_AI_DEFAULT_OPTIMIZATION` (balanced),
@@ -76,8 +76,9 @@ export function readAiConfig(env: NodeJS.ProcessEnv = process.env, production = 
     mode = 'user'
     if (requested || fakeAlias) warnings.push('EWS_AI_MODE and EWS_ASSISTANT_FAKE_PROVIDER are ignored in production: the assistant uses people’s own connections only.')
   } else {
-    if (requested && requested !== 'mock' && requested !== 'development') warnings.push(`EWS_AI_MODE=${requested} is not recognised (use mock or development); using mock.`)
-    mode = requested === 'development' ? 'development' : 'mock'
+    if (requested && requested !== 'mock' && requested !== 'development') warnings.push(`EWS_AI_MODE=${requested} is not recognised (use mock or development); using user mode.`)
+    // Default: user (people's own connections, as before). Mock and development only when set explicitly.
+    mode = requested === 'development' ? 'development' : requested === 'mock' ? 'mock' : 'user'
     if (fakeAlias && mode === 'development') warnings.push('EWS_ASSISTANT_FAKE_PROVIDER=1 is an alias for mock mode and conflicts with EWS_AI_MODE=development; development mode wins.')
     else if (fakeAlias) mode = 'mock'
     if (mode === 'development') {
@@ -86,8 +87,8 @@ export function readAiConfig(env: NodeJS.ProcessEnv = process.env, production = 
         if (name) keys[p.id] = (env[name] as string).trim()
       }
       if (!Object.keys(keys).length) {
-        warnings.push('EWS_AI_MODE=development but no provider key is set (OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, XAI_API_KEY): using mock mode.')
-        mode = 'mock'
+        warnings.push('EWS_AI_MODE=development but no provider key is set (OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, XAI_API_KEY): using user mode.')
+        mode = 'user'
       }
     }
   }
