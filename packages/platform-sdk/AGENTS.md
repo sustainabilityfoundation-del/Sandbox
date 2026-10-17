@@ -1,6 +1,6 @@
 # AGENTS.md: @ews/platform-sdk
 
-The versioned tool contract (SDK **1.15.0**, `src/contract/version.ts`), `PlatformHost`, the module
+The versioned tool contract (SDK **1.16.0**, `src/contract/version.ts`), `PlatformHost`, the module
 manifests (client and server), the capability registry, React hooks and `defineTool`, the standalone
 harness and the testing fixtures. Owner: Platform (the coordinator). Decisions:
 [ADR-0002](../../docs/decisions/0002-versioned-tool-contract.md),

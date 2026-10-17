@@ -100,6 +100,8 @@ const CONTROLS: [string, string][] = [
   ['conceptualize.knowledge.function.decompose', 'conceptualize.knowledge'],
   ['conceptualize.knowledge.function.status', 'conceptualize.knowledge'],
   ['conceptualize.knowledge.constraint.source', 'conceptualize.knowledge'],
+  ['conceptualize.knowledge.constraint.bound', 'conceptualize.knowledge'],
+  ['conceptualize.knowledge.assumption.bound', 'conceptualize.knowledge'],
   ['conceptualize.knowledge.constraint.status', 'conceptualize.knowledge'],
   ['conceptualize.knowledge.assumption.validation', 'conceptualize.knowledge'],
   ['conceptualize.knowledge.links', 'conceptualize.knowledge'],

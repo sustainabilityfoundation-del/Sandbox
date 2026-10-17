@@ -1,11 +1,12 @@
 import './conceptualize.css'
 import { Badge, EmptyState, LoadingState, Notice, SegmentedControl } from '@ews/design-system'
-import type { ConceptSummary, ConceptsService } from '@ews/platform-sdk'
-import { usePlatformServices, useSharedContext, useToolViewState } from '@ews/platform-sdk/react'
+import type { ConceptSummary, ConceptsService, InspectorSubject } from '@ews/platform-sdk'
+import { useInspectorSubject, usePlatformServices, useSharedContext, useToolViewState } from '@ews/platform-sdk/react'
 import { getConceptsModuleClient } from '@ews/conceptualize-client'
 import { useEffect, useState } from 'react'
 import { ModuleDataProvider, useModuleData, useResource } from './data'
 import type { ConceptPage, ConceptualizeViewState } from './domain'
+import { assumptionSubject, calculationSubject, conceptSubject, constraintSubject, functionSubject } from './inspectorSubjects'
 import { AlternativesPage } from './ui/Alternatives'
 import { VisualComparisonPage } from './ui/Visual'
 import { CollaborationPage } from './ui/Collaboration'
@@ -34,6 +35,35 @@ function Dialogs() {
   return null
 }
 
+/**
+ * Keeps the workspace Inspector on the open Concept, Function, Constraint or Assumption (SDK 1.16). The Alternative
+ * Explorer publishes its set itself; this component is only mounted on the Explorer page.
+ */
+function ExplorerInspector() {
+  const { client } = useModuleData()
+  const [state] = useToolViewState<ConceptualizeViewState>()
+  const rec = state.record
+  const subject = useResource<InspectorSubject | null>(
+    rec
+      ? async () =>
+          rec.type === 'function'
+            ? functionSubject(await client.function(rec.id))
+            : rec.type === 'constraint'
+              ? constraintSubject(await client.constraint(rec.id))
+              : rec.type === 'calculation'
+                ? calculationSubject(await client.calculationModel(rec.id))
+                : assumptionSubject(await client.assumption(rec.id))
+      : state.conceptId
+        ? async () => conceptSubject(await client.concept(state.conceptId!))
+        : null,
+    [client, rec?.type, rec?.id, state.conceptId],
+  )
+  const wanted = rec?.id ?? state.conceptId
+  // Never show the previous record while the next one loads.
+  useInspectorSubject(wanted && subject.data?.id === wanted ? subject.data : null)
+  return null
+}
+
 function ApiView() {
   const { client, permissions, permissionsError } = useModuleData()
   const [state, setState] = useToolViewState<ConceptualizeViewState>()
@@ -53,6 +83,7 @@ function ApiView() {
       {graph.error && <Notice tone="danger" title="Concepts could not be loaded">{graph.error}</Notice>}
       {state.page === 'explorer' && (
         <div className={`con-root${state.conceptId || state.record ? ' has-detail' : ''}`}>
+          <ExplorerInspector />
           <ExplorerPanel graph={graph.data} loading={graph.loading} />
           {state.conceptId && <ConceptWorkspace graph={graph.data} />}
           {!state.conceptId && state.record && <DesignRecordPanel />}

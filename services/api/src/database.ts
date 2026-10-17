@@ -107,6 +107,25 @@ const ident = (name: string) => {
   return `"${name}"`
 }
 
+/**
+ * External PostgreSQL at start-up. Deployed: the database and its role come from the bootstrap step, so only the target
+ * database itself is checked and nothing is ever created. Otherwise (local Docker Compose) the admin database is checked
+ * and the target database is created if missing. Returns an error message, or undefined when ready.
+ */
+export async function prepareExternal(
+  cfg: Pick<ApiConfig, 'production' | 'databaseUrl' | 'databaseName'>,
+  deps: { canConnect: (url: string) => Promise<boolean>; ensureDatabase: (adminUrl: string, name: string) => Promise<unknown> } = { canConnect, ensureDatabase },
+): Promise<string | undefined> {
+  const host = new URL(cfg.databaseUrl).host
+  if (cfg.production) {
+    return (await deps.canConnect(cfg.databaseUrl)) ? undefined : `Cannot reach database ${cfg.databaseName} at ${host}. It is created by the bootstrap step (DATABASE_DEPLOYMENT.md); the server does not create it.`
+  }
+  const admin = adminUrlOf(cfg as ApiConfig)
+  if (!(await deps.canConnect(admin))) return `Cannot reach PostgreSQL at ${host}. Start it with "npm run db:up" (Docker Compose) or set EWS_PG=embedded.`
+  await deps.ensureDatabase(admin, cfg.databaseName)
+  return undefined
+}
+
 export async function ensureDatabase(adminUrl: string, name: string) {
   const client = new pg.Client({ connectionString: adminUrl })
   await client.connect()

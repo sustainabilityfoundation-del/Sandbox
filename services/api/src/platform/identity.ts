@@ -46,6 +46,11 @@ export async function seedPlatform(pool: Pool, projectId = 'PRJ-ACT100') {
 export interface IdentityOptions {
   production: boolean
   /**
+   * Accept the X-Dev-User header. Default: `!production`. A deployed host sets it only with the explicit
+   * EWS_ALLOW_DEV_IDENTITIES=1 (see config.ts `devIdentitiesAllowed`).
+   */
+  devIdentities?: boolean
+  /**
    * Record state of a project in the Project Management registry (CR-PM-API-4). Archived projects are read-only
    * for every hosted service (the role is capped at reader); deleted projects have no members until restored.
    * Projects unknown to the registry keep their roles unchanged.
@@ -59,6 +64,7 @@ export const SYSTEM_PROJECTS_PRINCIPAL = 'system:projects'
 export function identity(pool: Pool, options: IdentityOptions) {
   // A random per-process token for in-process calls (app.inject) by registry adapters. Never logged or returned.
   const internalToken = randomBytes(32).toString('hex')
+  const devIdentities = options.devIdentities ?? !options.production
   const internalMatches = (value: unknown) => typeof value === 'string' && value.length === internalToken.length && timingSafeEqual(Buffer.from(value), Buffer.from(internalToken))
 
   async function authenticate(request: FastifyRequest): Promise<Principal> {
@@ -70,7 +76,7 @@ export function identity(pool: Pool, options: IdentityOptions) {
       return { userId: SYSTEM_PROJECTS_PRINCIPAL, entitlements: rows.map((r) => r.entitlement) }
     }
     const dev = request.headers['x-dev-user']
-    if (options.production) {
+    if (!devIdentities) {
       if (dev !== undefined) throw new ServiceError('unauthenticated', 'X-Dev-User is not accepted in production. Authenticate with a bearer token.')
       throw new ServiceError('unauthenticated', 'Production authentication (OIDC bearer token) is not configured on this host.')
     }
@@ -118,9 +124,9 @@ export function registerPlatformRoutes(app: FastifyInstance, pool: Pool, auth: R
   app.get('/api/platform/v1/me', async (request) => {
     const principal = await auth.authenticate(request)
     const { rows } = await pool.query<{ project_id: string; role: string }>('SELECT project_id, role FROM platform.project_memberships WHERE user_id = $1 ORDER BY project_id', [principal.userId])
-    return { userId: principal.userId, entitlements: principal.entitlements, projects: rows.map((r) => ({ projectId: r.project_id, role: r.role })), identity: options.production ? 'production' : 'development (X-Dev-User)' }
+    return { userId: principal.userId, entitlements: principal.entitlements, projects: rows.map((r) => ({ projectId: r.project_id, role: r.role })), identity: (options.devIdentities ?? !options.production) ? 'development (X-Dev-User)' : 'production' }
   })
-  if (!options.production) {
+  if (options.devIdentities ?? !options.production) {
     app.get('/api/platform/v1/dev-users', async () => {
       const { rows } = await pool.query<{ id: string; name: string }>('SELECT id, name FROM platform.users WHERE active ORDER BY id')
       return rows

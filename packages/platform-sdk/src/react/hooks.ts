@@ -13,6 +13,7 @@ import {
 } from '@ews/model-service'
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import type { SettingValue } from '../contract/settings'
+import type { InspectorSubject } from '../contract/inspector'
 import type { ArtifactFilter, SharedContext, ToolApi, ToolCommand, ViewStateUpdate } from '../contract/tool'
 import { shallowEqual, useHostValue, usePlatformHost, useToolScope } from './host'
 
@@ -142,6 +143,21 @@ export function useToolCommand(command: ToolCommand | null): void {
     const c = latest.current
     return api.registerCommand({ ...c, run: () => latest.current?.run() })
   }, [api, key])
+}
+
+/**
+ * Shows a record of this tool in the workspace Inspector (SDK 1.16) while the view is mounted; `null` shows
+ * nothing. The subject is compared by value, so building a new object on every render is fine.
+ */
+export function useInspectorSubject(subject: InspectorSubject | null): void {
+  const api = useToolApi()
+  const latest = useRef(subject)
+  latest.current = subject
+  const key = subject ? JSON.stringify(subject) : ''
+  useEffect(() => {
+    api.setInspectorSubject?.(latest.current)
+  }, [api, key])
+  useEffect(() => () => api.setInspectorSubject?.(null), [api])
 }
 
 /** Remembers and restores the scroll position of a scrollable element, per view instance. */
