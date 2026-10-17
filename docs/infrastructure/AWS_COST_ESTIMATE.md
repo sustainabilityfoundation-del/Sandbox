@@ -43,11 +43,7 @@ second Fargate task for zero-downtime under load (+ 14.40), VPC interface endpoi
 
 ## 4. The existing Amplify app
 
-**Assumed:** Amplify Hosting charges build minutes (0.01 per minute after the first year's free tier), storage and data served. `main` received
-about 60 pushes in the last 25 hours (61 CI runs, Verified). If Amplify auto-builds every push and a build takes about 7 minutes (`npm ci`, type
-check of all workspaces, two Vite builds; not measured), that is about 4 a day, **roughly 120 a month** for builds alone. The real figure is in the
-AWS bill (Amplify line) and `aws amplify list-jobs`. Stopping auto-build on `main` or retiring the app (decision D4) may save more than the
-whole proposed dev environment costs.
+**Verified (live audit L3, L11):** the Amplify app `d2pllj7b1wqfae` (us-east-2) ran 121 builds between 12 and 17 October 2026, all of them successful, for 531 build minutes (4.4 minutes each). **Inferred:** at USD 0.01 per build minute (the account has no free-tier credits left) that is about USD 5.30 so far, and **roughly USD 35 a month** at the current pace of about 27 builds a day. Storage and data transfer are negligible. Actual spend could not be read because Cost Explorer is not enabled for the account; enable it, and add an AWS Budgets alert, before creating new resources. Stopping auto-build on `main`, or building only from a release branch (decision D4), removes most of this cost.
 
 ## 5. Cost controls
 
