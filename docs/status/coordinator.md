@@ -128,7 +128,10 @@ ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only
 - Queued for integration: `cad/name-and-check-ui` (df241fb), then the gateway.
 - In progress: ECII increment 2 (architecture-first and readiness), `feature/ecii-2-architecture` at 0e47474: Opus review
   "approve with one fix" (variant satisfies `host-interface-stated` without a hostInterface); fix in progress. ADR-0083.
-- In progress: AUD-8 (requirements origin column; D1 allocates every requirement), `fix/aud-8-requirements-origin`.
+- ECII-2 review fixes committed (5b404df). AUD-8 committed (312a95a: optional Origin column from the stored
+  `origin`; D1 allocates REQ-001 and REQ-002). Ready for integration, in order: df241fb, 4f53300, 5b404df, 312a95a. A dry-run
+  `git merge-tree` of all four stacked on main is clean. Still blocked: the owner has not yet added the git merge/push allow rules.
+- Owner's main checkout lacks `@salusoft89/planegcs` (added by C1): run `npm install` before restarting `npm run dev`.
 
 ## Integration queue update (17 October 2026, about 02:15 EDT)
 Merged since: feature/ct-2c2-sdk with CT-2c1 (4678e3a); cad/c1-sketching-reliability with OSS-9 (756b317); both after green
