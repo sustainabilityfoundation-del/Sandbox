@@ -1,0 +1,98 @@
+# Database deployment (proposed)
+
+Status: **Proposed**, 17 October 2026, aws-infrastructure agent (phase 1). Nothing provisioned. Current state and schema inventory:
+[DEPLOYMENT_AUDIT.md](DEPLOYMENT_AUDIT.md) §1.3-§1.5. Architecture: [AWS_ARCHITECTURE.md](AWS_ARCHITECTURE.md). Brief §2.
+
+## 1. What stays as it is
+
+- Local development: embedded PostgreSQL (default, `EWS_PG=embedded`) and Docker Compose (`EWS_PG=external`), `npm run db:*`, seeding on start,
+  `db:reset` limited to `ews_dev`/`ews_test*`. No change.
+- One database per environment, one schema per module, each module owning its migrations and its `schema_migrations` table. No second migration
+  mechanism is introduced (brief §2).
+
+## 2. Existing managed databases first
+
+Before any database is created (brief §2: "do not automatically create a new RDS instance if a suitable managed database already exists"), the
+read-only inventory in [DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md) §2 lists RDS instances and clusters and Lightsail databases in the chosen
+region. If one exists, its owner, engine version (17 needed for parity; 16 acceptable if extensions are not used, which they are not), size,
+backups and network are recorded and the owner decides whether to reuse it. This audit could not run the inventory (no AWS access).
+
+## 3. RDS design
+
+| Setting | dev | prod |
+| --- | --- | --- |
+| Engine | PostgreSQL 17 (same major as local) | same |
+| Class | db.t4g.micro | db.t4g.small |
+| Availability | single-AZ | single-AZ (Multi-AZ is an owner option, about double the instance cost) |
+| Storage | gp3 20 GB, autoscaling up to 100 GB, encrypted | same |
+| Backups | 7 days, point-in-time recovery | 14 days, point-in-time recovery; manual snapshot before each deploy with migrations |
+| Protection | none (dev may be rebuilt) | deletion protection, `RemovalPolicy.SNAPSHOT`, stack termination protection |
+| Network | private subnets, no public access; inbound 5432 only from the API and migration task security group | same |
+| TLS | `rds.force_ssl=1` (default on recent versions); clients verify with the RDS CA bundle baked into the image | same |
+| Parameters | default group plus `log_min_duration_statement=1000`, `idle_in_transaction_session_timeout=60000` | same |
+| Monitoring | CloudWatch metrics and alarms (CPU, free storage, connections); Performance Insights free tier | same |
+
+**Roles.** The RDS master user (password managed by RDS in Secrets Manager) is used only for bootstrap and emergencies. A bootstrap step
+(first migration task run with the master secret, or a one-off SQL script in the runbook) creates database `ews` (not `ews_dev`, so the
+repository's reset guard can never match it) and an application role `ews_app` that owns it. The API and the migration task both connect as
+`ews_app`: the existing code creates schemas and runs module migrations at start-up, so a separate read/write-only runtime role would need code
+changes and is deferred.
+
+**Connection string.** The API reads `DATABASE_URL`. The task definition supplies host, port and database as plain variables and the password
+from `ews/<env>/db-app` through ECS secrets; a two-line entry script (or a small config change, C3) assembles
+`postgres://ews_app:<password>@<host>:5432/ews?sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem`. Nothing is logged.
+`EWS_PG=external` is mandatory; with code change C3 the server refuses to start deployed in embedded mode or with the `local-dev-only` fallback.
+Pool size: 20 per task (current default) is well under `db.t4g.micro`'s connection limit for one or two tasks.
+
+## 4. Migration at deploy
+
+Existing framework (Verified in code): per schema, files applied in order, one transaction per file, recorded with a SHA-256 checksum; changed
+applied files are refused; `pg_advisory_lock` per schema serialises concurrent runners.
+
+**Needed (Platform change C4):** a `migrate` command that applies all nine schemas (the four in `prepareDatabase` plus `migrateSettings`,
+`migrateAssistant`, `migrateVisualization`, `migrateSysml`, `migrateCad`) and exits non-zero on the first failure, and a read-only `status`
+command printing, per schema, the applied versions and the versions present in the image. Each module's migrations stay in the module.
+
+Pipeline order (dev and prod):
+1. (prod) Create manual snapshot `pre-<short-sha>`; wait until available.
+2. Run a one-off Fargate task from the **new** image with `migrate`; same subnets, security group, secrets and log group as the service.
+3. Wait for the task to stop; read its exit code. Non-zero: stop the deployment, report the schema and file from the log, leave the running
+   service untouched.
+4. Run `status` (or let the readiness check do it, below) and fail if any schema has a file in the image that is not applied.
+5. Update the ECS service to the new task definition. The API's start-up migrations then find nothing to do.
+
+**Compatibility rules.**
+- Migrations are additive (AGENTS.md: never delete or rewrite user data), so the previous version keeps working against the new schema; that is
+  what makes "leave the old service running" a safe outcome of a failed deploy.
+- If the database has versions the image does not know (an older image being rolled back onto a newer schema), the API logs a warning and starts
+  (additive rule); the smoke test reports it. A later change may turn this into a hard stop if a breaking migration is ever approved.
+- A checksum mismatch (someone edited an applied file) stops the migration; the fix is a new migration, never editing the file.
+
+## 5. Failure detection and recovery
+
+| Failure | Detection | Recovery |
+| --- | --- | --- |
+| Migration SQL error | migrate task exit code; log lines name the file | That file's transaction is rolled back; earlier files in the same run stay applied (they are additive). Fix forward with a new migration and redeploy. |
+| Migration succeeds but the new version is faulty | ECS health checks fail and the circuit breaker rolls back to the previous task definition; smoke tests fail | Previous version serves the additive schema. Fix forward. |
+| Data damaged by a migration or a bug | smoke tests, user report | Prod: restore the pre-deploy snapshot or point-in-time to a **new** instance, verify, then switch the `DB_HOST` variable and redeploy; keep the damaged instance until the owner agrees to delete it. Never restore over the live instance. |
+| Database unreachable | `/api/health` returns 5xx (it runs `SELECT 1`); ALB marks the target unhealthy; alarm | Check RDS status and security groups (runbook §6). |
+| Lock held by a stuck runner | migrate task does not finish within its timeout | Stop the task; advisory locks are released with the session. |
+
+## 6. Backups and restore
+
+Automated backups with point-in-time recovery (7/14 days), manual pre-deploy snapshots in prod (kept 30 days, then deleted by a lifecycle step
+the owner approves), EFS daily backups through AWS Backup (35 days). Restore drill on dev in increment E: restore the latest snapshot to a new
+instance, point a temporary task at it, run `status` and read a known test project. Procedure in the runbook §8.
+
+## 7. Readiness and connectivity checks
+
+- Today: `GET /api/health` (database reachable, latency). Used by the ALB target group and the smoke test.
+- Proposed (Platform, optional): `GET /api/health?deep=1` or a separate readiness endpoint that also reports, per schema, whether all migrations
+  in the image are applied, without exposing details publicly (only counts).
+
+## 8. No development data in production
+
+`SEED_ON_START=false` explicitly in every deployed environment (the code default is already `false` when `NODE_ENV=production`). The prod smoke
+test checks that `platform.users` contains none of ada, rui, eli, rho, nia and that project PRJ-ACT100 does not exist. `db:seed` and `db:reset`
+are never run by the pipeline; `db:reset` also refuses any database not named `ews_dev`/`ews_test*` and any `NODE_ENV=production`.
+Dev uses a dedicated test project created by the smoke test, never existing user data (brief §7).
