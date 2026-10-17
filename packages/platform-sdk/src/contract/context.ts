@@ -96,13 +96,14 @@ export interface ContextSnapshotItem<R extends ContextRef = ContextRef> {
   selectedBy?: string
 }
 
-/** What was left out, with references retained so a follow-up `context.retrieve` can fetch it. */
-export interface ContextOmission {
-  count: number
-  reason: 'budget' | 'not-authorized' | 'not-found'
-  /** References of omitted items, when the reason allows naming them (never for `not-authorized`). */
-  refs?: ContextRef[]
-}
+/**
+ * What was left out. For `budget` and `not-found`, the count and references are kept so a follow-up `context.retrieve` can
+ * fetch them. A `not-authorized` omission has neither a count nor references, so the type itself cannot reveal how many hidden
+ * items exist (brief §13). The assembler emits it only for a requested target the person cannot read (ADR-0085).
+ */
+export type ContextOmission =
+  | { reason: 'budget' | 'not-found'; count: number; refs?: ContextRef[] }
+  | { reason: 'not-authorized'; count?: never; refs?: never }
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Budgets

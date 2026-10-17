@@ -27,7 +27,7 @@ this ADR defines the runtime records, not the benchmark.
    proposal, as today.
 4. **Refinement budget.** Design Reasoning core's `RunBudget` is extended additively in CE-2 with optional `maxIterations`,
    `maxModelCalls` and `maxCostUsd` (a decimal string per [ADR-0079](0079-usage-ledger-pricing-registry-and-decimal-policy.md));
-   `maxWallMs` is the latency budget. Defaults are conservative (one refinement iteration in P0); exhausting any limit ends the run as
+   `maxWallMs` is the latency budget. P0 allows one refinement iteration (coordinator decision, CE-0 review); exhausting any limit ends the run as
    `budget-exhausted` and records the remaining findings as limitations. Refinement is localised: a finding's `suggestedAction`
    selects a targeted retrieval or correction before any full regeneration. No recursive model calls outside the controller.
    The type stays in DR core, not the SDK, until a second consumer needs it.

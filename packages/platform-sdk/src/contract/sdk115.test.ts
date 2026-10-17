@@ -4,6 +4,7 @@ import {
   isSdkCompatible,
   type ContextBlock,
   type ContextBundle,
+  type ContextOmission,
   type ContextPackage,
   type ContextRef,
   type ContextSnapshotItem,
@@ -112,5 +113,17 @@ describe('SDK 1.15 additive contract', () => {
     expect(finding.kind).toBe('deterministic')
     expect(descriptor.selectContext?.operations).toEqual(['conceptualize.'])
     expect(minimal.selectContext).toBeUndefined()
+  })
+
+  it('cannot carry a count or references for a not-authorized omission', () => {
+    const hidden: ContextOmission = { reason: 'not-authorized' }
+    // @ts-expect-error a not-authorized omission has no count (it would reveal hidden items)
+    const counted: ContextOmission = { reason: 'not-authorized', count: 3 }
+    // @ts-expect-error nor references
+    const named: ContextOmission = { reason: 'not-authorized', refs: [{ module: 'projects', id: 'DOC-9' }] }
+    // @ts-expect-error a budget omission must give its count
+    const uncounted: ContextOmission = { reason: 'budget' }
+    expect(hidden.count).toBeUndefined()
+    expect([counted, named, uncounted]).toHaveLength(3)
   })
 })

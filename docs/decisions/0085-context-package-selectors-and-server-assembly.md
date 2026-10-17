@@ -51,7 +51,10 @@ distributed. No owner approval is required for any of them.
    System Model and CAD in P1 (CE-5).
 3. **Assembler (AI connection, `services/assistant/src/context/`).** Calls the selectors in-process through the existing
    `ModuleCaller` as the signed-in person; merges, de-duplicates by reference key, packs mandatory-first then by rank, flags stale
-   items (never rewrites them), records omissions with their references for `context.retrieve`. Budget: the smaller of setting
+   items (never rewrites them), records `budget` and `not-found` omissions with their count and references for
+   `context.retrieve`. A `not-authorized` omission carries neither a count nor references (the SDK type is a discriminated union
+   that cannot hold them), so a package never reveals how many hidden items exist (brief §13); the assembler emits it only for a
+   requested target the person cannot read, never for items found by traversal. Budget: the smaller of setting
    `ai.context.maxTokens` (12,000) and a quarter of the model's context limit; at most 400 items and 256 KB per snapshot. If the
    mandatory items alone exceed it, the package is `overBudget` and they are kept.
 4. **Snapshots.** Immutable rows in `assistant.context_snapshots`; `proposals.context_id` and `usage_events.context_id` give the
@@ -79,7 +82,10 @@ None now. Nothing is published or submitted upstream without explicit owner auth
 
 ## Consequences
 
-- No dependency added. SDK 1.15.0 (additive). DR core's `ContextManifestItem` becomes an alias with no change to its users.
+- No dependency added. SDK 1.15.0 (additive). DR core's `ContextManifestItem` becomes an alias with no change to its users;
+  the coordinator accepted the alias as part of the SDK contract change (CE-0 review, 17 October 2026).
+- In CE-1 the gateway's `ContextBlock` and `ContextBundle` (services/assistant/src/providers/types.ts) import the SDK types
+  instead of declaring their own (coordinator decision).
 - CE-1 builds the Conceptualize and Projects selectors, the assembler, snapshots, digest and `context.assemble` behind
   `ai.context.mode = off`; D1 replays and `demo-d1` gate the merge.
 - Semantic retrieval for unstructured documents is deferred to P2 (pgvector evaluation then, with its own ADR row and dependency entry).

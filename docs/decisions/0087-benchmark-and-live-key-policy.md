@@ -35,8 +35,8 @@ approval is required. Nothing is added now; adoption of promptfoo would add a de
 - **Replay mode (CI).** Fake provider with recorded outputs; deterministic metrics only (intent and integration recognition against
   ground truth, interface grounding and hallucinated numbers by reference and source checks, constraint coverage, traceability,
   context reuse, tokens). Advisory metrics are skipped in replay.
-- **Live mode.** Only with environment variables named `*_LIVE_TEST_KEY` (for example `OPENAI_LIVE_TEST_KEY`,
-  `ANTHROPIC_LIVE_TEST_KEY`), read by the runner and passed to the gateway as an ephemeral API-key credential for the run. Never
+- **Live mode.** Only with the environment variables `OPENAI_LIVE_TEST_KEY`, `ANTHROPIC_LIVE_TEST_KEY`, `GEMINI_LIVE_TEST_KEY`
+  and `XAI_LIVE_TEST_KEY` (coordinator decision, CE-0 review; a new provider adds one name of the same form), read by the runner and passed to the gateway as an ephemeral API-key credential for the run. Never
   connection records from `services/assistant`, never stored credentials, never the ChatGPT sign-in or any OAuth token of the owner.
   The runner refuses to start live mode if no such variable is set and reports "live: not run". Five repetitions per arm.
 - **Records.** Each run records model, pricing version, instruction and tool digests, snapshot IDs, outputs and scores; cost per
