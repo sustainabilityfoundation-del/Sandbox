@@ -1,4 +1,5 @@
-import { ProviderError, type AssistantProvider, type ProviderCredential, type ProviderMessage, type ProviderModel, type ProviderTool, type RespondInput, type RespondOutput } from './types'
+import { defaultModelId } from '../models'
+import { ProviderError, type AssistantProvider, type ProviderCapabilities, type ProviderUsage, type ProviderCredential, type ProviderMessage, type ProviderModel, type ProviderTool, type RespondInput, type RespondOutput } from './types'
 
 /**
  * OpenAI adapter (Responses API, plain fetch; no SDK dependency). Sources, checked 15 October 2026:
@@ -16,9 +17,39 @@ import { ProviderError, type AssistantProvider, type ProviderCredential, type Pr
  *   function tools in namespaces (Preview limitations).
  */
 
-export const OPENAI_DEFAULT_MODEL = 'gpt-6.1-sol'
+/** @deprecated The default model is registry data (config/models/openai.json, `default: true`); this re-export reads it from there. */
+export const OPENAI_DEFAULT_MODEL: string = defaultModelId('openai')
 export const CHATGPT_METHOD = 'chatgpt'
 export const API_KEY_METHOD = 'api-key'
+
+/** The usage object of a Responses API response (only the fields this adapter maps). */
+export interface OpenAIUsage {
+  input_tokens?: number
+  output_tokens?: number
+  input_tokens_details?: { cached_tokens?: number }
+  output_tokens_details?: { reasoning_tokens?: number }
+}
+
+/**
+ * Normalises OpenAI usage. OpenAI's input_tokens already includes cached tokens and output_tokens already includes
+ * reasoning tokens, which is the ProviderUsage convention, so counts map one to one.
+ */
+export function normaliseOpenAIUsage(usage: OpenAIUsage | undefined): ProviderUsage {
+  if (!usage) return { reported: 'estimated' }
+  const cached = usage.input_tokens_details?.cached_tokens
+  const reasoning = usage.output_tokens_details?.reasoning_tokens
+  return {
+    inputTokens: usage.input_tokens,
+    outputTokens: usage.output_tokens,
+    ...(cached !== undefined ? { cachedInputTokens: cached } : {}),
+    ...(reasoning !== undefined ? { reasoningTokens: reasoning } : {}),
+    raw: usage as Record<string, unknown>,
+    reported: 'provider',
+  }
+}
+
+/** What this adapter implements today (the Responses API with streaming and function tools); extended in increment B. */
+export const OPENAI_CAPABILITIES: ProviderCapabilities = { streaming: true, tools: true, structuredOutput: false, imageInput: false, reasoningEffort: false, promptCaching: true, modelDiscovery: true }
 
 /** Platform tool names (`requirements.update`) → provider function names (`requirements__update`). */
 export function toFunctionName(name: string): string {
@@ -101,7 +132,7 @@ interface OutputItem {
 }
 
 /** Reads a server-sent event stream until response.completed (or a failure event). */
-async function readStream(response: Response, method: string): Promise<{ output: OutputItem[]; usage?: { input_tokens?: number; output_tokens?: number }; model?: string }> {
+async function readStream(response: Response, method: string): Promise<{ output: OutputItem[]; usage?: OpenAIUsage; model?: string }> {
   if (!response.body) throw new ProviderError('unavailable', 'OpenAI returned an empty response.')
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
@@ -122,7 +153,7 @@ async function readStream(response: Response, method: string): Promise<{ output:
         .map((l) => l.slice(5).trimStart())
         .join('\n')
       if (!data || data === '[DONE]') continue
-      let event: { type?: string; item?: OutputItem; response?: { output?: OutputItem[]; usage?: { input_tokens?: number; output_tokens?: number }; model?: string; error?: { code?: string; message?: string } }; error?: { code?: string; message?: string }; code?: string; message?: string }
+      let event: { type?: string; item?: OutputItem; response?: { output?: OutputItem[]; usage?: OpenAIUsage; model?: string; error?: { code?: string; message?: string } }; error?: { code?: string; message?: string }; code?: string; message?: string }
       try {
         event = JSON.parse(data)
       } catch {
@@ -238,6 +269,7 @@ export function createOpenAIProvider(options: OpenAIProviderOptions = {}): Assis
     displayName: 'OpenAI (ChatGPT)',
     description: 'OpenAI models through the Responses API, with your own OpenAI account.',
     methods,
+    capabilities: OPENAI_CAPABILITIES,
     defaultModel: options.defaultModel ?? OPENAI_DEFAULT_MODEL,
     listModels,
     async validateCredential(credential, method, signal) {
@@ -273,7 +305,7 @@ export function createOpenAIProvider(options: OpenAIProviderOptions = {}): Assis
       } catch (e) {
         throw networkFailure(e, input.signal)
       }
-      return { ...interpretOutput(completed.output, input.tools), usage: { inputTokens: completed.usage?.input_tokens, outputTokens: completed.usage?.output_tokens }, model: completed.model ?? input.model }
+      return { ...interpretOutput(completed.output, input.tools), usage: normaliseOpenAIUsage(completed.usage), model: completed.model ?? input.model }
     },
   }
 }

@@ -1,0 +1,818 @@
+{
+ "schemaVersion": 1,
+ "provider": "xai",
+ "note": "Imported from provider-pricing-seed.json (commercial research, retrieved 2026-10-16). Every record is unverified: a person must check it against its sourceUrl and a new pricingVersion is published when it is. effectiveFrom is the retrieval date because no provider page states when the price took effect. Anthropic, Google and xAI pages list display names for many models; those records use the model \"display:<name>\" until the adapter maps the real API ID.",
+ "records": [
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "display:Speech to Text",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "sttHoursRest": {
+     "price": "0.1",
+     "per": 1,
+     "unit": "USD per hour (REST); 0.20 streaming"
+    }
+   },
+   "note": "The source page shows a display name, not the API model ID; this record matches no request until an adapter maps the ID."
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "display:Text to Speech",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "ttsCharacters": {
+     "price": "15",
+     "per": 1000000,
+     "unit": "USD per 1M characters"
+    }
+   },
+   "note": "The source page shows a display name, not the API model ID; this record matches no request until an adapter maps the ID."
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.20-0309-non-reasoning",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt <200k",
+    "maxInputTokens": 199999
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "1.25",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 1000k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.20-0309-non-reasoning",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt >=200k",
+    "minInputTokens": 200000
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 1000k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.20-0309-reasoning",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt <200k",
+    "maxInputTokens": 199999
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "1.25",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 1000k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.20-0309-reasoning",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt >=200k",
+    "minInputTokens": 200000
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 1000k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.20-multi-agent-0309",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt <200k",
+    "maxInputTokens": 199999
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "1.25",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 1000k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.20-multi-agent-0309",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt >=200k",
+    "minInputTokens": 200000
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 1000k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.3",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt <200k",
+    "maxInputTokens": 199999
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "1.25",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 1000k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.3",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt >=200k",
+    "minInputTokens": 200000
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 1000k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.5",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt <200k",
+    "maxInputTokens": 199999
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.3",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "6",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 500k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.5",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt >=200k",
+    "minInputTokens": 200000
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.6",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "12",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 500k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.6",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt <200k",
+    "maxInputTokens": 199999
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "6",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 500k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.6",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt >=200k",
+    "minInputTokens": 200000
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "12",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 500k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.7",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt <200k",
+    "maxInputTokens": 199999
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "6",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 500k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-4.7",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt >=200k",
+    "minInputTokens": 200000
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "12",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 500k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-build-0.1",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt <200k",
+    "maxInputTokens": 199999
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 256k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-build-0.1",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt >=200k",
+    "minInputTokens": 200000
+   },
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Context window 256k tokens.",
+    "output": "Reasoning tokens are billed as part of consumption (usage ...output_tokens_details.reasoning_tokens)."
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-imagine-image",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "images": {
+     "price": "0.02",
+     "per": 1,
+     "unit": "USD per image"
+    }
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-imagine-image-2.0",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "images": {
+     "price": "0.04",
+     "per": 1,
+     "unit": "USD per image"
+    }
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-imagine-image-quality",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "images": {
+     "price": "0.05",
+     "per": 1,
+     "unit": "USD per image"
+    }
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-imagine-video",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "videoSeconds": {
+     "price": "0.05",
+     "per": 1,
+     "unit": "USD per second"
+    }
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-imagine-video-1.5",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "videoSeconds": {
+     "price": "0.08",
+     "per": 1,
+     "unit": "USD per second"
+    }
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-imagine-video-1.5-lite",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "videoSeconds": {
+     "price": "0.02",
+     "per": 1,
+     "unit": "USD per second"
+    }
+   }
+  },
+  {
+   "pricingVersion": "xai-seed-2026-10-16",
+   "model": "grok-voice-3.0",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://docs.x.ai/developers/models",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Pages show no publication date. The long-context rate applies to all tokens of a request once the prompt reaches 200k tokens.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "voiceMinutes": {
+     "price": "0.08",
+     "per": 1,
+     "unit": "USD per minute"
+    }
+   },
+   "notes": {
+    "voiceMinutes": "Text input 0.004 (unit not stated in the extract). grok-voice-2.0 is deprecated."
+   }
+  }
+ ],
+ "sharedRates": {
+  "webSearchCalls": {
+   "price": "5",
+   "per": 1000,
+   "unit": "USD per 1,000 calls"
+  },
+  "xSearchPosts": {
+   "price": "5",
+   "per": 1000,
+   "unit": "USD per 1,000 posts returned"
+  },
+  "codeExecutionCalls": {
+   "price": "5",
+   "per": 1000,
+   "unit": "USD per 1,000 calls"
+  },
+  "attachmentSearchCalls": {
+   "price": "5",
+   "per": 1000,
+   "unit": "USD per 1,000 calls"
+  },
+  "collectionsSearchCalls": {
+   "price": "2.5",
+   "per": 1000,
+   "unit": "USD per 1,000 calls"
+  },
+  "remoteMcpCalls": {
+   "price": "0",
+   "per": 1,
+   "unit": "USD per call"
+  }
+ },
+ "modifiers": [
+  {
+   "name": "batchDiscount",
+   "factor": "0.8",
+   "serviceTier": "batch",
+   "models": [
+    "grok-4.3"
+   ],
+   "unit": "fraction discount (20%) on input, output, cached and reasoning tokens",
+   "sourceUrl": "https://docs.x.ai/developers/pricing",
+   "note": "No batch discount on other models; none on image or video generation."
+  },
+  {
+   "name": "batchDiscount",
+   "factor": "0.8",
+   "serviceTier": "batch",
+   "models": [
+    "grok-4.20-0309-reasoning"
+   ],
+   "unit": "fraction discount (20%) on input, output, cached and reasoning tokens",
+   "sourceUrl": "https://docs.x.ai/developers/pricing",
+   "note": "No batch discount on other models; none on image or video generation."
+  },
+  {
+   "name": "batchDiscount",
+   "factor": "0.8",
+   "serviceTier": "batch",
+   "models": [
+    "grok-4.20-0309-non-reasoning"
+   ],
+   "unit": "fraction discount (20%) on input, output, cached and reasoning tokens",
+   "sourceUrl": "https://docs.x.ai/developers/pricing",
+   "note": "No batch discount on other models; none on image or video generation."
+  },
+  {
+   "name": "batchDiscount",
+   "factor": "0.8",
+   "serviceTier": "batch",
+   "models": [
+    "grok-4.20-multi-agent-0309"
+   ],
+   "unit": "fraction discount (20%) on input, output, cached and reasoning tokens",
+   "sourceUrl": "https://docs.x.ai/developers/pricing",
+   "note": "No batch discount on other models; none on image or video generation."
+  },
+  {
+   "name": "priorityMultiplier",
+   "factor": "2",
+   "serviceTier": "priority",
+   "unit": "multiplier on standard rates",
+   "sourceUrl": "https://docs.x.ai/developers/pricing",
+   "note": "Caching discounts are applied before the multiplier."
+  },
+  {
+   "name": "usRegionalEndpointMultiplier",
+   "factor": "1.1",
+   "unit": "multiplier on global rates",
+   "sourceUrl": "https://docs.x.ai/developers/pricing",
+   "note": "Endpoint https://us.api.x.ai/v1."
+  }
+ ]
+}

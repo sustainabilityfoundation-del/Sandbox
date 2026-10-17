@@ -38,11 +38,53 @@ export interface RespondInput {
   /** Output token limit; adapters omit it where the provider route does not accept it. */
   maxOutputTokens?: number
   signal: AbortSignal
+  /** JSON Schema the final answer must satisfy (adapters whose capabilities.structuredOutput is true). */
+  responseSchema?: Record<string, unknown>
+  reasoningEffort?: 'low' | 'medium' | 'high'
+  /** Binary inputs such as images (adapters whose capabilities.imageInput is true). Never logged or stored in the ledger. */
+  attachments?: { mediaType: string; data: Uint8Array }[]
+  /** Called with text deltas when the adapter streams (capabilities.streaming). */
+  onDelta?: (text: string) => void
+  /** Provider-specific options, passed through untouched by the gateway. */
+  extensions?: Record<string, unknown>
 }
 
+/** What an adapter supports. Declared by every adapter; the model registry refines it per model. */
+export interface ProviderCapabilities {
+  streaming: boolean
+  tools: boolean
+  structuredOutput: boolean
+  imageInput: boolean
+  reasoningEffort: boolean
+  promptCaching: boolean
+  modelDiscovery: boolean
+}
+
+/**
+ * Normalised usage of one model request (docs/modules/ai-interface/metering-and-pricing.md).
+ * Normalisation rules, so cost is comparable across providers:
+ * - `inputTokens` is the TOTAL input including cached and cache-write tokens;
+ * - `cachedInputTokens` and `cacheWriteTokens` are subsets of `inputTokens`;
+ * - `outputTokens` is the TOTAL output including reasoning tokens; `reasoningTokens` is a subset. Providers that report
+ *   thinking apart from output (Google thoughtsTokenCount) or exclude cache tokens from input (Anthropic input_tokens)
+ *   are summed by their adapters into these totals; providers bill reasoning as output unless a reasoning rate exists;
+ * - `units` carries non-token billing dimensions (for example `image`, `second`, `request`);
+ * - `raw` is the provider's own usage object (numbers only), kept for audit; never prompts or responses.
+ */
 export interface ProviderUsage {
   inputTokens?: number
   outputTokens?: number
+  cachedInputTokens?: number
+  cacheWriteTokens?: number
+  /** Subset of cacheWriteTokens written with the long (1 hour) cache lifetime, where the provider prices lifetimes apart (Anthropic). */
+  cacheWrite1hTokens?: number
+  reasoningTokens?: number
+  units?: { dimension: string; quantity: number }[]
+  raw?: Record<string, unknown>
+  /** Cost the provider itself reported for this request (for example xAI usage.cost_in_usd_ticks); kept as the actual cost. */
+  providerCost?: { amount: string; currency: string }
+  /** 'provider': counts came from the provider's response; 'estimated': computed locally or not available. */
+  reported: 'provider' | 'estimated'
 }
 
 export type RespondOutput = (
@@ -111,6 +153,9 @@ export type ProviderErrorKind =
   | 'unavailable'
   | 'bad-request'
   | 'model-not-found'
+  | 'cancelled'
+  | 'content-filtered'
+  | 'context-too-long'
 
 /** A provider failure with a message a person can act on (never containing credentials). */
 export class ProviderError extends Error {
@@ -132,7 +177,8 @@ export interface AssistantProvider {
   /** Short description for the settings page. */
   readonly description: string
   readonly methods: AuthMethod[]
-  /** Default model when the account's list offers it (verified in the provider's documentation). */
+  readonly capabilities: ProviderCapabilities
+  /** Default model when the account's list offers it; comes from the model registry (config/models), not from code. */
   readonly defaultModel: string
   /** Models the credential may use. Cheap; also used to validate a credential. */
   listModels(credential: ProviderCredential, method: string, signal: AbortSignal): Promise<ProviderModel[]>

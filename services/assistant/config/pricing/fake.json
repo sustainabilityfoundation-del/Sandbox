@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "provider": "fake",
+  "note": "The scripted test provider has no cost: a zero-rate record makes it priced (so mock mode can run) without inventing any provider price. Billing for these events is always 'mock'.",
+  "records": [
+    {
+      "pricingVersion": "fake-2026-10-16",
+      "model": "fake-*",
+      "effectiveFrom": "2026-10-16",
+      "currency": "USD",
+      "verified": false,
+      "sourceUrl": null,
+      "retrievedAt": null,
+      "rates": {
+        "input": { "price": "0", "per": 1000000 },
+        "output": { "price": "0", "per": 1000000 }
+      }
+    }
+  ]
+}

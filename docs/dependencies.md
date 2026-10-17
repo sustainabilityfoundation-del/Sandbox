@@ -144,6 +144,12 @@ library (`packages/sysml-core/src/library/text.ts`) is written for this module a
 | --- | --- | --- | --- | --- |
 | mathjs | 15.2.0 (released 2026-04-07) | Apache-2.0 (runtime dependencies @babel/runtime, complex.js, decimal.js, escape-latex, fraction.js, javascript-natural-sort, seedrandom, tiny-emitter, typed-function: MIT) | engineering-calc (expression parsing only; evaluation and units are the package's own) | github.com/josdejong/mathjs |
 
+## AI infrastructure (added 16 October 2026, AI connection agent; ADR-0079)
+
+| Package | Version | Licence | Used by | Source |
+| --- | --- | --- | --- | --- |
+| decimal.js | 10.6.0 (released 2025-07; already in the lockfile through mathjs, now a direct dependency) | MIT (verified: npm registry metadata and the repository LICENCE) | services/assistant (`pricing.ts`, `ledger.ts`: decimal-safe money) | github.com/MikeMcl/decimal.js |
+
 ## Browser flows (added 15 October 2026, coordinator)
 
 | Package | Version | Licence | Used by | Source |
