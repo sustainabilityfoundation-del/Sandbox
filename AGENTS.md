@@ -64,16 +64,22 @@ operations that simulate engineering results. This does not take priority over D
 
 ## Ownership
 
+Every workspace package and service has exactly one owner. The current tools are **System Model** (display name; IDs
+`sysml-modeler`, `tool:sysml`) and **CAD** (display name; IDs `cad-modeler`, `tool:cad`). The illustrative `sysml` and `cad`
+tools are retired from the interface (ADR-0077); data and IDs kept; do not extend them.
+
 | Area | Packages | Owns |
 | --- | --- | --- |
-| Platform | `apps/workspace`, `packages/platform-sdk`, `packages/model-service`, `packages/design-system` | Shell, navigation, tool registry, subscriptions and entitlements, shared context, windows, assistant execution, the SDK contract, the shared twin and repository, the component library and icons |
-| Requirements tool | `packages/tool-requirements` | Requirements views, toolbar, commands, private view state, requirement domain logic, assistant actions |
-| SysML tool (retired from the interface, ADR-0077) | `packages/tool-sysml` | Diagram, property panel, text notation, SysML domain logic, assistant actions |
-| CAD tool (retired from the interface, ADR-0077) | `packages/tool-cad` | Mock geometry, dimensions, visibility, CAD domain logic, assistant actions |
+| Platform | `apps/workspace`, `packages/platform-sdk`, `packages/model-service`, `packages/design-system`, `services/api` | Shell, navigation, tool registry, installed-module lists (client and server), subscriptions and entitlements, shared context, windows, assistant execution, the SDK contract and capability registry, the shared twin and repository, the component library and icons; the API host (`services/api`: composes the installed server modules, development identities, entitlement and role checks, event stream) |
+| Requirements | `packages/tool-requirements`, `packages/requirements-client`, `packages/reqif`, `services/requirements` | Requirements views, toolbar, commands, private view state, requirement domain logic, assistant actions; the Requirements service and API, the browser client, ReqIF import and export ([contracts](docs/specifications/requirements-contracts.md), [ADR-0011](docs/decisions/0011-requirements-service-boundary.md)) |
+| SysML tool (retired from the interface, [ADR-0077](docs/decisions/0077-retire-illustrative-tools-system-model.md)) | `packages/tool-sysml` | Diagram, property panel, text notation, SysML domain logic, assistant actions |
+| CAD tool (retired from the interface, [ADR-0077](docs/decisions/0077-retire-illustrative-tools-system-model.md)) | `packages/tool-cad` | Mock geometry, dimensions, visibility, CAD domain logic, assistant actions ([ADR-0027](docs/decisions/0027-cad-mock-tool-replacement.md)) |
 | Conceptualize | `packages/tool-conceptualize`, `packages/conceptualize-client`, `services/conceptualize` | Concepts, alternatives, trade studies, decisions, evidence, implementations ([contracts](docs/specifications/conceptualize-contracts.md)) |
-| CAD Modeler | `packages/cad-core`, `packages/cad-kernel`, `packages/cad-client`, `services/cad`, `packages/tool-cad-modeler` | Native parametric model, commands, OCCT kernel adapter, modeler UI ([contracts](docs/specifications/cad-program-contracts.md)) |
-| System Model (SysML v2) | `packages/sysml-core`, `services/sysml`, `packages/sysml-client`, `packages/tool-sysml-modeler` | SysML v2 semantic core, repository and API, modeler UI ([contracts](docs/specifications/sysml-program-contracts.md)) |
+| CAD Modeler (displayed "CAD") | `packages/cad-core`, `packages/cad-kernel`, `packages/cad-client`, `services/cad`, `packages/tool-cad-modeler` | Native parametric model, commands, OCCT kernel adapter, document service and API, browser client, modeler UI ([contracts](docs/specifications/cad-program-contracts.md)) |
+| SysML Modeler (displayed "System Model") | `packages/sysml-core`, `services/sysml`, `packages/sysml-client`, `packages/tool-sysml-modeler` | SysML v2 semantic core, repository and API, modeler UI ([contracts](docs/specifications/sysml-program-contracts.md)) |
 | Project Management | `packages/projects-client`, `services/projects` | Projects, artifact registry, product registry, lifecycle, documents and blobs; the module's client manifest, assistant actions and help (module registration M1) ([ADR-0060](docs/decisions/0060-projects-module-placement.md)) |
+| AI connection | `services/assistant`, `services/settings`, `services/visualization`, `packages/visualization-client` | Provider connections and credentials, the assistant service and access policy, the settings service, image generation jobs and their client contract ([ai-connection](docs/specifications/ai-connection.md) §5, [concept-visualization contracts](docs/specifications/concept-visualization-contracts.md) §1, [ADR-0047](docs/decisions/0047-ai-provider-backend-and-account-connection.md), [ADR-0048](docs/decisions/0048-ai-settings-framework.md)) |
+| Design Reasoning | `packages/engineering-calc`, `packages/design-reasoning-core` | Deterministic calculation engine (consumed by `services/conceptualize`), reasoning core library; `services/design-reasoning` is planned, not built ([design reasoning](docs/modules/design-reasoning/README.md), [ADR-0039](docs/decisions/0039-design-reasoning-engine-boundary.md), [ADR-0044](docs/decisions/0044-calculation-models-and-math-stack.md)). Long-term ownership of calculations is an open owner decision (OSS-13) |
 | GLB viewer | `apps/glb-viewer` | Standalone viewer (not part of the platform) |
 
 Work on one area at a time. A tool change must not require changes in another tool. If it needs a

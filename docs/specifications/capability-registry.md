@@ -177,3 +177,119 @@ and the AI listing reports `maturity: 'mock'`.
 - Risks: inventories of hundreds of entries (keep them data-only, lazily used); the evidence gap list must actually shrink.
 - Not verified by CT-1: the licences of the borrowed-concept projects; whether the Help Service can index generated topics
   without an SDK change; CAD Modeler controls outside `toolbar()`.
+
+## Amendment CT-2c: professional structure (16 October 2026)
+
+Status: **accepted by the coordinator**, implementing the owner's decision that toolbars follow the structure and completeness of
+the No Magic interface (main menu, main toolbar, context-sensitive palettes, browser, specification and properties panels) in our
+design system (owner: "That's what the toolbars shoul be like"; confirmed "yes please do that"). Designed by the architect agent
+from the gap lists in [System Model research §3](../research/sysml/capability-research.md) and
+[CAD research §3.9](../research/cad/capability-research.md). SDK 1.14.0, design system 1.3.0, all additive. One registry, one
+computed state per entry; planned entries can never be invoked on any surface (ribbon, menu, palette, context set, split child,
+shortcut, session).
+
+### Merged gaps and decisions
+
+| # | Gap | Decision |
+| --- | --- | --- |
+| U1 | Main menu from the registry | Accept: `CommandLayout.menus` references whole ribbon groups (no double declaration); default one menu per tab |
+| U2 | Vertical or floating palette with tool groups per context | Accept `palettes`, rendered by the tool through SDK hooks |
+| U3 | Context by view type or sub-object selection | Accept prerequisite `{ kind: 'context' }`; tools report context IDs at runtime |
+| U4 | Armed tools, toggles, checked items | Accept `mode: 'action' \| 'toggle' \| 'tool'` (a tool stays armed until used or Escape) |
+| U5 | Selection toolbar and context menus | Accept one `contextSets` model, rendered floating, as a context menu (right-click, long-press, Shift+F10) and in the Edit menu |
+| U6 | Feature-edit strip (OK, Cancel, Preview, numeric fields) | Accept `CommandSession` and a `number` toolbar item; the host refuses a session for a planned entry |
+| U7 | Split buttons | Accept `Placement.splitOf` |
+| U8 | Exclusive toggle groups | Accept `exclusive` on a group |
+| U9 | Shortcuts | Accept `shortcut` on the entry, bound for the active tool; checks refuse duplicates and reserved keys (Ctrl+K, F1, F10) |
+| U10 | Panel layout | Accept declarative `panels` hints; docking and perspectives deferred |
+| U11 | User customisation | Deferred until after CT-3 for System Model and CAD (needs a per-user override store); keys are capability IDs, so compatible |
+| U12 | Collapsing all-planned groups | Resolved by the owner's choice to show the full scope: all-planned tabs stay real tabs; an all-planned group renders as one muted group button with a count ("0 of 6") opening its planned commands; menus always list every entry; collapsing only when width requires. Replaces the §9 recommendation |
+| U13 | "n of m available" counts | Accept as a computed group description and menu header |
+| U14 | More than about 8 tabs | Accept a width-driven "More tabs" menu |
+| U15 | Large ribbon buttons and group launchers | Reject (Focused Canvas: 28 px quiet buttons) |
+| U16 | About 77 CAD and the SysML icon names | Accept, staged: about 12 generic family names in design system 1.3.0; fallback `entry.icon` → `group.icon` → `'command'`; `names.ts` split into `names/<domain>.ts` |
+| U17 | Quick-access toolbar | Accept `quick` placement (fixed set) |
+
+**Coordinator decision (package ownership exception):** in CT-3 steps a module agent may add its own semantic icon names in
+`packages/design-system/src/icons/names/<domain>.ts` and their mappings; the registry test still requires a mapping for every
+name. No other design-system edits by module agents.
+
+### Contract sketch (SDK 1.14.0)
+
+```ts
+export type Prerequisite = /* existing */ | { kind: 'context'; id: string }
+export interface AvailabilityContext { /* existing */ contexts?: string[] }  // 'diagram:general', 'sketch', 'selection:edge'
+export type CommandMode = 'action' | 'toggle' | 'tool'
+export interface Placement { /* existing */ splitOf?: string }
+export type SurfacePlacement =
+  | { surface: 'palette'; palette: string; group: string; order: number }
+  | { surface: 'context'; set: string; order: number }
+  | { surface: 'quick'; order: number }
+export interface CapabilityEntry { placements?: SurfacePlacement[]; mode?: CommandMode; shortcut?: string }
+export type MenuNode =
+  | { kind: 'group'; tab: string; group: string } | { kind: 'palette'; palette: string } | { kind: 'context'; set: string }
+  | { kind: 'command'; id: string } | { kind: 'submenu'; label: string; mnemonic?: string; items: MenuNode[] }
+  | { kind: 'panels' } | { kind: 'separator' }
+export interface MenuDef { id: string; label: string; mnemonic?: string; items: MenuNode[] }
+export interface PaletteDef { id: string; label: string; when?: Prerequisite
+  groups: { id: string; label: string; icon?: IconName; collapsed?: boolean }[] }
+export interface ContextSetDef { id: string; label: string; when: Prerequisite[] }
+export interface PanelDef { id: string; role: 'browser' | 'specification' | 'properties' | 'diagnostics' | 'other'
+  label: string; side: 'start' | 'end' | 'bottom'; defaultOpen?: boolean; helpId?: HelpId }
+export interface CommandLayout { /* tabs; groups gain exclusive?: boolean */ menus?: MenuDef[]; quick?: true
+  palettes?: PaletteDef[]; contextSets?: ContextSetDef[]; panels?: PanelDef[] }
+// Runtime half
+export type ToolbarItem = /* existing */ | { type: 'number'; id: string; label: string; value: number; unit?: string
+  min?: number; max?: number; step?: number; onChange: (v: number) => void; disabled?: boolean } // button gains mode?
+export interface CommandSession { capabilityId: string; title: string; fields: ToolbarItem[]
+  preview?: { on: boolean; onChange: (on: boolean) => void }; onOk: () => void; okUnavailableReason?: string; onCancel: () => void }
+export interface ToolRuntime { contexts?: string[]; session?: CommandSession | null
+  panels?: Record<string, { open: boolean; toggle: () => void }> }
+// ToolDefinition.runtime?(ctx): ToolRuntime; react: useCommandModel(), usePalette(id?), useContextSet(id)
+```
+
+Design system 1.3.0 adds `MenuBar`, `QuickBar`, `ToolPalette`, `ContextCommands`, `CommandSessionStrip`, `SplitCommandButton` and
+`DockPanel` (promoting the shell's side panel, header, drawer and sheet) over neutral models; `CommandBar` gains mode, split,
+exclusive groups, group buttons with counts and tab overflow.
+
+### Shell, keyboard and accessibility
+
+- Desktop: the menu bar sits in the location bar's leading slot (`PaneArea.tsx`), before the breadcrumbs: no new row, no tab strip;
+  the rail stays the only tool switcher; menus follow the active tool; a split pane gets one "Menu" button. The quick bar leads the
+  CommandBar row. Palettes and context sets render inside the tool (`.ws-tool-host`) through SDK hooks; the shell renders menu bar,
+  quick bar, ribbon and session strip. While a session is open the ribbon is replaced by the strip (Enter OK, Escape Cancel; other
+  commands unavailable with "Finish or cancel the current edit").
+- Tablet: the menu bar collapses to one "Menu" button with submenus. Phone: a full-screen sheet with search first; the palette as
+  an "Add" sheet; context sets as a bottom sheet with targets of at least 40 px.
+- Keyboard: F10 or a lone Alt tap focuses the menu bar with mnemonic underlines (two-step key tips; Alt+letter is not intercepted);
+  Shift+F10 and the ContextMenu key open the context set; Escape disarms an armed tool; shortcuts go through the same state check
+  (a planned shortcut opens its explanation).
+- Accessibility: WAI-ARIA menubar pattern composed from React Aria `MenuTrigger` and `SubmenuTrigger` (no second behaviour library;
+  Radix and Ariakit menubars considered and not adopted); palettes as a vertical `Toolbar` with `aria-pressed` for the armed tool;
+  accessible names keep the state wording.
+
+### AI
+
+`list_capabilities` adds `surfaces` (menu path, palette, set, shortcut) and matches menu paths in `query`. Operations, catalogue,
+`strict` and proposal preview unchanged; arming and edit sessions are UI only, never operations; planned entries are not tools.
+
+### Work order (replaces the §8 ordering)
+
+F → CT-2b (unchanged, Requirements pilot) → CT-2c → CT-3 System Model and CT-3 CAD (owner focus) → Conceptualize, Project
+Management. CT-2c has three steps:
+
+- **CT-2c1** design system 1.3.0: components, icon split, generic icons. Can run beside CT-2b while it owns `CommandBar.tsx`.
+- **CT-2c2** SDK 1.14.0: contract, `commandModel` projections with a per-manifest static index, `commandHooks`, harness, checks
+  (menu and palette references, shortcuts, `splitOf` cycles, every entry reachable from a menu).
+- **CT-2c3** shell: menu bar slot, quick bar, session strip, F10 and Alt, shortcuts, panel toggles, palette search by menu path,
+  `toolSpecs` surfaces, shell docs, help, e2e.
+
+CT-3 for System Model and CAD each split into (a) data (inventory, layout, menus, palettes, context sets, panels, domain icons) and
+(b) runtime (contexts, palette arming, CAD session strip, selection contexts); (b) relaxes "no handler changes" to allow runtime
+wiring, with operation names unchanged.
+
+### Risks
+
+Density on small screens (owner walkthrough on a phone needed); about 200 entries per module (static index once per manifest,
+per-render state only, lazy menus; a 250-entry model test counts operations, not time); Firefox handling of F10 and the Alt tap
+unverified; z-index of floating sets inside tools; menubar library licences not verified (none adopted).

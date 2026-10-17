@@ -83,10 +83,9 @@ Backlog (tracked here until done):
   docs/dependencies.md: all 14 advisories from @scalar/api-reference (services/api), high one (undici) not reachable in the shipped
   product. OSS-19: raise that pin once a fixed release (1.75.0, 16 Oct) is two weeks old (about 30 October). Line-ending fix: the
   register test ignores CRLF; .gitattributes keeps generated files LF.
-- CT-2a (feature/ct-2a-registry-contract): Opus review "merge after changes" (fallback tab so runtime items are never dropped; declare
-  browser-test devDependencies and regenerate the register; fail in CI when Chrome is missing; flaky focus wait; useId; disabled toggle
-  keeps active). Fixes running. Coordinator decision (revised after review): state stays strictly evidence-based; bound entries without
-  verifiedBy remain partial (subtle dot) everywhere; buildCommandModel takes evidenceGaps and labels them "test evidence not yet linked".
+- CT-2a merged (c094b12) with M6, after a green run: unit 1369, all DB suites, build, deps checks, harnesses, CommandBar
+  browser tests 11, 16/16 e2e. Evidence rule: bound entries without verifiedBy stay partial everywhere (evidenceGaps labels them).
+  Notices generator fixed to write LF and compare content.
 - OSS-3 Module assessments (Phase 2), one per module agent, in priority order set by OSS-1; each ends in an ADR and backlog entries.
 - OSS-4 Shared integration interfaces (solver, geometry, simulation, visualization) documented, after OSS-1.
 - OSS-5 Upstream contribution workflow: nothing is published without explicit owner authorization.
@@ -98,6 +97,46 @@ Backlog: CT-1 done: [capability-registry.md](../specifications/capability-regist
 CommandBar component) next when an implementer slot frees; CT-2b (checks, shell, palette, AI list_capabilities, strict policy, Requirements
 pilot) after M6 and F. Owner decisions: how much planned scope to show; inventories for the mock and illustrative tools. CT-3..n per-module inventories and toolbars (module agents, after CT-2;
 research feeds OSS-3). D1 keeps priority.
+
+## CAD sprint C1 status (16 October 2026)
+Implemented on cad/c1-sketching-reliability (4e403d8, includes OSS-9). Review (Fable) blocked the merge: the new face-naming rule
+(OcctKernel.ts inheritNames) silently moves a stored fillet to another edge when a saved 1.3.0 document is opened (reproduced:
+46 mm strip at x=37 becomes 10 mm strip at x=5). Fix running: probe-containing piece keeps the name, others get ~k; old-format
+fixture test from main; ADR-0075 corrected. C1 merges only after the fix, a re-review of the naming and an integration run.
+
+## Owner focus (16 October 2026)
+Owner: "focus on getting the cad working better woth more functionality". CAD Modeler work takes priority after D1: a CAD sprint plan is recorded in
+[cad-sprints-c1-c3.md](../specifications/cad-sprints-c1-c3.md): C1 sketching by clicks and reliability (after OSS-9 merges), C2 part features
+(holes, mirror, circular pattern, shell, draft, body booleans), C3 measurement, STEP import, STL, loft and sweep. Owner decisions listed there.
+
+## Merging to main (owner, 16 October 2026)
+Owner: "I take bake the command to not push to main. It is ok for you to automatically do this." The coordinator merges verified
+work to main automatically again (after review where required and a green integration run); feature branches stay the working
+model for agents. The AI infrastructure brief's "never push directly to main" is withdrawn.
+
+Fable usage limit reached at about 19:45 EDT; the Fable window ended at 21:45. Stopped Fable work was preserved (C1 naming fix
+committed 5c64c5a; CT-2c2 snapshot committed) and continues on the normal routing.
+
+## Model routing override (owner, 16 October 2026)
+Owner: "Can you switch to fable for a sprint to maximize usage for this week?" All newly started agents use Fable
+(`model: fable`) until 21:45 EDT on 16 October 2026 (owner: "It resets in 3 hours so only run fable until then"), instead of the AGENTS.md routing (Opus review and architecture, Sonnet
+implementation and runs). Agents already running keep their model. Reviews and integration runs still gate every merge. The
+coordinator's own model is switched by the owner with /model.
+
+## Owner decisions, 16 October 2026 (owner's words in the session)
+- Old illustrative tools: "Yes remove the two old ones" (hide from UI and AI; data and IDs kept). Running on branch
+  ui/retire-illustrative-rename-system-model, ADR-0077.
+- "change the SysMl Menu to System Model, I think it's better to have it agnostic of the underlying language" (display name only;
+  IDs unchanged). Same branch.
+- CAD name: "yes leave it CAD" (display "CAD", dropping "Modeler", after sprint C1 merges).
+- Toolbars: "That's what the toolbars shoul be like", referring to the No Magic user interface
+  (https://docs.nomagic.com/spaces/MD2021xR2/pages/82747994/Understanding+the+user+interface). Interpreted as structure and
+  completeness (main menu, main toolbar, contextual diagram palettes, browser, specification panel) in our design system;
+  confirmed by the owner ("yes please do that"). Feeds CT-2b (CommandBar may need a menu bar and a vertical palette) and the per-module
+  inventories. Research merged (System Model 155 commands, CAD 206). CT-2c amendment accepted in
+  capability-registry.md (menu bar, palettes, context sets, edit sessions, split buttons, panels; SDK 1.14, design system 1.3).
+  Order: F, CT-2b, CT-2c1-3, then CT-3 System Model and CAD. CT-2c1 (design system components) started.
+- Module migration M1-M6 complete; next step F (cleanup), then CT-2b.
 
 ## Open items (priority order)
 1. **Per-module registration manifests** (owner-approved architecture change): [spec](../specifications/module-registration.md); one architect agent (Opus).
