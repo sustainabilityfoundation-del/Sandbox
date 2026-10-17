@@ -18,3 +18,5 @@ docs/research/sysml/sources/
 # Claude Code local state (hook snapshots, personal settings)
 .claude/handoffs/
 .claude/settings.local.json
+# AWS CDK synthesized output
+cdk.out

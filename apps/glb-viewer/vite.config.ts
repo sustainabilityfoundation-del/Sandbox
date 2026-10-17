@@ -1,11 +1,14 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// The standalone GLB viewer, served at the site root. The workspace app builds into dist/workspace/.
-export default defineConfig({
+// The standalone GLB viewer. Its development server is unchanged (served at "/"). The hosted build lives under /viewer/
+// (dist/viewer/), next to the workspace in dist/workspace/; the site root (dist/index.html) redirects to /workspace/
+// (scripts/write-root-redirect.mjs, run by `npm run build`).
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/viewer/' : '/',
   plugins: [react()],
   build: {
-    outDir: '../../dist',
+    outDir: '../../dist/viewer',
     emptyOutDir: true,
     // three.js is large by nature; keep it in its own cacheable chunk.
     chunkSizeWarningLimit: 1200,
@@ -21,4 +24,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

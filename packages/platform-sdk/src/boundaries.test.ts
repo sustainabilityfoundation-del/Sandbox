@@ -61,7 +61,8 @@ const ALLOWED: Record<string, RegExp> = {
   'packages/design-reasoning-core': /^@ews\/(platform-sdk(\/testing)?|engineering-calc)$/,
   // AI connection (docs/specifications/ai-connection.md §5, §5a): framework-free SDK contract only; hosted by services/api.
   'services/settings': /^@ews\/platform-sdk$/,
-  'services/assistant': /^@ews\/platform-sdk$/,
+  // CE-1 (ADR-0086): the assistant may import the framework-free Design Reasoning core (snapshot items, manifests, reference keys).
+  'services/assistant': /^@ews\/(platform-sdk|design-reasoning-core)$/,
   // Concept visualization (concept-visualization-contracts.md §1): the contract package is framework-free and has no @ews dependencies.
   'services/visualization': /^@ews\/visualization-client$/,
   'packages/visualization-client': /^$/,

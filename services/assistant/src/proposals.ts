@@ -58,6 +58,7 @@ interface ProposalRow {
   operations: ModuleOperation[]
   expected: ExpectedRevision[]
   confirmation: { phrase: string; prompt: string } | null
+  context_id: string | null
   status: ProposalStatus
   message: string | null
   results: OperationResult[]
@@ -89,6 +90,8 @@ export interface ProposalInput {
   operations?: ModuleOperation[]
   expected?: ExpectedRevision[]
   confirmation?: { phrase: string; prompt: string }
+  /** Context snapshot the proposal was prepared from (chain artifact → proposal → snapshot; ADR-0085). Must be this person's snapshot in this project. */
+  contextId?: string
 }
 
 export const PROPOSAL_SCHEMA_VERSION = 1
@@ -108,6 +111,7 @@ export function publicProposal(r: ProposalRow) {
     kind: r.kind,
     module: r.module,
     title: r.title,
+    contextId: r.context_id,
     explanation: r.explanation,
     preview: r.preview,
     assumptions: r.assumptions,
@@ -219,12 +223,17 @@ export class ProposalService {
         if (spec.method !== 'GET') throw new AssistantError('invalid', `Expected revision of ${e.label}: ${e.read.operationId} is not a read operation.`, 422)
       }
     } else if (operations.length) throw new AssistantError('invalid', `A ${input.kind} proposal has no module operations.`, 422)
+    if (input.contextId) {
+      // Only this person's own snapshot of this project can be cited; any other ID looks the same as an unknown one.
+      const known = await this.pool.query('SELECT 1 FROM assistant.context_snapshots WHERE id = $1 AND project_id = $2 AND actor_id = $3', [input.contextId, input.projectId, principal.userId])
+      if (!known.rowCount) throw new AssistantError('invalid', `Unknown context ${input.contextId} in this project.`, 422)
+    }
     const id = randomUUID()
     const { rows } = await this.pool.query<ProposalRow>(
-      `INSERT INTO assistant.proposals (id, schema_version, project_id, actor_id, conversation_id, message_id, key, kind, module, title, explanation, preview, assumptions, operations, expected, confirmation)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      `INSERT INTO assistant.proposals (id, schema_version, project_id, actor_id, conversation_id, message_id, key, kind, module, title, explanation, preview, assumptions, operations, expected, confirmation, context_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        ON CONFLICT (actor_id, conversation_id, key) DO NOTHING RETURNING *`,
-      [id, PROPOSAL_SCHEMA_VERSION, input.projectId, principal.userId, input.conversationId, input.messageId ?? null, input.key, input.kind, input.module, input.title, input.explanation ?? '', JSON.stringify(input.preview ?? null), JSON.stringify(input.assumptions ?? []), JSON.stringify(operations), JSON.stringify(expected), input.confirmation ? JSON.stringify(input.confirmation) : null],
+      [id, PROPOSAL_SCHEMA_VERSION, input.projectId, principal.userId, input.conversationId, input.messageId ?? null, input.key, input.kind, input.module, input.title, input.explanation ?? '', JSON.stringify(input.preview ?? null), JSON.stringify(input.assumptions ?? []), JSON.stringify(operations), JSON.stringify(expected), input.confirmation ? JSON.stringify(input.confirmation) : null, input.contextId ?? null],
     )
     if (rows[0]) return publicProposal(rows[0])
     // Same key again (a retried request): return the stored one if it is the same proposal.

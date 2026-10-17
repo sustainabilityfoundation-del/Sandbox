@@ -76,15 +76,15 @@ describe('AI policy from the installed manifests', () => {
     expect(policy.classify('sysml-modeler.read_element')?.module.id).toBe('sysml-modeler')
   })
 
-  it('keeps the AI module order and the order of the AI settings rows exactly as before the manifests (b845b0d)', () => {
-    const base = ['workspace', 'requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'projects', 'reasoning', 'help']
+  it('keeps the AI module order and the order of the AI settings rows: the manifest modules keep their historic order and the platform tail (reasoning, help, context) follows (b845b0d, CE-1)', () => {
+    const base = ['workspace', 'requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'projects', 'reasoning', 'help', 'context']
     expect(policy.modules.map((m) => m.id)).toEqual(base)
     const rows = (defs: { id: string }[], prefix: string) => defs.filter((d) => d.id.startsWith(prefix)).map((d) => d.id.slice(prefix.length))
     expect(rows(policy.settingDefinitions, 'ai.access.')).toEqual(base)
     expect(rows(policy.settingDefinitions, 'ai.ceiling.')).toEqual(base)
     // A new installed module follows the known ones and precedes the platform tail, in installed-list order.
     const extra = collectPolicyContributions([...ALL_SERVER_MODULES, fixture({ id: 'x1', aiModule: { id: 'x1', label: 'X1', description: 'X.', prefixes: ['x1.'] } }), fixture({ id: 'x2', aiModule: { id: 'x2', label: 'X2', description: 'X.', prefixes: ['x2.'] } })])
-    expect(createPolicy(extra.aiModules, extra.operations).modules.map((m) => m.id)).toEqual([...base.slice(0, 6), 'x1', 'x2', 'reasoning', 'help'])
+    expect(createPolicy(extra.aiModules, extra.operations).modules.map((m) => m.id)).toEqual([...base.slice(0, 6), 'x1', 'x2', 'reasoning', 'help', 'context'])
   })
 
   it('takes the System Model from its manifest (no legacy entry): same module, classes and proposal API as before', () => {

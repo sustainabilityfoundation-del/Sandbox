@@ -11,6 +11,7 @@ import { registerDesignRoutes } from './designRoutes'
 import { registerVisualRoutes } from './visualRoutes'
 import { registerIntentRoutes } from './intentRoutes'
 import { registerArchitectureRoutes } from './architectureRoutes'
+import { registerContextRoutes } from './contextRoutes'
 
 export type ConceptsPluginOptions = HostServices
 
@@ -58,6 +59,7 @@ export const conceptsPlugin: FastifyPluginAsync<ConceptsPluginOptions> = async (
   registerVisualRoutes(app, services, registry)
   registerIntentRoutes(app, services, registry)
   registerArchitectureRoutes(app, services, registry)
+  registerContextRoutes(app, services, registry)
 
   registerRoute(
     app,

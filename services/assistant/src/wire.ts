@@ -50,7 +50,7 @@ export type WireHistoryItem =
 
 export interface WireRequest {
   history: WireHistoryItem[]
-  turn: { text: string; context: WireContext; toolResults: WireToolResult[]; /** Keeps the model choice stable across the conversation and groups its usage. */ conversationId?: string }
+  turn: { text: string; context: WireContext; toolResults: WireToolResult[]; /** Keeps the model choice stable across the conversation and groups its usage. */ conversationId?: string; /** The task the context is for (ECII Amendment 2): the browser sends only the operation and target references; the server assembles the context. */ task?: { operation: string; targets: { module: string; id: string; revision?: number; kind?: string; label?: string }[] } }
   tools: WireToolSpec[]
   /** Manual selection (used when the person's routing mode is Manual). The mode itself comes from the person's settings. */
   routing?: { provider?: string; model?: string }
@@ -86,6 +86,14 @@ export const WIRE_REQUEST_SCHEMA = {
       properties: {
         text: { type: 'string', minLength: 1, maxLength: 20000 },
         conversationId: { type: 'string', minLength: 1, maxLength: 100 },
+        task: {
+          type: 'object',
+          required: ['operation', 'targets'],
+          properties: {
+            operation: { type: 'string', minLength: 1, maxLength: 200 },
+            targets: { type: 'array', maxItems: 50, items: { type: 'object', required: ['module', 'id'], properties: { module: { type: 'string', maxLength: 40 }, id: { type: 'string', minLength: 1, maxLength: 300 }, revision: { type: 'integer', minimum: 1 }, kind: { type: 'string', maxLength: 60 }, label: { type: 'string', maxLength: 300 } } } },
+          },
+        },
         context: {
           type: 'object',
           required: ['projectId', 'configurationId', 'scenarioId', 'modelRevision', 'selection'],

@@ -47,6 +47,7 @@ export const PLATFORM_CAPABILITIES: CapabilityEntry[] = [
   e({ id: 'platform.subscription', module: 'platform', surface: 'header', label: 'Switch demo subscription plan', effect: 'external', status: 'mock', coverage: 'restricted', note: 'Client-side prototype (ADR-0008); entitlement administration is not an assistant operation.' }),
   e({ id: 'platform.services', module: 'platform', surface: 'header', label: 'Requirements service mode and development user', effect: 'external', status: 'experimental', coverage: 'restricted', note: 'Identity selection; development only.' }),
   e({ id: 'platform.repository-reset', module: 'platform', surface: 'header', label: 'Reset demo data, simulate outage', effect: 'external', status: 'mock', coverage: 'restricted', note: 'Destructive demo control.' }),
+  e({ id: 'platform.context-package', module: 'platform', surface: 'api', label: 'Platform context for the assistant: assemble and retrieve immutable, revisioned context snapshots (digest and full; mandatory items first within a token budget)', effect: 'query', status: 'implemented', coverage: 'equivalent', aiOperations: ['context.assemble', 'context.retrieve'], helpId: 'ai.context', note: 'CE-1 (ECII Amendment 2). Server-side, as the signed-in person; injection into model requests is behind the setting ai.context.mode (default off). Selectors: Conceptualize and Project Management; the other modules follow. API only: no inspector yet.' }),
   e({ id: 'platform.undo', module: 'assistant', surface: 'panel', label: 'Undo an applied assistant change', effect: 'mutation', status: 'implemented', coverage: 'shared', aiOperations: ['propose_changes'], note: 'Compensating revision through propose_changes with undoOf; preview still required.' }),
   // ---- assistant itself ----------------------------------------------------------------------
   e({ id: 'assistant.conversation', module: 'assistant', surface: 'panel', label: 'Conversation with tool calling', effect: 'query', status: 'experimental', coverage: 'shared', aiOperations: ['propose_changes'], note: 'Scripted demo by default. With a connected account (Settings → AI and reasoning) the backend assistant service (services/assistant, OpenAI first) answers through the same operations, filtered by the server-enforced AI access policy; answer quality is not evaluated.' }),
@@ -79,7 +80,7 @@ export function mergeCapabilities(legacy: readonly CapabilityEntry[], fromManife
 export const CAPABILITIES: CapabilityEntry[] = mergeCapabilities(PLATFORM_CAPABILITIES, installed().capabilities)
 
 /** Assistant operations the platform itself offers (see toolSpecs.ts); listed for completeness checks. */
-export const PLATFORM_OPERATION_ENTRIES = ['read_object', 'search_objects', 'read_relationships', 'read_artifacts', 'read_help', 'propose_changes', 'select_objects', 'open_tool'] as const
+export const PLATFORM_OPERATION_ENTRIES = ['read_object', 'search_objects', 'read_relationships', 'read_artifacts', 'read_help', 'context.assemble', 'context.retrieve', 'propose_changes', 'select_objects', 'open_tool'] as const
 
 /**
  * Engineering operations (queries, domain changes, jobs, exports, imports, external requests) and view controls

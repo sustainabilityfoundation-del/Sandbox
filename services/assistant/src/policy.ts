@@ -32,6 +32,8 @@ export const AI_MODULES: AiModule[] = [
   // Headless platform modules (SDK 1.8 registerPlatformModule). Their services enforce membership; no entitlement decided yet.
   { id: 'reasoning', label: 'Design reasoning', description: 'Calculations and reasoning runs (headless module).', prefixes: ['reasoning.'] },
   { id: 'help', label: 'Help', description: 'Product documentation (read_help).', prefixes: [], names: ['read_help'] },
+  // Platform context (ECII Amendment 2, ADR-0085): read operations that assemble and retrieve project context snapshots as the person.
+  { id: 'context', label: 'Platform context', description: 'Assemble and retrieve project context snapshots: references with exact revisions and bounded projections (read only).', prefixes: ['context.'] },
 ]
 
 /**
@@ -40,7 +42,7 @@ export const AI_MODULES: AiModule[] = [
  * installed modules) follow in installed-list order, after the listed ones and before the platform tail.
  */
 const MODULE_ORDER_HEAD = ['workspace', 'requirements', 'conceptualize', 'sysml-modeler', 'cad-modeler', 'projects']
-const MODULE_ORDER_TAIL = ['reasoning', 'help']
+const MODULE_ORDER_TAIL = ['reasoning', 'help', 'context']
 function moduleRank(id: string): number {
   const head = MODULE_ORDER_HEAD.indexOf(id)
   if (head >= 0) return head
@@ -71,6 +73,8 @@ export const OPERATION_CATALOGUE: Record<string, OperationClass> = {
   select_objects: 'read',
   open_tool: 'read',
   read_help: 'read',
+  'context.assemble': 'read',
+  'context.retrieve': 'read',
 }
 
 export interface Classified {

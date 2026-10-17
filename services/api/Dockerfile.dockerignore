@@ -1,0 +1,16 @@
+# Build context filter for services/api/Dockerfile (BuildKit reads <Dockerfile>.dockerignore).
+**/node_modules
+**/dist
+**/dist-harness
+**/.vite
+.git
+.claude
+.data
+**/.env*
+**/*.pem
+**/*.key
+docs
+infra
+tests/e2e
+apps/*/public
+**/*.log

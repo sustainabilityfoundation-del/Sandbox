@@ -1,3 +1,7 @@
 # Generated files are compared byte for byte by checks; keep LF on every platform.
 docs/dependencies/register.json text eol=lf
 apps/workspace/public/THIRD_PARTY_NOTICES.txt text eol=lf
+# Shell scripts run in Linux containers; keep LF.
+*.sh text eol=lf
+services/api/Dockerfile text eol=lf
+docs/dependencies/register-infra-aws.json text eol=lf

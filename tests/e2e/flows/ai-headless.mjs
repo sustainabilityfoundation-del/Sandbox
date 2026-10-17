@@ -144,7 +144,11 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, EXPECTED_REFUSALS, re
   await open.engine.execute({ commands: [{ command: 'set_parameter', input: { partId: 'part-1', name: 'af', expression: '7.2' } }], label: 'Local edit', source: 'user' })
   // An applied intent, so the context and gap reads have something to read (interpret_intent only proposes).
   const headlessIntent = await hpost('/intents', { designObject: `Headless intent ${stamp}`, role: 'standalone', integration: 'standalone', rationale: 'headless flow' })
+  // A stored context snapshot for context.retrieve (CE-1): assembled through the same server endpoint context.assemble uses.
+  const snapshot = await (await fetch('/api/assistant/v1/context/assemble', { method: 'POST', headers: { 'x-dev-user': 'eli', 'content-type': 'application/json' }, body: JSON.stringify({ projectId: 'PRJ-ACT100', mode: 'full', operation: 'conceptualize.develop_alternatives' }) })).json()
   const examples = {
+    'context.assemble': { operation: 'conceptualize.develop_alternatives', mode: 'full' },
+    'context.retrieve': { contextId: snapshot.package?.contextId },
     read_object: { id: 'ROD-120' },
     search_objects: { query: 'rod' },
     read_relationships: { objectId: 'ROD-120' },

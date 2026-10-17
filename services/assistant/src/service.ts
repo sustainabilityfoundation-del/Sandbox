@@ -14,6 +14,10 @@ import { ROUTING_MODES, routingFromSettings, type RoutingSettings } from './orch
 import { isPriced } from './pricing'
 import { DEFAULT_POLICY, OPERATION_CLASSES, type AiPolicy, type Policy } from './policy'
 import type { ProviderRegistry } from './providers/registry'
+import { ContextAssembler, renderBundle, type ContextSelectorSpec } from './context'
+import { findRegistryModel, loadModelRegistry } from './models'
+import type { ModuleCaller } from './proposals'
+import type { ArtifactRef, ContextMode, ContextPackage, ContextTask } from '@ews/platform-sdk'
 import { ProviderError, type AssistantProvider, type AuthMethod, type ProviderCredential, type ProviderMessage, type ProviderTool, type RespondOutput } from './providers/types'
 import { AssistantStore, publicStatus, type ConnectionRow, type ConnectionStatus } from './store'
 import { ForgedResultError, INSTRUCTIONS, prepareRequest, screenCalls, signCall, type ResponseMeta, type WireRequest, type WireResponse } from './wire'
@@ -31,6 +35,14 @@ export interface SettingsAccess {
 }
 
 export { AssistantError }
+
+interface ContextGate {
+  ok: boolean
+  reason: string
+  allow: (module: string) => boolean
+  allowRef: (refModule: string) => boolean
+  sharing: { requirementText: boolean; elementDetails: boolean }
+}
 
 const PROVIDER_STATUS: Record<ProviderError['kind'], number> = {
   'invalid-credential': 502,
@@ -74,6 +86,8 @@ export interface AssistantBackendOptions {
   ai?: Partial<AiRuntimeConfig>
   /** Replace the usage ledger access (tests that check the fail-safe without a database). */
   metering?: Metering
+  /** Context engineering (ECII Amendment 2): the module selectors the host collected and how to call a module in-process as the person. Absent: no context is assembled. */
+  context?: { selectors: ContextSelectorSpec[]; callModule: ModuleCaller }
   /** Waits between attempts to write an end event (tests). */
   retryDelaysMs?: number[]
 }
@@ -93,6 +107,8 @@ export class AssistantBackend {
   readonly accounts: DeveloperAccounts
   /** The single dispatch point for model requests. */
   readonly gateway: Gateway
+  /** The context assembler (undefined when the host gave no selectors). */
+  readonly contexts?: ContextAssembler
 
   constructor(private readonly o: AssistantBackendOptions) {
     this.store = new AssistantStore(o.pool, o.vault)
@@ -101,6 +117,7 @@ export class AssistantBackend {
     this.runtime = { ...DEFAULT_AI_RUNTIME, ...o.ai, developerKeys: o.ai?.mode === 'development' ? (o.ai.developerKeys ?? {}) : {} }
     this.accounts = new DeveloperAccounts(this.runtime.developerKeys, o.providers, { log: o.log })
     this.gateway = new Gateway({ providers: o.providers, accounts: this.accounts, metering: o.metering ?? new PgMetering(o.pool), runtime: this.runtime, log: o.log, retryDelaysMs: o.retryDelaysMs })
+    if (o.context) this.contexts = new ContextAssembler({ pool: o.pool, selectors: o.context.selectors, callModule: o.context.callModule, roleOf: o.roleOf, log: o.log })
     // Validate developer keys in the background: an invalid key marks its account invalid and never stops the server.
     if (this.runtime.mode === 'development') void this.accounts.validateAll().catch(() => undefined)
   }
@@ -544,7 +561,7 @@ export class AssistantBackend {
   private async dispatch(
     principal: Principal,
     s: { routing: RoutingSettings; connection: { handle?: UserConnectionHandle; problem?: AssistantError } },
-    c: { projectId: string; conversationId?: string; operationId: string; workflowId: string; manual?: { provider?: string; model?: string }; input: Parameters<Gateway['call']>[0]['input']; signal: AbortSignal; cancelSignal?: AbortSignal },
+    c: { projectId: string; conversationId?: string; operationId: string; workflowId: string; contextId?: string; manual?: { provider?: string; model?: string }; input: Parameters<Gateway['call']>[0]['input']; signal: AbortSignal; cancelSignal?: AbortSignal },
   ): Promise<GatewayResult> {
     try {
       return await this.gateway.call({
@@ -553,6 +570,7 @@ export class AssistantBackend {
         conversationId: c.conversationId,
         operationId: c.operationId,
         workflowId: c.workflowId,
+        ...(c.contextId ? { contextId: c.contextId } : {}),
         routing: { mode: s.routing.mode, disallowedProviders: s.routing.disallowedProviders, manual: c.manual },
         userConnection: s.connection.handle,
         input: c.input,
@@ -594,10 +612,106 @@ export class AssistantBackend {
     }
   }
 
+  // ---- platform context (ECII Amendment 2, ADR-0085) --------------------------------------------------------
+
+  /** Smallest context limit (tokens) among the models a request can reach: the package must fit whichever the router picks. */
+  private async contextLimit(principal: Principal, routing: RoutingSettings, manual?: { provider?: string; model?: string }): Promise<number | undefined> {
+    try {
+      const { handle } = await this.connectionHandle(principal.userId)
+      const evals = await this.gateway.options(handle, { mode: manual?.model ? 'manual' : routing.mode, needTools: true, estimatedInputTokens: 2000, maxOutputTokens: 4000, disallowedProviders: routing.disallowedProviders })
+      const limits: number[] = []
+      for (const e of evals) {
+        if (!e.eligible || (manual?.model && e.candidate.model !== manual.model)) continue
+        const entry = findRegistryModel(loadModelRegistry(e.candidate.provider), e.candidate.model)
+        if (entry?.limits?.contextTokens) limits.push(entry.limits.contextTokens)
+      }
+      return limits.length ? Math.min(...limits) : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /** The context for one turn, or undefined when the setting is off, no selectors exist or assembly failed. */
+  private async injectContext(principal: Principal, request: WireRequest, routing: RoutingSettings, forward: Record<string, string>, gate: ContextGate) {
+    if (routing.contextMode === 'off' || !gate.ok || !this.contexts?.selectorCount) return undefined
+    try {
+      const task: ContextTask = { operation: request.turn.task?.operation ?? 'assistant.respond', targets: (request.turn.task?.targets ?? []) as ArtifactRef[] }
+      const pkg = await this.contexts.assemble(principal, forward, {
+        projectId: request.turn.context.projectId,
+        mode: routing.contextMode,
+        task,
+        configurationId: request.turn.context.configurationId,
+        conversationId: request.turn.conversationId,
+        maxTokens: routing.contextMaxTokens,
+        modelContextLimit: await this.contextLimit(principal, routing, request.routing),
+        allow: gate.allow,
+        allowRef: gate.allowRef,
+        sharing: gate.sharing,
+      })
+      const bundle = renderBundle(pkg)
+      return bundle.blocks.length ? { bundle, contextId: pkg.contextId } : undefined
+    } catch (e) {
+      this.o.log?.warn({ err: (e as Error).message }, 'context assembly failed; the turn goes without platform context')
+      return undefined
+    }
+  }
+
+  /**
+   * What the person's AI settings allow for platform context: nothing when the project limit `ai.context-ceiling.mode` is off, when AI
+   * access to the Platform context module is off or the read class is off; otherwise only the modules whose AI access is not off
+   * (an unknown module counts as off), with the `ai.sharing.*` settings applied to what is shared.
+   */
+  private contextGate(policy: AiPolicy, values: Record<string, SettingValue>): ContextGate {
+    const sharing = { requirementText: policy.sharing.requirementText, elementDetails: policy.sharing.elementDetails }
+    const allow = (module: string) => (policy.modules[module] ?? 'off') !== 'off'
+    // The AI module that owns artifacts of a reference module (fail closed: an unknown module counts as off).
+    const REF_OWNER: Record<string, string> = { sysml: 'sysml-modeler', cad: 'cad-modeler', product: 'projects', external: 'projects', twin: 'workspace' }
+    const allowRef = (refModule: string) => allow(REF_OWNER[refModule] ?? refModule)
+    if (values['ai.context-ceiling.mode'] === 'off') return { ok: false, reason: 'Platform context is switched off by the project limit set by an administrator.', allow, allowRef, sharing }
+    if (!allow('context')) return { ok: false, reason: 'AI access to Platform context is off in your AI settings.', allow, allowRef, sharing }
+    if (!policy.operations.read) return { ok: false, reason: 'The operation class “Read objects” is off in your AI settings.', allow, allowRef, sharing }
+    return { ok: true, reason: '', allow, allowRef, sharing }
+  }
+
+  private requireContexts(): ContextAssembler {
+    if (!this.contexts) throw new AssistantError('not-available', 'No module offers context selection on this host.', 404)
+    return this.contexts
+  }
+
+  /** `context.assemble`: assembles (or reuses) a snapshot for a task as the person. Explicit and read-only; works in every context mode (the mode only governs what is added to requests automatically). */
+  async assembleContext(principal: Principal, forward: Record<string, string>, input: { projectId: string; operation?: string; targets?: ArtifactRef[]; mode?: Exclude<ContextMode, 'off'>; conversationId?: string; configurationId?: string }): Promise<{ package: ContextPackage; text: { blocks: { id: string; trust: string; text: string }[] } }> {
+    const contexts = this.requireContexts()
+    const { values, policy, routing } = await this.settingsOf(principal, input.projectId)
+    const gate = this.contextGate(policy, values)
+    if (!gate.ok) throw new AssistantError('context-not-allowed', gate.reason, 403)
+    const pkg = await contexts.assemble(principal, forward, {
+      projectId: input.projectId,
+      mode: input.mode ?? 'full',
+      task: { operation: input.operation ?? 'context.assemble', targets: input.targets ?? [] },
+      configurationId: input.configurationId,
+      conversationId: input.conversationId,
+      maxTokens: routing.contextMaxTokens,
+      modelContextLimit: await this.contextLimit(principal, routing),
+      allow: gate.allow,
+      allowRef: gate.allowRef,
+      sharing: gate.sharing,
+    })
+    return { package: pkg, text: { blocks: renderBundle(pkg).blocks.map((b) => ({ id: b.id, trust: b.trust, text: b.text })) } }
+  }
+
+  /** `context.retrieve`: items of a stored snapshot (stale ones flagged), plus fresh reads of references it left out. */
+  async retrieveContext(principal: Principal, forward: Record<string, string>, input: { projectId: string; contextId: string; refs?: ArtifactRef[] }) {
+    const contexts = this.requireContexts()
+    const { values, policy } = await this.settingsOf(principal, input.projectId)
+    const gate = this.contextGate(policy, values)
+    if (!gate.ok) throw new AssistantError('context-not-allowed', gate.reason, 403)
+    return contexts.retrieve(principal, forward, { ...input, allow: gate.allow, allowRef: gate.allowRef, sharing: gate.sharing })
+  }
+
   /** One step of the browser's tool-calling loop. */
-  async respond(principal: Principal, request: WireRequest, clientSignal?: AbortSignal): Promise<WireResponse> {
+  async respond(principal: Principal, request: WireRequest, clientSignal?: AbortSignal, forward: Record<string, string> = {}): Promise<WireResponse> {
     const projectId = request.turn.context.projectId
-    const { policy, routing } = await this.settingsOf(principal, projectId)
+    const { values, policy, routing } = await this.settingsOf(principal, projectId)
     const prepared = this.prepare(principal, request, policy)
     const connection = await this.connectionHandle(principal.userId)
     const signal = clientSignal ? AbortSignal.any([clientSignal, AbortSignal.timeout(policy.limits.timeoutSeconds * 1000)]) : AbortSignal.timeout(policy.limits.timeoutSeconds * 1000)
@@ -605,6 +719,9 @@ export class AssistantBackend {
     const prompt = policy.storePrompts ? { instructions: prepared.instructions, messages: prepared.messages, tools: prepared.tools.map((t) => t.name) } : undefined
     const track: { target?: { provider: string; method: string; model: string } } = {}
     const workflowId = randomUUID()
+    // Platform context (ECII Amendment 2): behind ai.context.mode, default off. Assembled on the server as the person; a failure
+    // never costs the turn, it just goes without context.
+    const injected = await this.injectContext(principal, request, routing, forward, this.contextGate(policy, values))
 
     return this.audited<WireResponse>(principal, track, { projectId, toolsOffered: prepared.tools.length, prompt }, async () => {
       let messages: ProviderMessage[] = prepared.messages
@@ -617,8 +734,9 @@ export class AssistantBackend {
           conversationId: request.turn.conversationId,
           operationId: 'assistant.respond',
           workflowId,
+          ...(injected ? { contextId: injected.contextId } : {}),
           manual: request.routing,
-          input: { instructions: prepared.instructions, messages, tools: prepared.tools, maxOutputTokens: policy.limits.outputTokens },
+          input: { instructions: prepared.instructions, messages, tools: prepared.tools, maxOutputTokens: policy.limits.outputTokens, ...(injected ? { context: injected.bundle } : {}) },
           signal,
           cancelSignal: clientSignal,
         })

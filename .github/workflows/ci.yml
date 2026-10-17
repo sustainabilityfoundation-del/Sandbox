@@ -46,3 +46,26 @@ jobs:
         run: npm run projects:test:db
       - name: Reasoning database tests
         run: npm run reasoning:test:db
+  infra:
+    # AWS CDK app (infra/aws): type check, offline assertion tests, synthesis and the licence check of its own lock file.
+    # Needs no AWS credentials and has no OIDC permission; nothing here can reach AWS.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: infra/aws/package-lock.json
+      - run: npm ci --ignore-scripts --prefix infra/aws
+      - run: npm run typecheck --prefix infra/aws
+      - run: npm test --prefix infra/aws
+      - name: Synthesize offline
+        run: npm run synth --prefix infra/aws -- -c imageTag=ci
+        env:
+          CDK_DISABLE_VERSION_CHECK: '1'
+      - name: Infra dependency register is current
+        run: node scripts/deps-register.mjs --lock infra/aws/package-lock.json --out docs/dependencies/register-infra-aws.json --check
+      - name: Infra licence policy check
+        run: node scripts/deps-check.mjs --lock infra/aws/package-lock.json

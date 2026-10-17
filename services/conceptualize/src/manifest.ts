@@ -15,6 +15,7 @@ export const conceptualizeServerManifest: ServerModuleDescriptor = {
   provisioning: { lazyReason: 'Conceptualize stores data by project ID; its project space appears with the first concept.' },
   proposals: { entitlement: 'tool:conceptualize', projectParam: 'projectId' },
   aiModule: { id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] },
+  selectContext: { path: '/projects/{projectId}/select-context', operations: ['conceptualize.', 'assistant.', 'context.', 'digest'], version: 'conceptualize-context/1' },
   operations: {
     'conceptualize.search': 'search',
     'conceptualize.read': 'read',

@@ -34,3 +34,14 @@ live tests (`test/live.test.ts`).
 Before designing or coding a new engineering capability, search for established open-source implementations. Prefer integration and contribution over recreation. Document the alternatives considered, license implications, integration strategy, and rationale for any custom implementation ([strategy](../../docs/architecture/OPEN_SOURCE_STRATEGY.md), [evaluation template](../../docs/architecture/open-source-evaluation-template.md), root [AGENTS.md](../../AGENTS.md)).
 Conceptualize and AI assignment (strategy §10): investigate reusable open-source reasoning, search, graph, visualization and orchestration infrastructure while preserving the proprietary design reasoning and cross-module intelligence.
 Capability-complete toolbars (mandatory, owner directive, [directive](../../docs/architecture/CAPABILITY_TOOLBARS.md)): keep this module's full target capability inventory (implemented, partial, planned) in its manifest with evidence for each status; planned commands are shown muted and explained, never executed, and never report success.
+
+## Platform context (CE-1, ADR-0085, ADR-0086)
+
+- `src/context/` is the context assembler: it calls each module's `selectContext` read operation in-process through the `ModuleCaller` **as the signed-in person**
+  (identity headers forwarded; module permissions and project scope apply), packs mandatory items first within the budget, stores an immutable snapshot in
+  `assistant.context_snapshots` (insert-only; never update or delete) and renders neutral `ContextBlock`s. It makes no model call and keeps no copy of project data.
+- Retrieved documents and other external content are untrusted: they go in an `external-data` block, labelled, and never override instructions, the access policy or
+  tool permissions. A `not-authorized` omission carries no count and no references.
+- Injection is `RespondInput.context` behind `ai.context.mode` (`off` default | `digest` | `full`); model calls still go only through `gateway.call` and the ledger
+  row carries `context_id`. The fake provider ignores context, so D1 replays are unchanged.
+- `services/assistant` may import `@ews/design-reasoning-core` (framework-free; boundaries test). It must not import a module service.
