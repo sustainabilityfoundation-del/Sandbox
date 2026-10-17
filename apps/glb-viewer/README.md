@@ -55,7 +55,7 @@ Other scripts:
 
 | Command | What it does |
 | --- | --- |
-| `npm run build` (root) | Type-check everything and build this viewer into `dist/` (the workspace goes to `dist/workspace/`) |
+| `npm run build` (root) | Type-check everything and build this viewer into `dist/viewer/` (served at `/viewer/` when hosted; the workspace goes to `dist/workspace/` and `/` redirects to it) |
 | `npm run preview` (root) | Serve the production build locally at http://localhost:4173 |
 | `npm run typecheck -w @ews/glb-viewer` | Type-check only |
 | `npx vitest run apps/glb-viewer` | Run the model-loading unit tests (Vitest) |

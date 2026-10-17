@@ -15,6 +15,7 @@ export const projectsServerManifest: ServerModuleDescriptor = {
   name: 'Project Management',
   basePath: BASE_PATH,
   docs: 'Project Management API',
+  selectContext: { path: '/projects/{projectId}/select-context', operations: ['projects.', 'conceptualize.', 'assistant.', 'context.', 'digest'], version: 'projects-context/1' },
   aiModule: {
     id: 'projects',
     label: 'Project Management',

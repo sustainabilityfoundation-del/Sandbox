@@ -2,6 +2,25 @@
   "schema": "faber.dependency-policy/1",
   "description": "Hand-maintained inputs for scripts/deps-register.mjs and scripts/deps-check.mjs (ADR-0073). Keys are package names, name@version, or a name prefix ending in *. status: approved, reviewed (conditional licence reviewed), or a string starting with pending (allowed, reported on every check, never for prohibited licences); preferred licences need no status. Anything else non-preferred fails the check.",
   "packages": {
+    "aws-cdk": {
+      "repository": "https://github.com/aws/aws-cdk-cli",
+      "adr": "ADR-0088",
+      "notes": "AWS CDK command line (cdk synth, diff, deploy), Apache-2.0. Infrastructure tooling in infra/aws; never part of the application image. Separate lock file: docs/dependencies/register-infra-aws.json.",
+      "distribution": "infra-tooling"
+    },
+    "aws-cdk-lib": {
+      "repository": "https://github.com/aws/aws-cdk",
+      "adr": "ADR-0088",
+      "notes": "AWS CDK construct library, Apache-2.0 (its bundled dependencies are listed in the package; the NOTICE file ships with the package). Used only by infra/aws to produce CloudFormation templates; never part of the application image or the browser bundle.",
+      "obligations": "Keep the LICENSE and NOTICE files if the package is redistributed (it is not).",
+      "distribution": "infra-tooling"
+    },
+    "constructs": {
+      "repository": "https://github.com/aws/constructs",
+      "adr": "ADR-0088",
+      "notes": "Construct programming model used by the CDK, Apache-2.0. infra/aws only.",
+      "distribution": "infra-tooling"
+    },
     "@codemirror/autocomplete": {
       "repository": "https://github.com/codemirror/autocomplete",
       "source": "docs/dependencies.md"

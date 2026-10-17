@@ -1,4 +1,5 @@
 import { Type } from '@sinclair/typebox'
+import type { SelectContextRequest } from '@ews/platform-sdk'
 import type { FastifyInstance } from 'fastify'
 import { forbidden, invalid, notFound } from '../errors'
 import { PERMISSIONS, TEMPLATES, roleAllows, templateById, type Permission, type Role } from '../domain/rules'
@@ -32,6 +33,7 @@ import { runProvisioning } from '../provisioning'
 import { workspaceDefaults } from '../domain/workspace'
 import { describeAndRegister, reconcileProject } from '../registry'
 import { registerProductRoutes } from './productRoutes'
+import { selectContext } from '../store/contextSelect'
 import * as S from './schemas'
 
 const P = Type.Object({ projectId: Type.String({ minLength: 1, maxLength: 100 }) })
@@ -256,6 +258,31 @@ export function registerProjectRoutes(app: FastifyInstance, services: HostServic
     permission: 'read',
     responses: { 200: { description: 'Project context', schema: ref('ProjectContext') }, 403: E403 },
     handler: async (rc) => ({ body: await projectContext(rc) }),
+  })
+
+  route({
+    method: 'POST',
+    path: '/projects/{projectId}/select-context',
+    operationId: 'selectContext',
+    tag: 'Projects',
+    summary: 'Select context items for an AI operation (references with exact versions and bounded projections); read-only',
+    description:
+      'The Project Management context selector (SDK 1.15, ADR-0085): the project frame, open risks and issues, upcoming milestones, documents as references with exact version and metadata (never document bytes) and registry records for the requested targets. Documents are external content. Project scope and the caller’s role apply; nothing is written.',
+    params: P,
+    body: Type.Object(
+      {
+        projectId: Type.Optional(Type.String()),
+        configurationId: Type.Optional(Type.String()),
+        operation: Type.String({ minLength: 1, maxLength: 200 }),
+        targets: Type.Array(Type.Object({ module: Type.String(), id: Type.String(), revision: Type.Optional(Type.Integer()), kind: Type.Optional(Type.String()), label: Type.Optional(Type.String()) }), { maxItems: 100 }),
+        budget: Type.Object({ maxTokens: Type.Integer({ minimum: 1 }), maxItems: Type.Integer({ minimum: 1, maximum: 400 }), maxBytes: Type.Integer({ minimum: 1 }) }),
+        sections: Type.Optional(Type.Array(Type.String())),
+      },
+      { additionalProperties: false },
+    ),
+    permission: 'read',
+    responses: { 200: { description: 'SelectContextResponse', schema: Type.Object({}, { additionalProperties: true }) as never }, 403: E403 },
+    handler: async (rc) => ({ body: await rc.read((ctx) => selectContext(ctx, rc.body as SelectContextRequest)) }),
   })
 
   route({

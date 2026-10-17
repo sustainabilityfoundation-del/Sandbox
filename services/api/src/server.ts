@@ -36,7 +36,7 @@ import {
 import { platformMemberships } from './platform/memberships'
 import { SETTINGS_BASE_PATH, SettingsRegistry, settingsPlugin, type SettingsStore } from '@ews/settings-service'
 import type { AdapterRegistry as VisualizationAdapters } from '@ews/visualization-service'
-import { AI_SETTINGS_PAGE, ASSISTANT_BASE_PATH, CredentialVault, ProviderRegistry, assistantPlugin, createFakeProvider, createOpenAIProvider, createPolicy, registerOAuthCallback, type AiRuntimeConfig, type AssistantBackend } from '@ews/assistant-service'
+import { AI_SETTINGS_PAGE, ASSISTANT_BASE_PATH, CredentialVault, ProviderRegistry, assistantPlugin, type ModuleCaller, createFakeProvider, createOpenAIProvider, createPolicy, registerOAuthCallback, type AiRuntimeConfig, type AssistantBackend } from '@ews/assistant-service'
 import { ALL_SERVER_MODULES, INSTALLED_SERVER_MODULES, assertUniqueManifests, collectPolicyContributions, type ApiModuleHost } from './modules'
 import { SAMPLE_TWIN } from './sampleTwin'
 import { isDeployed, readAiConfig } from './config'
@@ -274,6 +274,18 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     // Mock mode always has its personas (the fake provider); `fakeProvider` also registers it for the older test flows.
     if ((options.assistant?.fakeProvider || aiRuntime.mode === 'mock') && !production && !providers.get('fake')) providers.register(createFakeProvider())
     registerApiDocs(app, { path: `${ASSISTANT_BASE_PATH}/docs`, openapiUrl: `${ASSISTANT_BASE_PATH}/openapi.json`, title: 'Assistant API' })
+    // In-process module calls as the person (their identity headers are forwarded; each module enforces its own permissions):
+    // declarative proposals (C9) and the context selectors (ECII Amendment 2) use it.
+    const callModule: ModuleCaller = async ({ method, url, headers, body }) => {
+      const res = await app.inject({ method: method as 'GET', url, headers: { ...headers, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, payload: body === undefined ? undefined : JSON.stringify(body) })
+      let parsed: unknown
+      try {
+        parsed = res.body ? JSON.parse(res.body) : undefined
+      } catch {
+        parsed = undefined
+      }
+      return { status: res.statusCode, body: parsed }
+    }
     await app.register(assistantPlugin, {
       prefix: ASSISTANT_BASE_PATH,
       pool: options.pool,
@@ -297,16 +309,8 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
       // `proposals` (entitlement and project parameter) in its manifest.
       modules: ALL_SERVER_MODULES.flatMap((m) => (m.proposals ? [{ id: m.id, label: m.name, basePath: m.basePath, ...m.proposals }] : [])),
       policy,
-      callModule: async ({ method, url, headers, body }) => {
-        const res = await app.inject({ method: method as 'GET', url, headers: { ...headers, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, payload: body === undefined ? undefined : JSON.stringify(body) })
-        let parsed: unknown
-        try {
-          parsed = res.body ? JSON.parse(res.body) : undefined
-        } catch {
-          parsed = undefined
-        }
-        return { status: res.statusCode, body: parsed }
-      },
+      callModule,
+      context: { selectors: ALL_SERVER_MODULES.flatMap((m) => (m.selectContext ? [{ module: m.id, basePath: m.basePath, path: m.selectContext.path, operations: m.selectContext.operations, version: m.selectContext.version }] : [])), callModule },
     })
     registrationOrder.push('assistant')
     registerOAuthCallback(app, () => assistantBackend)

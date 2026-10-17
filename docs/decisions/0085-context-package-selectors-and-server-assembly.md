@@ -55,7 +55,7 @@ distributed. No owner approval is required for any of them.
    `context.retrieve`. A `not-authorized` omission carries neither a count nor references (the SDK type is a discriminated union
    that cannot hold them), so a package never reveals how many hidden items exist (brief §13); the assembler emits it only for a
    requested target the person cannot read, never for items found by traversal. Budget: the smaller of setting
-   `ai.context.maxTokens` (12,000) and a quarter of the model's context limit; at most 400 items and 256 KB per snapshot. If the
+   `ai.context.max-tokens` (12,000) and a quarter of the model's context limit; at most 400 items and 256 KB per snapshot. If the
    mandatory items alone exceed it, the package is `overBudget` and they are kept.
 4. **Snapshots.** Immutable rows in `assistant.context_snapshots`; `proposals.context_id` and `usage_events.context_id` give the
    chain artifact → proposal → snapshot. References only; the owning modules stay the source of truth.

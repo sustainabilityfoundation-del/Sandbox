@@ -36,6 +36,7 @@ export const CONTEXT_MODES: { value: ContextMode; label: string; description: st
 export const routingModeSettingId = 'ai.routing.mode'
 export const routingProviderSettingId = (provider: string) => `ai.routing.providers.${provider}`
 export const CONTEXT_MODE_SETTING_ID = 'ai.context.mode'
+export const CONTEXT_MAX_TOKENS_SETTING_ID = 'ai.context.max-tokens'
 
 export function ROUTING_AND_CONTEXT_DEFINITIONS(routingDefault: RoutingDefault = 'balanced'): SettingDefinition[] {
   return [
@@ -68,12 +69,27 @@ export function ROUTING_AND_CONTEXT_DEFINITIONS(routingDefault: RoutingDefault =
       id: CONTEXT_MODE_SETTING_ID,
       ceilingId: 'ai.context-ceiling.mode',
       label: 'Platform context',
-      description: 'How much project context is added to model requests. The context assembler is a later increment; today this setting only records the choice.',
+      description: 'How much project context is added to model requests. Off adds nothing (the default). Digest adds a short standing summary of the active intent, hosts, interfaces and readiness. Full also adds the task-specific records, assembled on the server as you.',
       helpId: 'ai.policy',
       type: 'enum',
       options: CONTEXT_MODES,
       default: 'off',
       ceilingDefault: 'full',
+      group: 'Model selection',
+    }),
+    ...pair({
+      id: CONTEXT_MAX_TOKENS_SETTING_ID,
+      ceilingId: 'ai.context-ceiling.max-tokens',
+      label: 'Platform context size',
+      description: 'Largest platform context added to one model request. The server uses the smaller of this and a quarter of the model’s context limit; records that must not be left out are always kept.',
+      helpId: 'ai.policy',
+      type: 'number',
+      unit: 'tokens',
+      min: 1000,
+      max: 200000,
+      integer: true,
+      default: 12000,
+      ceilingDefault: 200000,
       group: 'Model selection',
     }),
   ]
@@ -84,6 +100,8 @@ export interface RoutingSettings {
   /** Providers switched off by the person or the project (a provider with no switch counts as allowed). */
   disallowedProviders: ReadonlySet<string>
   contextMode: ContextMode
+  /** Setting ai.context.max-tokens (default 12,000). */
+  contextMaxTokens: number
 }
 
 /** Reads the routing settings from effective setting values (already clamped to the project ceilings). */
@@ -94,5 +112,7 @@ export function routingFromSettings(values: Record<string, SettingValue>, fallba
   for (const p of ROUTING_PROVIDERS) if (values[routingProviderSettingId(p.id)] === false) disallowed.add(p.id)
   const rawContext = values[CONTEXT_MODE_SETTING_ID]
   const contextMode: ContextMode = CONTEXT_MODES.some((m) => m.value === rawContext) ? (rawContext as ContextMode) : 'off'
-  return { mode, disallowedProviders: disallowed, contextMode }
+  const rawMax = values[CONTEXT_MAX_TOKENS_SETTING_ID]
+  const contextMaxTokens = typeof rawMax === 'number' && rawMax > 0 ? rawMax : 12000
+  return { mode, disallowedProviders: disallowed, contextMode, contextMaxTokens }
 }

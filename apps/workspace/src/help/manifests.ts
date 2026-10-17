@@ -53,6 +53,8 @@ export const aiHelp: HelpManifest = {
   contextMappings: [
     { control: 'ai.panel', helpId: 'ai.overview' },
     { operation: 'propose_changes', helpId: 'ai.preview' },
+    { operation: 'context.assemble', helpId: 'ai.context' },
+    { operation: 'context.retrieve', helpId: 'ai.context' },
   ],
   tutorials: [],
   shortcuts: [
