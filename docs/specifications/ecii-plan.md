@@ -148,3 +148,62 @@ From the ECII architect's second report (after [engineering-practice.md](../rese
   source rights, recorded-fixture adapter.
 - D1 §1 wording ("a small block with mounting holes" as one candidate architecture rather than the problem statement) is an
   **owner decision**, not adopted; D1-a (intent step and live-run wording) proceeds.
+
+## Amendment 2 (16 October 2026): Context Engineering Layer (owner augmentation)
+
+Implements the [context engineering brief](ecii-context-engineering-brief.md) after the §15 architecture review (architect, read-only,
+main 372dea4); accepted by the coordinator.
+
+- **Overlap.** ECII already covers intent, information needs, fact statuses, readiness, architecture-first and diversity; ECII-1 provides
+  the nucleus of the Conceptualize selector and the grounding instructions. Design Reasoning core already has `ContextManifest` and
+  `ContextManifestItem`, `ReasoningRun`, `RunBudget`, `ToolInvocation.manifestId`, `assessChangeImpact` and `explainSelection`; these are
+  reused (ADR-0045: no provider in the engine). New: the package contract, per-operation selection with mandatory-first packing,
+  server-side injection, snapshot persistence, evaluation findings, the inspector and the benchmark.
+- **Ownership (one owner per interface).** SDK types: coordinator. Selectors: each module serves one read operation `selectContext`
+  declared in its `ServerModuleDescriptor` (Conceptualize and Projects in P0; Requirements, System Model and CAD in P1). Assembler,
+  snapshots and the `context.assemble` / `context.retrieve` read operation: AI connection (`services/assistant/src/context/`), calling
+  selectors in-process through the existing `ModuleCaller` as the signed-in person (module permissions and project scope apply; §13).
+  Provider translation: AI connection (increment B adapters). Evaluation policy and finding schema: Design Reasoning. Deterministic
+  checks: owning modules. Refinement controller: AI orchestrator (increment C). Inspector: design system. Benchmark: ECII (absorbs
+  AI-P2-6). Not a second gateway (model calls only through `gateway.call`) and not a second database (references only).
+- **Package.** An execution snapshot of `ArtifactRef`s with exact revisions plus bounded projections (quantities with unit, tolerance
+  and datum, or summaries up to 2,000 characters; never document bytes). Immutable `assistant.context_snapshots`;
+  `proposals.context_id` and `usage_events.context_id` give the chain artifact → proposal → snapshot. Stale items are flagged, not
+  rewritten. Budget: the smaller of setting `ai.context.maxTokens` (12,000) and a quarter of the model's context limit; at most 400
+  items and 256 KB per snapshot. Mandatory items (safety-relevant constraints, critical interfaces, material unknowns) are never
+  dropped or summarised; if they alone exceed the budget the package is marked `overBudget`; numbers are never compressed.
+- **Path to the model.** Assembled on the server (the browser sends only `turn.task`: operation and target refs). A standing digest each
+  turn (active intent, hosts, interfaces, readiness) gives reuse across follow-up requests; `context.assemble` / `context.retrieve` for
+  targeted retrieval. Injection as a neutral `RespondInput.context` field (blocks with trust `platform-data` or `external-data`),
+  translated per provider (Anthropic system block with caching, OpenAI developer message, Gemini system instruction); the fake provider
+  ignores it, so D1 replays are unaffected. Ledger rows carry `workflow_id` (task run), `context_id` and operation IDs for
+  summarisation and advisory evaluation.
+- **Evaluation.** Deterministic checks reused from modules (`resolveArtifacts`, `assess_diversity`, `evaluate_readiness`, constraint
+  bounds and `compare`, `cad-modeler.check`, units, `next_steps`, "every numeric interface value has a source or is labelled assumed or
+  estimated"); AI-advisory checks by a lower-cost model, labelled advisory and never called validation. Findings in
+  `assistant.evaluation_findings` keyed by context and proposal; module evidence only through applied proposals.
+- **Design Reasoning reuse.** The snapshot item is the `ContextManifestItem` (shape promoted to the SDK, aliased in DR core); refinement
+  budget extends `RunBudget` additively (iterations, model calls, cost); reassessment after a host change uses `assessChangeImpact`.
+  Boundary change: `services/assistant` may import `@ews/design-reasoning-core` (boundaries test updated).
+- **Inspector.** In the assistant panel's existing Context tab: a per-message chip ("CTX-... · Established · 14 items · 2 unknown")
+  opening collapsible sections (objective, systems, interfaces, requirements and constraints, evidence, assumptions, unknowns,
+  readiness, model, evaluation) with stable-ID references and status badges; "Correct interpretation" opens an intent revision
+  proposal; planned controls muted (mark evidence inappropriate, re-run with fresh context, compare snapshots).
+- **Measurement.** Cost per task from the ledger grouped by `workflow_id`, headline cost per acceptable outcome. Benchmark in
+  `tests/benchmarks/context-engineering/` (cases A-E and the four-request reuse sequence, DX-12 fixture with ground truth, rubric of
+  the brief §11 metrics, runner `scripts/bench-context.mjs`); replay mode in CI (deterministic metrics only); live mode only with
+  `*_LIVE_TEST_KEY` variables, never connection records or the ChatGPT sign-in, five repetitions per arm; run records with model,
+  pricing version, instruction and tool digests, snapshot IDs, outputs and scores; blinded A/B export. Baseline from a worktree pinned
+  at 372dea4 (before ECII); without an owner key only the replay baseline is recorded and "live: not run". No improvement is claimed
+  until a recorded live run shows it.
+- **Order (at most two heavy implementers at once; D1 replays and `demo-d1` gate every merge).** (1) ECII-1 (running); (2) AI-C gateway,
+  orchestrator, developer mode, `RespondInput.context`, ledger `context_id` (after AI-A merges); (3) CE-0 ADRs and SDK 1.15 types (after
+  SDK 1.14 merges); (4) baseline capture; (5) ECII-2; (6) CE-1 selectors, assembler, snapshots, digest, `context.assemble`; (7) CE-2
+  basic evaluation; (8) ECII-3; (9) AI-B adapters with context translation; (10) CE-3 drill regression and reuse sequence (replay);
+  (11) ECII-4 research with the DX-12 fixture, then live; (12) AI-D UI with the CE-4 inspector; (13) CE-5 other selectors, automated
+  refinement, impact flags, cross-provider benchmark. Injection behind setting `ai.context.mode = off | digest | full`, default `off`
+  until CE-1 passes D1.
+- **ADRs.** 0085 context package, module selectors and server assembly (open-source evaluation: LlamaIndex, LangChain, Haystack, DSPy;
+  proposed none, since they bring embedding stores; pgvector a P2 candidate); 0086 evaluation findings, refinement budgets and the
+  assistant to Design Reasoning boundary; 0087 benchmark and live-key policy (harness candidates promptfoo, Inspect AI, DeepEval).
+  Licences to verify in each ADR.
