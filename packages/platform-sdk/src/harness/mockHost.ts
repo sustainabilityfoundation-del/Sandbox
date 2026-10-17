@@ -13,6 +13,7 @@ import {
 } from '@ews/model-service'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import type { PlatformHost } from '../contract/host'
+import type { ModuleManifest } from '../contract/modules'
 import type { SharedContext, ToolApi, ToolCommand, ViewStateUpdate } from '../contract/tool'
 import type { AnyToolDefinition } from '../react/defineTool'
 
@@ -34,6 +35,8 @@ export interface MockState {
 export interface MockHost extends PlatformHost {
   readonly store: StoreApi<MockState>
   readonly repository: DemoRepository
+  /** The module manifest the harness was given (SDK 1.14): registry data for the command surfaces. */
+  readonly manifest?: ModuleManifest
   load: () => Promise<void>
   resetSampleData: () => Promise<void>
   setConfiguration: (id: string) => void
@@ -53,6 +56,11 @@ export interface MockHostOptions {
   services?: PlatformServices
   /** Setting values for the harness (SDK 1.6); defaults come from the tool's settings definitions. */
   settings?: Record<string, SettingValue>
+  /**
+   * The module's manifest (SDK 1.14): its capability entries and `commandLayout` give the harness the same menus,
+   * ribbon, quick bar, palettes, context sets and panels the workspace shows. Without it the bar is flat, as before.
+   */
+  manifest?: ModuleManifest
 }
 
 export function createMockHost(tool: AnyToolDefinition, options: MockHostOptions = {}): MockHost {
@@ -204,6 +212,7 @@ export function createMockHost(tool: AnyToolDefinition, options: MockHostOptions
     kind: 'harness',
     store,
     repository,
+    manifest: options.manifest,
     subscribe: (listener) => store.subscribe(listener),
     getModel: () => get().model,
     getArtifacts: () => get().artifacts,

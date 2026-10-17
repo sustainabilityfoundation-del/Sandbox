@@ -103,7 +103,7 @@ apps/workspace → every package; a tool only through its package entry point
 
 ## SDK and versions
 
-- SDK version **1.13.0** (`packages/platform-sdk/src/contract/version.ts`). Tools declare
+- SDK version **1.14.0** (`packages/platform-sdk/src/contract/version.ts`). Tools declare
   `sdkVersion: '^1.0.0'` or `'^1.1.0'` (needed for revisions and baselines); the registry refuses tools built for another major version.
 - Entry points: `@ews/platform-sdk` (framework-free contract and domain model),
   `@ews/platform-sdk/react` (`defineTool`, hooks, engineering UI helpers),
@@ -152,7 +152,7 @@ On Windows PowerShell use `npm.cmd` if script execution is disabled.
   `registerPlatformModule`); it renders inside the canvas container (`.ws-tool-host`) with any rendering technology
   and contributes toolbar items rather than its own top-level chrome.
 - Icons: `AppIcon` with semantic names only. New names go in
-  `packages/design-system/src/icons/names.ts` and are mapped in `registry.tsx` (Lucide, or a
+  `packages/design-system/src/icons/names/<domain>.ts` (joined by `names.ts`) and are mapped in `registry.tsx` (Lucide, or a
   custom engineering glyph made with `createLucideIcon`, same interface). 16 px in toolbars, trees
   and menus, 18–20 px in primary navigation; `filled` for selected states. Icon-only buttons need an
   accessible label (shown as the tooltip, with any shortcut); keep text labels on important actions.

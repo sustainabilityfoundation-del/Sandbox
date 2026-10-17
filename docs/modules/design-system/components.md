@@ -51,6 +51,68 @@ A bound entry without test evidence stays `partial`; `buildCommandModel` accepts
 `CommandInfoPopover` (`command`, `triggerRef`, `isOpen`, `onOpenChange`, `onHelp`) is the non-modal explanation (description, status,
 backlog IDs, Help); `CommandBar` uses it, and a host may open it from a palette or menu.
 
+### Command surfaces (1.3.0, [specification Amendment CT-2c](../../specifications/capability-registry.md))
+
+One neutral model (`CommandBarCommand` with its four states) feeds every surface; none imports the SDK. **A planned entry can never
+be invoked on any surface**: its state has no `onInvoke` (a compile error to add one), and the state kind is checked again at runtime, so even a handler
+smuggled past the type is not run: menu, palette, sheet and context entries route presses through `activateCommand`, which reads
+the state kind, while `CommandButton` (the ribbon and quick-bar button) calls `state.onInvoke` directly, gated by the same
+ready-or-partial check (it renders a disabled, explaining control for the other kinds). Pressing a planned or unavailable entry
+opens its explanation (a popover; inline in sheets). Layouts: `desktop`, `tablet` (below 840 px), `phone` (below
+520 px); `MenuBar`, `ToolPalette`, `ContextCommands` and `DockPanel` default to the viewport, `CommandBar` to its own width, and
+every one accepts a forced `layout`.
+
+**CommandBar additions**
+
+| Feature | Model | Behaviour |
+| --- | --- | --- |
+| Mode | `command.mode`: `action` (default), `toggle`, `tool`; pressed state is `state.active` | `toggle` and an armed `tool` expose `aria-pressed`; a planned toggle or tool is never pressed; an unavailable one keeps its pressed state |
+| Split button | `command.split`: child commands (no nesting) | the command is the main part, an arrow ("Extrude: more options") opens the children; each child has its own state; the same children are listed after the parent in tablet and phone menus. `SplitCommandButton` is exported |
+| Exclusive group | `group.exclusive` | choose-one toggles: pressing the active command keeps it active (the host sets one active); described as "Choose one" |
+| Counts | `group.counts`: `true` (computed) or `{ available, total }` | "2 of 5 available" in the group description and as the menu header; ready and partial commands count as available (`groupCounts`, `groupCountText`) |
+| All-planned group | a labelled group whose commands are all planned (`isAllPlanned`) | one muted group button with a count ("Simulation 0 of 6", name "Simulation: 0 of 6 available, planned") that opens a menu of its planned commands; choosing one explains it |
+| More tabs | automatic | tabs are laid out by estimated width; those that do not fit go into a "More tabs" menu; the selected tab is always visible (`fitTabs`) |
+| Quick bar | `CommandBarProps.quick`: commands | `QuickBar`: a leading toolbar of icon-only commands (name and state wording as in the ribbon; icon falls back to `command`) |
+| Number entry | `{ type: 'number', id, label, value, unit?, min?, max?, step?, onChange, isDisabled? }` | `NumberField` (new in `Fields`): arrow keys step, Page Up and Down by ten, Home and End jump to the limits, committed on Enter and on blur; the unit is part of the name ("Depth (mm)") |
+
+**MenuBar** (`ariaLabel`, `menus`, `layout?`, `keyTips?`, `menuLabel?`, `onHelp?`): `menus` is `{ id, label, mnemonic?, items }[]`; an item
+is `{ kind: 'command', command, checked?, mnemonic? }`, `{ kind: 'submenu', id, label, items }`, `{ kind: 'section', id, title?, items }` or
+`{ kind: 'separator', id }`. Desktop is the WAI-ARIA menubar pattern composed from React Aria `MenuTrigger` and `SubmenuTrigger` (no second
+behaviour library): one tab stop (roving), Left and Right move between menus and move an open menu, Home and End jump to the first and
+last, Down, Enter and Space open, Escape closes and returns focus to the menu. `keyTips` (the host says F10 or a lone Alt tap is
+active) underlines mnemonic letters; mnemonics work only while key tips are shown: a menu's mnemonic letter then opens it from the
+bar, and an item mnemonic invokes the item while its menu is open. Item mnemonics work at the top level of a menu only: direct
+`command` items of the menu, not items inside a section or a submenu. Checked items are announced as `menuitemcheckbox` with `aria-checked`. Tablet: one "Menu"
+button whose submenus are the menus. Phone: a full-screen sheet with search first (results show the menu path, "File › Export"), rows
+at least 40 px.
+
+**ToolPalette** (`ariaLabel`, `groups`, `layout?`, `onDisarm?`, `addLabel?`, `onHelp?`): `groups` is `{ id, label, icon?, collapsed?, commands }[]`.
+A vertical `Toolbar` (arrow keys move between tools) of collapsible groups (the header button has `aria-expanded`); a tool in
+`mode: 'tool'` shows `aria-pressed` while armed, stays armed until used or disarmed, and Escape in the palette calls `onDisarm(id)`
+(the host also binds Escape on its canvas; arming is the host's state). Phone: an "Add" button (named "Add: Line armed" while a tool is
+armed) opening a sheet of rows; choosing a ready tool arms it and closes the sheet. `armedTools(groups)` lists the armed tools.
+
+**ContextCommands** (`ariaLabel`, `commands`, `rendering?`, `layout?`, `isOpen?`, `onOpenChange?`, `anchorRef?`, `className?`): the commands for the
+selection or view. `rendering` is `floating` (a small icon toolbar; the host positions it with `className`), `menu` (a context menu
+anchored to `anchorRef`, opened by right-click, long-press, Shift+F10 or the ContextMenu key in the host) or `sheet` (a bottom sheet
+whose rows are at least 40 px high); the default follows the layout (desktop floating, tablet menu, phone sheet,
+`contextRenderingFor`). Entries are commands and separators.
+
+**CommandSessionStrip** (`title`, `fields`, `preview?`, `onOk`, `okUnavailableReason?`, `onCancel`): the edit strip while a command is open;
+the host shows it in place of the ribbon. Fields are number (new `number` kind with `unit`, `min`, `max`, `step`), select or text
+entries. Enter in a field commits it and presses OK (after a tick, so the host has the committed value); Escape cancels. `Preview` is a
+toggle (`aria-pressed`). While `okUnavailableReason` is set, OK is `aria-disabled`, named "OK, unavailable: reason", the reason is
+shown beside it, and neither a press nor Enter confirms. The strip cannot start a session: the host refuses one for a planned entry.
+
+**DockPanel** (`title`, `icon?`, `side`: `start` | `end` | `bottom`, `isOpen`, `onOpenChange`, `role?`, `layout?`, `actions?`): promotes the shell's
+patterns. Desktop docks an `aside` inline with `PanelHeader` and a close button; tablet uses `Drawer` (bottom panels use `Sheet`);
+phone uses `Sheet`. `role` (`browser`, `specification`, `properties`, `diagnostics`, `other`) is exposed as `data-panel-role`.
+
+**Icons:** the name list is split by domain in `icons/names/` (`core.ts`, `glyphs.ts`, `cad.ts`, `sysml.ts`) and joined into `ICON_NAMES`
+(existing names and order unchanged). 1.3.0 adds the generic family names `cmd-create`, `cmd-modify`, `cmd-draw`, `cmd-constrain`,
+`cmd-pattern`, `cmd-measure`, `cmd-exchange`, `cmd-view`, `sysml-definition`, `sysml-usage`, `sysml-relation`, `diagram-tool`; a command
+without its own icon falls back to its group's icon, then to the family glyph, then `command`.
+
 ## Layout and frame
 
 | Component | Use | Key props |

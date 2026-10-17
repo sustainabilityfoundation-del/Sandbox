@@ -2,7 +2,7 @@ import type { ComponentType, LazyExoticComponent } from 'react'
 import type { AssistantContribution } from '../contract/assistant'
 import type { HelpManifest } from '../contract/help'
 import type { SettingsContribution } from '../contract/settings'
-import type { ToolManifest, ToolbarContext, ToolbarItem } from '../contract/tool'
+import type { ToolManifest, ToolRuntime, ToolbarContext, ToolbarItem } from '../contract/tool'
 
 /**
  * Everything a tool contributes to the platform. The manifest fields are plain
@@ -15,6 +15,11 @@ export interface ToolDefinition<VS = unknown> extends ToolManifest {
   initialViewState: VS
   /** Toolbar contribution; called on every render with the current state. */
   toolbar: (ctx: ToolbarContext<VS>) => ToolbarItem[]
+  /**
+   * Runtime state for the command surfaces (SDK 1.14): the contexts that hold now, an open command session and panel
+   * state. Called on every render like `toolbar`; optional, and a tool without it renders as before.
+   */
+  runtime?: (ctx: ToolbarContext<VS>) => ToolRuntime
   /** Operations ChatGPT may request for this tool; executed and validated by the platform. */
   assistant?: AssistantContribution
   /**

@@ -9,7 +9,7 @@
  */
 import type { ArtifactSource } from './artifacts'
 import type { SettingDefinition } from './settings'
-import type { CommandLayout, Placement, Prerequisite, TestRef } from './capabilities'
+import type { CommandLayout, CommandMode, Placement, Prerequisite, SurfacePlacement, TestRef } from './capabilities'
 import type { HelpId } from './help'
 import type { IconName } from '@ews/design-system/icon-names'
 
@@ -67,6 +67,13 @@ export interface CapabilityEntry {
   entitlement?: string
   /** IDs of implemented capabilities that serve the same need (offered when this one is planned). */
   alternatives?: string[]
+  // ---- Professional structure (SDK 1.14, capability-registry.md Amendment CT-2c); all optional ----
+  /** Positions on palettes, context sets and the quick-access segment (the ribbon position is `placement`). */
+  placements?: SurfacePlacement[]
+  /** How the command behaves: a one-off action (default), a toggle or an armed tool. */
+  mode?: CommandMode
+  /** Keyboard shortcut in `aria-keyshortcuts` form ("Control+Shift+E"), bound while the module is the active tool. Ctrl+K, F1 and F10 are reserved. */
+  shortcut?: string
 }
 
 export type OperationClass = 'read' | 'search' | 'calculate' | 'propose' | 'export' | 'external-generation'

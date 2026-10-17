@@ -51,6 +51,15 @@ import {
   GitBranch,
   GitCompare,
   GripVertical,
+  Grid3x3,
+  Import,
+  Link2,
+  Orbit,
+  PenTool,
+  PencilRuler,
+  Share2,
+  Shapes,
+  SquarePlus,
   Hand,
   Hexagon,
   History,
@@ -169,6 +178,18 @@ const TraceSatisfy = createLucideIcon('ews-trace-satisfy', [
   ['rect', { x: '13', y: '14', width: '8', height: '7', rx: '1', key: 'b' }],
   ['path', { d: 'M11 6h3a3 3 0 0 1 3 3v2', key: 'l' }],
   ['path', { d: 'm15.2 17.6 1.3 1.3 2.6-2.6', key: 'c' }],
+])
+
+const SysmlDefinition = createLucideIcon('ews-sysml-definition', [
+  ['rect', { x: '3', y: '5', width: '18', height: '14', rx: '2', key: 'b' }],
+  ['path', { d: 'M3 10h18', key: 'h' }],
+  ['path', { d: 'M7 14.5h6', key: 'l' }],
+])
+
+const SysmlUsage = createLucideIcon('ews-sysml-usage', [
+  ['rect', { x: '3', y: '5', width: '18', height: '14', rx: '2', key: 'b', strokeDasharray: '3 2' }],
+  ['path', { d: 'M3 10h18', key: 'h' }],
+  ['path', { d: 'M7 14.5h6', key: 'l' }],
 ])
 
 /** How a semantic icon renders by default. */
@@ -324,4 +345,18 @@ export const ICON_REGISTRY: Record<IconName, IconEntry> = {
   constraint: custom(Constraint),
   'trace-derive': custom(TraceDerive, 'regular'),
   'trace-satisfy': custom(TraceSatisfy, 'regular'),
+
+  // Generic command-family glyphs (1.3.0): the fallback for a group or entry without its own icon.
+  'cmd-create': action(SquarePlus),
+  'cmd-modify': action(PencilRuler),
+  'cmd-draw': action(PenTool),
+  'cmd-constrain': action(Link2),
+  'cmd-pattern': action(Grid3x3),
+  'cmd-measure': action(Ruler),
+  'cmd-exchange': action(Import),
+  'cmd-view': action(Orbit),
+  'sysml-definition': custom(SysmlDefinition),
+  'sysml-usage': custom(SysmlUsage),
+  'sysml-relation': action(Share2),
+  'diagram-tool': action(Shapes),
 }

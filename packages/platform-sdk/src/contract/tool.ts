@@ -2,6 +2,7 @@ import type { PlatformServices } from './requirements'
 import type { CurrentProject } from './projects'
 import type { SettingsService } from './settings'
 import type { IconName } from '@ews/design-system/icon-names'
+import type { CommandMode } from './capabilities'
 import type {
   ActivityEntry,
   Baseline,
@@ -167,6 +168,8 @@ export type ToolbarItem =
       illustrative?: boolean
       /** 'primary' actions stay visible; others move into the overflow menu when the toolbar is narrow. */
       priority?: 'primary' | 'secondary'
+      /** Action, toggle or armed tool (SDK 1.14); defaults to the registry entry's `mode`. */
+      mode?: CommandMode
     }
   | {
       type: 'select'
@@ -180,6 +183,19 @@ export type ToolbarItem =
     }
   | { type: 'separator'; id: string }
   | { type: 'text'; id: string; text: string; tone?: 'muted' | 'warning' }
+  /** A numeric input with a unit (SDK 1.14): a dimension, an angle, a count. Committed on Enter and on blur. */
+  | {
+      type: 'number'
+      id: string
+      label: string
+      value: number
+      unit?: string
+      min?: number
+      max?: number
+      step?: number
+      onChange: (value: number) => void
+      disabled?: boolean
+    }
 
 export interface ToolbarContext<VS> {
   api: ToolApi<VS>
@@ -187,4 +203,31 @@ export interface ToolbarContext<VS> {
   context: SharedContext
   model: ModelIndex
   selection: EngineeringObject[]
+}
+
+/**
+ * An open edit of one command (SDK 1.14): a feature edit such as Extrude with its fields, Preview, OK and Cancel. The host
+ * replaces the ribbon with the session strip while it is open and refuses a session for a planned entry.
+ */
+export interface CommandSession {
+  /** The capability being edited; must be a bound (not planned) entry. */
+  capabilityId: string
+  title: string
+  /** Number, select and text items; other item types are ignored by the strip. */
+  fields: ToolbarItem[]
+  preview?: { on: boolean; onChange: (on: boolean) => void }
+  onOk: () => void
+  /** Why OK cannot be pressed now; OK stays focusable and does nothing while set. */
+  okUnavailableReason?: string
+  onCancel: () => void
+}
+
+/** What a tool reports about its runtime state (SDK 1.14, `ToolDefinition.runtime`), on every render like `toolbar`. */
+export interface ToolRuntime {
+  /** Context IDs that hold now ('diagram:general', 'sketch', 'selection:edge'); they satisfy `context` prerequisites. */
+  contexts?: string[]
+  /** The open command session, or null. */
+  session?: CommandSession | null
+  /** Panel state by `PanelDef.id`; a panel the tool does not report cannot be toggled by the host. */
+  panels?: Record<string, { open: boolean; toggle: () => void }>
 }
