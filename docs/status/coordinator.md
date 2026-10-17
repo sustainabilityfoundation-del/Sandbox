@@ -155,6 +155,14 @@ ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only
   readiness (`infra/aws-platform-readiness` 1bdd9fe, Opus-reviewed: no identity bypass; fixes made). Waiting for AUD-6
   (Conceptualize bounds in full, Inspector follows selection; built on AUD-4). Started: CE-1 context assembly
   (`feature/ce-1-context-assembly`, injection off by default). Owner asked for plain-language task names in reports.
+- **AWS live audit (read-only, profile `engineering-dev`) merged:** only an Amplify static app (`Sandbox`, us-east-2); no backend,
+  database, S3, CloudFront, DNS, secrets, logs or OIDC in any of 17 regions; `/api/*` ends in a 404. No AWS data at risk. Spend
+  about $35/month (Amplify build minutes; Cost Explorer off). Account is the organization's management account.
+- **Owner AWS decisions (17 Oct 2026):** (1) site root redirects to `/workspace/`; (2) build the dev backend (CDK; one Fargate
+  task, RDS PostgreSQL 17, EFS, Secrets Manager; about $53/month), showing the plan and exact resources before creation;
+  (3) shared password gate in front of the dev site until Cognito sign-in (before production); (4) run workloads in a **new member
+  account** (owner creates it in AWS Organizations). Still open: Amplify auto-build on every push, Cost Explorer and budget alert,
+  domain, production approver, alarm e-mail, whether the GitHub repository stays public.
 - Owner's main checkout lacks `@salusoft89/planegcs` (added by C1): run `npm install` before restarting `npm run dev`.
 
 ## Integration queue update (17 October 2026, about 02:15 EDT)
