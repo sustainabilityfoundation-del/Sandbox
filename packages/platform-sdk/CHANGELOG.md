@@ -16,6 +16,18 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.15.0 (2026-10-17)
+
+Type: additive
+
+What changed (ECII plan Amendment 2, increment CE-0; ADR-0085, ADR-0086):
+- New `contract/context.ts` (root entry, types only): `ContextRef`, `ContextItemVia`, `ContextSection`, `ContextQuantity`, `ContextProjection`, `ContextSnapshotItem<R>` (the Design Reasoning `ContextManifestItem` shape promoted to the SDK, plus optional `section`, `mandatory`, `rank`, `projection`, `estimatedTokens`, `stale`, `selectedBy` and the `via` value `selector`), `ContextOmission` (a discriminated union: a `not-authorized` omission carries no count or references), `ContextBudget`, `ContextBudgetUsage`, `ContextReadinessState`, `ContextTask`, `ContextMode`, `ContextPackage`, `ContextBlock` (trust `platform-data` or `external-data`) and `ContextBundle` (same shape as the gateway's `RespondInput.context`), `SelectContextRequest`, `SelectContextResponse`, `ServerModuleContextSelector`, `EvaluationAction` and `EvaluationFinding`.
+- `ServerModuleDescriptor.selectContext?: ServerModuleContextSelector` (path under `basePath`, served operations, selector version).
+- `@ews/design-reasoning-core`: `ContextManifestItem` is now an alias, `ContextSnapshotItem<AnyRef>`; the engine's items are unchanged.
+Why: one provider-independent context contract for the module selectors, the server-side assembler and snapshots (AI connection), the gateway's context blocks and the evaluation findings, owned by the coordinator. No runtime behaviour: selectors, assembly, persistence and injection come in CE-1 behind setting `ai.context.mode` (default `off`).
+Migration for tools: none. Every addition is optional or a new type. Server modules adopt `selectContext` in CE-1 (Conceptualize and Projects) and P1 (Requirements, System Model, CAD). When the AI-C gateway merges, its `ContextBlock` and `ContextBundle` in services/assistant/src/providers/types.ts may be replaced by imports of these types (the shapes are mutually assignable, checked in `sdk115.test.ts`).
+Validated with: tsc -p packages/platform-sdk; vitest for the platform-sdk boundaries and contract tests and for design-reasoning-core (full `npm run check` deferred to integration: an integration run held the machine).
+
 ## 1.14.0 (2026-10-16)
 
 Type: additive
