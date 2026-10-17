@@ -117,6 +117,12 @@ Legal, licence and commercial-terms questions stay listed for the owner and do n
 ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only) producing the §20 report; practice research
 (NASA SE Handbook, interface management, INCOSE, 15288/29148 summaries, SysML interfaces) on branch research/ecii-practice.
 
+## Integration queue update (17 October 2026, about 02:15 EDT)
+Merged since: feature/ct-2c2-sdk with CT-2c1 (4678e3a); cad/c1-sketching-reliability with OSS-9 (756b317); both after green
+integration runs (16/16 e2e; services/api infrastructure test fails only under load, AUD-14). In integration: feature/ai-infra-a-core
+(ab0d3de). Ready, queued: feature/ecii-1-intent (088d1f5, reviewed and fixed), fix/aud-5-sysml-matrix (f439747, reviewed and fixed).
+Running: cad/name-and-check-ui (display name "CAD", AUD-3 check panel, AUD-4 CST IDs in bindings).
+
 ## Integration queue update (17 October 2026, 00:15 EDT)
 Merged: ui/retire-illustrative-rename-system-model (c5eab9f; 16/16 e2e; services/api infrastructure restart test fails only under
 load, follow-up AUD-14 to make it load-tolerant). In integration: feature/ct-2c2-sdk (f345ecb in ../Sandbox-integration). Next:
