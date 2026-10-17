@@ -75,6 +75,21 @@ by the ledger being the product's financial source of truth.
 4. The database stores `numeric(20,10)`; aggregation sums in PostgreSQL and returns text.
 5. Unpriced usage is reported as unpriced (`total: null`), never as zero.
 
+## Pricing rules decided with the review
+
+1. A snapshot (`rates_used`) holds the record's rates merged with the file's shared rates (tool and search fees) and the selected
+   modifiers as discounts with the dimensions they apply to; `costFromSnapshot` reproduces the stored cost exactly.
+2. A modifier applies to token dimensions only unless it lists `appliesTo`. A modifier with a `serviceTier` (for example
+   `batchDiscount` with `batch`) is refused when the matched record is already that tier, so a discount is never counted twice.
+3. A negative uncached input (cached plus cache-write tokens above `inputTokens`) is an adapter double count and raises
+   `PricingError`, it is not clamped. A 1 hour cache write with no 1 hour rate is billed at the 5 minute cache-write rate.
+4. A replayed idempotency key with different content raises `idempotency-mismatch` (a content hash is stored); compensating rows
+   also reverse `credits_charged` and `reserved_cost`; aggregation groups by currency.
+5. **Unverified prices in development (coordinator decision):** in `EWS_AI_MODE=development` unverified prices are usable as
+   "unverified estimate" and the development budget is enforced on those estimates. `EWS_AI_ALLOW_UNVERIFIED_PRICING` defaults
+   to 1 in development and 0 in production. Models with no price at all stay unusable with developer keys.
+6. `context_id` (ECII plan Amendment 2) arrives in migration 0004 (increment C), not in 0003.
+
 ## Contribution opportunities
 
 None identified. Nothing is published or submitted upstream.

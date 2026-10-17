@@ -69,10 +69,15 @@ export type ProviderErrorKind = /* existing */ | 'cancelled' | 'content-filtered
   runs never reach the owner's account. `EWS_AI_BILLING_MODE=meter_only` is the only Phase 1 value. **Fail-safe:** if the `started`
   ledger row cannot be written the request is refused (503 `metering-unavailable`); if `completed` fails after retries, a degraded
   flag blocks developer-key calls until a write succeeds.
+- **Unverified prices in development (coordinator decision):** in `EWS_AI_MODE=development` a price with `verified: false` is usable and
+  its cost is shown as an "unverified estimate"; the development budget (`EWS_AI_MONTHLY_DEV_BUDGET_USD`) is enforced on those estimates.
+  A model with no price at all (no record, or a placeholder without rates) stays unusable with developer keys. In production the
+  default is 0: unverified prices are refused unless the variable is set explicitly.
+- **Schema note:** `context_id` (ECII plan Amendment 2) is added in migration 0004 in increment C, not in 0003.
 - **Developer configuration (server only):** `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (alias `GOOGLE_AI_API_KEY`),
   `XAI_API_KEY`, read **only when `EWS_AI_MODE=development` and not in production** (so a key already in a shell is never picked
   up by accident; test environments clear them); `EWS_AI_DEFAULT_OPTIMIZATION`, `EWS_AI_MONTHLY_DEV_BUDGET_USD` (default 25),
-  `EWS_AI_ALLOW_UNVERIFIED_PRICING` (default 0); `EWS_ASSISTANT_FAKE_PROVIDER=1` stays as an alias for mock mode. Validation by
+  `EWS_AI_ALLOW_UNVERIFIED_PRICING` (default 1 in development mode, 0 in production); `EWS_ASSISTANT_FAKE_PROVIDER=1` stays as an alias for mock mode. Validation by
   each provider's model list; an invalid key marks that account invalid without stopping the server. Endpoints
   `GET /developer/status` (providers, last four key characters, validation, models, mode, budget used),
   `POST /developer/providers/:id/validate`, `GET /usage?conversationId=|period=month`.

@@ -21,7 +21,7 @@ Manual only, "capabilities unknown") and `unavailable` (in the registry, not on 
 | Field | Meaning |
 | --- | --- |
 | `inputTokens` | total input including cached and cache-write tokens |
-| `cachedInputTokens`, `cacheWriteTokens` | subsets of input; `cacheWrite1hTokens` is the part written with the 1 hour lifetime |
+| `cachedInputTokens`, `cacheWriteTokens` | subsets of input; `cacheWrite1hTokens` is the part written with the 1 hour lifetime (billed at the 5 minute cache-write rate when no 1 hour rate exists) |
 | `outputTokens` | total output including reasoning |
 | `reasoningTokens` | subset of output |
 | `units` | non-token dimensions, e.g. `{ dimension: 'image', quantity: 2 }` |
