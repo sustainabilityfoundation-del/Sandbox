@@ -16,6 +16,22 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.14.0 (2026-10-16)
+
+Type: additive
+
+What changed (capability-registry.md, Amendment CT-2c, step CT-2c2):
+- `contract/capabilities.ts`: prerequisite `{ kind: 'context', id }` and `AvailabilityContext.contexts`; `CommandMode`; `Placement.splitOf`; `SurfacePlacement` (palette, context set, quick); `MenuNode`, `MenuDef`, `PaletteDef`, `ContextSetDef`, `PanelDef`; `CommandLayout.menus`, `quick`, `palettes`, `contextSets`, `panels`, and `exclusive` on a group (`CommandLayoutTab`, `CommandLayoutGroup` named).
+- `CapabilityEntry.placements`, `mode` and `shortcut`.
+- `contract/tool.ts`: `ToolbarItem` `number` variant, `mode` on button items, `CommandSession` and `ToolRuntime`; `ToolDefinition.runtime?(ctx): ToolRuntime` (react).
+- `contract/layoutChecks.ts` (root entry): `referenceProblems`, `shortcutProblems`, `splitProblems`, `reachabilityProblems`, `surfaceProblems`, `menuReachable`, `defaultMenus`, `normalizeShortcut`, `RESERVED_SHORTCUTS` (Ctrl+K, F1, F10). The workspace runs `surfaceProblems` over every installed manifest in `npm run check`.
+- `@ews/platform-sdk/react`: `buildCommandModel(manifest, entries, items, availCtx, evidenceGaps?, runtime?)` now also projects `menus` (the layout's, or one per tab with its groups as sections and "n of m available" headers), `quick`, `palettes`, `contextSets`, `session` (refused for a planned entry: `sessionRefused`) and `panels`, with a static index per manifest object and entry list (keep both stable between renders) and only states computed per build; ribbon groups get `counts`, `exclusive`, split children and modes. While a session is open every other command is unavailable ("Finish or cancel the current edit"). New exports `EMPTY_COMMAND_MODEL`, `SESSION_OPEN_TEXT`, `EVIDENCE_GAP_TEXT` and the `CommandModel*` types.
+- `@ews/platform-sdk/react`: `CommandModelProvider` (hosts) and the hooks `useCommandModel()`, `usePalette(id?)`, `useContextSet(id)` for tool views (the empty model outside a provider).
+- Harness: `MockHostOptions.manifest` gives the harness registry data; it renders the menu bar, quick bar, ribbon or session strip and panel toggles from the model and provides it to the view. Without a manifest it looks as before.
+Why: professional toolbar structure (main menu, palettes, context sets, edit sessions, panels) from one registry, with planned entries never invokable on any surface.
+Migration for tools: none. Every addition is optional. To adopt: add `placements`, `mode`, `shortcut` and layout `menus`/`palettes`/`contextSets`/`panels` to the manifest; report `runtime` (contexts, session, panels) from the tool; render palettes and context sets in the view with `usePalette` and `useContextSet` and the design system's `ToolPalette` and `ContextCommands`; pass the manifest to `mountHarness`. The shell wiring (menu bar slot, shortcuts, session strip) is CT-2c3.
+Validated with: npm run check; npm run build; npm run build:harnesses.
+
 ## 1.13.0 (2026-10-16)
 
 Type: additive

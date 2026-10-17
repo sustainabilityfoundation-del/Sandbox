@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest'
 import { getTools } from '../platform/registry'
 import { assistantContributions } from './contributions'
 import '../platform/tools'
-import { collect } from '../platform/installedModules'
+import { INSTALLED_MODULES, collect } from '../platform/installedModules'
 import { PLATFORM_CAPABILITIES, PLATFORM_OPERATION_ENTRIES, kindOf, mergeCapabilities, summarize } from './capabilities'
-import { honestyProblems, operationProblems, toolbarProblems } from './capabilityChecks'
+import { honestyProblems, operationProblems, surfaceProblems, toolbarProblems } from './capabilityChecks'
 import { PLATFORM_TOOLS } from './toolSpecs'
 
 function files(dir: string): string[] {
@@ -43,6 +43,25 @@ describe('AI capability inventory', () => {
     const listed = new Set(CAPABILITIES.flatMap((c) => c.apiOperations ?? []))
     expect([...operationIds].filter((id) => !listed.has(id))).toEqual([])
     expect([...listed].filter((id) => !operationIds.has(id))).toEqual([])
+  })
+
+  it('declares consistent command surfaces: references resolve, shortcuts are unique and not reserved, no splitOf cycles, inventory modules reachable from menus', () => {
+    expect(surfaceProblems(INSTALLED_MODULES.map((m) => m.manifest))).toEqual([])
+    // The rules bite: a manifest with a dangling menu reference, a reserved shortcut, a split cycle and an unreachable entry.
+    const entry = (id: string, extra: object = {}) => ({ id, module: 'bad', surface: 'toolbar' as const, label: id, effect: 'view' as const, status: 'implemented' as const, coverage: 'none' as const, ...extra })
+    const bad = {
+      schemaVersion: 1 as const,
+      id: 'bad',
+      name: 'Bad',
+      inventory: 1 as const,
+      commandLayout: { tabs: [{ id: 't', label: 'T', groups: [{ id: 'g', label: 'G' }] }], menus: [{ id: 'm', label: 'M', items: [{ kind: 'group' as const, tab: 't', group: 'nope' }] }] },
+      capabilities: [
+        entry('bad.a', { placement: { tab: 't', group: 'g', order: 1, splitOf: 'bad.b' }, shortcut: 'F1' }),
+        entry('bad.b', { placement: { tab: 't', group: 'g', order: 2, splitOf: 'bad.a' } }),
+      ],
+    }
+    const problems = surfaceProblems([bad])
+    expect(problems).toEqual(expect.arrayContaining([expect.stringMatching(/unknown group "t\/nope"/), expect.stringMatching(/reserved shortcut "F1"/), expect.stringMatching(/splitOf cycle/), expect.stringMatching(/bad\.a is not reachable/)]))
   })
 
   it('is honest: coverage claims name operations, mock features are not "implemented"', () => {

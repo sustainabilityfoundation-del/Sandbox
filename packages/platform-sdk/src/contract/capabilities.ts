@@ -13,6 +13,7 @@
  * Framework-free: no React, Fastify or service imports.
  */
 import type { EngineeringObject, ObjectType } from '@ews/model-service'
+import type { HelpId } from './help'
 import type { CapabilityEntry } from './modules'
 import type { PlatformServices } from './requirements'
 import type { SharedContext } from './tool'
@@ -24,15 +25,86 @@ export type ImplementationState = 'implemented' | 'partial' | 'planned'
 /** A test that proves a capability: repository path of a test file, `::`, and a substring of an `it()` or `test()` title. */
 export type TestRef = `${string}.test.${'ts' | 'tsx'}::${string}`
 
-/** Where commands sit: module, then tab, then group, then command (`Placement`). */
+/**
+ * How a command behaves (SDK 1.14): `action` runs once; `toggle` switches a setting on and off; `tool` arms a tool
+ * that stays armed until it is used or Escape disarms it. The pressed state is the runtime item's `active`.
+ */
+export type CommandMode = 'action' | 'toggle' | 'tool'
+
+/** A group of a ribbon tab. `exclusive`: choose-one toggles (the module keeps exactly one active). */
+export interface CommandLayoutGroup {
+  id: string
+  label: string
+  icon?: IconName
+  exclusive?: boolean
+}
+
+export interface CommandLayoutTab {
+  id: string
+  label: string
+  /** The tab shows only while this holds (for example a tab for the selected object type). */
+  contextual?: Prerequisite
+  groups: CommandLayoutGroup[]
+}
+
+/**
+ * A node of a main menu (SDK 1.14). `group` lists a whole ribbon group (no double declaration), `palette` a palette,
+ * `context` a context set, `command` one entry, `submenu` a nested menu and `panels` the module's panel toggles.
+ */
+export type MenuNode =
+  | { kind: 'group'; tab: string; group: string }
+  | { kind: 'palette'; palette: string }
+  | { kind: 'context'; set: string }
+  | { kind: 'command'; id: string }
+  | { kind: 'submenu'; label: string; mnemonic?: string; items: MenuNode[] }
+  | { kind: 'panels' }
+  | { kind: 'separator' }
+
+/** One menu of the main menu bar. Without `menus`, the host builds one menu per tab with its groups as sections. */
+export interface MenuDef {
+  id: string
+  label: string
+  /** Letter that opens the menu while key tips are shown (F10 or a lone Alt tap). */
+  mnemonic?: string
+  items: MenuNode[]
+}
+
+/** A vertical or floating palette of tool groups, rendered by the tool through `usePalette`. */
+export interface PaletteDef {
+  id: string
+  label: string
+  /** The palette applies only while this holds (for example a `context` prerequisite). */
+  when?: Prerequisite
+  groups: { id: string; label: string; icon?: IconName; collapsed?: boolean }[]
+}
+
+/** Commands for a selection or view: a floating toolbar, a context menu and the Edit menu. All of `when` must hold. */
+export interface ContextSetDef {
+  id: string
+  label: string
+  when: Prerequisite[]
+}
+
+/** A panel the module can open beside, under or over its canvas (declarative hint; docking is the host's). */
+export interface PanelDef {
+  id: string
+  role: 'browser' | 'specification' | 'properties' | 'diagnostics' | 'other'
+  label: string
+  side: 'start' | 'end' | 'bottom'
+  defaultOpen?: boolean
+  helpId?: HelpId
+}
+
+/** Where commands sit: module, then tab, then group, then command (`Placement`); plus menus, palettes, context sets and panels (SDK 1.14). */
 export interface CommandLayout {
-  tabs: {
-    id: string
-    label: string
-    /** The tab shows only while this holds (for example a tab for the selected object type). */
-    contextual?: Prerequisite
-    groups: { id: string; label: string; icon?: IconName }[]
-  }[]
+  tabs: CommandLayoutTab[]
+  /** Main menus. Absent: one menu per tab with its groups as sections. */
+  menus?: MenuDef[]
+  /** The module shows a quick-access segment (entries with a `quick` surface placement). */
+  quick?: true
+  palettes?: PaletteDef[]
+  contextSets?: ContextSetDef[]
+  panels?: PanelDef[]
 }
 
 /** A capability's position in a module's `CommandLayout`. */
@@ -43,7 +115,15 @@ export interface Placement {
   order: number
   /** 'secondary' commands move into a menu on narrow screens. */
   priority?: 'primary' | 'secondary'
+  /** Split button (SDK 1.14): this command opens from the arrow beside the named entry of the same group. Children do not nest. */
+  splitOf?: string
 }
+
+/** A position on a surface other than the ribbon (SDK 1.14): a palette group, a context set or the quick-access segment. */
+export type SurfacePlacement =
+  | { surface: 'palette'; palette: string; group: string; order: number }
+  | { surface: 'context'; set: string; order: number }
+  | { surface: 'quick'; order: number }
 
 /** A condition for a capability to be usable now (evaluated by `availability`). */
 export type Prerequisite =
@@ -54,6 +134,8 @@ export type Prerequisite =
   | { kind: 'selection'; types?: ObjectType[]; min?: number; max?: number }
   /** Supplied by the module at runtime through `AvailabilityContext.moduleState`; `text` is the reason when unmet. */
   | { kind: 'module-state'; id: string; text: string }
+  /** A context the tool reports at runtime (`ToolRuntime.contexts`, `AvailabilityContext.contexts`): 'diagram:general', 'sketch', 'selection:edge'. */
+  | { kind: 'context'; id: string }
 
 export interface Availability {
   available: boolean
@@ -70,6 +152,8 @@ export interface AvailabilityContext {
   connections: { aiAccount: boolean; api: boolean }
   /** Module-reported states by `module-state` prerequisite id. An id the module has not reported counts as met. */
   moduleState?: Record<string, Availability>
+  /** Context IDs the tool reports now (SDK 1.14, `ToolRuntime.contexts`); a `context` prerequisite needs its id listed. */
+  contexts?: string[]
 }
 
 /**
@@ -111,6 +195,8 @@ export function checkPrerequisite(p: Prerequisite, ctx: AvailabilityContext, ent
       const state = ctx.moduleState?.[p.id]
       return !state || state.available ? { available: true } : no(state.reason ?? p.text)
     }
+    case 'context':
+      return ctx.contexts?.includes(p.id) ? { available: true } : no('Not available in the current context')
   }
 }
 

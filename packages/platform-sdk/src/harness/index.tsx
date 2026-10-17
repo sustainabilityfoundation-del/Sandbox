@@ -3,12 +3,15 @@ import {
   Badge,
   Button,
   CommandBar,
+  CommandSessionStrip,
   ComboBox,
   EmptyState,
   LoadingState,
+  MenuBar,
   Notice,
   SegmentedControl,
   Select,
+  ToggleButton,
   Toaster,
 } from '@ews/design-system'
 import { initPreferences, resolvedTheme, usePreferences } from '@ews/design-system/preferences'
@@ -16,7 +19,8 @@ import type { EngineeringObject } from '@ews/model-service'
 import { Component, StrictMode, Suspense, useEffect, useMemo, type ErrorInfo, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useStore } from 'zustand'
-import { buildCommandModel } from '../react/commandModel'
+import { buildCommandModel, type CommandModel } from '../react/commandModel'
+import { CommandModelProvider } from '../react/commandHooks'
 import { SDK_VERSION, isSdkCompatible } from '../contract/version'
 import type { AnyToolDefinition } from '../react/defineTool'
 import { PlatformHostProvider, ToolScope } from '../react/host'
@@ -49,25 +53,61 @@ class ViewBoundary extends Component<{ children: ReactNode }, { error: Error | n
   }
 }
 
-/** The tool's toolbar contribution through the command model and the shared CommandBar (the workspace adds overflow handling). A harness has no registry data, so the bar is flat. */
-function HarnessToolbar({ tool, host }: { tool: AnyToolDefinition; host: MockHost }) {
+/**
+ * The command model of the hosted tool: its `toolbar()` and `runtime()` contributions merged with the module manifest
+ * the harness was given (`MockHostOptions.manifest`). Without a manifest there is no registry data, so the bar is flat
+ * and the other surfaces are empty, as before SDK 1.14.
+ */
+function useHarnessCommandModel(tool: AnyToolDefinition, host: MockHost): CommandModel {
   const state = useStore(host.store)
   const model = state.model!
   const api = host.getToolApi(tool.id, VIEW_ID)
   const context = host.getContext(VIEW_ID)
   const selection = context.selectedIds.map((id) => model.get(id)).filter((o): o is EngineeringObject => !!o)
-  const items = tool.toolbar({ api, viewState: host.getViewState(VIEW_ID, tool.id), context, model, selection })
-  const commandModel = buildCommandModel(undefined, [], items, {
-    context,
-    selection,
-    services: host.getServices(),
-    entitlements: [tool.entitlement],
-    connections: { aiAccount: false, api: false },
-  })
-  return <CommandBar ariaLabel={`${tool.name} toolbar`} tabs={commandModel.tabs} />
+  const ctx = { api, viewState: host.getViewState(VIEW_ID, tool.id), context, model, selection }
+  const items = tool.toolbar(ctx)
+  const runtime = tool.runtime?.(ctx)
+  const manifest = host.manifest
+  return buildCommandModel(
+    manifest,
+    manifest?.capabilities ?? [],
+    items,
+    {
+      context,
+      selection,
+      services: host.getServices(),
+      entitlements: [tool.entitlement],
+      connections: { aiAccount: false, api: false },
+    },
+    undefined,
+    runtime,
+  )
 }
 
-function SidePanel({ host }: { host: MockHost }) {
+/** The host-rendered surfaces: menu bar (when the registry defines menus), then the session strip or the ribbon with its quick segment. */
+function HarnessToolbar({ tool, model }: { tool: AnyToolDefinition; model: CommandModel }) {
+  return (
+    <div className="flex min-w-0 flex-col">
+      {model.menus.length > 0 && (
+        <div className="flex items-center border-b border-line bg-surface px-1">
+          <MenuBar ariaLabel={`${tool.name} menu`} menus={model.menus} />
+        </div>
+      )}
+      {model.session ? (
+        <CommandSessionStrip title={model.session.title} fields={model.session.fields} preview={model.session.preview} onOk={model.session.onOk} okUnavailableReason={model.session.okUnavailableReason} onCancel={model.session.onCancel} />
+      ) : (
+        <CommandBar ariaLabel={`${tool.name} toolbar`} tabs={model.tabs} quick={model.quick.length > 0 ? model.quick : undefined} />
+      )}
+      {model.sessionRefused && (
+        <Notice tone="warning" title="Command session refused">
+          {model.sessionRefused.capabilityId}: {model.sessionRefused.reason}
+        </Notice>
+      )}
+    </div>
+  )
+}
+
+function SidePanel({ host, model: commandModel }: { host: MockHost; model: CommandModel }) {
   const state = useStore(host.store)
   const model = state.model!
   const selected = state.context.selectedIds.map((id) => model.get(id)).filter((o): o is EngineeringObject => !!o)
@@ -104,6 +144,18 @@ function SidePanel({ host }: { host: MockHost }) {
           </div>
         )}
       </section>
+      {commandModel.panels.length > 0 && (
+        <section>
+          <h2 className="m-0 mb-2 text-ui-xs font-medium text-fg-3">Panels</h2>
+          <div className="flex flex-wrap gap-1">
+            {commandModel.panels.map((p) => (
+              <ToggleButton key={p.id} size="sm" isSelected={p.open} isDisabled={!p.toggle} onChange={() => p.toggle?.()}>
+                {p.label}
+              </ToggleButton>
+            ))}
+          </div>
+        </section>
+      )}
       {state.openRequests.length > 0 && (
         <Notice tone="info" title="Open tool requested">
           The harness hosts one tool. Requested: {state.openRequests.join(', ')}.
@@ -135,8 +187,14 @@ function Harness({ tool, host }: { tool: AnyToolDefinition; host: MockHost }) {
 
   if (state.status === 'loading') return <LoadingState label="Loading sample data…" />
   if (state.status === 'error' || !state.model) return <Notice tone="danger" title="Could not load sample data">{state.error}</Notice>
+  return <ReadyHarness tool={tool} host={host} compatible={compatible} objects={objects} theme={theme} />
+}
+
+function ReadyHarness({ tool, host, compatible, objects, theme }: { tool: AnyToolDefinition; host: MockHost; compatible: boolean; objects: readonly EngineeringObject[]; theme: ReturnType<typeof usePreferences.getState>['theme'] }) {
+  const state = useStore(host.store)
+  const commandModel = useHarnessCommandModel(tool, host)
   const View = tool.view
-  const snapshot = state.model.snapshot
+  const snapshot = state.model!.snapshot
 
   return (
     <div className="grid h-dvh grid-rows-[auto_auto_auto_minmax(0,1fr)] bg-bg text-fg">
@@ -177,16 +235,18 @@ function Harness({ tool, host }: { tool: AnyToolDefinition; host: MockHost }) {
           Clear selection
         </Button>
       </div>
-      {compatible ? <HarnessToolbar tool={tool} host={host} /> : <div />}
+      {compatible ? <HarnessToolbar tool={tool} model={commandModel} /> : <div />}
       <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_300px] max-md:grid-cols-1">
         <main className="ws-tool-host flex min-h-0 flex-col overflow-hidden bg-surface-2">
           {compatible ? (
             <ToolScope toolId={tool.id} viewId={VIEW_ID} active>
-              <ViewBoundary>
-                <Suspense fallback={<LoadingState label={`Loading ${tool.name}…`} />}>
-                  <View />
-                </Suspense>
-              </ViewBoundary>
+              <CommandModelProvider model={commandModel}>
+                <ViewBoundary>
+                  <Suspense fallback={<LoadingState label={`Loading ${tool.name}…`} />}>
+                    <View />
+                  </Suspense>
+                </ViewBoundary>
+              </CommandModelProvider>
             </ToolScope>
           ) : (
             <EmptyState icon="error" title="Incompatible SDK version">
@@ -194,7 +254,7 @@ function Harness({ tool, host }: { tool: AnyToolDefinition; host: MockHost }) {
             </EmptyState>
           )}
         </main>
-        <SidePanel host={host} />
+        <SidePanel host={host} model={commandModel} />
       </div>
       <Toaster />
     </div>
