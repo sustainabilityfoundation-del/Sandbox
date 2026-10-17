@@ -37,7 +37,7 @@ export function testDbUrl(name: string): string {
 }
 
 /** A fresh database (migrated, optionally seeded) and an API server on it. */
-export async function createTestEnv(opts: { seed?: boolean; production?: boolean; twin?: TwinDirectory } = {}): Promise<TestEnv> {
+export async function createTestEnv(opts: { seed?: boolean; production?: boolean; twin?: TwinDirectory; env?: NodeJS.ProcessEnv; readyCacheMs?: number } = {}): Promise<TestEnv> {
   const name = `ews_test_${randomBytes(5).toString('hex')}`
   const admin = inject('pgAdminUrl')
   await ensureDatabase(admin, name)
@@ -45,7 +45,7 @@ export async function createTestEnv(opts: { seed?: boolean; production?: boolean
   const pool = new pg.Pool({ connectionString: url, max: 15 })
   await prepareDatabase(pool, { seed: opts.seed ?? true })
   const storage = memoryObjectStorage()
-  const server = await buildServer({ pool, storage, production: opts.production ?? false, eventPollMs: 200, reqifSchemaDir: REQIF_SCHEMAS, twin: opts.twin })
+  const server = await buildServer({ pool, storage, production: opts.production ?? false, eventPollMs: 200, reqifSchemaDir: REQIF_SCHEMAS, twin: opts.twin, env: opts.env ?? {}, readyCacheMs: opts.readyCacheMs ?? 0 })
   let listening = false
   return {
     name,

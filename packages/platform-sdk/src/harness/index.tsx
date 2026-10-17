@@ -131,6 +131,15 @@ function SidePanel({ host, model: commandModel }: { host: MockHost; model: Comma
           </ul>
         )}
       </section>
+      {state.inspectorSubject && (
+        <section aria-label="Inspector record">
+          <h2 className="m-0 mb-2 text-ui-xs font-medium text-fg-3">Inspector record (mock host)</h2>
+          <div>
+            <span className="font-mono">{state.inspectorSubject.key}</span> {state.inspectorSubject.title}
+            <span className="text-fg-3"> · {state.inspectorSubject.kind}</span>
+          </div>
+        </section>
+      )}
       <section>
         <h2 className="m-0 mb-2 text-ui-xs font-medium text-fg-3">Registered commands</h2>
         {commands.length === 0 ? (

@@ -7,7 +7,12 @@ import { DEVELOPER_PROVIDERS, type AiMode, type AiRuntimeConfig, type RoutingDef
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
 export interface ApiConfig {
+  /** Deployed: NODE_ENV=production or EWS_DEPLOYED=1. Deployed instances behave as production (no fake providers, no seeding by default, no embedded database). */
   production: boolean
+  /** X-Dev-User accepted: always outside a deployment; in a deployment only with EWS_ALLOW_DEV_IDENTITIES=1 (prototype behind an access gate). */
+  allowDevIdentities: boolean
+  /** Public origin of the site as seen by people (EWS_PUBLIC_ORIGIN, e.g. https://example.org); undefined means derived from API_HOST:API_PORT. */
+  publicOrigin?: string
   host: string
   port: number
   /** 'embedded': start a real PostgreSQL from npm (embedded-postgres); 'external': connect to DATABASE_URL (Docker Compose or a server). */
@@ -27,9 +32,40 @@ export function loadEnvFile() {
   if (existsSync(file)) process.loadEnvFile(file)
 }
 
+/** True when the process is a deployment: NODE_ENV=production or EWS_DEPLOYED=1. */
+export function isDeployed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.NODE_ENV === 'production' || env.EWS_DEPLOYED === '1'
+}
+
+/** True when the X-Dev-User header may be accepted: outside a deployment always; in a deployment only with EWS_ALLOW_DEV_IDENTITIES=1. */
+export function devIdentitiesAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return !isDeployed(env) || env.EWS_ALLOW_DEV_IDENTITIES === '1'
+}
+
 export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
-  const production = env.NODE_ENV === 'production'
+  const production = isDeployed(env)
   const pgMode = (env.EWS_PG ?? 'embedded') === 'external' ? 'external' : 'embedded'
+  if (production) {
+    // A deployed process must never start a throw-away database or fall back to the local development one.
+    if (pgMode !== 'external') {
+      throw new Error('Refusing to start deployed (NODE_ENV=production or EWS_DEPLOYED=1) with the embedded database: set EWS_PG=external and DATABASE_URL to a managed PostgreSQL. The embedded database is for local development only and would lose all data on restart.')
+    }
+    if (!(env.DATABASE_URL ?? '').trim()) {
+      throw new Error('Refusing to start deployed (NODE_ENV=production or EWS_DEPLOYED=1) without DATABASE_URL: the local development fallback is not used in a deployment.')
+    }
+  }
+  let publicOrigin: string | undefined
+  const rawOrigin = (env.EWS_PUBLIC_ORIGIN ?? '').trim()
+  if (rawOrigin) {
+    let u: URL | undefined
+    try {
+      u = new URL(rawOrigin)
+    } catch {
+      u = undefined
+    }
+    if (!u || (u.protocol !== 'http:' && u.protocol !== 'https:')) throw new Error('EWS_PUBLIC_ORIGIN must be an http(s) origin such as https://example.org.')
+    publicOrigin = u.origin
+  }
   const embedded = {
     port: Number(env.EMBEDDED_PG_PORT ?? 54329),
     dataDir: resolve(REPO_ROOT, env.EMBEDDED_PG_DIR ?? '.data/pg'),
@@ -43,6 +79,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       : `postgres://${encodeURIComponent(embedded.user)}:${encodeURIComponent(embedded.password)}@127.0.0.1:${embedded.port}/${databaseName}`
   return {
     production,
+    allowDevIdentities: devIdentitiesAllowed(env),
+    publicOrigin,
     host: env.API_HOST ?? '127.0.0.1',
     port: Number(env.API_PORT ?? 8787),
     pgMode,
@@ -66,7 +104,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
  *   `EWS_AI_ALLOW_UNVERIFIED_PRICING` (default 1 in development, 0 in production).
  * Keys are returned inside the config and must never be logged or serialised; `warnings` never contain a key.
  */
-export function readAiConfig(env: NodeJS.ProcessEnv = process.env, production = env.NODE_ENV === 'production'): { config: AiRuntimeConfig; warnings: string[] } {
+export function readAiConfig(env: NodeJS.ProcessEnv = process.env, production = isDeployed(env)): { config: AiRuntimeConfig; warnings: string[] } {
   const warnings: string[] = []
   const requested = (env.EWS_AI_MODE ?? '').trim().toLowerCase()
   const fakeAlias = env.EWS_ASSISTANT_FAKE_PROVIDER === '1'

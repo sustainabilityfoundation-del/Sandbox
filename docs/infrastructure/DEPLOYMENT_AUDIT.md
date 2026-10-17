@@ -331,3 +331,19 @@ CAD and Projects still need the API.
 | C10 | CI stability (Requirements DB suite on CI, CommandSurfaces browser test) so a green CI can gate deployment; update actions to Node 24 majors before forced removal. | repo | module owners / coordinator |
 
 No change in this list deletes or rewrites data. The only data at risk today is whatever an existing deployment holds, which this audit could not see (see AWS_ARCHITECTURE.md §10).
+
+## 7. Phase 2 platform readiness (implemented on `infra/aws-platform-readiness`)
+
+Small, non-destructive code changes in `services/api`; local development, the e2e stacks and the tests behave as before. No AWS call, no IaC, no workflow change.
+
+| Change | What now happens | Where |
+| --- | --- | --- |
+| C3 deployed guard | `NODE_ENV=production` **or** `EWS_DEPLOYED=1` makes the process "deployed". Deployed with `EWS_PG` not `external`, or without `DATABASE_URL`, the server (and `db:*` commands) stop at start-up with a clear error. Deployed also means: no seeding by default, AI mode `user`, no fake providers (the existing production behaviour). | `src/config.ts` (`isDeployed`, `readConfig`), `src/main.ts` |
+| C4 one migration command | `npm run db:migrate` applies all nine schemas with each module's own runner (`schema_migrations`, SHA-256 checksums, per-schema advisory lock), in the order platform, requirements, conceptualize, projects, settings, assistant, visualization, sysml, cad. Idempotent; exit 1 on the first failure or an unreachable database. `npm run db:migrate -- --check` reads only: per schema applied/expected, pending files, checksum drift and versions unknown to the image; exit 1 unless clean. Deployed, it never creates the database (the bootstrap step does). No existing migration or runner was changed. | `src/migrations.ts`, `scripts/db.ts` |
+| Health and readiness | `GET /health`: liveness, no database access. `GET /ready` (also `/api/ready`): 200 only when the database answers and no migration is pending or drifted; otherwise 503 with counts only. `GET /api/health` is unchanged (database reachable). Use `/health` for the container check and `/ready` for the load balancer target; the edge routes only `/api/*`, so `/api/ready` is the reachable form. | `src/server.ts` |
+| C7 public origin | `EWS_PUBLIC_ORIGIN` (http(s) origin) overrides the assistant's public origin behind a proxy. **No CORS setting was added**: the workspace uses same-origin `/api/*` (§1.6), so CORS is not needed while the edge routes `/api/*` to the backend. If the owner chooses a separate API domain (decision D4), a CORS allow-list becomes a new change. | `src/config.ts`, `src/main.ts` |
+| C5 guard (not sign-in) | A deployed instance refuses `X-Dev-User` (and the `dev-users` route) **unless `EWS_ALLOW_DEV_IDENTITIES=1`**, which also logs a security warning at start-up. Sign-in (OIDC) is **not built**; that is owner decision D3. Without the flag, a deployed instance answers 401 to every request, as before. With it, anyone who can reach the instance can act as any seeded user, so it needs an edge access gate and `SEED_ON_START` behaviour must be chosen deliberately (seeded users must exist for the header to work). | `src/config.ts`, `src/platform/identity.ts`, `src/server.ts` |
+
+Also: deployed start-up checks only the target database and never runs `CREATE DATABASE` (`prepareExternal`); `db:seed` refuses a deployed database unless `EWS_ALLOW_SEED_DEPLOYED=1`; `/ready` answers are reused for 5 seconds; `readAiConfig` follows `EWS_DEPLOYED`.
+
+Tests: `src/deployment.test.ts` (every switch, no database), `test/migrations.test.ts` (fresh database migrated twice, `--check` clean, pending and drift reported without applying, command exit codes, `/health`, `/ready`, deployed identity refusal).

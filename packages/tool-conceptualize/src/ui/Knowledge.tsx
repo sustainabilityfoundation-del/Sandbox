@@ -3,8 +3,8 @@ import { useToolViewState } from '@ews/platform-sdk/react'
 import type { AnyRef, Assumption, CalculationModel, AssumptionStatus, Basis, Concept, ConstraintStatus, Decision, DesignConstraint, DesignEntityType, DesignFunction, DesignRef, Evidence, Graph, GraphNode } from '@ews/conceptualize-client'
 import { useState, type ReactNode } from 'react'
 import { useModuleData, useResource } from '../data'
-import { BASIS, formatDate, formatQuantity, type ConceptualizeViewState, type DesignRecordType } from '../domain'
-import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, Section } from './common'
+import { BASIS, boundText, formatDate, formatQuantity, type ConceptualizeViewState, type DesignRecordType } from '../domain'
+import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, RefLabel, Section } from './common'
 import { CalculationDetail, CalculationEvidence } from './Calculations'
 
 /**
@@ -62,25 +62,18 @@ export function RefButton({ target, label }: { target: AnyRef; label: ReactNode 
   return <span>{label}</span>
 }
 
-export function boundText(c: Pick<DesignConstraint, 'bound'>): string {
-  if (!c.bound) return ''
-  const q = c.bound.quantity
-  const v = c.bound.operator === 'in-range' ? formatQuantity(q) : formatQuantity({ unit: q.unit, value: q.value ?? (c.bound.operator.startsWith('<') ? q.max : q.min) ?? null })
-  return `${c.bound.symbol ? `${c.bound.symbol} ` : ''}${c.bound.operator === 'in-range' ? 'in' : c.bound.operator} ${v}`
-}
-
 // ---- Explorer lists -----------------------------------------------------------------------------------------
 
 export function RecordList({ type }: { type: DesignRecordType }) {
   const { client } = useModuleData()
   const [state, setState] = useToolViewState<ConceptualizeViewState>()
   const text = state.search.trim() || undefined
-  const data = useResource<{ id: string; key: string; label: string; status: string; tone: 'neutral' | 'warning' | 'success' | 'danger' | 'info'; basis?: Basis; ai: boolean }[]>(
+  const data = useResource<{ id: string; key: string; label: string; bound?: string; status: string; tone: 'neutral' | 'warning' | 'success' | 'danger' | 'info'; basis?: Basis; ai: boolean }[]>(
     async () => {
       if (type === 'function') return (await client.functions({ text })).map((f) => ({ id: f.id, key: f.key, label: f.name, status: f.status, tone: f.status === 'active' ? 'success' : 'neutral', ai: f.provenance.sourceKind === 'assistant' }))
       if (type === 'calculation') return (await client.calculationModels({ text })).map((m) => ({ id: m.id, key: m.key, label: m.name, status: m.validationStatus, tone: m.validationStatus === 'validated' ? 'success' : m.validationStatus === 'deprecated' ? 'neutral' : 'warning', basis: m.basis, ai: m.provenance.sourceKind === 'assistant' }))
-      if (type === 'constraint') return (await client.constraints({ text })).map((c) => ({ id: c.id, key: c.key, label: `${c.statement}${c.bound ? ` (${boundText(c)})` : ''}`, status: c.status, tone: CONSTRAINT_TONE[c.status], basis: c.basis, ai: c.provenance.sourceKind === 'assistant' }))
-      return (await client.assumptions({ text })).map((a) => ({ id: a.id, key: a.key, label: `${a.statement}${a.quantity ? ` ${formatQuantity(a.quantity)}` : ''}`, status: a.validationStatus, tone: VALIDATION_TONE[a.validationStatus], basis: a.basis, ai: a.provenance.sourceKind === 'assistant' }))
+      if (type === 'constraint') return (await client.constraints({ text })).map((c) => ({ id: c.id, key: c.key, label: c.statement, bound: boundText(c), status: c.status, tone: CONSTRAINT_TONE[c.status], basis: c.basis, ai: c.provenance.sourceKind === 'assistant' }))
+      return (await client.assumptions({ text })).map((a) => ({ id: a.id, key: a.key, label: a.statement, bound: a.quantity ? formatQuantity(a.quantity) : undefined, status: a.validationStatus, tone: VALIDATION_TONE[a.validationStatus], basis: a.basis, ai: a.provenance.sourceKind === 'assistant' }))
     },
     [client, type, text],
   )
@@ -96,9 +89,14 @@ export function RecordList({ type }: { type: DesignRecordType }) {
     <ul className="con-results" aria-label={`${TYPE_LABEL[type]}s`} data-help-id={`conceptualize.knowledge.${type}s`}>
       {data.data.map((r) => (
         <li key={r.id} className={state.record?.id === r.id ? 'is-open' : undefined}>
-          <Button size="sm" variant="quiet" className="con-tree-label" onPress={() => setState({ record: { type, id: r.id }, conceptId: null })}>
-            <span className="con-key">{r.key}</span> {r.label.length > 80 ? `${r.label.slice(0, 79)}…` : r.label}
+          <Button size="sm" variant="quiet" className="con-tree-label con-record-label" data-record-key={r.key} onPress={() => setState({ record: { type, id: r.id }, conceptId: null })}>
+            <span className="con-key">{r.key}</span> {r.label}
           </Button>
+          {r.bound && (
+            <span className="con-bound font-mono" data-testid="record-bound" data-help-id={`conceptualize.knowledge.${type}.bound`}>
+              {r.bound}
+            </span>
+          )}
           <span className="con-tree-badges">
             <Badge tone={r.tone}>{r.status}</Badge>
             {r.basis && <BasisBadge basis={r.basis} />}
@@ -162,7 +160,7 @@ export function DesignLinksSection({ subject }: { subject: DesignRef }) {
   const linkType = new Map((types.data ?? []).map((t) => [t.name, t]))
   const revisions = new Map((stored.data ?? []).map((l) => [l.id, l.revision]))
   const edges = (nb.data?.edges ?? []).filter((e) => e.from.id === subject.id || e.to.id === subject.id)
-  const label = (n: GraphNode | undefined, r: AnyRef) => (n ? `${n.key} ${n.label}` : `${r.module} ${r.id.slice(0, 8)}`)
+  const label = (n: GraphNode | undefined, r: AnyRef) => (n ? `${n.key} ${n.label}` : `${r.module} record (unresolved)`)
   const addable = (types.data ?? []).filter((t) => t.stored === 'design-links' && t.fromTypes.includes(subject.type))
   const chosen = type ? linkType.get(type) : undefined
   const targets = (candidates.data?.items ?? []).filter((i) => i.ref.id !== subject.id && (!chosen || chosen.toTypes.includes(i.ref.type)))
@@ -417,7 +415,7 @@ function ConstraintDetail({ c }: { c: DesignConstraint }) {
         )}
         {c.source.kind === 'derived' && (
           <p>
-            Derived from <RefButton target={c.source.from} label={`${TYPE_LABEL[c.source.from.type] ?? c.source.from.type} ${c.source.from.id.slice(0, 8)}`} />
+            Derived from <RefButton target={c.source.from} label={<RefLabel type={c.source.from.type} id={c.source.from.id} />} />
           </p>
         )}
         {c.source.kind === 'stated' && <p className="con-muted">Stated by {c.createdBy}; the basis label says how it is known.</p>}
@@ -431,7 +429,7 @@ function ConstraintDetail({ c }: { c: DesignConstraint }) {
         <ul className="con-rel-list">
           {c.subjects.map((s) => (
             <li key={s.id}>
-              <RefButton target={s} label={`${TYPE_LABEL[s.type]} ${s.id.slice(0, 8)}`} />
+              <RefButton target={s} label={<RefLabel type={s.type} id={s.id} />} />
             </li>
           ))}
           {!c.subjects.length && <li className="con-muted">No subject.</li>}
@@ -485,7 +483,7 @@ function AssumptionDetail({ a }: { a: Assumption }) {
         <ul className="con-rel-list">
           {a.scope.subjects.map((s) => (
             <li key={s.id}>
-              <RefButton target={s} label={`${TYPE_LABEL[s.type]} ${s.id.slice(0, 8)}`} />
+              <RefButton target={s} label={<RefLabel type={s.type} id={s.id} />} />
             </li>
           ))}
           {!a.scope.subjects.length && <li className="con-muted">Project-wide.</li>}
@@ -609,7 +607,7 @@ function ConvertToFunction({ concept, graph }: { concept: Concept; graph: Graph 
               Creates a Function “{concept.name}” derived from {concept.key} revision {concept.revision}.
             </li>
             <li>Copies {copied.length} statement(s) (function, behaviour, performance, constraint); quantified ones become objectives with their basis.</li>
-            <li>{implementers.length ? `Re-expresses ${implementers.length} “implements” relationship(s) as “performs”: ${implementers.map((e) => names.get(e.fromId) ?? e.fromId.slice(0, 8)).join(', ')}.` : 'There are no implementing Concepts to re-express.'}</li>
+            <li>{implementers.length ? `Re-expresses ${implementers.length} “implements” relationship(s) as “performs”: ${implementers.map((e) => names.get(e.fromId) ?? "Concept (unresolved)").join(', ')}.` : 'There are no implementing Concepts to re-express.'}</li>
             <li>Keeps the Concept, its relationships and its history unchanged.</li>
           </ul>
         </Notice>

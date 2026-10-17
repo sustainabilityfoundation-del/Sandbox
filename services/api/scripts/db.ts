@@ -4,6 +4,7 @@ import pg from 'pg'
 import { loadEnvFile, readConfig, isResettable, REPO_ROOT } from '../src/config'
 import { adminUrlOf, canConnect, ensureDatabase, resetDatabase, startEmbedded } from '../src/database'
 import { prepareDatabase } from '../src/server'
+import { checkMigrations, migrateAll } from '../src/migrations'
 
 loadEnvFile()
 const cfg = readConfig()
@@ -52,14 +53,35 @@ async function main() {
       await new Promise(() => undefined)
       return
     }
-    case 'migrate':
+    case 'migrate': {
+      // All nine schemas with the modules' own runners (src/migrations.ts). `--check` is read-only: it reports pending
+      // migrations and checksum drift and exits 1 if there are any (or if the database cannot be reached).
+      const check = process.argv.includes('--check')
+      const run = async (pool: pg.Pool) => {
+        if (check) {
+          const status = await checkMigrations(pool)
+          for (const s of status.schemas) console.log(`${s.schema}: ${s.applied}/${s.expected} applied${s.pending.length ? `; pending ${s.pending.join(', ')}` : ''}${s.drift.length ? `; CHECKSUM DRIFT ${s.drift.join(', ')}` : ''}${s.unknown.length ? `; unknown to this image ${s.unknown.join(', ')}` : ''}`)
+          console.log(status.current ? 'Migrations are current.' : `Migrations are NOT current: ${status.pending} pending, ${status.drift} with checksum drift.`)
+          if (!status.current) process.exitCode = 1
+          return
+        }
+        for (const r of await migrateAll(pool)) console.log(`${r.schema}: applied ${r.applied.join(', ') || 'nothing'} (${r.alreadyApplied.length} already applied)`)
+      }
+      if (cfg.production) {
+        // Deployed: the database and its role are created by the bootstrap step (DATABASE_DEPLOYMENT.md), never here.
+        await withPool(run)
+        return
+      }
       await withServer(async (adminUrl) => {
-        await ensureDatabase(adminUrl, cfg.databaseName)
-        const r = await withPool((pool) => prepareDatabase(pool, { seed: false }))
-        console.log(`platform: applied ${r.platform.applied.join(', ') || 'nothing'}; requirements: applied ${r.requirements.applied.join(', ') || 'nothing'}`)
+        if (!check) await ensureDatabase(adminUrl, cfg.databaseName)
+        await withPool(run)
       })
       return
+    }
     case 'seed':
+      if (cfg.production && process.env.EWS_ALLOW_SEED_DEPLOYED !== '1') {
+        throw new Error('Refusing to seed a deployed database (development users and sample projects). Set EWS_ALLOW_SEED_DEPLOYED=1 only if you really mean it.')
+      }
       await withServer(async (adminUrl) => {
         await ensureDatabase(adminUrl, cfg.databaseName)
         const r = await withPool((pool) => prepareDatabase(pool, { seed: true }))

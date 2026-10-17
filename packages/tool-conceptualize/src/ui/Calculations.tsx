@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { checkStatusLabel, limitsText, rangeLabel, sampledWithinLabel, STATUS_TONE } from '../calcLabels'
 import { useModuleData, useResource } from '../data'
 import { BASIS, formatDate, formatQuantity, type ConceptualizeViewState } from '../domain'
-import { ApiErrorNotice, BasisBadge, ProvenanceBadge, Section } from './common'
+import { ApiErrorNotice, BasisBadge, ProvenanceBadge, RefLabel, Section } from './common'
 
 /**
  * Calculation models (CR-C8) in the inspector: definition, validation, read-only evaluation and recording a
@@ -206,7 +206,7 @@ export function CalculationDetail({ m }: { m: CalculationModel }) {
             <li key={p.symbol}>
               <code>{p.symbol}</code> {p.name} <Badge tone="neutral">{p.role}</Badge> <span className="con-muted">{p.unit}</span>
               {p.value !== undefined && <span className="con-muted">= {formatQuantity({ value: p.value, unit: p.unit })}</span>}
-              {p.defaultBinding && <span className="con-muted">bound to {p.defaultBinding.ref.module === 'conceptualize' ? `${(p.defaultBinding.ref as { type: string }).type} ${p.defaultBinding.ref.id.slice(0, 8)}` : p.defaultBinding.ref.id} ({p.defaultBinding.property})</span>}
+              {p.defaultBinding && <span className="con-muted">bound to {p.defaultBinding.ref.module === 'conceptualize' ? <RefLabel type={(p.defaultBinding.ref as { type: string }).type} id={p.defaultBinding.ref.id} /> : `${p.defaultBinding.ref.module} record (unresolved)`} ({p.defaultBinding.property})</span>}
             </li>
           ))}
         </ul>
