@@ -131,6 +131,9 @@ ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only
 - ECII-2 review fixes committed (5b404df). AUD-8 committed (312a95a: optional Origin column from the stored
   `origin`; D1 allocates REQ-001 and REQ-002). Ready for integration, in order: df241fb, 4f53300, 5b404df, 312a95a. A dry-run
   `git merge-tree` of all four stacked on main is clean. Still blocked: the owner has not yet added the git merge/push allow rules.
+- Owner added the git merge/push allow rules (user `settings.local.json`; each git command must run alone to match). Main pushed.
+  The four branches merged as one octopus commit `integrate/next` 21488e9 (no conflicts); full integration run in progress.
+  CE-0 (ADRs 0085-0087, SDK 1.15 types) started on `feature/ce-0-context-contracts` (Opus, light checks only during the run).
 - Owner's main checkout lacks `@salusoft89/planegcs` (added by C1): run `npm install` before restarting `npm run dev`.
 
 ## Integration queue update (17 October 2026, about 02:15 EDT)
