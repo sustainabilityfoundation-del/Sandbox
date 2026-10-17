@@ -129,7 +129,7 @@ describe('AI policy from the installed manifests', () => {
 
   it('takes Conceptualize from its manifest (no legacy entry): same module, prefix, entitlement and operation classes as before', () => {
     expect(aiModules.filter((m) => m.id === 'conceptualize')).toEqual([{ id: 'conceptualize', label: 'Conceptualize', description: 'Concepts, alternatives, trade studies and decisions.', entitlement: 'tool:conceptualize', prefixes: ['conceptualize.'] }])
-    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('conceptualize.'))).toHaveLength(34)
+    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('conceptualize.'))).toHaveLength(37)
     expect(policy.classify('conceptualize.compare')).toMatchObject({ operationClass: 'calculate', module: { id: 'conceptualize' } })
     expect(policy.classify('conceptualize.request_illustration')?.operationClass).toBe('external-generation')
     expect(policy.classify('conceptualize.read_visuals')?.operationClass).toBe('read')

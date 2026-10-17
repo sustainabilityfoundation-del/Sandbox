@@ -62,7 +62,7 @@ describe('migration 0002 on old data (ADR-0009)', () => {
     const before = (await pool.query(`SELECT * FROM conceptualize.concept_statements ORDER BY revision, ordinal`)).rows
     const evidenceBefore = (await pool.query(`SELECT * FROM conceptualize.evidence`)).rows
     const result = await migrateConcepts(pool)
-    expect(result.applied).toEqual(['0002_design_knowledge.sql', '0003_r1_link_vocabulary.sql', '0004_pm_artifact_modules.sql', '0005_evidence_results.sql', '0006_calculation_models.sql', '0007_visual_concepts.sql'])
+    expect(result.applied).toEqual(['0002_design_knowledge.sql', '0003_r1_link_vocabulary.sql', '0004_pm_artifact_modules.sql', '0005_evidence_results.sql', '0006_calculation_models.sql', '0007_visual_concepts.sql', '0008_engineering_intent.sql'])
     expect((await pool.query(`SELECT * FROM conceptualize.concept_statements ORDER BY revision, ordinal`)).rows).toEqual(before)
     expect((await pool.query(`SELECT * FROM conceptualize.evidence`)).rows.map((r) => ({ ...r, applicability: undefined, manifest: undefined, source: undefined, assumption_ids: undefined, tool: undefined, results: undefined, calculation: undefined, qualifications: undefined }))).toEqual(evidenceBefore.map((r) => ({ ...r, applicability: undefined, manifest: undefined, source: undefined, assumption_ids: undefined, tool: undefined, results: undefined, calculation: undefined, qualifications: undefined })))
     expect((await migrateConcepts(pool)).applied).toEqual([])
@@ -129,7 +129,7 @@ describe('migration 0003 on data in the 0002 format (R1 link vocabulary)', () =>
 
   it('adds propagation and artifact modules, widens built-in endpoints and leaves user-registered types unchanged', async () => {
     const before = (await pool3.query(`SELECT name, label, inverse, from_types, to_types, description, created_by FROM conceptualize.link_types WHERE NOT builtin`)).rows
-    expect((await migrateConcepts(pool3)).applied).toEqual(['0003_r1_link_vocabulary.sql', '0004_pm_artifact_modules.sql', '0005_evidence_results.sql', '0006_calculation_models.sql', '0007_visual_concepts.sql'])
+    expect((await migrateConcepts(pool3)).applied).toEqual(['0003_r1_link_vocabulary.sql', '0004_pm_artifact_modules.sql', '0005_evidence_results.sql', '0006_calculation_models.sql', '0007_visual_concepts.sql', '0008_engineering_intent.sql'])
     const custom = (await pool3.query(`SELECT name, label, inverse, from_types, to_types, description, created_by, propagation, artifact_modules FROM conceptualize.link_types WHERE NOT builtin`)).rows
     expect(custom).toEqual(before.map((r) => ({ ...r, propagation: 'to-from', artifact_modules: null })))
     const builtin = Object.fromEntries((await pool3.query(`SELECT name, propagation, artifact_modules, from_types FROM conceptualize.link_types WHERE builtin`)).rows.map((r) => [r.name, r]))

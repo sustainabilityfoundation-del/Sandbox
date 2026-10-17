@@ -4,6 +4,7 @@ import type { ArtifactModule } from '@ews/platform-sdk'
 import { registeredReferencePorts } from './references'
 import { designActions, designDemo } from './assistantDesign'
 import { visualActions } from './assistantVisual'
+import { intentActions } from './assistantIntent'
 import { assistantProvenance, connection, constraintBindingRef, optString, proposal, resolve, string, UUID } from './assistantShared'
 import { generateExploration } from './ai/generator'
 import { demoAlternativesArguments, developAlternatives, modelStatements, statementsSchema } from './assistantAlternatives'
@@ -413,6 +414,6 @@ export const conceptsDemo: DemoPlanner = (text, ctx) => {
   return null
 }
 
-const actions: AssistantActionDefinition[] = [...conceptActions, ...designActions, ...visualActions]
+const actions: AssistantActionDefinition[] = [...conceptActions, ...designActions, ...visualActions, ...intentActions]
 
 export const conceptsAssistant: AssistantContribution = { actions, demo: conceptsDemo }

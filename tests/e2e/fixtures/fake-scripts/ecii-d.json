@@ -1,0 +1,50 @@
+{
+  "id": "ecii-d",
+  "description": "Recorded tool-call script for ECII Test D (a standalone design object), replayed by the FAKE provider. It proves the structure only: a standalone intent has no system gaps and no research items, so nothing is asked and nothing is researched. It is not a model run and says nothing about reasoning quality. Domain words appear here as fixture values only.",
+  "turns": [
+    {
+      "user": "^Design a freestanding drill-bit organizer for my workbench",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.interpret_intent",
+              "arguments": {
+                "designObject": "Freestanding drill-bit organizer",
+                "role": "standalone",
+                "integration": "standalone",
+                "rationale": "The organizer stands on its own on a surface and does not attach to or exchange anything with another system.",
+                "objectives": [
+                  "Keep drill bits sorted and visible on a workbench"
+                ],
+                "environment": [
+                  "Indoor workbench"
+                ],
+                "reason": "ECII Test D: interpret the intent before designing"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I interpreted this as a standalone design object: it does not integrate with another system. Apply the intent to record it."
+        }
+      ]
+    },
+    {
+      "user": "^ECII D gaps",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.identify_gaps",
+              "arguments": {}
+            }
+          ]
+        },
+        {
+          "final": "Gaps: ${conceptualize.identify_gaps.data.counts.essential} essential, ${conceptualize.identify_gaps.data.counts.concept} concept. No system gaps and nothing to research, so I will continue without asking."
+        }
+      ]
+    }
+  ]
+}
