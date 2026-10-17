@@ -168,7 +168,7 @@ function About({ modules }: { modules: HelpModuleInfo[] }) {
           </thead>
           <tbody>
             {modules.map((m) => (
-              <tr key={m.moduleId}>
+              <tr key={m.moduleId} data-help-module={m.moduleId}>
                 <td>{m.displayName}</td>
                 <td>{m.moduleVersion}</td>
                 <td>{m.topicCount ? `${m.topicCount} topics for ${m.docsVersion}${m.versionMismatch ? ' (older version)' : ''}` : 'Not available yet'}</td>

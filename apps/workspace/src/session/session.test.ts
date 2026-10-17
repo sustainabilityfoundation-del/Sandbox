@@ -5,6 +5,7 @@ import { PROJECT_ID } from '@ews/model-service'
 import { getToolApi, selectInView, sharedContextOf } from '../platform/api'
 import { DEFAULT_LAYOUTS, useWorkspaceStore } from '../platform/store'
 import { detachedViewId, splitViewId, toolIdOfView } from '../platform/views'
+import { saveSession } from '../platform/session'
 import { clampLayout, modeFor } from '../shell/layout/viewport'
 import '../platform/tools'
 import { getTools } from '../platform/registry'
@@ -153,5 +154,39 @@ describe('responsive layout helpers', () => {
     expect(clamped.inspectorWidth).toBeLessThanOrEqual(1280 * 0.45)
     expect(clamped.dockHeight).toBeLessThanOrEqual(720 * 0.7)
     expect(clamped.split?.ratio).toBe(0.75)
+  })
+})
+
+describe('restoring a session that references retired tools', () => {
+  it('drops retired tabs, split views and view states on restore, and keeps all model data', async () => {
+    const storage = sharedStorage()
+    const init = () =>
+      useWorkspaceStore.getState().initialize({
+        repository: new DemoRepository({ storage, latencyMs: [0, 0] }),
+        projectId: PROJECT_ID,
+        tools: getTools().map((t) => ({ id: t.id, initialViewState: t.initialViewState })),
+        defaultOpenToolIds: ['requirements'],
+      })
+    await init()
+    const before = useWorkspaceStore.getState()
+    const counts = { objects: before.model!.objects.length, revision: before.model!.revision }
+    saveSession({
+      context: before.context,
+      activeToolId: 'sysml',
+      openToolIds: ['sysml', 'cad', 'requirements'],
+      favorites: ['sysml'],
+      recents: ['cad'],
+      viewStates: { sysml: { zoom: 2 }, requirements: {} },
+      scrollStates: {},
+      layouts: { spacious: { split: { toolId: 'sysml', ratio: 0.5 } } },
+    })
+    await init()
+    const after = useWorkspaceStore.getState()
+    expect(after.openToolIds).toEqual(['requirements'])
+    expect(after.activeToolId).toBe('requirements')
+    expect(after.layouts.spacious.split).toBeNull()
+    expect(after.favorites).not.toContain('sysml')
+    expect(Object.keys(after.viewStates)).not.toContain('sysml')
+    expect({ objects: after.model!.objects.length, revision: after.model!.revision }).toEqual(counts)
   })
 })

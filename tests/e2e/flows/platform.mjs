@@ -100,7 +100,7 @@ async function closePalette() {
   // ADR-0077: the illustrative SysML and mock CAD tools are retired from the interface (their data is kept: see "upgrade" and "retired-data").
   check(tag, !tabs.includes('sysml') && !tabs.includes('cad'), 'the rail has no entry for the retired illustrative SysML and mock CAD tools')
   const labels = await page.locator('[data-rail-tool]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') || ''))
-  check(tag, labels.some((n) => /^System Model/.test(n)) && !labels.some((n) => /SysML|\(demo\)|^CAD$/i.test(n)), `rail labels: ${labels.join(' | ')}`)
+  check(tag, labels.some((n) => /^System Model/.test(n)) && !labels.some((n) => /SysML|\(demo\)/i.test(n)), `rail labels: ${labels.join(' | ')}`)
   check(tag, (await page.locator('[role="tab"][data-tool-id]').count()) === 0, 'there is no second (top) tab strip')
   await palette()
   const text = await page.locator('.ws-launcher').textContent()

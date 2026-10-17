@@ -175,9 +175,12 @@ describe('assistant and subscriptions', () => {
     expect(proposal.requiredEntitlements).toEqual(['tool:requirements'])
     const before = ws().model!.revision
     const plan = useEntitlements.getState().plan
-    useEntitlements.setState({ plan: { ...plan, entitlements: [] }, has: () => false })
-    await chat().applyProposal(proposal.id)
-    useEntitlements.setState({ plan, has: (e) => plan.entitlements.includes(e) })
+    try {
+      useEntitlements.setState({ plan: { ...plan, entitlements: [] }, has: () => false })
+      await chat().applyProposal(proposal.id)
+    } finally {
+      useEntitlements.setState({ plan, has: (e) => plan.entitlements.includes(e) })
+    }
     expect(chat().proposals[proposal.id].status).toBe('failed')
     expect(chat().proposals[proposal.id].message).toContain('no longer included')
     expect(ws().model!.revision).toBe(before)
