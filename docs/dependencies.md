@@ -189,3 +189,22 @@ Triage: `npm audit fix` without `--force` makes no change, because the fix is a 
 1.75.0 was published on 16 October 2026, so it fails the project's "at least two weeks old" rule until about 30 October; 1.74.0 is still in
 the vulnerable range. Follow-up for the owner of `services/api`: bump the pin to the first fixed release that is two weeks old, run
 `npm run check` and `npm run build`, and open the docs page once. Applied now: none.
+
+## AWS infrastructure (added 17 October 2026, aws-infrastructure agent; [ADR-0088](decisions/0088-aws-infrastructure-as-code-cdk.md))
+
+`infra/aws` is a standalone npm project (its own `package.json` and lock file, **not** a root workspace), so the root `npm ci`, the
+Amplify build and the application image do not install any of it. Its packages never reach the browser bundle or the API image.
+Machine-readable register of its whole lock file: [dependencies/register-infra-aws.json](dependencies/register-infra-aws.json)
+(`npm run deps:register:infra`; licence check `npm run deps:check:infra`). Versions were published more than two weeks before adoption.
+
+| Package | Version | Licence | Used by | Source |
+| --- | --- | --- | --- | --- |
+| aws-cdk-lib | 2.273.0 | Apache-2.0 (bundles its own Apache-2.0/MIT/ISC dependencies, listed in the package) | infra/aws (constructs that synthesize CloudFormation) | github.com/aws/aws-cdk |
+| constructs | 10.8.1 | Apache-2.0 | infra/aws | github.com/aws/constructs |
+| aws-cdk (CLI) | 2.1145.0 | Apache-2.0 | infra/aws (dev: `cdk synth`, `diff`, `deploy`) | github.com/aws/aws-cdk-cli |
+| typescript, tsx, vitest, @types/node | ~5.9.2, 4.23.15, 5.0.4, ^24.19.2 | Apache-2.0, MIT, MIT, MIT | infra/aws (dev), same versions as the root | see above |
+
+The 12 `lightningcss*` packages in that lock are optional native builds of a Vite 7 transitive dependency (MPL-2.0, dev-only, the same
+pending review as in the root register). Container image (`services/api/Dockerfile`): base image `node:24.20.0-bookworm-slim`
+(Node.js is MIT; Debian packages under their own licences, as for any Debian-based image) and the Amazon RDS certificate bundle
+(downloaded at image build from truststore.pki.rds.amazonaws.com, an AWS-published trust store, not code).

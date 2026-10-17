@@ -73,7 +73,7 @@ not switch to demo data on its own. Setup details: [docs/specifications/requirem
 | `npm run typecheck` | Type-check every package (`tsc` per workspace) |
 | `npm test` | All unit, contract and boundary tests (Vitest) |
 | `npm run check` | Type check and tests |
-| `npm run build` | Type check, then build the GLB viewer into `dist/` and the workspace into `dist/workspace/` |
+| `npm run build` | Type check, then build the GLB viewer into `dist/viewer/`, the workspace into `dist/workspace/` and a root `dist/index.html` that redirects `/` to `/workspace/` |
 | `npm run build:harnesses` | Build each tool's standalone harness (`packages/tool-*/dist-harness`) |
 | `npm run preview` | Serve `dist/` (workspace at http://localhost:4173/workspace/). Static only: no `/api` proxy, so use demo mode for Requirements |
 
