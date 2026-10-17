@@ -16,6 +16,18 @@ Migration for tools: (exact steps, or "none")
 Validated with: npm run check; harnesses for requirements, sysml, cad
 ```
 
+## 1.16.0 (2026-10-17)
+
+Type: additive
+
+What changed (AUD-6):
+- New `contract/inspector.ts` (root entry, types only): `InspectorSubject` (id, key, kind, title, badges, sections of label/value fields) and `InspectorTone`.
+- `useInspectorSubject(subject)` (`@ews/platform-sdk/react`) wraps it for a mounted view.
+- `ToolApi.setInspectorSubject(subject | null)`: a tool shows one of its own records in the workspace Inspector while it is the active tool. The workspace store holds the subject per view; the Inspector renders it with design-system components and prefers it over the model selection. Engineering objects keep using `select`.
+Why: the Inspector resolved only `selectedIds` against the shared model, so a Concept, constraint, function or alternative set selected in Conceptualize (service records, not model objects) left the Inspector on "Nothing selected".
+Migration for tools: none. A tool that wants the Inspector to follow its selection declares `sdkVersion: '^1.16.0'` and calls `api.setInspectorSubject`. Hosts implementing `ToolApi` add the member (the workspace and the mock host do).
+Validated with: npm run check
+
 ## 1.15.0 (2026-10-17)
 
 Type: additive

@@ -21,7 +21,7 @@ import { selectInView, sharedContextOf } from '../platform/api'
 import { RETIRED_TOOLS, toolName } from '../platform/registry'
 import { useWorkspaceStore } from '../platform/store'
 import { workspaceServices } from '../platform/services'
-import type { ArtifactModule } from '@ews/platform-sdk'
+import type { ArtifactModule, InspectorSubject } from '@ews/platform-sdk'
 import { ViewControls } from './WorkArea'
 
 /** Properties shown in their own sections instead of the generic property list. */
@@ -488,6 +488,46 @@ function ObjectDetails({ object, configurationId }: { object: EngineeringObject;
   )
 }
 
+/** A record a tool contributed through `ToolApi.setInspectorSubject` (SDK 1.16): data rendered here with design-system parts. */
+function SubjectDetails({ subject }: { subject: InspectorSubject }) {
+  return (
+    <div className="ws-insp-object" data-inspected-id={subject.id} data-inspected-key={subject.key}>
+      <header className="ws-insp-head">
+        <div className="min-w-0">
+          <div className="ws-insp-title">{subject.title}</div>
+          <div className="ws-insp-type">{subject.kind}</div>
+          <div className="ws-insp-sub">
+            <span className="font-mono" data-testid="inspector-subject-key">
+              {subject.key}
+            </span>
+          </div>
+        </div>
+      </header>
+      {subject.badges && subject.badges.length > 0 && (
+        <div className="ws-insp-status">
+          {subject.badges.map((b) => (
+            <Badge key={b.label} tone={b.tone ?? 'neutral'}>
+              {b.label}
+            </Badge>
+          ))}
+        </div>
+      )}
+      {subject.sections.map((section) => (
+        <Section key={section.title} title={section.title}>
+          <dl className="ws-props">
+            {section.fields.map((f) => (
+              <div key={f.label} className="ws-prop">
+                <dt>{f.label}</dt>
+                <dd>{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </Section>
+      ))}
+    </div>
+  )
+}
+
 /**
  * Shared inspector. Each inspector (side panel, drawer or detached window) is a
  * view instance, so it can follow the workspace selection or be pinned. It is
@@ -506,6 +546,26 @@ export function Inspector({
   const selectedIds = useWorkspaceStore((s) => sharedContextOf(s, viewId).selectedIds)
   const configurationId = useWorkspaceStore((s) => sharedContextOf(s, viewId).configurationId)
   const objects = selectedIds.map((id) => model.get(id)).filter((o): o is EngineeringObject => !!o)
+  // A record the active tool contributed (SDK 1.16) wins over the model selection; only the main inspector follows it.
+  const activeToolId = useWorkspaceStore((s) => s.activeToolId)
+  const subject = useWorkspaceStore((s) => (viewId === 'inspector' && s.activeToolId ? s.inspectorSubjects[s.activeToolId] : undefined))
+  const setSubject = useWorkspaceStore((s) => s.setInspectorSubject)
+
+  if (subject) {
+    return (
+      <div className="ws-inspector" data-view-id={viewId}>
+        <div className="ws-inspector-bar">
+          <ViewControls viewId={viewId} detach={detachable ? { kind: 'inspector' } : undefined} />
+          <Button size="sm" variant="text" icon="close" onPress={() => activeToolId && setSubject(activeToolId, null)}>
+            Clear selection
+          </Button>
+        </div>
+        <div className="ws-inspector-body">
+          <SubjectDetails subject={subject} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="ws-inspector" data-view-id={viewId}>

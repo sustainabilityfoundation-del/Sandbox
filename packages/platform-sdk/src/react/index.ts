@@ -33,6 +33,7 @@ export {
   useSharedContext,
   useToolApi,
   useToolCommand,
+  useInspectorSubject,
   useToolViewState,
   useUnsavedChanges,
   useViewId,

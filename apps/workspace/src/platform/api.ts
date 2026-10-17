@@ -92,6 +92,7 @@ export function getToolApi<VS>(toolId: string, viewId: string = toolId): ToolApi
       getObjectRevision: (id, revision) => store().readRevision(id, revision),
       getBaselines: () => store().baselines,
       registerCommand: (command) => store().registerCommand(viewId, command),
+      setInspectorSubject: (subject) => store().setInspectorSubject(viewId, subject),
       openTool: (id) => {
         const access = store().activateTool(id)
         return access.ok ? { ok: true } : { ok: false, reason: access.reason }

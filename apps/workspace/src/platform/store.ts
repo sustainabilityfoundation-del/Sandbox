@@ -13,7 +13,7 @@ import type {
 import type { EngineeringRepository } from '@ews/model-service'
 import { broadcast, windowInfo, type DetachedViewDef } from '../session/windowSession'
 import { loadMainSession, loadSession, saveSession, type SessionState } from './session'
-import type { ArtifactInput, RequirementsService, ToolCommand, ViewStateUpdate } from '@ews/platform-sdk'
+import type { ArtifactInput, InspectorSubject, RequirementsService, ToolCommand, ViewStateUpdate } from '@ews/platform-sdk'
 import { onRequirementsReset } from '@ews/requirements-client'
 import { loadRequirementsProjection, requirementObject } from './requirementsProjection'
 import { workspaceServices } from './services'
@@ -167,6 +167,9 @@ interface WorkspaceState {
   /** Commands registered by mounted tool views, per view instance. */
   commands: Record<string, ToolCommand[]>
   registerCommand: (viewId: string, command: ToolCommand) => () => void
+  /** Records a tool shows in the Inspector (SDK 1.16), per view instance; not persisted. */
+  inspectorSubjects: Record<string, InspectorSubject>
+  setInspectorSubject: (viewId: string, subject: InspectorSubject | null) => void
   closeTool: (id: string) => void
   toggleFavorite: (id: string) => void
   setLayoutClass: (layoutClass: LayoutClass) => void
@@ -426,7 +429,12 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
       }
     },
 
-    select: (ids) => set((s) => ({ context: { ...s.context, selectedIds: [...new Set(s.model ? ids.map(s.model.canonical) : ids)] } })),
+    select: (ids) =>
+      set((s) => ({
+        context: { ...s.context, selectedIds: [...new Set(s.model ? ids.map(s.model.canonical) : ids)] },
+        // Choosing a model object replaces a record a tool put in the Inspector (SDK 1.16).
+        ...(ids.length > 0 && Object.keys(s.inspectorSubjects).length > 0 ? { inspectorSubjects: {} } : {}),
+      })),
     setConfiguration: (configurationId) => set((s) => ({ context: { ...s.context, configurationId } })),
     setScenario: (scenarioId) => set((s) => ({ context: { ...s.context, scenarioId } })),
 
@@ -445,6 +453,16 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
     focusTab: (id) => set((s) => (s.openToolIds.includes(id) ? { activeToolId: id } : {})),
 
     commands: {},
+    inspectorSubjects: {},
+    setInspectorSubject: (viewId, subject) =>
+      set((s) => {
+        if (!subject) {
+          if (!(viewId in s.inspectorSubjects)) return {}
+          const { [viewId]: _gone, ...rest } = s.inspectorSubjects
+          return { inspectorSubjects: rest }
+        }
+        return { inspectorSubjects: { ...s.inspectorSubjects, [viewId]: subject } }
+      }),
     registerCommand: (viewId, command) => {
       set((s) => ({ commands: { ...s.commands, [viewId]: [...(s.commands[viewId] ?? []).filter((c) => c.id !== command.id), command] } }))
       return () => set((s) => ({ commands: { ...s.commands, [viewId]: (s.commands[viewId] ?? []).filter((c) => c !== command) } }))
