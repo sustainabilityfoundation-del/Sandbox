@@ -1,5 +1,6 @@
 import {
   KernelError,
+  type BooleanHint,
   type EdgeBlendRequest,
   type EdgeBlendResult,
   type EdgeInfo,
@@ -35,6 +36,8 @@ const PROBE_TOLERANCE = 1e-4
 export class OcctKernel implements GeometryKernel {
   readonly info: KernelInfo
   private readonly shapes = new Map<string, Shape3D>()
+  /** Face names recorded from shape history (ADR-0024 amendment), aligned to `shape.faces`; '' = none. */
+  private readonly lineage = new Map<string, string[]>()
   private counter = 0
 
   constructor(
@@ -101,27 +104,56 @@ export class OcctKernel implements GeometryKernel {
     }
   }
 
-  async boolean(kind: 'fuse' | 'cut', target: ShapeHandle, tool: ShapeHandle): Promise<ShapeHandle> {
+  async boolean(kind: 'fuse' | 'cut', target: ShapeHandle, tool: ShapeHandle, hint?: BooleanHint): Promise<ShapeHandle> {
     const a = this.get(target)
     const b = this.get(tool)
+    const oc = this.oc
     let out: Shape3D
+    let history: string[] | undefined
+    // Names of the arguments before the operation (history overlay, then probes).
+    const namesA = hint ? this.stableNames(target, hint.targetProbes) : undefined
+    const namesB = hint ? this.stableNames(tool, hint.toolProbes) : undefined
     try {
       // Clones keep cached inputs intact. No "sameFace" optimisation: with coplanar caps it
       // produced a solid with an internal void instead of a through hole (regression test).
-      out = (kind === 'fuse' ? a.clone().fuse(b.clone()) : a.clone().cut(b.clone())) as Shape3D
-      out = out.simplify() as Shape3D
+      const ca = a.clone()
+      const cb = b.clone()
+      const builder = kind === 'fuse' ? new oc.BRepAlgoAPI_Fuse(ca.wrapped, cb.wrapped) : new oc.BRepAlgoAPI_Cut(ca.wrapped, cb.wrapped)
+      try {
+        builder.Build()
+        if (builder.HasErrors()) throw new Error('the Boolean algorithm reported errors')
+        // Merges coplanar faces and collinear edges; the builder's history includes this step.
+        builder.SimplifyResult(true, true, 0.001)
+        out = r.cast(builder.Shape()) as Shape3D
+        if (hint && out && out.faces.length > 0 && sameOrder(a, ca) && sameOrder(b, cb)) {
+          history = inheritNames(oc, builder, [{ source: ca.faces, names: namesA!, probes: hint.targetProbes }, { source: cb.faces, names: namesB!, probes: hint.toolProbes }], out.faces)
+        }
+      } finally {
+        builder.delete()
+        ca.delete()
+        cb.delete()
+      }
     } catch (e) {
       throw new KernelError('boolean-failed', `The ${kind === 'fuse' ? 'join' : 'cut'} failed in the kernel: ${message(e)}`)
     }
     if (!out || out.faces.length === 0) throw new KernelError('empty-result', kind === 'cut' ? 'The cut removed the whole body.' : 'The join produced no geometry.')
-    return this.store(out)
+    const handle = this.store(out)
+    if (history) this.lineage.set(handle.id, history)
+    return handle
+  }
+
+  /** Stable face names of a stored shape (probes first, then history names); '' for unnamed faces. */
+  private stableNames(handle: ShapeHandle, probes: FaceProbe[]): string[] {
+    const shape = this.get(handle)
+    const naming = topologyNames(shape.faces, shape.edges, probes, this.lineage.get(handle.id))
+    return naming.faceNames.map((n, i) => (naming.faceStable[i] ? n : ''))
   }
 
   async blendEdges(req: EdgeBlendRequest): Promise<EdgeBlendResult> {
     const shape = this.get(req.target)
     if (!(req.size > 0)) throw new KernelError('invalid-value', `The ${req.kind} size must be greater than zero.`)
     const edges = shape.edges
-    const naming = topologyNames(shape.faces, edges, req.probes)
+    const naming = topologyNames(shape.faces, edges, req.probes, this.lineage.get(req.target.id))
     const selected: Edge[] = []
     const missing: string[] = []
     for (const name of req.edges) {
@@ -130,8 +162,12 @@ export class OcctKernel implements GeometryKernel {
       else selected.push(edges[i])
     }
     if (missing.length) {
-      const available = naming.edgeNames.filter((n) => !n.includes('face#')).slice(0, 16)
-      throw new KernelError('reference-lost', `Edge${missing.length > 1 ? 's' : ''} ${missing.join(', ')} no longer exist${missing.length > 1 ? '' : 's'} on the body. Choose edges again. Available: ${available.join(', ')}${naming.edgeNames.length > 16 ? ' …' : ''}`)
+      const stable = naming.edgeNames.filter((n) => !n.includes('face#'))
+      throw new KernelError(
+        'reference-lost',
+        `Edge${missing.length > 1 ? 's' : ''} ${missing.join(', ')} no longer exist${missing.length > 1 ? '' : 's'} on the body. Use Repair reference in Diagnostics (or the repair_reference command) to choose the replacement. Available: ${stable.slice(0, 16).join(', ')}${stable.length > 16 ? ' …' : ''}`,
+        { referenceKind: 'edge', lost: missing, available: stable.slice(0, 300) },
+      )
     }
     const midpoints = selected.map((e) => {
       const p = e.pointAt(0.5)
@@ -140,16 +176,31 @@ export class OcctKernel implements GeometryKernel {
       return out
     })
     let out: Shape3D
+    let history: string[] | undefined
+    const names = this.stableNames(req.target, req.probes)
     try {
-      const pick = (e: Edge) => (selected.some((s) => s.isSame(e)) ? req.size : null)
-      out = (req.kind === 'fillet' ? shape.clone().fillet(pick) : shape.clone().chamfer(pick)) as Shape3D
+      const oc = this.oc
+      const clone = shape.clone()
+      const builder = req.kind === 'fillet' ? new oc.BRepFilletAPI_MakeFillet(clone.wrapped, oc.ChFi3d_FilletShape.ChFi3d_Rational) : new oc.BRepFilletAPI_MakeChamfer(clone.wrapped)
+      try {
+        // Edges come from the clone, by the index they have on the original (same order, checked below).
+        const cloneEdges = clone.edges
+        for (const e of selected) builder.Add(req.size, cloneEdges[edges.findIndex((x) => x.isSame(e))].wrapped)
+        builder.Build()
+        if (!builder.IsDone()) throw new Error('the algorithm did not finish')
+        out = r.cast(builder.Shape()) as Shape3D
+        if (out && out.faces.length > 0 && sameOrder(shape, clone)) history = inheritNames(oc, builder, [{ source: clone.faces, names, probes: req.probes }], out.faces)
+      } finally {
+        builder.delete()
+        clone.delete()
+      }
     } catch (e) {
       throw new KernelError('blend-failed', `The ${req.kind} of ${req.size} mm failed in the kernel (${message(e)}). Typical causes: the size is larger than an adjacent face allows, or edges meet at a vertex the ${req.kind} cannot resolve.`)
     }
     if (!out || out.faces.length === 0) throw new KernelError('empty-result', `The ${req.kind} produced no geometry.`)
     // Name each generated face after the edge it replaces: project the old edge midpoint onto the
     // nearest face that no existing probe names, and use that surface point as the probe.
-    const after = topologyNames(out.faces, out.edges, req.probes)
+    const after = topologyNames(out.faces, out.edges, req.probes, history)
     const probes: FaceProbe[] = []
     req.edges.forEach((name, k) => {
       const m = midpoints[k]
@@ -178,7 +229,9 @@ export class OcctKernel implements GeometryKernel {
         /* the face keeps a fallback name */
       }
     })
-    return { shape: this.store(out), probes }
+    const handle = this.store(out)
+    if (history) this.lineage.set(handle.id, history)
+    return { shape: handle, probes }
   }
 
   async analyze(handle: ShapeHandle, probes: FaceProbe[]): Promise<ShapeAnalysis> {
@@ -192,7 +245,7 @@ export class OcctKernel implements GeometryKernel {
     const bounds = shape.boundingBox.bounds as [Vec3, Vec3]
 
     // Probe-based naming (ADR-0024), shared with blendEdges so both see the same names.
-    const naming = topologyNames(faces, edges, probes)
+    const naming = topologyNames(faces, edges, probes, this.lineage.get(handle.id))
 
     const faceInfos: FaceInfo[] = faces.map((f, index) => {
       const center = f.center
@@ -303,6 +356,7 @@ export class OcctKernel implements GeometryKernel {
       const s = this.shapes.get(h.id)
       if (!s) continue
       this.shapes.delete(h.id)
+      this.lineage.delete(h.id)
       try {
         s.delete()
       } catch {
@@ -325,34 +379,46 @@ type Face = Shape3D['faces'][number]
 type Edge = Shape3D['edges'][number]
 
 /**
- * Stable names of faces (first probe whose point lies on the face; later ones are aliases; unmatched
- * faces get flagged fallback names) and of edges (sorted adjacent face names, `#n` for repeats).
+ * The face a probe reaches (ADR-0024): the first face, in face order, that the first of the probe's
+ * points lies on; later points are tried only when earlier ones lie on no face. -1 when none does.
  */
-function topologyNames(faces: Face[], edges: Edge[], probes: FaceProbe[]) {
+function probeHit(faces: Face[], faceBoxes: [Vec3, Vec3][], probe: FaceProbe, vertexCache: Map<string, r.Vertex>): number {
+  for (const p of probe.points) {
+    for (let i = 0; i < faces.length; i++) {
+      const [mn, mx] = faceBoxes[i]
+      if (p.some((v, k) => v < mn[k] - 1e-3 || v > mx[k] + 1e-3)) continue
+      const key = p.join(',')
+      let vtx = vertexCache.get(key)
+      if (!vtx) {
+        vtx = r.makeVertex(p)
+        vertexCache.set(key, vtx)
+      }
+      if (r.measureDistanceBetween(faces[i], vtx) < PROBE_TOLERANCE) return i
+    }
+  }
+  return -1
+}
+
+/**
+ * Stable names of faces and of edges (sorted adjacent face names, `#n` for repeats). Probes come first
+ * (ADR-0024, unchanged): a face a probe reaches has the first such probe's name, later ones are aliases.
+ * Shape-history names (ADR-0075) name only the faces no probe reaches; on a probed face a history name
+ * is an alias. `inheritNames` gives a probed name only to the face its probe reaches, so a history name
+ * never names a second face. Faces with neither get flagged fallback names.
+ */
+function topologyNames(faces: Face[], edges: Edge[], probes: FaceProbe[], inherited?: string[]) {
   const names: string[][] = faces.map(() => [])
   const vertexCache = new Map<string, r.Vertex>()
   const faceBoxes = faces.map((f) => f.boundingBox.bounds as [Vec3, Vec3])
   for (const probe of probes) {
-    let assigned = false
-    for (const p of probe.points) {
-      for (let i = 0; i < faces.length && !assigned; i++) {
-        const [mn, mx] = faceBoxes[i]
-        if (p.some((v, k) => v < mn[k] - 1e-3 || v > mx[k] + 1e-3)) continue
-        const key = p.join(',')
-        let vtx = vertexCache.get(key)
-        if (!vtx) {
-          vtx = r.makeVertex(p)
-          vertexCache.set(key, vtx)
-        }
-        if (r.measureDistanceBetween(faces[i], vtx) < PROBE_TOLERANCE) {
-          names[i].push(probe.name)
-          assigned = true
-        }
-      }
-      if (assigned) break
-    }
+    const i = probeHit(faces, faceBoxes, probe, vertexCache)
+    if (i >= 0) names[i].push(probe.name)
   }
   vertexCache.forEach((v) => v.delete())
+  inherited?.forEach((n, i) => {
+    if (!n || i >= faces.length || names[i].includes(n)) return
+    names[i].push(n)
+  })
   const faceNames = names.map((own, i) => own[0] ?? `face#${i + 1}`)
   const edgeFaceIdx = new Map<number, number[]>()
   faces.forEach((f, fi) => {
@@ -373,6 +439,123 @@ function topologyNames(faces: Face[], edges: Edge[], probes: FaceProbe[]) {
     return `${b}#${n}`
   })
   return { faceNames, faceAliases: names.map((own) => own.slice(1)), faceStable: names.map((own) => own.length > 0), edgeNames, edgeFaces }
+}
+
+/** True when two shapes list faces and edges in the same order (a clone keeps it); history is used only then. */
+type Vec = { x: number; y: number; z: number; delete: () => void }
+function sameOrder(a: Shape3D, b: Shape3D): boolean {
+  const close = (p: Vec, q: Vec) => {
+    const d = Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z)
+    p.delete()
+    q.delete()
+    return d < 1e-7
+  }
+  const fa = a.faces
+  const fb = b.faces
+  const ea = a.edges
+  const eb = b.edges
+  if (fa.length !== fb.length || ea.length !== eb.length) return false
+  return fa.every((f, i) => close(f.center, fb[i].center)) && ea.every((e, i) => close(e.pointAt(0.5), eb[i].pointAt(0.5)))
+}
+
+/** The part of the builder's history this module needs (BRepBuilderAPI_MakeShape). */
+interface ShapeHistory {
+  Modified(s: never): unknown
+  IsDeleted(s: never): boolean
+}
+
+/** Indices (in `outFaces`) of the faces a source face became: its modified pieces, itself when unchanged, none when deleted. */
+function descendants(oc: OpenCascadeInstance, builder: ShapeHistory, face: Face, outFaces: Face[]): number[] {
+  if (builder.IsDeleted(face.wrapped as never)) return []
+  const pieces: number[] = []
+  // Copy the builder's list (a reference into the builder) and consume the copy.
+  const list = new oc.NCollection_List_TopoDS_Shape(builder.Modified(face.wrapped as never) as never)
+  try {
+    while (!list.IsEmpty()) {
+      const first = list.First()
+      const j = outFaces.findIndex((f) => f.wrapped.IsSame(first))
+      if (j >= 0 && !pieces.includes(j)) pieces.push(j)
+      list.RemoveFirst()
+    }
+  } finally {
+    list.delete()
+  }
+  if (!pieces.length) {
+    const j = outFaces.findIndex((f) => f.wrapped.IsSame(face.wrapped))
+    if (j >= 0) pieces.push(j)
+  }
+  return pieces
+}
+
+/**
+ * Shape history as a naming signal (ADR-0024 amendment, ADR-0075). Every named face of the arguments
+ * passes its name to the faces it became. Probe-first rule: a name that has a probe stays with the piece
+ * the probe reaches (the same face the probe names, so stable names never move); when the probe reaches
+ * no piece, no piece takes the name and references to it are lost, never re-bound. A name without a
+ * probe (an earlier `~k` piece) stays with the piece with the smallest centre (x, then y, then z). The
+ * other pieces are numbered `<name>~2`, `~3`, … in smallest-centre order, continuing the numbers already
+ * used for that name, so earlier pieces keep their names when later operations add pieces. Returns names
+ * aligned to `outFaces` ('' = no history name; probes decide).
+ */
+function inheritNames(oc: OpenCascadeInstance, builder: ShapeHistory, sources: { source: Face[]; names: string[]; probes: FaceProbe[] }[], outFaces: Face[]): string[] {
+  const out = outFaces.map(() => '')
+  const known = new Set(sources.flatMap((s) => s.names).filter(Boolean))
+  const faceBoxes = outFaces.map((f) => f.boundingBox.bounds as [Vec3, Vec3])
+  const vertexCache = new Map<string, r.Vertex>()
+  const centres = new Map<number, number[]>()
+  const centre = (j: number) => {
+    let v = centres.get(j)
+    if (!v) {
+      const c = outFaces[j].center
+      v = [c.x, c.y, c.z].map((x) => Math.round(x * 1e6) / 1e6)
+      c.delete?.()
+      centres.set(j, v)
+    }
+    return v
+  }
+  const byCentre = (p: number, q: number) => {
+    const a = centre(p)
+    const b = centre(q)
+    return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]
+  }
+  const next = (root: string) => {
+    let max = 1
+    for (const n of known) if (n.startsWith(`${root}~`)) max = Math.max(max, Number.parseInt(n.slice(root.length + 1), 10) || 1)
+    return max + 1
+  }
+  try {
+    for (const src of sources) {
+      src.source.forEach((face, i) => {
+        const name = src.names[i]
+        if (!name) return
+        const pieces = descendants(oc, builder, face, outFaces).filter((j) => !out[j])
+        if (!pieces.length) return
+        const probe = src.probes.find((p) => p.name === name)
+        let keeper = -1
+        if (probe) {
+          // Scanned over every face, exactly as topologyNames does, so the keeper is the face the probe names.
+          const hit = probeHit(outFaces, faceBoxes, probe, vertexCache)
+          if (pieces.includes(hit)) keeper = hit
+        } else {
+          keeper = [...pieces].sort(byCentre)[0]
+        }
+        if (keeper >= 0 && out.includes(name)) keeper = -1
+        if (keeper >= 0) {
+          out[keeper] = name
+          known.add(name)
+        }
+        const root = name.split('~')[0]
+        for (const j of pieces.filter((j) => j !== keeper).sort(byCentre)) {
+          const n = `${root}~${next(root)}`
+          out[j] = n
+          known.add(n)
+        }
+      })
+    }
+  } finally {
+    vertexCache.forEach((v) => v.delete())
+  }
+  return out
 }
 
 function loopDrawing(segments: KernelSegment[]): Drawing {

@@ -132,10 +132,20 @@ export interface EdgeBlendResult {
   probes: FaceProbe[]
 }
 
+/**
+ * Optional naming context for a boolean (ADR-0024 amendment, kernel history): the probes that name
+ * the faces of the target and of the tool. With them a kernel that records shape history can give
+ * every piece of a split face a deterministic name; without them names come from probes only.
+ */
+export interface BooleanHint {
+  targetProbes: FaceProbe[]
+  toolProbes: FaceProbe[]
+}
+
 export interface GeometryKernel {
   readonly info: KernelInfo
   makeSolid: (request: SolidRequest) => Promise<ShapeHandle>
-  boolean: (kind: 'fuse' | 'cut', target: ShapeHandle, tool: ShapeHandle) => Promise<ShapeHandle>
+  boolean: (kind: 'fuse' | 'cut', target: ShapeHandle, tool: ShapeHandle, hint?: BooleanHint) => Promise<ShapeHandle>
   /** Fillets or chamfers named edges; fails with code `reference-lost` when a name does not resolve. */
   blendEdges: (request: EdgeBlendRequest) => Promise<EdgeBlendResult>
   analyze: (shape: ShapeHandle, probes: FaceProbe[]) => Promise<ShapeAnalysis>
@@ -151,10 +161,13 @@ export interface GeometryKernel {
 
 export class KernelError extends Error {
   readonly code: string
-  constructor(code: 'kernel-failure' | 'invalid-profile' | 'boolean-failed' | 'empty-result' | 'invalid-shape' | 'not-found' | 'import-failed' | (string & {}), message: string) {
+  /** Structured facts about the failure (for example the lost names and the names that exist). */
+  readonly details?: Record<string, unknown>
+  constructor(code: 'kernel-failure' | 'invalid-profile' | 'boolean-failed' | 'empty-result' | 'invalid-shape' | 'not-found' | 'import-failed' | (string & {}), message: string, details?: Record<string, unknown>) {
     super(message)
     this.name = 'KernelError'
     this.code = code
+    this.details = details
   }
 }
 

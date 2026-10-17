@@ -33,6 +33,8 @@ copyright) and Fusion 360 Gallery (non-commercial) need review; GrabCAD models a
 
 ## 5. Gaps (backlog)
 
-Fuzzing of command inputs; planegcs as a solver oracle; cross-browser runs (Firefox, Safari);
+Fuzzing of command inputs; cross-browser runs (Firefox, Safari);
 visual regression images; STEP validation with an independent checker (NIST STEP File Analyzer);
 signature tests with real sample files; performance tracking in CI.
+
+Done in sprint C1: planegcs as a solver oracle (`packages/cad-core/src/sketch/planegcsOracle.test.ts`, dev-only, ADR-0076); a real-kernel regression for names of split faces and fillets that survive a pocket-count change (`packages/cad-kernel/src/history.test.ts`, ADR-0075); an OCCT version test (`version.test.ts`); click-to-draw, tap and keyboard drawing and the Repair reference panel in the browser flow `tests/e2e/flows/cad-modeler.mjs`.

@@ -19,7 +19,7 @@ export type MeasureSpec =
   | { kind: 'volume' }
   | { kind: 'surface-area' }
   | { kind: 'mass' }
-  | { kind: 'pattern-spacing' | 'pattern-gap' | 'pattern-count'; featureId: string }
+  | { kind: 'pattern-spacing' | 'pattern-gap' | 'pattern-count' | 'pattern-width'; featureId: string }
 
 export interface CheckRequest {
   measure: MeasureSpec
@@ -56,6 +56,12 @@ export interface CheckResult {
   status: CheckStatus
   reason?: string
   method: string
+  /**
+   * Where the value comes from. `kernel`: measured on the regenerated B-rep by the geometry kernel (OCCT, through
+   * the GeometryKernel port). `model`: read from the model (parameter, solved sketch dimension or evaluated pattern
+   * setting), not measured on geometry. Optional; absent on results that were not measured.
+   */
+  provenance?: { source: 'kernel' | 'model'; kernel: { name: string; version: string }; measuredOn: string }
   /** How the parameter's binding relates to this check (bindings only). */
   binding?: { parameter: string; pinnedRevision?: number }
   documentId: string
@@ -148,6 +154,8 @@ interface Measured {
   dim: Dim
   quantity: string
   method: string
+  source: 'kernel' | 'model'
+  measuredOn: string
 }
 
 function measure(doc: CadDocument, regen: RegenerationResult, partId: string, spec: MeasureSpec): Measured | { reason: string; quantity: string } {
@@ -161,7 +169,7 @@ function measure(doc: CadDocument, regen: RegenerationResult, partId: string, sp
       const own = part.parameters.find((x) => x.name === spec.name)
       if (!p || !own) return { reason: `Parameter ${spec.name} does not exist.`, quantity: `parameter ${spec.name}` }
       if (p.error || p.value === undefined) return { reason: `Parameter ${spec.name} has no value: ${p.error?.message ?? 'not evaluated'}.`, quantity: `parameter ${spec.name}` }
-      return { value: p.value, dim: own.unit === 'mm' ? 'length' : own.unit === 'deg' ? 'angle' : 'count', quantity: `parameter ${spec.name}`, method: `value of parameter ${spec.name} = ${own.expression}, evaluated in the regenerated model` }
+      return { value: p.value, dim: own.unit === 'mm' ? 'length' : own.unit === 'deg' ? 'angle' : 'count', quantity: `parameter ${spec.name}`, method: `value of parameter ${spec.name} = ${own.expression}, evaluated in the regenerated model (read from the model, not measured on geometry)`, source: 'model', measuredOn: 'parameter table of the regenerated model' }
     }
     case 'dimension': {
       for (const f of part.features) {
@@ -174,7 +182,7 @@ function measure(doc: CadDocument, regen: RegenerationResult, partId: string, sp
         const v = c.driving === false ? res.sketch.solution.driven[c.id] : res.sketch.values[c.id]
         if (v === undefined) return { reason: `Dimension ${c.id} has no value.`, quantity: label }
         if (c.driving !== false && res.sketch.solution.status !== 'fully-constrained' && res.sketch.solution.status !== 'under-constrained') return { reason: `Sketch ${f.id} is ${res.sketch.solution.status}.`, quantity: label }
-        return { value: v, dim: c.type === 'angle' ? 'angle' : 'length', quantity: label, method: `${c.driving === false ? 'driven (measured)' : 'driving'} ${c.type} dimension of the solved sketch` }
+        return { value: v, dim: c.type === 'angle' ? 'angle' : 'length', quantity: label, method: `${c.driving === false ? 'driven (measured)' : 'driving'} ${c.type} dimension of the solved sketch (read from the sketch solver, not measured on the solid)`, source: 'model', measuredOn: `solved sketch ${f.name}` }
       }
       return { reason: `No dimension ${spec.constraintId ?? spec.name} in part ${partId}.`, quantity: `dimension ${spec.constraintId ?? spec.name}` }
     }
@@ -184,32 +192,39 @@ function measure(doc: CadDocument, regen: RegenerationResult, partId: string, sp
       const max = [0, 1, 2].map((k) => Math.max(...bodies.map((b) => b.analysis.boundingBox.max[k])))
       const size = [0, 1, 2].map((k) => max[k] - min[k])
       const value = spec.axis === 'max' ? Math.max(...size) : spec.axis === 'min' ? Math.min(...size) : size['xyz'.indexOf(spec.axis)]
-      return { value, dim: 'length', quantity: `bounding size ${spec.axis}`, method: 'axis-aligned bounding box of the regenerated B-rep bodies' }
+      return { value, dim: 'length', quantity: `bounding size ${spec.axis}`, method: 'axis-aligned bounding box of the regenerated B-rep bodies', source: 'kernel', measuredOn: 'B-rep bodies (kernel analysis)' }
     }
     case 'volume':
     case 'surface-area': {
       if (!bodies.length) return { reason: 'The part has no body.', quantity: spec.kind }
       const v = bodies.reduce((s, b) => s + (spec.kind === 'volume' ? b.analysis.volume : b.analysis.area), 0)
-      return { value: v, dim: spec.kind === 'volume' ? 'volume' : 'area', quantity: spec.kind === 'volume' ? 'volume' : 'surface area', method: `${spec.kind === 'volume' ? 'volume' : 'surface area'} of the regenerated B-rep (kernel mass properties)` }
+      return { value: v, dim: spec.kind === 'volume' ? 'volume' : 'area', quantity: spec.kind === 'volume' ? 'volume' : 'surface area', method: `${spec.kind === 'volume' ? 'volume' : 'surface area'} of the regenerated B-rep (kernel mass properties)`, source: 'kernel', measuredOn: 'B-rep bodies (kernel analysis)' }
     }
     case 'mass': {
       if (!bodies.length) return { reason: 'The part has no body.', quantity: 'mass' }
       if (!part.material) return { reason: 'No material is set for the part, so mass cannot be computed.', quantity: 'mass' }
       const m = massProperties(doc, regen, partId).reduce((s, b) => s + (b.mass ?? 0), 0)
-      return { value: m, dim: 'mass', quantity: 'mass', method: `volume of the regenerated B-rep × density ${part.material.density} kg/m³ (${part.material.name}, uniform)` }
+      return { value: m, dim: 'mass', quantity: 'mass', method: `volume of the regenerated B-rep × density ${part.material.density} kg/m³ (${part.material.name}, uniform)`, source: 'kernel', measuredOn: 'B-rep bodies (kernel volume, stated density)' }
     }
     case 'pattern-spacing':
     case 'pattern-gap':
+    case 'pattern-width':
     case 'pattern-count': {
       const r = pr.features.find((x) => x.featureId === spec.featureId)
-      const what = spec.kind === 'pattern-spacing' ? 'spacing' : spec.kind === 'pattern-gap' ? 'gap between neighbouring occurrences' : 'count'
+      const what = spec.kind === 'pattern-spacing' ? 'spacing' : spec.kind === 'pattern-gap' ? 'gap between neighbouring occurrences' : spec.kind === 'pattern-width' ? 'occurrence width' : 'count'
       const label = `pattern ${spec.featureId} ${what}`
       if (!r || r.type !== 'pattern-linear') return { reason: `${spec.featureId} is not a linear pattern.`, quantity: label }
       if (r.status !== 'ok' || !r.pattern) return { reason: `Pattern ${spec.featureId} did not regenerate (${r.error?.message ?? r.status}).`, quantity: label }
-      if (spec.kind === 'pattern-count') return { value: r.pattern.count, dim: 'count', quantity: label, method: 'evaluated pattern count' }
-      if (spec.kind === 'pattern-spacing') return { value: r.pattern.spacing, dim: 'length', quantity: label, method: 'evaluated pattern spacing (centre to centre along the direction)' }
+      if (spec.kind === 'pattern-count') return { value: r.pattern.count, dim: 'count', quantity: label, method: 'evaluated pattern count', source: 'model', measuredOn: 'evaluated pattern feature' }
+      if (spec.kind === 'pattern-spacing') return { value: r.pattern.spacing, dim: 'length', quantity: label, method: 'evaluated pattern spacing (centre to centre along the direction)', source: 'model', measuredOn: 'evaluated pattern feature' }
+      if (spec.kind === 'pattern-width') {
+        if (r.pattern.occurrenceWidth == null) return { reason: 'The occurrence width is measured only for patterns along a coordinate axis.', quantity: label }
+        // Not a failure: the extent equals an across-flats size only when flat faces bound the pocket along the direction.
+        if (r.pattern.occurrenceWidthFlats === false) return { reason: `The kernel extent of one occurrence along the pattern direction is ${r.pattern.occurrenceWidth.toFixed(3)} mm, but it is bounded by corners or curved faces, not by two flat faces facing the direction, so it is not an across-flats width. Rotate the pocket so its flats face the pattern direction to measure the pocket width this way; the bound parameter value is unaffected.`, quantity: label }
+        return { value: r.pattern.occurrenceWidth, dim: 'length', quantity: label, method: 'kernel bounding-box extent of one pattern occurrence (its tool solid) along the pattern direction; for a hexagonal pocket whose flats face the direction this is the across-flats size', source: 'kernel', measuredOn: 'tool solid of pattern occurrence 1 (kernel analysis)' }
+      }
       if (r.pattern.gap === null) return { reason: 'The kernel did not provide a distance measurement.', quantity: label }
-      return { value: r.pattern.gap, dim: 'length', quantity: label, method: 'kernel minimum distance between the tool solids of occurrences 1 and 2 (material left between neighbouring cuts)' }
+      return { value: r.pattern.gap, dim: 'length', quantity: label, method: 'kernel minimum distance between the tool solids of occurrences 1 and 2 (material left between neighbouring cuts)', source: 'kernel', measuredOn: 'tool solids of pattern occurrences 1 and 2 (kernel distance)' }
     }
   }
 }
@@ -291,6 +306,7 @@ export async function runChecks(doc: CadDocument, regen: RegenerationResult, opt
         bound: null,
         status: b.analysis.valid ? 'satisfied' : 'violated',
         method: 'kernel B-rep validity check of the regenerated solid',
+        provenance: { source: 'kernel', kernel, measuredOn: `B-rep body ${b.bodyId} (kernel BRepCheck)` },
         ...common,
       })
     }
@@ -316,6 +332,7 @@ export async function runChecks(doc: CadDocument, regen: RegenerationResult, opt
     const m = measure(doc, regen, partId, req.measure)
     const checkId = `${req.constraint.id}:${partId}:${JSON.stringify(req.measure)}`
     const base = { checkId, ...common, ...(req.binding ? { binding: req.binding } : {}) }
+    const provenance = 'reason' in m ? undefined : { source: m.source, kernel, measuredOn: m.measuredOn }
     if ('reason' in m) {
       results.push({ ...base, quantity: m.quantity, measured: null, measuredModel: null, bound: null, status: 'not-checkable', reason: m.reason, method: 'not measured' })
       if (req.measure.kind === 'mass' && /material/.test(m.reason)) assumptions.push('Mass is not checkable: the part has no material (density).')
@@ -323,18 +340,18 @@ export async function runChecks(doc: CadDocument, regen: RegenerationResult, opt
     }
     const measuredModel = { value: m.value, unit: MODEL_UNIT[m.dim] }
     if (!options.concepts?.getConstraint) {
-      results.push({ ...base, quantity: m.quantity, measured: measuredModel, measuredModel, bound: null, status: 'not-checkable', reason: 'Design constraints cannot be read in this host (Conceptualize constraint reads are not available).', method: m.method })
+      results.push({ ...base, quantity: m.quantity, measured: measuredModel, measuredModel, bound: null, status: 'not-checkable', reason: 'Design constraints cannot be read in this host (Conceptualize constraint reads are not available).', method: m.method, ...(provenance ? { provenance } : {}) })
       continue
     }
     let c: ConstraintSummary | undefined
     try {
       c = await readConstraint(req.constraint.id, req.constraint.revision)
     } catch (e) {
-      results.push({ ...base, quantity: m.quantity, measured: measuredModel, measuredModel, bound: null, status: 'not-checkable', reason: `The constraint could not be read: ${e instanceof Error ? e.message : String(e)}`, method: m.method })
+      results.push({ ...base, quantity: m.quantity, measured: measuredModel, measuredModel, bound: null, status: 'not-checkable', reason: `The constraint could not be read: ${e instanceof Error ? e.message : String(e)}`, method: m.method, ...(provenance ? { provenance } : {}) })
       continue
     }
     if (!c) {
-      results.push({ ...base, quantity: m.quantity, measured: measuredModel, measuredModel, bound: null, status: 'not-checkable', reason: `Constraint ${req.constraint.id}${req.constraint.revision ? ` revision ${req.constraint.revision}` : ''} does not exist in project ${options.projectId}.`, method: m.method })
+      results.push({ ...base, quantity: m.quantity, measured: measuredModel, measuredModel, bound: null, status: 'not-checkable', reason: `Constraint ${req.constraint.id}${req.constraint.revision ? ` revision ${req.constraint.revision}` : ''} does not exist in project ${options.projectId}.`, method: m.method, ...(provenance ? { provenance } : {}) })
       continue
     }
     const bound: CheckBound | null = c.bound
@@ -354,12 +371,12 @@ export async function runChecks(doc: CadDocument, regen: RegenerationResult, opt
         }
       : null
     if (!c.bound) {
-      results.push({ ...base, quantity: m.quantity, measured: measuredModel, measuredModel, bound, status: 'not-checkable', reason: `${c.key} has no quantitative bound (${c.kind}).`, method: m.method })
+      results.push({ ...base, quantity: m.quantity, measured: measuredModel, measuredModel, bound, status: 'not-checkable', reason: `${c.key} has no quantitative bound (${c.kind}).`, method: m.method, ...(provenance ? { provenance } : {}) })
       continue
     }
     const converted = convert(m.value, m.dim, c.bound.quantity.unit)
     if (converted === undefined) {
-      results.push({ ...base, quantity: m.quantity, measured: measuredModel, measuredModel, bound, status: 'not-checkable', reason: `The bound unit “${c.bound.quantity.unit}” cannot be compared with the measured ${m.dim} (${MODEL_UNIT[m.dim] || 'count'}).`, method: m.method })
+      results.push({ ...base, quantity: m.quantity, measured: measuredModel, measuredModel, bound, status: 'not-checkable', reason: `The bound unit “${c.bound.quantity.unit}” cannot be compared with the measured ${m.dim} (${MODEL_UNIT[m.dim] || 'count'}).`, method: m.method, ...(provenance ? { provenance } : {}) })
       continue
     }
     const status = compare(converted, c.bound)
@@ -372,6 +389,7 @@ export async function runChecks(doc: CadDocument, regen: RegenerationResult, opt
       status: status === 'no-value' ? 'not-checkable' : status,
       ...(status === 'no-value' ? { reason: `${c.key} has a ${c.bound.operator} bound without a value.` } : {}),
       method: m.method,
+      ...(provenance ? { provenance } : {}),
     })
     if (c.basis !== 'user-assertion' && c.basis) assumptions.push(`${c.key} (revision ${c.revision}) rests on ${c.basis.replace(/-/g, ' ')}, not on a stated requirement.`)
     if (c.status !== 'active') assumptions.push(`${c.key} is ${c.status}.`)

@@ -9,7 +9,8 @@ Framework- and kernel-free core of the CAD Modeler (ADR-0020). Owner: CAD agent.
 - Expressions and parameters; sketch constraint solver and profiles (ADR-0025).
 - Typed commands (`commands/registry.ts`), transactions, history (undo/redo, operation log),
   catalogue (`commands/catalog.ts`).
-- Regeneration engine with content-keyed cache, failure reporting and naming probes (ADR-0024);
+- Regeneration engine with content-keyed cache, failure reporting (blocked features name their root cause) and naming probes (ADR-0024, history ADR-0075);
+- `SketchSolver` interface (`sketch/solverPort.ts`); planegcs is a devDependency used only as a test oracle (ADR-0076);
   `CadEngine` facade; observability queries.
 - The `GeometryKernel` interface (`kernel.ts`), implemented elsewhere.
 

@@ -7,7 +7,8 @@ Geometric kernel adapter of the CAD Modeler (ADR-0021). Owner: CAD agent.
 - `OcctKernel`: `GeometryKernel` on Open CASCADE via replicad 1.1.0 (MIT) and
   replicad-opencascadejs 1.1.0 (LGPL-2.1-only WASM). Solids from profiles, booleans, analysis
   (mass properties, topology, BRepCheck validity, probe-based face names, adjacency edge names),
-  tessellation with face/edge ranges, STEP AP242 export and geometry import.
+  tessellation with face/edge ranges, STEP AP242 export and geometry import. Booleans, fillets and chamfers run the OCCT
+  builders directly and use their shape history (`Modified`, `IsDeleted`) to name the pieces of split faces (ADR-0075).
 - `worker/`: the kernel worker and its RPC client (browsers never run OCCT on the UI thread).
 - `node.ts`: in-process kernel for tests, scripts and benchmarks (`wasmPath` lets users supply
   their own build of the LGPL library).

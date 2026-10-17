@@ -8,9 +8,10 @@ tests: `assistant.test.ts` (Node, real kernel) and the workspace browser flow (d
 | Operation | Kind | Purpose |
 | --- | --- | --- |
 | `cad-modeler.describe_model` | read | Documents, feature tree with status and errors, parameters with values and bindings, bodies (volume, mass, bounding box, topology), failures, references |
-| `cad-modeler.query` | read | Any query of the catalogue (`get_sketch`, `get_entities`, `get_dependencies`, `get_operation_log`, `get_document`, `list_commands`, …) |
+| `cad-modeler.query` | read | Any query of the catalogue (`get_sketch`, `get_entities`, `get_dependencies`, `get_operation_log`, `get_document`, `get_reference_repairs` (lost face or edge references with candidate replacements), `list_commands`, …) |
 | `cad-modeler.run_commands` | proposal | A transaction of catalogue commands; creates a document when none is open |
 | `cad-modeler.undo` | proposal | Undo the last transaction (whoever made it) |
+| `cad-modeler.redo` | proposal | Redo the transaction that was just undone in the open document (refused with `no-op` when nothing was undone) |
 | `cad-modeler.new_document` | proposal | New document with one part |
 | `cad-modeler.open_document` | proposal | Open a stored document (documentId, revision) or a native document given as JSON (validated before the preview) |
 | `cad-modeler.list_documents` / `save_document` | read / proposal | Stored documents of the project; save a revision with the proposal's provenance |
@@ -31,6 +32,7 @@ service proposals; the platform shows the card; **Apply** calls the proposal's `
 | --- | --- |
 | Preview before commit | `run_commands` performs `CadEngine.dryRun` (full validation and regeneration on a copy). The card lists each command and the predicted bodies (volume, faces, size, validity) and new failures |
 | Transactional edits | One proposal = one transaction; all commands commit or none |
+| Lost references | A lost face or edge is never re-bound by the system. `repair_reference` carries a replacement the person chose, or one an approved proposal names, inside `run_commands`, with the usual dry-run preview; `get_reference_repairs` lists the candidates (best name match first, a suggestion only) |
 | Undo / rollback | Proposal `undo` restores the pre-apply content as a new version, only if the model is still at the applied version; `cad-modeler.undo` undoes the latest transaction |
 | Model version checks | The version at preview time (or the caller's `expectedVersion`) is enforced on Apply; mismatches fail with `version-conflict` and nothing changes (tested) |
 | Deterministic execution | Pure transaction function and deterministic IDs; the dry run predicts exactly what Apply produces |
@@ -59,5 +61,5 @@ Replies start with "(Demo planner.)". It only plans calls to registered actions.
 ## 5. Not available to the assistant (honest gaps)
 
 Camera control and viewport images (planned as supplementary context), reading files from the
-user's disk, redo, and validating cross-module targets automatically (the assistant should call
+user's disk, and validating cross-module targets automatically (the assistant should call
 `read_object` or the owning module's search before `add_reference`).

@@ -3,7 +3,8 @@ import { evaluateIn, evaluateParameters, type EvaluatedParameter, type Parameter
 import { KernelError, toModel, v3, type FaceProbe, type GeometryKernel, type KernelPlane, type ShapeAnalysis, type ShapeHandle, type Vec3 } from '../kernel'
 import { isDimensional, SKETCH_X_AXIS, SKETCH_Y_AXIS, type CadDocument, type ExtrudeFeature, type Feature, type Part, type PlaneRef, type RevolveFeature, type SketchFeature } from '../model/types'
 import { extractProfile, type Profile } from '../sketch/profile'
-import { solveSketch, type SketchSolution } from '../sketch/solver'
+import type { SketchSolution } from '../sketch/solver'
+import { builtInSketchSolver, type SketchSolver } from '../sketch/solverPort'
 import { hashOf, now } from '../util'
 import { crossesAxis, extrudeProbes, planeOf, revolveProbes, toKernelRegions } from './geometry'
 
@@ -26,6 +27,15 @@ export interface SketchResult {
   lines: Record<string, { start: string; end: string; construction: boolean }>
 }
 
+/** The feature whose own failure blocks others (named in blocked features' messages, shown in Diagnostics). */
+export interface FailureCause {
+  featureId: string
+  name: string
+  status: string
+  message: string
+  reason?: string
+}
+
 export interface FeatureResult {
   featureId: string
   type: Feature['type']
@@ -41,7 +51,7 @@ export interface FeatureResult {
   /** Solid features: the body this feature created or modified. */
   bodyId?: string
   /** Linear patterns: evaluated count and spacing, and the measured gap between neighbouring occurrences (mm; null when not measurable). */
-  pattern?: { count: number; spacing: number; direction: Vec3; gap: number | null }
+  pattern?: { count: number; spacing: number; direction: Vec3; gap: number | null; occurrenceWidth?: number | null; occurrenceWidthFlats?: boolean | null }
   /** Sketches and datum planes: the resolved plane. */
   plane?: KernelPlane
 }
@@ -185,7 +195,7 @@ interface BodyState {
 }
 
 /** Evaluated sketch values and solution on a resolved plane (no kernel needed). */
-export function solveSketchFeature(sketch: SketchFeature, scope: ParameterScope, resolvedPlane?: KernelPlane): { result?: SketchResult; key: string; error?: CadErrorInfo } {
+export function solveSketchFeature(sketch: SketchFeature, scope: ParameterScope, resolvedPlane?: KernelPlane, solver: SketchSolver = builtInSketchSolver): { result?: SketchResult; key: string; error?: CadErrorInfo } {
   const values: Record<string, number> = {}
   let plane: KernelPlane
   try {
@@ -197,7 +207,7 @@ export function solveSketchFeature(sketch: SketchFeature, scope: ParameterScope,
     return { key: '', error: toErrorInfo(e) }
   }
   const key = hashOf({ entities: sketch.entities, constraints: sketch.constraints.map((c) => ({ ...c, value: values[c.id] ?? null, name: undefined })), plane })
-  const solution = solveSketch(sketch, { values })
+  const solution = solver.solve(sketch, { values })
   const profile = extractProfile(sketch.entities, sketch.constraints, solution)
   const lines: SketchResult['lines'] = {}
   for (const e of sketch.entities) if (e.type === 'line') lines[e.id] = { start: e.start, end: e.end, construction: !!e.construction }
@@ -244,7 +254,17 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
   const upstream = (id: string, what: string): never => {
     const r = byId.get(id)
     if (!r) throw new CadError('not-found', `${what} ${id} does not exist earlier in the history.`, { reason: 'missing-reference', reference: id })
-    throw new CadError('precondition-failed', r.status === 'suppressed' ? `${what} ${id} is suppressed.` : `${what} ${id} failed to regenerate.`, { reason: r.status === 'suppressed' ? 'upstream-suppressed' : 'upstream-failed', upstream: id })
+    if (r.status === 'suppressed') {
+      throw new CadError('precondition-failed', `${what} “${r.name}” (${id}) is suppressed, so this feature cannot be built. Unsuppress it, or edit this feature to use something else.`, { reason: 'upstream-suppressed', upstream: id, cause: { featureId: id, name: r.name, status: r.status, message: 'The feature is suppressed.' } })
+    }
+    // Name the root cause: the first feature in the chain that failed on its own.
+    const inherited = r.error?.details?.cause as FailureCause | undefined
+    const cause: FailureCause = inherited ?? { featureId: id, name: r.name, status: r.status, message: r.error?.message ?? 'The feature failed to regenerate.', ...(typeof r.error?.details?.reason === 'string' ? { reason: r.error.details.reason } : {}) }
+    throw new CadError(
+      'precondition-failed',
+      `${what} “${r.name}” (${id}) ${r.status === 'blocked' ? 'is blocked' : 'failed'}, so this feature cannot be built. Root cause in “${cause.name}” (${cause.featureId}): ${cause.message} Fix that feature first.`,
+      { reason: 'upstream-failed', upstream: id, cause },
+    )
   }
 
   /** Resolves a plane reference at this point of the history (datums and faces of the current bodies). */
@@ -268,7 +288,7 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
       if (face.surfaceType !== 'PLANE' || !face.normal) throw new CadError('regeneration-failed', `Face ${ref.face} is not planar (${face.surfaceType}); sketches need a planar face.`, { reason: 'face-not-planar', face: ref.face })
       return offsetPlane(faceFrame(face.center, face.normal), offset)
     }
-    throw new CadError('regeneration-failed', `Face ${ref.face} no longer exists at this point of the history. Choose another face. Planar faces: ${planar.slice(0, 12).join(', ') || 'none'}.`, { reason: 'reference-lost', face: ref.face, available: planar.slice(0, 50) })
+    throw new CadError('regeneration-failed', `Face ${ref.face} no longer exists at this point of the history. Use Repair reference in Diagnostics (or the repair_reference command) to choose another face. Planar faces: ${planar.slice(0, 12).join(', ') || 'none'}.`, { reason: 'reference-lost', referenceKind: 'face', face: ref.face, lost: [ref.face], available: planar.slice(0, 300) })
   }
 
   for (const feature of part.features) {
@@ -396,7 +416,7 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
             const key = hashOf({ op, target: target.key, tool: built.key, pattern: feature.id })
             let shape = cache.getShape(key, gen)
             if (!shape) {
-              shape = await kernel.boolean(op, target.shape, built.shape)
+              shape = await kernel.boolean(op, target.shape, built.shape, { targetProbes: target.probes, toolProbes: probes })
               cache.putShape(key, shape, gen)
               rebuilt = true
             }
@@ -421,7 +441,28 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
             if (gap !== null) cache.putMeta(gapKey, gap, gen)
           }
         }
-        r.pattern = { count, spacing, direction, gap }
+        // Width of occurrence 1 along the pattern direction: the kernel bounding box of its tool solids
+        // (only when the direction is a coordinate axis, where the box extent is the exact extent).
+        // The extent is the distance between two flat faces (across flats for a hexagon) only when the tool has a planar
+        // face at each end whose normal is the pattern direction; otherwise corners or curved faces bound it.
+        let occurrenceWidth: number | null = null
+        let occurrenceWidthFlats: boolean | null = null
+        const axis = direction.findIndex((c) => Math.abs(Math.abs(c) - 1) < 1e-9)
+        if (axis >= 0 && direction.every((c, k) => k === axis || Math.abs(c) < 1e-9)) {
+          const widthKey = hashOf({ width: tools[0].map((t) => t.id), axis })
+          const cachedWidth = cache.getMeta<{ width: number; flats: boolean }>(widthKey, gen)
+          if (cachedWidth !== undefined) ({ width: occurrenceWidth, flats: occurrenceWidthFlats } = cachedWidth)
+          else {
+            const analyses = await Promise.all(tools[0].map((t) => kernel.analyze(t, [])))
+            const lo = Math.min(...analyses.map((a) => a.boundingBox.min[axis]))
+            const hi = Math.max(...analyses.map((a) => a.boundingBox.max[axis]))
+            occurrenceWidth = Math.round((hi - lo) * 1e9) / 1e9
+            const flatAt = (at: number) => analyses.some((a) => a.faces.some((f) => f.surfaceType === 'PLANE' && f.normal && Math.abs(Math.abs(f.normal[axis]) - 1) < 1e-6 && Math.abs(f.center[axis] - at) < 1e-6))
+            occurrenceWidthFlats = flatAt(lo) && flatAt(hi)
+            cache.putMeta(widthKey, { width: occurrenceWidth, flats: occurrenceWidthFlats }, gen)
+          }
+        }
+        r.pattern = { count, spacing, direction, gap, occurrenceWidth, occurrenceWidthFlats }
         r.rebuilt = rebuilt
         r.bodyId = target.bodyId
         r.key = target.key
@@ -450,7 +491,7 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
           const key = hashOf({ op: feature.operation, target: target.key, tool: built.key })
           let shape = cache.getShape(key, gen)
           if (!shape) {
-            shape = await kernel.boolean(feature.operation === 'cut' ? 'cut' : 'fuse', target.shape, built.shape)
+            shape = await kernel.boolean(feature.operation === 'cut' ? 'cut' : 'fuse', target.shape, built.shape, { targetProbes: target.probes, toolProbes: built.probes })
             cache.putShape(key, shape, gen)
             r.rebuilt = true
           }
@@ -461,7 +502,7 @@ async function regeneratePart(part: Part, kernel: GeometryKernel, cache: Regener
         }
       }
     } catch (e) {
-      r.error = e instanceof KernelError ? { code: 'regeneration-failed', message: e.message, details: { reason: e.code } } : toErrorInfo(e)
+      r.error = e instanceof KernelError ? { code: 'regeneration-failed', message: e.message, details: { reason: e.code, ...e.details } } : toErrorInfo(e)
       r.status = blockedReason(r.error) ? 'blocked' : 'failed'
     }
     finish(r)

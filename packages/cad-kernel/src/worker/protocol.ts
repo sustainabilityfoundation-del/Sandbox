@@ -11,5 +11,5 @@ export interface KernelRequest {
 
 export type KernelResponse =
   | { id: number; ok: true; result: unknown }
-  | { id: number; ok: false; error: { code: string; message: string } }
+  | { id: number; ok: false; error: { code: string; message: string; details?: Record<string, unknown> } }
   | { id: 0; ok: true; ready: true; info: GeometryKernel['info']; loadMs: number }

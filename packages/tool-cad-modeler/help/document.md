@@ -30,7 +30,11 @@ CAD service:
 
 **New** creates a document with one empty part. Until it is saved, the header shows **Not saved to a
 file** or **Unsaved changes**; closing or reloading the window then asks for confirmation. Several
-documents can be open; each view shows one. The standalone harness uses a clearly labelled local store
+documents can be open; each view shows one. With more than one open, the header has a **Switch
+document** list (title, version and *unsaved* when it has changes); choosing a document shows it and makes
+it the one the assistant works on by default. The assistant lists documents with
+`cad-modeler.list_documents`, opens one with `cad-modeler.open_document` and can name one in any other
+operation with `documentId`. The standalone harness uses a clearly labelled local store
 that is lost when the page reloads.
 
 The document title is edited in **Model → Document title**. It is a command, so it can be undone.

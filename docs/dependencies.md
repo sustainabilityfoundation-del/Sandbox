@@ -102,6 +102,7 @@ ajv 8.20.0 (MIT), ajv-formats 3.0.1 (MIT), @types/pg 8.23.1 (MIT). The graph vie
 | three | 0.180.0 | MIT | tool-cad-modeler (3D viewport; same version as glb-viewer) | github.com/mrdoob/three.js |
 | @types/three | 0.180.0 | MIT | tool-cad-modeler (dev) | DefinitelyTyped |
 | ajv, tsx | 8.20.0, 4.23.15 | MIT | cad-core (dev: JSON Schema test, catalogue script) | see above |
+| @salusoft89/planegcs | 1.3.0 (exact pin) | LGPL-2.0-or-later | cad-core (**dev-only**: oracle tests for the sketch solver, `planegcsOracle.test.ts`; never imported by shipped code, never bundled or distributed; ADR-0076) | github.com/Salusoft89/planegcs |
 
 LGPL obligations for replicad-opencascadejs (OCCT): the WASM binary stays a separate file fetched by
 the kernel worker (`locateFile`) or read from a path in Node (`createNodeKernel({ wasmPath })`), so
@@ -113,7 +114,7 @@ library. The notice ships: `apps/workspace/public/THIRD_PARTY_NOTICES.txt` (LGPL
 exception, replicad's MIT licence, source locations) is copied by Vite to `dist/workspace/THIRD_PARTY_NOTICES.txt`
 and served at `/workspace/THIRD_PARTY_NOTICES.txt`. Whether the LGPL-2.1 terms suit the product is the owner's
 decision (ADR-0021); the notice does not decide it. replicad releases 0.5.0–0.15.1 were AGPL-3.0: keep the exact pin at 1.1.0 (MIT).
-Not used: SolveSpace/libslvs (GPL-3), planegcs (LGPL, evaluation only), commercial kernels and
+Not used: SolveSpace/libslvs (GPL-3), planegcs at run time (LGPL-2.0-or-later; a development-time test oracle only, ADR-0076), commercial kernels and
 translators (need approval).
 ## SysML Modeler (added 15 October 2026, SysML agent; contracts §4)
 

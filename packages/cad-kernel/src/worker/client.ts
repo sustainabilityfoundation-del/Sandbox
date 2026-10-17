@@ -37,7 +37,7 @@ export function createWorkerKernel(): WorkerKernel {
     if (!p) return
     pending.delete(msg.id)
     if (msg.ok) p.resolve(msg.result)
-    else p.reject(new KernelError(msg.error.code, msg.error.message))
+    else p.reject(new KernelError(msg.error.code, msg.error.message, msg.error.details))
   }
   worker.onerror = (event) => {
     const error = new KernelError('kernel-failure', `The geometry kernel worker failed: ${event.message || 'unknown error'}`)

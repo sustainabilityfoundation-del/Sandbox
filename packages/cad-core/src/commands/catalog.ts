@@ -2,7 +2,7 @@ import { CadError } from '../errors'
 import { findPart } from '../model/document'
 import type { JsonSchema } from '../model/jsonSchema'
 import type { CadDocument } from '../model/types'
-import { dependencyGraph, failures, featureTree, geometricEntities, massProperties, parameterTable, regenerationSummary, sketchDetails } from '../query/queries'
+import { dependencyGraph, failures, featureTree, geometricEntities, massProperties, parameterTable, referenceRepairs, regenerationSummary, sketchDetails } from '../query/queries'
 import type { RegenerationResult } from '../regen/engine'
 import type { OperationLogEntry } from './history'
 import { COMMANDS } from './registry'
@@ -49,6 +49,7 @@ export const QUERIES: QuerySpec[] = [
   { name: 'get_mass_properties', summary: 'Volume, surface area, centre of mass, bounding box and (with a material) mass of each body.', input: obj({ partId }), run: (ctx, i) => massProperties(ctx.doc, ctx.regen, firstPart(ctx, i)) },
   { name: 'get_dependencies', summary: 'Dependency graph: parameter → parameter/feature, sketch → feature, body chain.', input: obj({ partId }), run: (ctx, i) => dependencyGraph(ctx.doc, firstPart(ctx, i)) },
   { name: 'get_failures', summary: 'Regeneration failures, blocked features, warnings and parameter errors.', input: obj({}), run: (ctx) => failures(ctx.regen) },
+  { name: 'get_reference_repairs', summary: 'Features with a lost face or edge reference (reference-lost): the lost names and candidate replacements, best name matches first. Candidates are suggestions; repair_reference applies only the replacement a person or an approved proposal names.', input: obj({}), run: (ctx) => referenceRepairs(ctx.doc, ctx.regen) },
   { name: 'get_regeneration_summary', summary: 'Last regeneration: version, duration, kernel, rebuilt and reused features, body validity.', input: obj({}), run: (ctx) => regenerationSummary(ctx.regen) },
   { name: 'get_operation_log', summary: 'Recent committed, rejected, undone and redone transactions with source and affected IDs.', input: obj({ limit: { type: 'integer', minimum: 1, maximum: 500 } }), run: (ctx, i) => ctx.operations((i.limit as number | undefined) ?? 50) },
   { name: 'get_document', summary: 'The complete native document (ews-cad JSON).', input: obj({}), run: (ctx) => ctx.doc },
@@ -59,7 +60,7 @@ export const QUERIES: QuerySpec[] = [
 export function commandCatalog() {
   return {
     catalog: 'ews-cad-commands',
-    catalogVersion: '1.3.0',
+    catalogVersion: '1.4.0',
     format: 'ews-cad 1.x',
     conventions: {
       transaction: 'Commands run in transactions: all commit or none. Optional expectedVersion fails with version-conflict when the document changed.',
