@@ -151,6 +151,10 @@ ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only
 - In progress: AUD-4 stable IDs in labels (`fix/aud-4-stable-ids`); AWS platform readiness, no AWS calls
   (`infra/aws-platform-readiness`: refuse embedded PostgreSQL when deployed, all-schema migrate with `--check`, `/health` and
   `/ready`, dev identities off when deployed unless explicitly enabled).
+- Ready for one joint integration run: readable IDs in Conceptualize (AUD-4, `fix/aud-4-stable-ids` 9bcc370) and AWS platform
+  readiness (`infra/aws-platform-readiness` 1bdd9fe, Opus-reviewed: no identity bypass; fixes made). Waiting for AUD-6
+  (Conceptualize bounds in full, Inspector follows selection; built on AUD-4). Started: CE-1 context assembly
+  (`feature/ce-1-context-assembly`, injection off by default). Owner asked for plain-language task names in reports.
 - Owner's main checkout lacks `@salusoft89/planegcs` (added by C1): run `npm install` before restarting `npm run dev`.
 
 ## Integration queue update (17 October 2026, about 02:15 EDT)
