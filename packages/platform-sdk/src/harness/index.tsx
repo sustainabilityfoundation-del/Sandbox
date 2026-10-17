@@ -58,15 +58,16 @@ class ViewBoundary extends Component<{ children: ReactNode }, { error: Error | n
  * the harness was given (`MockHostOptions.manifest`). Without a manifest there is no registry data, so the bar is flat
  * and the other surfaces are empty, as before SDK 1.14.
  */
-function useHarnessCommandModel(tool: AnyToolDefinition, host: MockHost): CommandModel {
+function useHarnessCommandModel(tool: AnyToolDefinition, host: MockHost, compatible: boolean): CommandModel {
   const state = useStore(host.store)
   const model = state.model!
   const api = host.getToolApi(tool.id, VIEW_ID)
   const context = host.getContext(VIEW_ID)
   const selection = context.selectedIds.map((id) => model.get(id)).filter((o): o is EngineeringObject => !!o)
   const ctx = { api, viewState: host.getViewState(VIEW_ID, tool.id), context, model, selection }
-  const items = tool.toolbar(ctx)
-  const runtime = tool.runtime?.(ctx)
+  // An incompatible tool is never called.
+  const items = compatible ? tool.toolbar(ctx) : []
+  const runtime = compatible ? tool.runtime?.(ctx) : undefined
   const manifest = host.manifest
   return buildCommandModel(
     manifest,
@@ -192,7 +193,7 @@ function Harness({ tool, host }: { tool: AnyToolDefinition; host: MockHost }) {
 
 function ReadyHarness({ tool, host, compatible, objects, theme }: { tool: AnyToolDefinition; host: MockHost; compatible: boolean; objects: readonly EngineeringObject[]; theme: ReturnType<typeof usePreferences.getState>['theme'] }) {
   const state = useStore(host.store)
-  const commandModel = useHarnessCommandModel(tool, host)
+  const commandModel = useHarnessCommandModel(tool, host, compatible)
   const View = tool.view
   const snapshot = state.model!.snapshot
 

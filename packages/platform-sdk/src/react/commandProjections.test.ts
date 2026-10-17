@@ -238,6 +238,21 @@ describe('buildCommandModel projections (SDK 1.14)', () => {
     expect(shaded.state).toMatchObject({ kind: 'unavailable', active: true })
   })
 
+  it('projects the quick segment only when the layout enables it', () => {
+    const off = { ...structured, commandLayout: { ...structured.commandLayout!, quick: undefined } }
+    expect(buildCommandModel(structured, structuredEntries, structuredItems(), ctx).quick.length).toBeGreaterThan(0)
+    expect(buildCommandModel(off, structuredEntries, structuredItems(), ctx).quick).toEqual([])
+  })
+
+  it('renders the split children of a select or number parent as normal commands in its group instead of losing them', () => {
+    const items = structuredItems().map((i) => (i.id === 'extrude' ? ({ type: 'number', id: 'extrude', label: 'Depth', value: 5, onChange: () => undefined } as ToolbarItem) : i))
+    const m = buildCommandModel(structured, structuredEntries, items, ctx)
+    const ids = m.tabs[0].groups[0].commands.map((c) => c.id)
+    expect(ids.slice(0, 3)).toEqual(['extrude', 'cad.features.extrude-cut', 'cad.features.loft'])
+    expect(m.tabs[0].groups[0].commands[0]).toMatchObject({ type: 'number' })
+    expect(m.unregistered).toEqual([])
+  })
+
   it('refuses a session for a planned entry (and for an unregistered one when there is a registry) and keeps the other commands usable', () => {
     const session = { capabilityId: 'cad.features.loft', title: 'Loft', fields: [], onOk: vi.fn(), onCancel: vi.fn() }
     const m = buildCommandModel(structured, structuredEntries, structuredItems(), ctx, undefined, { session })
@@ -285,6 +300,7 @@ describe('buildCommandModel projections (SDK 1.14)', () => {
       palettes: [{ id: 'p', label: 'P', groups: [{ id: 'pg', label: 'PG' }] }],
       contextSets: [{ id: 's', label: 'S', when: [{ kind: 'selection', min: 1 }] }],
       panels: [{ id: 'b', role: 'browser', label: 'B', side: 'start' }],
+      quick: true,
     } as NonNullable<ModuleManifest['commandLayout']>
     Object.defineProperty(layout, 'tabs', { get: () => (reads.layout += 1, tabs), enumerable: true })
     const manifest: Pick<ModuleManifest, 'id' | 'name' | 'commandLayout'> = { id: 'big', name: 'Big', commandLayout: layout }

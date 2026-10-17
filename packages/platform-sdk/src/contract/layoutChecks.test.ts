@@ -154,13 +154,25 @@ describe('reachability', () => {
       'demo: demo.p is not reachable from any menu',
       'demo: demo.s is not reachable from any menu',
       'demo: demo.q is not reachable from any menu',
-      'demo: demo.none is not reachable from any menu',
     ])
+    // demo.none has neither a toolbar binding nor a placement, so it is exempt.
     expect(reachabilityProblems(manifest({ capabilities: caps, inventory: 1, commandLayout: undefined }))).toEqual(['demo: inventory 1 but no commandLayout, so no entry is reachable from a menu'])
+  })
+
+  it('exempts assistant-only, API-only, header and panel entries, but not an unplaced toolbar-bound entry', () => {
+    const exempt = [
+      entry({ id: 'demo.ai', surface: 'assistant', aiOperations: ['demo.op'] }),
+      entry({ id: 'demo.api', surface: 'api', apiOperations: ['GET /x'] }),
+      entry({ id: 'demo.header', surface: 'header' }),
+      entry({ id: 'demo.panel', surface: 'panel' }),
+    ]
+    expect(reachabilityProblems(manifest({ capabilities: exempt, inventory: 1 }))).toEqual([])
+    expect(reachabilityProblems(manifest({ capabilities: [...exempt, entry({ id: 'demo.bound', toolbarItem: 'bound' })], inventory: 1 }))).toEqual(['demo: demo.bound is not reachable from any menu'])
+    expect(reachabilityProblems(manifest({ capabilities: exempt, inventory: 1, commandLayout: undefined }))).toEqual([])
   })
 
   it('surfaceProblems combines every check and passes a module without registry data', () => {
     expect(surfaceProblems({ id: 'plain', capabilities: [entry({ id: 'plain.a', module: 'plain' })] })).toEqual([])
-    expect(surfaceProblems(manifest({ capabilities: [...caps, entry({ id: 'demo.k', shortcut: 'F10' })], inventory: 1 })).length).toBeGreaterThan(4)
+    expect(surfaceProblems(manifest({ capabilities: [...caps, entry({ id: 'demo.k', shortcut: 'F10', toolbarItem: 'k' })], inventory: 1 })).length).toBeGreaterThan(4)
   })
 })

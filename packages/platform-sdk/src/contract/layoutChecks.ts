@@ -196,10 +196,18 @@ export function menuReachable(manifest: Pick<Manifest, 'capabilities' | 'command
   return reachable
 }
 
-/** For a module with `inventory: 1`: every entry is reachable from at least one menu (menus always list every entry). */
+/** An entry that is meant to be shown in the UI: it has a toolbar binding or a placement (ribbon, palette, context or quick). */
+function isMenuSurfaced(e: CapabilityEntry): boolean {
+  return !!(e.toolbarItem || e.placement || e.placements?.length)
+}
+
+/**
+ * For a module with `inventory: 1`: every entry with a toolbar binding or a placement is reachable from at least one
+ * menu. Entries without either (assistant-only, API-only, header and panel-surface entries) are exempt.
+ */
 export function reachabilityProblems(manifest: Manifest): string[] {
   if (manifest.inventory !== 1) return []
-  const entries = manifest.capabilities ?? []
+  const entries = (manifest.capabilities ?? []).filter(isMenuSurfaced)
   if (!manifest.commandLayout) return entries.length ? [`${manifest.id}: inventory 1 but no commandLayout, so no entry is reachable from a menu`] : []
   const reachable = menuReachable(manifest)
   return entries.filter((e: CapabilityEntry) => !reachable.has(e.id)).map((e) => `${manifest.id}: ${e.id} is not reachable from any menu`)

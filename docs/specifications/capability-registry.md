@@ -280,7 +280,7 @@ Management. CT-2c has three steps:
 
 - **CT-2c1** design system 1.3.0: components, icon split, generic icons. Can run beside CT-2b while it owns `CommandBar.tsx`.
 - **CT-2c2** SDK 1.14.0: contract, `commandModel` projections with a per-manifest static index, `commandHooks`, harness, checks
-  (menu and palette references, shortcuts, `splitOf` cycles, every entry reachable from a menu). **Done** (branch `feature/ct-2c2-sdk`; `packages/platform-sdk/CHANGELOG.md` 1.14.0; checks in `contract/layoutChecks.ts`, run by `capabilityChecks.surfaceProblems`).
+  (menu and palette references, shortcuts, `splitOf` cycles, every entry with a toolbar binding or a placement reachable from a menu; assistant-only, API-only, header and panel-surface entries without either are exempt). **Done** (branch `feature/ct-2c2-sdk`; `packages/platform-sdk/CHANGELOG.md` 1.14.0; checks in `contract/layoutChecks.ts`, run by `capabilityChecks.surfaceProblems`).
 - **CT-2c3** shell: menu bar slot, quick bar, session strip, F10 and Alt, shortcuts, panel toggles, palette search by menu path,
   `toolSpecs` surfaces, shell docs, help, e2e.
 

@@ -462,9 +462,13 @@ export function buildCommandModel(
     for (const g of tab.groups) {
       const commands = g.members.map((e) => {
         if (e.toolbarItem) used.add(e.toolbarItem)
-        for (const c of index.splitChildren.get(e.id) ?? []) if (c.toolbarItem) used.add(c.toolbarItem)
-        return ribbonEntry(e, b)
-      })
+        const children = index.splitChildren.get(e.id) ?? []
+        for (const c of children) if (c.toolbarItem) used.add(c.toolbarItem)
+        const own = ribbonEntry(e, b)
+        // A select or number control has no split menu: its children would be lost, so they follow it as normal commands.
+        const parentItem = e.toolbarItem ? b.itemById.get(e.toolbarItem) : undefined
+        return parentItem && (parentItem.type === 'select' || parentItem.type === 'number') ? [own, ...children.map((c) => ribbonEntry(c, b))] : [own]
+      }).flat()
       if (commands.length > 0) groups.push({ id: g.id, label: g.label, icon: g.icon, exclusive: g.exclusive, counts: true, commands })
     }
     tabs.push({ id: tab.id, label: tab.label, groups })
@@ -484,7 +488,7 @@ export function buildCommandModel(
 
   const panels = projectPanels(index.panels, runtime)
   const menus: MenuBarMenu[] = index.menus.map((m) => ({ id: m.id, label: m.label, mnemonic: m.mnemonic, items: menuNodes(m.items, index, b, panels, m.id) }))
-  const quick = index.quick.map((e) => commandForEntry(e, b))
+  const quick = layout?.quick ? index.quick.map((e) => commandForEntry(e, b)) : []
   const palettes: CommandModelPalette[] = index.palettes.map((p) => {
     const when = p.def.when ? checkPrerequisite(p.def.when, ctx) : { available: true }
     return {
