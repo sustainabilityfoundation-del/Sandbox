@@ -73,7 +73,7 @@ describe('develop_alternatives with a level', () => {
   it('records variants with the parent architecture and no architecture fields of their own', async () => {
     const { calls, concepts } = server((c) => (c.method === 'GET' && c.url.startsWith(`${BASE}/readiness`) ? readiness(false) : undefined))
     const r = (await action('conceptualize.develop_alternatives').run({ text: 'Layouts', name: 'Layouts', level: 'variant', parentArchitecture: 'CON-101', alternatives: [alt('Four'), alt('Six')] }, ctx({ concepts }))) as ServiceProposal
-    expect(calls.find((c) => c.url.startsWith(`${BASE}/readiness`))!.url).toContain('activity=host-specific-concepts')
+    expect(calls.find((c) => c.url.startsWith(`${BASE}/readiness`))!.url).toContain('activity=dimensioned-design')
     expect(r.preview).toEqual(expect.arrayContaining([{ label: 'Level', proposed: 'Variants of CON-101' }, expect.objectContaining({ label: 'Four: variant of', proposed: 'CON-101' })]))
   })
 })

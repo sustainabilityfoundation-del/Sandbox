@@ -95,7 +95,9 @@ export interface ReadinessQuery {
 async function architecturesOf(db: Queryable, projectId: string, conceptId?: string): Promise<{ blocks: ArchitectureBlock[]; concept: { id: string; key: string; name: string } | null }> {
   if (conceptId) {
     const c = await requireConcept(db, projectId, conceptId)
-    const block = readDefinition(c.definition).architecture
+    let block = readDefinition(c.definition).architecture
+    // A variant is assessed through the architecture it varies (key, ID or name); an unresolvable parent leaves it with no block.
+    if (block?.level === 'variant') block = await parentArchitecture(db, projectId, block.parent)
     return { blocks: block ? [block] : [], concept: { id: c.id, key: c.key, name: c.name } }
   }
   const { rows } = await db.query<{ architecture: unknown }>(
@@ -105,6 +107,17 @@ async function architecturesOf(db: Queryable, projectId: string, conceptId?: str
     [projectId],
   )
   return { blocks: rows.map((r) => readArchitecture(r.architecture)).filter((b): b is ArchitectureBlock => !!b), concept: null }
+}
+
+async function parentArchitecture(db: Queryable, projectId: string, parent: string): Promise<ArchitectureBlock | null> {
+  const { rows } = await db.query<{ architecture: unknown }>(
+    `SELECT v.definition -> 'architecture' AS architecture
+     FROM conceptualize.concepts c JOIN conceptualize.concept_revisions v ON v.concept_id = c.id AND v.revision = c.current_revision
+     WHERE c.project_id = $1 AND (c.id::text = $2 OR upper(c.key) = upper($2) OR lower(v.name) = lower($2)) AND v.definition -> 'architecture' ->> 'level' = 'architecture'
+     ORDER BY c.key LIMIT 1`,
+    [projectId, parent],
+  )
+  return rows[0] ? readArchitecture(rows[0].architecture) : null
 }
 
 /** The intent a readiness question is about: the one named, else the latest active one (none is a valid answer). */

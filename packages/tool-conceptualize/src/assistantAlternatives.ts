@@ -298,7 +298,7 @@ export const developAlternatives: AssistantActionDefinition = {
       generator: MODEL_GENERATOR,
     }
     // Advisory readiness (ECII increment 2): architecture-first output is provisional until the context supports its activity.
-    const readiness = level ? await readinessNote(client, level === 'architecture' ? 'architecture-concepts' : 'host-specific-concepts') : undefined
+    const readiness = level ? await readinessNote(client, level === 'architecture' ? 'architecture-concepts' : 'dimensioned-design') : undefined
     const preview: ServiceProposalItem[] = [
       existing ? { label: 'Parent Concept (existing)', proposed: `${existing.key} ${existing.name}`, targetId: existing.id } : { label: 'Parent Concept', proposed: parentName!, basis: 'ai-hypothesis' },
       { label: 'Objective (your words)', proposed: objective, basis: 'user-statement' },

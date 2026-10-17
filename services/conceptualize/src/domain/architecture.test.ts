@@ -122,6 +122,12 @@ describe('readiness gate', () => {
     // A met gate is still provisional while the interface information is not verified.
     expect(evalFor(i, [arch()], 'host-specific-concepts')).toMatchObject({ provisional: true, label: expect.stringMatching(/gate for host-specific-concepts is met, but the interface information is not verified/) })
   })
+  it('does not treat a variant as an interface statement: a hosted intent with one variant and no host interface stays Exploratory', () => {
+    const i = intent({ externalSystems: [system({ identified: true })] })
+    const variant = { ...EMPTY_ARCHITECTURE, level: 'variant' as const, parent: 'CON-001' }
+    expect(evalFor(i, [variant]).level).toBe('exploratory')
+    expect(JSON.stringify(evalFor(i, [variant]).activities[1].unmet)).toMatch(/no solution architecture states its host interface/)
+  })
   it('never reaches Interfaces Verified for a design that works with another system until facts can be verified', () => {
     const i = intent({ externalSystems: [system({ identified: true })] })
     const r = evalFor(i, [arch()], 'cad-handoff')

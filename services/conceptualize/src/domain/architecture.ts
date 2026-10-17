@@ -290,7 +290,8 @@ export const READINESS_CRITERIA: Criterion[] = [
     unmet: (i) => {
       if (!i.intent || !involvesOtherSystem(i.intent.integration)) return []
       if (!i.architectures.length) return [{ text: 'no solution architecture is recorded for the system the design object works with' }]
-      return i.architectures.some((a) => a.level === 'architecture' && a.hostInterface) || i.architectures.some((a) => a.level === 'variant')
+      // A variant states no interface of its own; the caller resolves it to its parent architecture's block before evaluating.
+      return i.architectures.some((a) => a.level === 'architecture' && a.hostInterface)
         ? []
         : [{ text: 'no solution architecture states its host interface' }]
     },

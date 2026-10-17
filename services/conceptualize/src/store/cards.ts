@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { invalid, notFound } from '../errors'
-import { provisionalLabel } from '../domain/architecture'
+import { levelName, provisionalLabel } from '../domain/architecture'
 import { readDefinition, type EngineeringDefinition } from '../domain/definition'
 import type { ConceptDto, DecisionDto } from '../http/schemas'
 import { listDecisions, listSets, requireSet } from './alternatives'
@@ -194,8 +194,9 @@ export async function buildHandoffPackage(db: Queryable, projectId: string, conc
   const readiness = await readinessOf(db, projectId, { activity: 'cad-handoff', conceptId: concept.id })
   const gate = readiness.activities[0]
   if (readiness.intent && gate && readiness.provisional) {
-    unresolved.push({ kind: 'provisional-readiness', text: provisionalLabel(readiness.level, gate.unmet, 'cad-handoff'), ref: readiness.intent.id })
-    for (const u of gate.unmet) unresolved.push({ kind: 'provisional-readiness', text: u.text, ref: u.ref ?? readiness.intent.id })
+    // Each entry carries its own item; with none unmet the single entry says why the handoff is still provisional.
+    if (!gate.unmet.length) unresolved.push({ kind: 'provisional-readiness', text: provisionalLabel(readiness.level, [], 'cad-handoff'), ref: readiness.intent.id })
+    for (const u of gate.unmet) unresolved.push({ kind: 'provisional-readiness', text: `Provisional (readiness ${levelName(readiness.level)}): ${u.text}`, ref: u.ref ?? readiness.intent.id })
   }
   return {
     schema: 'conceptualize.cad-handoff/1',

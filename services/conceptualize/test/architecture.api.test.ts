@@ -173,6 +173,7 @@ describe('provisional labelling of the CAD handoff', () => {
     expect(pkg.readiness).toMatchObject({ assessed: true, activity: 'cad-handoff', provisional: true, advisory: true })
     const provisional = pkg.unresolved.filter((u: { kind: string }) => u.kind === 'provisional-readiness')
     expect(provisional.length).toBeGreaterThan(1)
-    expect(provisional[0].text).toMatch(/^Provisional: readiness is /)
+    expect(provisional[0].text).toMatch(/^Provisional \(readiness [A-Za-z ]+\): /)
+    expect(new Set(provisional.map((u: { text: string }) => u.text)).size).toBe(provisional.length)
   })
 })

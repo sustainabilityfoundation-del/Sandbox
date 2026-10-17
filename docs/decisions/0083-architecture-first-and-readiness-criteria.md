@@ -32,6 +32,11 @@ libraries (for example string-similarity or embedding stores) either add a depen
 vector store, which the plan avoids. The logic here is domain-specific to the platform's records and criteria (about 300 lines, no dependency), so it
 is implemented in Conceptualize; an embedding-based comparison may be revisited with pgvector (plan, context engineering ADR 0085).
 
+## Limitations
+
+- The readiness snapshot in a CAD handoff is computed when the handoff is built and does not go stale when the intent changes (staleness follows the Concept definition only).
+- A variant is assessed through the architecture it names; an unresolvable parent leaves it without a block.
+
 ## Consequences
 
 - Both operations are `calculate` class and testable without a model; fake-provider replays prove structure, not reasoning quality.
