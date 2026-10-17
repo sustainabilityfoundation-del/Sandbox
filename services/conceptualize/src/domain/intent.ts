@@ -109,6 +109,8 @@ export interface IntentGap {
   subject?: string
   /** Index into externalSystems (structure) or the information need ID. */
   ref?: string
+  /** Every ID this gap answers to: its own plus the information needs merged into it (structure gap and need about the same system). */
+  ids?: string[]
 }
 export interface IntentGaps {
   gaps: IntentGap[]
@@ -170,13 +172,21 @@ export function computeGaps(c: IntentContent): IntentGaps {
   const gaps = [...systemGaps]
   for (const n of c.informationNeeds) {
     if (n.state !== 'open') continue
+    // An open need about a system that already has a structural gap is the same gap: one entry keeping both IDs.
+    const twin = n.subject ? systemGaps.find((g) => g.source === 'structure' && g.subject === n.subject && g.ref !== undefined) : undefined
+    if (twin) {
+      twin.ids = [...(twin.ids ?? [twin.id]), `need-${n.id}`]
+      if (GAP_TIERS.indexOf(TIER_OF_NEED[n.tier]) < GAP_TIERS.indexOf(twin.tier)) twin.tier = TIER_OF_NEED[n.tier]
+      continue
+    }
     gaps.push({ id: `need-${n.id}`, tier: TIER_OF_NEED[n.tier], text: n.text, route: n.route, source: 'information-need', ...(n.subject ? { subject: n.subject } : {}), ref: n.id })
   }
   const counts: Record<GapTier, number> = { essential: 0, concept: 0, detail: 0, immaterial: 0 }
   gaps.forEach((g) => counts[g.tier]++)
   // A question covers a gap when its needId names the information need (need-ID) or the structural gap (its gap ID).
   const covered = new Set(c.questions.filter((q) => q.state === 'open' && q.needId).map((q) => q.needId as string))
-  const unaskedEssential = gaps.filter((g) => g.tier === 'essential' && g.route === 'ask-user' && !covered.has(g.source === 'information-need' ? (g.ref as string) : g.id))
+  const isCovered = (g: IntentGap) => (g.ids ?? [g.id]).some((id) => covered.has(id) || covered.has(id.replace(/^need-/, ''))) || (g.source === 'information-need' && covered.has(g.ref as string))
+  const unaskedEssential = gaps.filter((g) => g.tier === 'essential' && g.route === 'ask-user' && !isCovered(g))
   return {
     gaps,
     counts,

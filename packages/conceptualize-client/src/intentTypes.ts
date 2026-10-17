@@ -78,6 +78,7 @@ export interface IntentGap {
   source: 'structure' | 'information-need'
   subject?: string
   ref?: string
+  ids?: string[]
 }
 export interface IntentGaps {
   intentId: string

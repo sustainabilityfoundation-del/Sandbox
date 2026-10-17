@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { conflict, invalid, notFound } from '../errors'
+import { conflict, forbidden, invalid, notFound } from '../errors'
 import { computeGaps, intentProblems, type IntentContent } from '../domain/intent'
 import { KEY_PREFIX } from '../domain/rules'
 import type { IntentCreateDto, IntentOut, IntentPatchDto } from '../http/intentSchemas'
 import { listAssumptions } from './assumptions'
 import { allListItems } from './concepts'
 import { listConstraints } from './constraints'
-import { ASSISTANT_BASES, audit, emit, isUuid, isoRequired, nextKey, type Ctx, type Queryable } from './context'
+import { audit, emit, isUuid, isoRequired, nextKey, type Ctx, type Queryable } from './context'
 import { artifactProblem } from './implementations'
 
 /**
@@ -135,7 +135,7 @@ async function validate(ctx: Ctx, c: Content): Promise<Content> {
       else if (s.productElement.module !== 'product') errors[`externalSystems.${i}.productElement`] = 'a system is referenced as a product element'
     }
   })
-  if (ctx.provenance.sourceKind === 'assistant' && !ASSISTANT_BASES.includes(c.basis as never)) errors.basis = 'the assistant may only record ai-hypothesis, assumption, assessment or estimate'
+  if (ctx.provenance.sourceKind === 'assistant' && c.basis !== 'ai-hypothesis') errors.basis = 'the assistant may only record the basis ai-hypothesis'
   if (c.assumptions.some((a) => !isUuid(a))) errors.assumptions = 'assumption IDs are UUIDs'
   if (Object.keys(errors).length) throw invalid('The intent is not valid.', errors)
   if (c.assumptions.length) {
@@ -206,6 +206,7 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 export async function updateIntent(ctx: Ctx, id: string, patch: IntentPatchDto, expected: number): Promise<IntentOut> {
   const current = await lock(ctx, id)
+  if (patch.status === 'retired' && ctx.provenance.sourceKind === 'assistant') throw forbidden('Retiring an intent is an action for a person; the assistant cannot retire it.')
   if (current.revision !== expected) throw conflict(`${current.key} changed since revision ${expected} (now ${current.revision}). Reload; nothing was overwritten.`, current.revision)
   const before: Content = { designObject: current.designObject, role: current.role, integration: current.integration, rationale: current.rationale, externalSystems: current.externalSystems as Content['externalSystems'], objectives: current.objectives, environment: current.environment, informationNeeds: current.informationNeeds as Content['informationNeeds'], assumptions: current.assumptions, questions: current.questions as Content['questions'], basis: current.basis }
   const merged = await validate(
@@ -221,7 +222,7 @@ export async function updateIntent(ctx: Ctx, id: string, patch: IntentPatchDto, 
       informationNeeds: (patch.informationNeeds ?? before.informationNeeds) as Content['informationNeeds'],
       assumptions: patch.assumptions ?? before.assumptions,
       questions: (patch.questions ?? before.questions) as Content['questions'],
-      basis: patch.basis ?? (ctx.provenance.sourceKind === 'assistant' && !ASSISTANT_BASES.includes(before.basis as never) ? defaultBasis(ctx) : before.basis),
+      basis: patch.basis ?? (ctx.provenance.sourceKind === 'assistant' ? defaultBasis(ctx) : before.basis),
     }),
   )
   const reason = (patch.reason ?? '').trim()

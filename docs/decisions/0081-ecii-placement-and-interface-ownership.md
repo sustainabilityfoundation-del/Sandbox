@@ -19,12 +19,14 @@ has one owning module.
    `ARTIFACT_OWNER` or `DELEGATIONS` entry in Phase 1.
 2. **Federated graph.** The context graph is a federated view over the Conceptualize design graph (`traverse`, ADR-0041) and the
    Projects artifact registry, product registry and links. Nothing is copied: records hold `ArtifactRef`s with revisions.
-3. **Interface ownership, option B.** An interface is a Conceptualize record at project level whose ends are `ArtifactRef`s to
+3. **Interface ownership, option A (chosen).** An interface is a Conceptualize record at project level whose ends are `ArtifactRef`s to
    product elements (and Concept components); the interface is the edge, and its `relation` (mounts-to, connects-to,
    integrates-with, interferes-with) types it. The product registry owns the products at the ends; Conceptualize owns the interface
-   definition and its facts. Alternatives rejected: (A) interfaces owned by Projects, which would put engineering reasoning,
-   revisions and basis rules in a registry module; (C) interfaces as SysML elements, which would make Conceptualize depend on the
-   System Model for early-phase work (SysML links come in Phase 2 as `InterfaceLink` metadata). Interface definition, candidate
+   definition and its facts. Alternatives rejected: (B) a new service, which would add a deployable and a database for a record
+   type that shares Conceptualize's revisioning, basis and audit rules (own tables and route group keep the option to move it later);
+   (C) the product registry, which would put engineering reasoning, revisions and basis rules in a registry module. Interfaces as
+   SysML elements were also set aside: they would make Conceptualize depend on the System Model for early-phase work (SysML links
+   come in Phase 2 as `InterfaceLink` metadata). Interface definition, candidate
    interface requirement and verification activity stay separate records.
 4. **Product origin.** Product elements gain `origin` (designed, existing, purchased) and `identification` (manufacturer, model,
    revision) in increment 3, additively, so a host is a product element rather than an invented component, in line with "never

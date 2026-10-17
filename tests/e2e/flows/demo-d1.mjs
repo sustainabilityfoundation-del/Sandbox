@@ -118,7 +118,7 @@ try {
   await applyAll(reply, 'engineering intent', 1)
   const intents = await get(`/api/concepts/v1/projects/${P}/intents`)
   const intentGaps = intents[0] ? await get(`/api/concepts/v1/projects/${P}/intents/${intents[0].id}/gaps`) : undefined
-  check(intents.length === 1 && intents[0].integration === 'hosted' && intents[0].externalSystems?.[0]?.identified === false && intents[0].basis === 'ai-hypothesis' && intentGaps?.counts?.essential === 2, `the intent is stored as an AI hypothesis with its gaps (${intents[0]?.key}, ${intents[0]?.integration}, ${intentGaps?.counts?.essential} essential gap(s))`)
+  check(intents.length === 1 && intents[0].integration === 'hosted' && intents[0].externalSystems?.[0]?.identified === false && intents[0].basis === 'ai-hypothesis' && intentGaps?.counts?.essential === 1, `the intent is stored as an AI hypothesis with its gaps (${intents[0]?.key}, ${intents[0]?.integration}, ${intentGaps?.counts?.essential} essential gap(s))`)
 
   // Step 2: concept from the need, then functions, constraints and an assumption.
   reply = await ask('D1 concept: a holder block for six hex-shank bits on a cordless drill')

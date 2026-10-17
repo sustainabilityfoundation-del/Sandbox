@@ -124,6 +124,26 @@ describe('engineering intent: basis rules', () => {
     expect(viaGateway.status).toBe(201)
     expect(viaGateway.body).toMatchObject({ basis: 'ai-hypothesis', provenance: { sourceKind: 'assistant', conversationId: 'CONV-9', proposalId: 'PRP-1' } })
   })
+  it('refuses every assistant basis other than ai-hypothesis, on create and on revision', async () => {
+    for (const basis of ['assumption', 'assessment', 'estimate', 'user-assertion']) {
+      const r = await post('/intents', { ...hostedIntent, basis }, 'eli', assistant())
+      expect(r.status).toBe(422)
+      expect(r.body.error.code).toBe('invalid')
+      expect(JSON.stringify(r.body)).toContain('basis')
+    }
+    const mine = (await post('/intents', standaloneIntent, 'eli', assistant())).body
+    const patched = await env.call('eli', 'PATCH', `${BASE}/intents/${mine.id}`, { expectedRevision: 1, objectives: ['x'], basis: 'estimate' }, assistant())
+    expect(patched.status).toBe(422)
+  })
+  it('the assistant cannot retire an intent; a person can', async () => {
+    const mine = (await post('/intents', standaloneIntent)).body
+    const r = await env.call('eli', 'PATCH', `${BASE}/intents/${mine.id}`, { expectedRevision: 1, status: 'retired' }, assistant())
+    expect(r.status).toBe(403)
+    expect(r.body.error.code).toBe('forbidden')
+    expect((await get(`/intents/${mine.id}`)).body.status).toBe('active')
+    const byPerson = await env.call('eli', 'PATCH', `${BASE}/intents/${mine.id}`, { expectedRevision: 1, status: 'retired' })
+    expect(byPerson.status).toBe(200)
+  })
   it('an assistant revision of a person-asserted intent becomes an AI hypothesis again', async () => {
     const mine = (await post('/intents', standaloneIntent)).body
     expect(mine.basis).toBe('user-assertion')

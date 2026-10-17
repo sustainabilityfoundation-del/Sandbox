@@ -32,7 +32,7 @@ ECII is a capability across existing modules. The context graph is a federated v
 | Product, host, external system, subsystem | Projects product elements with new `origin` (designed, existing, purchased) and `identification` (manufacturer, model, revision) |
 | Is part of | product breakdowns |
 | Function, constraint, assumption, evidence, concept | existing Conceptualize types |
-| Interface | Conceptualize, new revisioned type (`IFC-`), project-level, registered in the artifact registry as kind `interface`; ends are `ArtifactRef`s (option B, ownership by the product registry, recorded in the ADR) |
+| Interface | Conceptualize, new revisioned type (`IFC-`), project-level, registered in the artifact registry as kind `interface`; ends are `ArtifactRef`s (option A, ownership by the product registry, recorded in the ADR) |
 | Fact (value with status) | Conceptualize, new revisioned type, per attribute |
 | Reference document or image | Projects documents plus new `document_sources` (URL, publisher, retrieval date, identifiers, usage terms, view kind) |
 | Unknown | a fact with status `unknown` |

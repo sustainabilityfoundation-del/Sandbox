@@ -76,6 +76,15 @@ describe('gaps are computed from the structure', () => {
     expect(computeGaps(intent({ integration: 'undetermined', externalSystems: [] })).gaps.map((g) => g.id)).toEqual(['integration'])
     expect(computeGaps(intent({ integration: 'connected', externalSystems: [] })).gaps.map((g) => g.id)).toEqual(['systems'])
   })
+  it('an open need about a system that already has a structural gap is merged into it, keeping both IDs', () => {
+    const need = { id: 'N1', text: 'which model', tier: 1 as const, route: 'ask-user' as const, state: 'open' as const, subject: 'Existing apparatus' }
+    const g = computeGaps(intent({ informationNeeds: [need, { ...need, id: 'N2', subject: 'Something else' }] }))
+    expect(g.gaps.map((x) => x.id)).toEqual(['system-0', 'need-N2'])
+    expect(g.gaps[0].ids).toEqual(['system-0', 'need-N1'])
+    expect(g.counts.essential).toBe(2)
+    const q = { id: 'Q1', text: 'Which one?', why: 'It changes the interface', impact: 'blocks' as const, options: ['continue generically'], state: 'open' as const, needId: 'N1' }
+    expect(computeGaps(intent({ informationNeeds: [need], questions: [q] })).unaskedEssential).toEqual([])
+  })
   it('information needs map tier 1-4 to the four tiers; only open tier 1 needs routed to research are research items', () => {
     const n = (id: string, tier: 1 | 2 | 3 | 4, route: 'research' | 'ask-user' | 'measure' | 'defer', state: 'open' | 'resolved' = 'open') => ({ id, text: `need ${id}`, tier, route, state })
     const g = computeGaps(intent({ role: 'standalone', integration: 'standalone', externalSystems: [], informationNeeds: [n('a', 1, 'research'), n('b', 2, 'ask-user'), n('c', 3, 'defer'), n('d', 4, 'defer'), n('e', 1, 'research', 'resolved'), n('f', 2, 'research')] }))

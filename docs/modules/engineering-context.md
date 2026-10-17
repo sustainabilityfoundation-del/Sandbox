@@ -18,7 +18,7 @@ The context graph is a federated view, not a new database:
 | --- | --- | --- |
 | Engineering intent | Conceptualize, revisioned type `INT-` | 1 (done) |
 | Gaps (missing information, four tiers) | computed from the intent by Conceptualize | 1 (done) |
-| Interfaces | Conceptualize `IFC-`, ends are `ArtifactRef`s (option B, [ADR-0081](../decisions/0081-ecii-placement-and-interface-ownership.md)) | 3 |
+| Interfaces | Conceptualize `IFC-`, ends are `ArtifactRef`s (option A, [ADR-0081](../decisions/0081-ecii-placement-and-interface-ownership.md)) | 3 |
 | Product, host, external system | Projects product elements with a new `origin` (designed, existing, purchased) | 3 |
 | Facts with status | Conceptualize | 3 |
 | Reference documents and sources | Projects documents plus `document_sources` | 3-4 |

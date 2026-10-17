@@ -124,6 +124,7 @@ export const IntentGap = Type.Object(
     source: L(['structure', 'information-need'] as const),
     subject: Type.Optional(Type.String()),
     ref: Type.Optional(Type.String()),
+    ids: Type.Optional(Type.Array(Type.String())),
   },
   { $id: 'IntentGap' },
 )
