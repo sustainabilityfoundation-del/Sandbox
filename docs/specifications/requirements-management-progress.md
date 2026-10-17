@@ -5,6 +5,7 @@
 - **State:** stages 1-7 done (see Status by stage)
 - **Branch:** feature/requirements-management @ 0b7b84d, level with main
 - **Done:** assistant operations requirements.get and get_conventions listed in the AI inventory
+- **AUD-8 (branch fix/aud-8-requirements-origin, 17 Oct 2026):** table has an optional Origin column (stored `origin`; null shown as "Unknown", never guessed; help updated); D1 plumbing script allocates REQ-001 and REQ-002 and demo-d1 checks both origins. ReqIF-imported rows have no origin value (enum is stakeholder, ai-proposed, derived), so they show "Unknown"; an "imported" value needs a migration and is not done.
 - **Next actions:** see "Status by stage" and "Open links and allocation relations"
 - **Blockers:** see those sections
 - **Archive:** the sections below are the detailed record and are read on demand, not at session start. Format and the archive split: [handoff template](../agents/handoff-template.md#2-status-block-top-of-every-module-progress-file-kept-current-at-each-checkpoint).

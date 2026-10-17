@@ -15,7 +15,7 @@ export const VERIFICATION_METHODS = ['Analysis', 'Test', 'Inspection', 'Demonstr
 
 export type RequirementsPage = 'table' | 'matrix' | 'baselines' | 'exchange' | 'quality'
 export type DetailTab = 'details' | 'relationships' | 'reviews' | 'history' | 'comments' | 'quality' | 'verification'
-export const TABLE_COLUMNS = ['key', 'title', 'status', 'type', 'priority', 'owner', 'allocation', 'verification', 'updated', 'trace'] as const
+export const TABLE_COLUMNS = ['key', 'title', 'status', 'type', 'priority', 'owner', 'allocation', 'verification', 'origin', 'updated', 'trace'] as const
 export type TableColumn = (typeof TABLE_COLUMNS)[number]
 
 export interface RequirementsViewState {

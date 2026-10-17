@@ -254,7 +254,7 @@
             {
               "name": "requirements.search",
               "arguments": {
-                "text": "six"
+                "text": "bit"
               }
             }
           ]
@@ -264,7 +264,7 @@
             {
               "name": "requirements.allocate",
               "arguments": {
-                "requirementId": "${requirements.search.data.requirements.0.id}",
+                "requirementId": "${requirements.search.data.requirements.[key=REQ-001].id}",
                 "add": [
                   {
                     "kind": "product-element",
@@ -272,6 +272,19 @@
                   }
                 ],
                 "rationale": "The holder block holds the bits."
+              }
+            },
+            {
+              "name": "requirements.allocate",
+              "arguments": {
+                "requirementId": "${requirements.search.data.requirements.[key=REQ-002].id}",
+                "add": [
+                  {
+                    "kind": "product-element",
+                    "id": "${projects.list_artifacts.data.0.ref.id}"
+                  }
+                ],
+                "rationale": "The pocket width sets the bit fit."
               }
             },
             {
@@ -297,7 +310,7 @@
           ]
         },
         {
-          "final": "I prepared allocating ${requirements.search.data.requirements.0.key} to the product element ${projects.list_artifacts.data.0.key}, linking the SysML part definition HolderBlock to it, and bringing REQ-001 and REQ-002 into the System Model satisfied by HolderBlock. Apply all three."
+          "final": "I prepared allocating REQ-001 and REQ-002 to the product element ${projects.list_artifacts.data.0.key}, linking the SysML part definition HolderBlock to it, and bringing REQ-001 and REQ-002 into the System Model satisfied by HolderBlock. Apply all four."
         }
       ]
     },

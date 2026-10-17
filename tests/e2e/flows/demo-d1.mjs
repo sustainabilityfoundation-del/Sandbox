@@ -156,7 +156,9 @@ try {
   await matrixPage.screenshot({ path: `${shots}/matrix-before.png` })
   reply = await ask('D1 allocate')
   check((await operations(reply)).includes('sysml-modeler.import_requirement'), `the model brings the managed requirements into the System Model (${await operations(reply)})`)
-  await applyAll(reply, 'requirement allocation, SysML product-element link and managed requirements in the System Model', 3)
+  await applyAll(reply, 'allocation of both requirements, SysML product-element link and managed requirements in the System Model', 4)
+  const reqAll = await get(`/api/requirements/v1/projects/${P}/requirements`)
+  check(reqAll.items?.length === 2 && reqAll.items.map((r) => r.origin).sort().join() === 'ai-proposed,stakeholder', `both requirements keep their origin (${reqAll.items?.map((r) => `${r.key}:${r.origin}`).join(', ')})`)
   // The satisfy matrix through the API: REQ-001 and REQ-002 are rows, each satisfied by HolderBlock (filled cells), one element each.
   const sysmlProject = (await get(`/api/sysml/v1/projects?platformProjectId=${encodeURIComponent(P)}`))[0]
   const sysmlHead = (await get(`/api/sysml/v1/projects/${sysmlProject['@id']}/commits?limit=1`))[0]['@id']

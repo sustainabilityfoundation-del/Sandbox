@@ -18,7 +18,7 @@ import {
 } from '@ews/design-system'
 import type { EngineeringObject } from '@ews/platform-sdk'
 import { ObjectRef, useModel, useRestoredScroll } from '@ews/platform-sdk/react'
-import type { Requirement, Relationship } from '@ews/requirements-client'
+import { REQUIREMENT_ORIGINS, type Requirement, type Relationship } from '@ews/requirements-client'
 import { useEffect, useMemo, useState } from 'react'
 import { TABLE_COLUMNS, type RequirementsViewState, type TableColumn } from '../domain'
 import { useModuleData, useResource } from '../data'
@@ -35,6 +35,7 @@ const COLUMN_LABEL: Record<TableColumn, string> = {
   owner: 'Owner',
   allocation: 'Allocated to',
   verification: 'Verification',
+  origin: 'Origin',
   updated: 'Updated',
   trace: 'SysML trace',
 }
@@ -217,6 +218,7 @@ export function RequirementTable(p: TableProps) {
               {show('owner') && <Column className="req-col-small">Owner</Column>}
               {show('allocation') && <Column className="req-col-alloc">Allocated to</Column>}
               {show('verification') && <Column className="req-col-verification">Verification</Column>}
+              {show('origin') && <Column className="req-col-small">Origin</Column>}
               {show('updated') && <Column className="req-col-updated">Revision</Column>}
               {show('trace') && <Column className="req-col-trace">SysML trace</Column>}
             </TableHeader>
@@ -265,6 +267,11 @@ export function RequirementTable(p: TableProps) {
                     {show('verification') && (
                       <Cell label="Verification">
                         {twin ? <VerificationStateBadge records={p.verification.get(twin.id)} /> : <span className="text-fg-3" title="Verification records live in the shared twin; this requirement has no twin object yet">No twin record</span>}
+                      </Cell>
+                    )}
+                    {show('origin') && (
+                      <Cell label="Origin">
+                        {r.origin ? (REQUIREMENT_ORIGINS.find((o) => o.id === r.origin)?.label ?? r.origin) : <span className="text-fg-3" title="Not recorded for this requirement; origin is never guessed">Unknown</span>}
                       </Cell>
                     )}
                     {show('updated') && (
