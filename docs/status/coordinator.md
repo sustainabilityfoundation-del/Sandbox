@@ -134,6 +134,14 @@ ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only
 - Owner added the git merge/push allow rules (user `settings.local.json`; each git command must run alone to match). Main pushed.
   The four branches merged as one octopus commit `integrate/next` 21488e9 (no conflicts); full integration run in progress.
   CE-0 (ADRs 0085-0087, SDK 1.15 types) started on `feature/ce-0-context-contracts` (Opus, light checks only during the run).
+- **Merged to main b824e97 (pushed):** CAD naming and check UI (AUD-3), AI gateway increment C (ADR-0080), ECII-2 (ADR-0083),
+  AUD-8, after a green run (1673 tests, all DB tiers, builds, 17/17 e2e; one design-system browser test flaked under load and
+  passed alone; no branch touched it). CE-0 (d652889; SDK 1.15, ADRs 0085-0087; decisions: DR alias accepted, gateway imports
+  SDK context types in CE-1, one refinement iteration in P0, live keys `{OPENAI,ANTHROPIC,GEMINI,XAI}_LIVE_TEST_KEY`) in
+  integration as d0b7a68 (README index conflict resolved: all rows kept).
+- **AWS deployment brief** (owner, 17 Oct): recorded in docs/specifications/aws-deployment-brief.md (text cut off in §8). Phase 1
+  (read-only audit and proposed plan) assigned to the AWS infrastructure agent on `infra/aws-audit`; no AWS writes, applies or
+  workflow triggers until the owner reviews the plan.
 - Owner's main checkout lacks `@salusoft89/planegcs` (added by C1): run `npm install` before restarting `npm run dev`.
 
 ## Integration queue update (17 October 2026, about 02:15 EDT)
