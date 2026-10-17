@@ -22,6 +22,12 @@ the model (text, Properties or assistant proposals).
   by default; open a package or definition to narrow it). Connect uses the part definition of the
   Interconnection View; select a part definition or one of its usages first.
 - Feature chains (for example `act100.controller`) are shown as their dotted path.
+- **Managed requirements are not rows until they are brought into the model.** Requirements created in
+  Requirements Management appear in the Satisfy matrix only after **Bring in managed requirements** (toolbar of the
+  Satisfy matrix, also offered by the empty matrix): “Managed requirements appear here once they are brought into the
+  System Model”. Rows that stand for a managed requirement show its stable ID (`REQ-001`) and title, not a UUID. See
+  [Requirements in the model](help:sysml-modeler.requirements). Without the Requirements service the action is disabled
+  and says why.
 - An empty satisfy row is a requirement nothing satisfies in the model. Use **Coverage** for the
   full gap analysis including verification.
 

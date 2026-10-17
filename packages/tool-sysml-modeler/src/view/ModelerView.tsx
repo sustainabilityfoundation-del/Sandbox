@@ -12,6 +12,7 @@ import { useSession, useViewState } from './hooks'
 import { Inspector } from './Inspector'
 import { HistoryPanel, ValidationPanel } from './Panels'
 import { TextEditor } from './TextEditor'
+import { ImportRequirementsDialog } from './ImportRequirements'
 import { CoverageView, MatrixView } from './Matrix'
 
 /** Namespace the General View and the text editor show by default: the first package. */
@@ -171,6 +172,7 @@ export default function ModelerView() {
         <Inspector session={session} model={model} />
       </aside>
       <CreateDialog session={session} model={model} />
+      <ImportRequirementsDialog session={session} model={model} />
       <ConnectDialog session={session} model={model} />
       <ProjectDialog session={session} />
     </div>

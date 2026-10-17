@@ -4,6 +4,7 @@ import { usePlatformServices, useSharedContext } from '@ews/platform-sdk/react'
 import { relationshipMatrix, requirementCoverage, semanticsOf, type CoverageStatus, type Model } from '@ews/sysml-core'
 import { useEffect, useMemo, useState } from 'react'
 import { useViewState } from './hooks'
+import { useManagedRequirements } from './ImportRequirements'
 
 /**
  * Grid views (BL-016, BL-021): relationship matrices and requirement coverage, computed from the
@@ -16,6 +17,8 @@ const MATRIX_HELP: Record<'satisfy' | 'allocate' | 'connect', string> = {
   connect: 'Parts of the definition shown in the Interconnection View, and the connections, interfaces, flows and bindings between them.',
 }
 
+const NEEDS_SERVICE = 'Needs the Requirements service, which is not available here, so managed requirements cannot be listed or brought in.'
+
 const SHORT: Record<string, string> = { SatisfyRequirementUsage: 'satisfy', AllocationUsage: 'allocate', ConnectionUsage: 'conn', InterfaceUsage: 'intf', FlowUsage: 'flow', BindingConnectorAsUsage: 'bind' }
 
 export function MatrixView({ model, scopeId, connectContext, revision }: { model: Model; scopeId: string; connectContext: string | null; revision: number }) {
@@ -25,17 +28,47 @@ export function MatrixView({ model, scopeId, connectContext, revision }: { model
   const scope = kind === 'connect' ? connectContext : scopeId
   const mx = useMemo(() => (scope ? relationshipMatrix(model, kind, scope) : null), [model, kind, scope, revision])
   const select = (id: string) => update({ selectedId: id, pane: 'properties' })
+  const managed = useManagedRequirements(kind === 'satisfy')
+  const openImport = () => update({ dialog: { kind: 'import-requirements' } })
+  const managedCount = Array.isArray(managed.items) ? managed.items.length : 0
   return (
     <div className="smod-panel" data-help-id="sysml-modeler.matrix">
       <div className="smod-panel-bar">
         <SegmentedControl label="Matrix" size="sm" value={kind} onChange={(m) => update({ matrix: m })} options={[{ value: 'satisfy', label: 'Satisfy' }, { value: 'allocate', label: 'Allocate' }, { value: 'connect', label: 'Connect' }]} />
         <span className="smod-muted">{scope ? `Scope: ${scope === model.rootId ? 'model root' : (s.qualifiedName(scope) ?? s.label(scope))}` : ''}</span>
         <Badge tone="info">Grid view (projection)</Badge>
+        {kind === 'satisfy' && (
+          <>
+            <span className="smod-spacer" />
+            {managed.items === null ? (
+              <Button size="sm" icon="requirement" aria-disabled="true" aria-label={`Bring in managed requirements (unavailable: ${NEEDS_SERVICE})`} aria-describedby="smod-import-reason" className="opacity-40" onPress={() => {}} data-help-id="sysml-modeler.import-requirements">Bring in managed requirements</Button>
+            ) : (
+              <Button size="sm" icon="requirement" onPress={openImport} data-help-id="sysml-modeler.import-requirements">Bring in managed requirements</Button>
+            )}
+            {managed.items === null && <span id="smod-import-reason" className="smod-muted" role="note">{NEEDS_SERVICE}</span>}
+          </>
+        )}
       </div>
       <p className="smod-muted">{MATRIX_HELP[kind]}</p>
       {!mx && <EmptyState icon="relationship" title="Choose a part definition">The connection matrix shows the parts of a part definition. Select one (or one of its usages) in the browser.</EmptyState>}
+      {mx && mx.rows.length === 0 && kind === 'satisfy' && (
+        <EmptyState
+          icon="requirement"
+          title="No requirements in the model yet"
+          action={
+            managed.items === null ? (
+              <Button icon="requirement" aria-disabled="true" aria-label={`Bring in managed requirements (unavailable: ${NEEDS_SERVICE})`} aria-describedby="smod-import-reason-empty" className="opacity-40" onPress={() => {}}>Bring in managed requirements</Button>
+            ) : (
+              <Button variant="filled" icon="requirement" onPress={openImport} data-help-id="sysml-modeler.import-requirements">Bring in managed requirements</Button>
+            )
+          }
+        >
+          Managed requirements appear here once they are brought into the System Model.{managedCount ? ` This project has ${managedCount} managed requirement${managedCount === 1 ? '' : 's'}.` : ''}
+          {managed.items === null && <span id="smod-import-reason-empty"> {NEEDS_SERVICE}</span>}
+        </EmptyState>
+      )}
       {mx && (mx.rows.length === 0 ? (
-        <EmptyState icon="relationship" title="Nothing to show">There are no {kind === 'satisfy' ? 'requirements' : kind === 'allocate' ? 'allocations' : 'connections'} in this scope.</EmptyState>
+        kind === 'satisfy' ? null : <EmptyState icon="relationship" title="Nothing to show">There are no {kind === 'allocate' ? 'allocations' : 'connections'} in this scope.</EmptyState>
       ) : (
         <div className="smod-matrix-scroll">
           <table className="smod-matrix" aria-label={`${kind} matrix`}>
@@ -44,7 +77,7 @@ export function MatrixView({ model, scopeId, connectContext, revision }: { model
                 <th scope="col" className="smod-matrix-corner">{kind === 'satisfy' ? 'Requirement \\ satisfied by' : kind === 'allocate' ? 'Allocated \\ to' : 'Part \\ part'}</th>
                 {mx.cols.map((c) => (
                   <th key={c.key} scope="col" className="smod-matrix-col">
-                    <Button size="sm" variant="text" onPress={() => select(c.elementId)}>{c.label}</Button>
+                    <Button size="sm" variant="text" onPress={() => select(c.elementId)}>{c.displayId ?? c.label}</Button>{c.title && <span className="smod-muted smod-matrix-title">{c.title}</span>}
                   </th>
                 ))}
               </tr>
@@ -53,14 +86,14 @@ export function MatrixView({ model, scopeId, connectContext, revision }: { model
               {mx.rows.map((r) => (
                 <tr key={r.key}>
                   <th scope="row" className="smod-matrix-row">
-                    <Button size="sm" variant="text" onPress={() => select(r.elementId)}>{r.label}</Button>
+                    <Button size="sm" variant="text" onPress={() => select(r.elementId)}>{r.displayId ?? r.label}</Button>{r.title && <span className="smod-muted smod-matrix-title">{r.title}</span>}
                   </th>
                   {mx.cols.map((c) => {
                     const cell = mx.cells.find((x) => x.row === r.key && x.col === c.key)
                     return (
                       <td key={c.key} className={cell ? 'is-filled' : undefined}>
                         {cell?.relationships.map((rel) => (
-                          <Button key={rel.id} size="sm" variant="tonal" aria-label={`${SHORT[rel.metaclass] ?? rel.metaclass} ${r.label} – ${c.label}`} onPress={() => select(rel.id)}>
+                          <Button key={rel.id} size="sm" variant="tonal" aria-label={`${SHORT[rel.metaclass] ?? rel.metaclass} ${r.displayId ?? r.label} – ${c.displayId ?? c.label}`} onPress={() => select(rel.id)}>
                             {SHORT[rel.metaclass] ?? rel.label}
                           </Button>
                         ))}

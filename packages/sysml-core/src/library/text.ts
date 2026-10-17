@@ -202,6 +202,8 @@ library package EWS {
         doc /* The requirement usage or definition stands for a requirement managed by the Requirements module. */
         attribute requirementId : String;
         attribute revision : Integer[0..1];
+        attribute requirementKey : String[0..1];
+        attribute title : String[0..1];
     }
     metadata def CadRepresentation {
         doc /* The part is represented by a CAD Modeler entity (CR-SYSML-03): cadRef = "<documentUuid>/<entityId>", revision = the CAD document revision. The reference is owned by SysML; no CAD data is copied. */
