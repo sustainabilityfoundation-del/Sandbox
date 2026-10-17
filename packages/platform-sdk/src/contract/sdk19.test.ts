@@ -14,7 +14,7 @@ import {
 
 describe('SDK 1.9 additive contract', () => {
   it('is an additive minor version', () => {
-    expect(SDK_VERSION).toBe('1.15.0')
+    expect(SDK_VERSION).toBe('1.16.0')
     expect(isSdkCompatible('^1.8.0')).toBe(true)
     expect(isSdkCompatible('^1.9.0')).toBe(true)
     expect(isSdkCompatible('^1.10.0')).toBe(true)
@@ -22,7 +22,8 @@ describe('SDK 1.9 additive contract', () => {
     expect(isSdkCompatible('^1.13.0')).toBe(true)
     expect(isSdkCompatible('^1.14.0')).toBe(true)
     expect(isSdkCompatible('^1.15.0')).toBe(true)
-    expect(isSdkCompatible('^1.16.0')).toBe(false)
+    expect(isSdkCompatible('^1.16.0')).toBe(true)
+    expect(isSdkCompatible('^1.17.0')).toBe(false)
   })
 
   it('keeps the new ConceptsService members optional (older hosts stay valid)', () => {

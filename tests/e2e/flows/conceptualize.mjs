@@ -156,6 +156,58 @@ await reviewer.waitForSelector('.con-graph .con-node', { timeout: 10000 })
 check('graph', (await reviewer.locator('.con-graph .con-node').count()) >= 2, 'the graph shows the Concept with its neighbours')
 await reviewer.screenshot({ path: `${shots}/08-graph.png` })
 
+// AUD-6. A constraint's bound is shown in full, and the workspace Inspector follows the selection.
+const stamp = Date.now() % 100000
+const wantBound = 'm_gripper_total <= 1.25 kg (1.2–1.3)'
+const cst = await api('POST', '/constraints', { kind: 'mathematical', statement: `Gripper assembly mass limit including fingers, seals and mounting plate ${stamp}`, bound: { symbol: 'm_gripper_total', operator: '<=', quantity: { value: 1.25, unit: 'kg', min: 1.2, max: 1.3 } }, strength: 'hard', status: 'active' })
+check('aud6-seed', !!cst.key, `created constraint ${cst.key}`)
+const insp = (p) => p.locator('.ws-inspector [data-inspected-key]')
+const inspectorKey = async (p, key) => p.waitForFunction((k) => document.querySelector('.ws-inspector [data-inspected-key]')?.getAttribute('data-inspected-key') === k, key, { timeout: 15000 }).then(() => true, () => false)
+{
+  const p6 = await open('eli')
+  await p6.getByRole('button', { name: /Record type/ }).click()
+  await p6.getByRole('option', { name: 'Constraints' }).click()
+  const row = p6.locator('.con-results li', { hasText: cst.key })
+  await row.waitFor({ timeout: 15000 })
+  const boundEl = row.locator('[data-testid="record-bound"]')
+  const shown = (await boundEl.textContent())?.trim()
+  const fits = await boundEl.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && getComputedStyle(el).textOverflow !== 'ellipsis')
+  check('aud6-bound', shown === wantBound && !shown.includes('…') && fits, `the list shows the full bound "${shown}" (not cut: ${fits})`)
+  check('aud6-statement', (await row.locator('.con-record-label').textContent()).includes(`mounting plate ${stamp}`), 'the long statement is not truncated')
+  await row.locator('.con-record-label').click()
+  check('aud6-inspector-constraint', await inspectorKey(p6, cst.key), `the Inspector shows the selected constraint ${cst.key}`)
+  const inspText = (await insp(p6).textContent()) ?? ''
+  check('aud6-inspector-bound', inspText.includes(wantBound) && !inspText.includes(cst.id), 'the Inspector shows the full bound and no UUID')
+  await p6.screenshot({ path: `${shots}/10-constraint-inspector.png` })
+  // A Concept, a Function and an alternative set also drive the Inspector.
+  await p6.getByRole('button', { name: /Record type/ }).click()
+  await p6.getByRole('option', { name: 'Concepts' }).click()
+  await p6.locator('.con-tree .con-tree-label', { hasText: 'CON-001' }).first().click()
+  check('aud6-inspector-concept', await inspectorKey(p6, 'CON-001'), 'the Inspector follows a selected Concept (CON-001)')
+  const fn = await api('POST', '/functions', { name: `Hold part ${stamp}`, status: 'active' })
+  await p6.getByRole('button', { name: /Record type/ }).click()
+  await p6.getByRole('option', { name: 'Functions' }).click()
+  await p6.locator('.con-results li', { hasText: fn.key }).locator('.con-record-label').click()
+  check('aud6-inspector-function', await inspectorKey(p6, fn.key), `the Inspector follows a selected Function (${fn.key})`)
+  await toolbar(p6, 'alternatives').click()
+  await p6.waitForSelector('.con-compare', { timeout: 15000 })
+  const anySet = (await api('GET', '/alternative-sets')).find((s) => s.id === latest.id)
+  await p6.getByRole('button', { name: /Alternative set/ }).click()
+  await p6.getByRole('option', { name: new RegExp(anySet.key) }).click()
+  check('aud6-inspector-alternative', await inspectorKey(p6, anySet.key), `the Inspector follows the alternative set (${anySet.key})`)
+  await p6.context().close()
+  // Phone: the bound wraps inside the viewport (no horizontal scroll).
+  const ph = await open('eli', { width: 390, height: 844 })
+  await ph.getByRole('button', { name: /Record type/ }).click()
+  await ph.getByRole('option', { name: 'Constraints' }).click()
+  const prow = ph.locator('.con-results li', { hasText: cst.key })
+  await prow.waitFor({ timeout: 15000 })
+  const m = await prow.locator('[data-testid="record-bound"]').evaluate((el) => ({ text: el.textContent, right: el.getBoundingClientRect().right, vw: window.innerWidth, sw: el.scrollWidth, cw: el.clientWidth, docSw: document.documentElement.scrollWidth }))
+  check('aud6-phone', m.text.trim() === wantBound && m.right <= m.vw && m.sw <= m.cw + 1 && m.docSw <= m.vw, `phone 390 px: bound right edge ${Math.round(m.right)} <= ${m.vw}, scrollWidth ${m.sw} <= ${m.cw}, document ${m.docSw}`)
+  await ph.screenshot({ path: `${shots}/11-constraint-phone.png` })
+  await ph.context().close()
+}
+
 // Phone width and dark theme.
 const phone = await open('rho', { width: 390, height: 844 }, { colorScheme: 'dark' })
 await phone.screenshot({ path: `${shots}/09-phone-dark.png`, fullPage: false })

@@ -23,6 +23,11 @@
   .con-tree-group { font-weight: var(--ws-weight-medium); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .con-tree-badges { display: inline-flex; flex-shrink: 0; gap: var(--ws-space-1); }
   .con-results li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-space-1); }
+  /* Record lists (functions, constraints, assumptions): the statement wraps and the bound sits on its own line, in full. */
+  .con-results .con-record-label { flex: 1 1 12rem; height: auto; min-height: var(--ws-control-h-sm, 28px); padding-block: var(--ws-space-1); white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+  .con-results .con-record-label > * { white-space: normal; overflow: visible; text-overflow: clip; }
+  .con-bound { flex: 1 1 100%; min-width: 0; padding-inline: var(--ws-space-2); color: var(--ws-text-2); font-size: var(--ws-font-size-xs); white-space: normal; overflow-wrap: anywhere; }
+  .con-results li:has(.con-bound) { padding-bottom: var(--ws-space-1); border-bottom: 1px solid var(--ws-border); }
   .con-key { color: var(--ws-text-3); font-size: var(--ws-font-size-xs); font-variant-numeric: tabular-nums; }
   .con-muted { color: var(--ws-text-2); font-size: var(--ws-font-size-xs); }
 

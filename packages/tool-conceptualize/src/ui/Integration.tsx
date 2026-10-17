@@ -6,7 +6,7 @@ import { registeredReferencePorts } from '../references'
 import { useEffect, useMemo, useState } from 'react'
 import { useModuleData, useResource } from '../data'
 import { formatDate, formatQuantity } from '../domain'
-import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, Section } from './common'
+import { ApiErrorNotice, BasisBadge, ConceptLinkButton, ProvenanceBadge, RefLabel, Section } from './common'
 import { EvidenceReviewControl } from './Knowledge'
 import { EvidenceForm, VerificationControl } from './EvidenceForm'
 
@@ -489,7 +489,7 @@ export function IntegrationPage() {
                 <span>{r.label}</span>
                 <span className="con-muted">({r.via})</span>
                 {r.concepts.map((c) => (
-                  <ConceptLinkButton key={c} id={c} label={names.get(c) ?? c.slice(0, 8)} />
+                  <ConceptLinkButton key={c} id={c} label={names.get(c) ?? <RefLabel type="concept" id={c} />} />
                 ))}
               </div>
               <span className="con-muted">{statuses[r.key]?.detail}</span>
@@ -507,7 +507,7 @@ export function IntegrationPage() {
               <span className="con-muted">{r.revision ? `pinned rev ${r.revision}` : 'follows latest'} · {r.via}</span>
               <LinkStatusBadge status={statuses[r.key]} />
               {r.concepts.map((c) => (
-                <ConceptLinkButton key={c} id={c} label={names.get(c) ?? c.slice(0, 8)} />
+                <ConceptLinkButton key={c} id={c} label={names.get(c) ?? <RefLabel type="concept" id={c} />} />
               ))}
             </li>
           ))}

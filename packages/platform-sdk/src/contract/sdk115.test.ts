@@ -36,10 +36,11 @@ interface GatewayContextBundleShape { blocks: { id: string; text: string; trust:
 
 describe('SDK 1.15 additive contract', () => {
   it('is an additive minor version', () => {
-    expect(SDK_VERSION).toBe('1.15.0')
+    expect(SDK_VERSION).toBe('1.16.0')
     expect(isSdkCompatible('^1.14.0')).toBe(true)
     expect(isSdkCompatible('^1.15.0')).toBe(true)
-    expect(isSdkCompatible('^1.16.0')).toBe(false)
+    expect(isSdkCompatible('^1.16.0')).toBe(true)
+    expect(isSdkCompatible('^1.17.0')).toBe(false)
   })
 
   it('lets Design Reasoning core alias ContextManifestItem as ContextSnapshotItem<AnyRef>', () => {

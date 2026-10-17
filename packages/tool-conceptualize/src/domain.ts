@@ -1,7 +1,7 @@
 import type { Tone } from '@ews/design-system'
 import type { IconName } from '@ews/design-system'
 import type { ConceptMaturity } from '@ews/platform-sdk'
-import type { Basis, RelationshipType, StatementKind } from '@ews/conceptualize-client'
+import type { Basis, DesignConstraint, RelationshipType, StatementKind } from '@ews/conceptualize-client'
 
 /** Private view state of one Conceptualize view instance. */
 export type ConceptPage = 'explorer' | 'alternatives' | 'visual' | 'integration' | 'ai'
@@ -108,6 +108,20 @@ export function formatQuantity(q: { value?: number | null; unit: string; min?: n
   if (q.min != null) return `≥ ${n(q.min)}${u}`
   if (q.max != null) return `≤ ${n(q.max)}${u}`
   return u.trim()
+}
+
+/**
+ * A constraint's bound in full: symbol, operator, value, unit and the tolerance or range ("m <= 12 kg (11.5–12.5)",
+ * "T in 20–80 °C"). Never shortened; layouts wrap it instead.
+ */
+export function boundText(c: Pick<DesignConstraint, 'bound'>): string {
+  if (!c.bound) return ''
+  const { operator, symbol, quantity: q } = c.bound
+  const v =
+    operator === 'in-range' || operator === '=' || q.value != null
+      ? formatQuantity(q)
+      : formatQuantity({ unit: q.unit, value: (operator.startsWith('<') ? q.max : q.min) ?? null })
+  return `${symbol ? `${symbol} ` : ''}${operator === 'in-range' ? 'in' : operator} ${v}`.trim()
 }
 
 export function formatDate(iso: string | null | undefined): string {

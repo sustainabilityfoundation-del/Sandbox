@@ -39,14 +39,22 @@ import type { AdapterRegistry as VisualizationAdapters } from '@ews/visualizatio
 import { AI_SETTINGS_PAGE, ASSISTANT_BASE_PATH, CredentialVault, ProviderRegistry, assistantPlugin, createFakeProvider, createOpenAIProvider, createPolicy, registerOAuthCallback, type AiRuntimeConfig, type AssistantBackend } from '@ews/assistant-service'
 import { ALL_SERVER_MODULES, INSTALLED_SERVER_MODULES, assertUniqueManifests, collectPolicyContributions, type ApiModuleHost } from './modules'
 import { SAMPLE_TWIN } from './sampleTwin'
-import { readAiConfig } from './config'
+import { isDeployed, readAiConfig } from './config'
+import { checkMigrations } from './migrations'
 
 export { SAMPLE_TWIN }
 
 export interface ServerOptions {
   pool: Pool
   storage: ObjectStorage
+  /** Deployed (default: NODE_ENV=production or EWS_DEPLOYED=1). */
   production?: boolean
+  /** Environment for the deployment switches (default process.env); tests pass an explicit one. */
+  env?: NodeJS.ProcessEnv
+  /** How long a /ready answer is reused, in ms (default 5000; 0 disables). */
+  readyCacheMs?: number
+  /** Accept X-Dev-User. Default: outside a deployment yes; deployed only with EWS_ALLOW_DEV_IDENTITIES=1. */
+  devIdentities?: boolean
   twin?: TwinDirectory
   /** System Model elements as allocation targets (default: the in-process SysML service). */
   sysml?: SysmlElementDirectory
@@ -130,12 +138,13 @@ export async function prepareDatabase(pool: Pool, opts: { seed: boolean; twin?: 
 }
 
 export async function buildServer(options: ServerOptions): Promise<ApiServer> {
-  const production = options.production ?? process.env.NODE_ENV === 'production'
+  const production = options.production ?? isDeployed(options.env)
+  const devIdentities = options.devIdentities ?? (!production || (options.env ?? process.env).EWS_ALLOW_DEV_IDENTITIES === '1')
   const app = Fastify({ logger: options.logger ?? false, bodyLimit: 2 * 1024 * 1024, forceCloseConnections: true })
   const events = await createEventHub(options.pool, { pollMs: options.eventPollMs, retentionHours: options.outboxRetentionHours, onError: (e) => app.log.error(e) })
   const conceptEvents = await createConceptsEventHub(options.pool, { pollMs: options.eventPollMs, retentionHours: options.outboxRetentionHours, onError: (e) => app.log.error(e) })
   // Archived projects are read-only for every hosted service; deleted ones have no members (CR-PM-API-4).
-  const auth = identity(options.pool, { production, projectState: (projectId) => projectState(options.pool, projectId).catch(() => undefined) })
+  const auth = identity(options.pool, { production, devIdentities, projectState: (projectId) => projectState(options.pool, projectId).catch(() => undefined) })
   const projectEvents = await createProjectsEventHub(options.pool, { pollMs: options.eventPollMs, retentionHours: options.outboxRetentionHours, onError: (e) => app.log.error(e) })
   app.setErrorHandler((error, request, reply) => {
     const errorId = randomUUID()
@@ -148,7 +157,31 @@ export async function buildServer(options: ServerOptions): Promise<ApiServer> {
     await options.pool.query('SELECT 1')
     return { status: 'ok', database: 'reachable', latencyMs: Date.now() - started }
   })
-  registerPlatformRoutes(app, options.pool, auth, { production })
+  // Liveness: the process answers; no database access (a database outage must not restart the container).
+  app.get('/health', async () => ({ status: 'ok' }))
+  // Readiness: the database is reachable and every schema's migrations in this image are applied (no checksum drift).
+  // Counts only; no file names, SQL or driver messages are returned.
+  // The answer is reused for a few seconds so a load balancer's probes do not query nine tables each time.
+  const readyCacheMs = options.readyCacheMs ?? 5000
+  let readyCached: { at: number; code: number; body: Record<string, unknown> } | undefined
+  const readyNow = async (): Promise<{ code: number; body: Record<string, unknown> }> => {
+    try {
+      const status = await checkMigrations(options.pool)
+      if (!status.current) return { code: 503, body: { status: 'not ready', database: 'reachable', migrations: 'not current', pending: status.pending, drift: status.drift } }
+      return { code: 200, body: { status: 'ready', database: 'reachable', migrations: 'current' } }
+    } catch (error) {
+      app.log.error({ err: error }, 'readiness check failed')
+      return { code: 503, body: { status: 'not ready', database: 'unreachable' } }
+    }
+  }
+  const ready = async (_request: unknown, reply: { code: (n: number) => unknown }) => {
+    if (!readyCached || Date.now() - readyCached.at >= readyCacheMs) readyCached = { at: Date.now(), ...(await readyNow()) }
+    reply.code(readyCached.code)
+    return readyCached.body
+  }
+  app.get('/ready', ready)
+  app.get('/api/ready', ready)
+  registerPlatformRoutes(app, options.pool, auth, { production, devIdentities })
   const projectBlobs = options.blobs ?? memoryBlobStore()
   // Installed server modules (modules.ts), registered in list order: documentation page, then the plugin. Each may return
   // the artifact source of its module (ADR-0062, CR-PM-REG-1/3/4: read-only adapter over its own tables and outbox).

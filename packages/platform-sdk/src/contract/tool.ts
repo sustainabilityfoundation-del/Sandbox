@@ -3,6 +3,7 @@ import type { CurrentProject } from './projects'
 import type { SettingsService } from './settings'
 import type { IconName } from '@ews/design-system/icon-names'
 import type { CommandMode } from './capabilities'
+import type { InspectorSubject } from './inspector'
 import type {
   ActivityEntry,
   Baseline,
@@ -146,6 +147,12 @@ export interface ToolApi<VS = unknown> {
   openTool: (toolId: string) => OpenToolResult
   getViewState: () => VS
   updateViewState: (update: ViewStateUpdate<VS>) => void
+  /**
+   * Shows a record of this tool in the workspace Inspector while the tool is the active one (SDK 1.16), for
+   * records that are not engineering objects of the shared model. `null` clears it. Selecting an engineering
+   * object still goes through `select`.
+   */
+  setInspectorSubject?: (subject: InspectorSubject | null) => void
 }
 
 export type ToolbarItem =

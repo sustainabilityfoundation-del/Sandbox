@@ -62,16 +62,23 @@ Pool size: 20 per task (current default) is well under `db.t4g.micro`'s connecti
 Existing framework (Verified in code): per schema, files applied in order, one transaction per file, recorded with a SHA-256 checksum; changed
 applied files are refused; `pg_advisory_lock` per schema serialises concurrent runners.
 
-**Needed (Platform change C4):** a `migrate` command that applies all nine schemas (the four in `prepareDatabase` plus `migrateSettings`,
-`migrateAssistant`, `migrateVisualization`, `migrateSysml`, `migrateCad`) and exits non-zero on the first failure, and a read-only `status`
-command printing, per schema, the applied versions and the versions present in the image. Each module's migrations stay in the module.
+**Implemented (Platform change C4, phase 2 preparation):**
+
+```sh
+npm run db:migrate              # all nine schemas, idempotent; exit 1 on the first failure or an unreachable database
+npm run db:migrate -- --check   # read-only: applied/expected per schema, pending files, checksum drift; exit 1 unless clean
+```
+
+In a container the same commands run as `npx tsx services/api/scripts/db.ts migrate [--check]` with `NODE_ENV=production` (or `EWS_DEPLOYED=1`),
+`EWS_PG=external` and `DATABASE_URL`. Deployed, the command never creates the database or role (bootstrap, §3). Each module's migrations and
+runner stay in the module; `services/api/src/migrations.ts` only lists the nine schemas in a fixed order. The earlier `db:status` is unchanged.
 
 Pipeline order (dev and prod):
 1. (prod) Create manual snapshot `pre-<short-sha>`; wait until available.
 2. Run a one-off Fargate task from the **new** image with `migrate`; same subnets, security group, secrets and log group as the service.
 3. Wait for the task to stop; read its exit code. Non-zero: stop the deployment, report the schema and file from the log, leave the running
    service untouched.
-4. Run `status` (or let the readiness check do it, below) and fail if any schema has a file in the image that is not applied.
+4. Run `db:migrate -- --check` (or let `/ready` do it, §7) and fail if any schema has a file in the image that is not applied or has drifted.
 5. Update the ECS service to the new task definition. The API's start-up migrations then find nothing to do.
 
 **Compatibility rules.**
@@ -103,13 +110,15 @@ always creates a **new** instance (runbook A8); the stack does not point at it, 
 
 ## 7. Readiness and connectivity checks
 
-- Today: `GET /api/health` (database reachable, latency). Used by the ALB target group and the smoke test.
-- Proposed (Platform, optional): `GET /api/health?deep=1` or a separate readiness endpoint that also reports, per schema, whether all migrations
-  in the image are applied, without exposing details publicly (only counts).
+- `GET /health`: liveness, no database access (container health check).
+- `GET /ready` and `GET /api/ready`: 200 only when the database answers and every migration in the image is applied with matching checksums;
+  otherwise 503 with counts only (no file names or driver messages). The load balancer target and the smoke test use `/api/ready` (the edge forwards `/api/*`).
+- `GET /api/health`: unchanged (database reachable, latency).
+- Guards: a deployed process (`NODE_ENV=production` or `EWS_DEPLOYED=1`) refuses `EWS_PG=embedded` and a missing `DATABASE_URL` at start-up.
 
 ## 8. No development data in production
 
 `SEED_ON_START=false` explicitly in every deployed environment (the code default is already `false` when `NODE_ENV=production`). The prod smoke
 test checks that `platform.users` contains none of ada, rui, eli, rho, nia and that project PRJ-ACT100 does not exist. `db:seed` and `db:reset`
-are never run by the pipeline; `db:reset` also refuses any database not named `ews_dev`/`ews_test*` and any `NODE_ENV=production`.
+are never run by the pipeline (`db:seed` also refuses a deployed database unless `EWS_ALLOW_SEED_DEPLOYED=1` is set explicitly); `db:reset` also refuses any database not named `ews_dev`/`ews_test*` and any `NODE_ENV=production`.
 Dev uses a dedicated test project created by the smoke test, never existing user data (brief §7).

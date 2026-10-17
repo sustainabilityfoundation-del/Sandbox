@@ -267,7 +267,11 @@ aws ce get-cost-and-usage --time-period Start=<first of last month>,End=<first o
 Normal path: merge to `main`; CI passes; `deploy.yml` deploys dev. Prod: run `deploy.yml` with environment `production` and the image digest
 from the dev run; approve in GitHub.
 
-## 5. Apply migrations *TBD in increment A (command) and C (pipeline)*
+## 5. Apply migrations *command implemented; pipeline TBD in increment C*
+
+Command (inside the API image, with `EWS_DEPLOYED=1`, `EWS_PG=external`, `DATABASE_URL`): `npx tsx services/api/scripts/db.ts migrate`
+(locally `npm run db:migrate`). Exit 0 means all nine schemas are current; non-zero means stop. `... migrate --check` is read-only and exits 1
+when a migration is pending or a checksum drifted. After a deploy: `curl -s https://<cloudfront>/api/ready` (200 `ready`); liveness is `/health`.
 
 `aws ecs run-task` with the current task definition and command override `migrate`; wait with `aws ecs wait tasks-stopped`; read the exit code
 with `aws ecs describe-tasks`; logs in `/ews/<env>/api`, stream prefix `migrate`. Prod: snapshot first (§8).

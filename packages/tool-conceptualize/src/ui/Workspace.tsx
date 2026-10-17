@@ -5,7 +5,7 @@ import type { Basis, Concept, Graph, Quantity, StatementInput, StatementKind } f
 import { useState } from 'react'
 import { useModuleData, useResource } from '../data'
 import { BASIS, KIND_LABEL, KIND_ORDER, MATURITIES, MATURITY, RELATION_LABEL, formatDate, formatQuantity, type ConceptualizeViewState } from '../domain'
-import { ApiErrorNotice, BasisBadge, ConceptLinkButton, MaturityBadge, ProvenanceBadge, Section } from './common'
+import { ApiErrorNotice, BasisBadge, ConceptLinkButton, MaturityBadge, ProvenanceBadge, RefLabel, Section } from './common'
 import { EvidenceList, ImplementationsPanel, RequirementLinks } from './Integration'
 import { ConceptKnowledge, DecisionRationale, DecisionValidityBadge, RefButton, dref, useStatementRecords } from './Knowledge'
 
@@ -350,7 +350,7 @@ export function DecisionList({ decisions }: { decisions: import('@ews/conceptual
           <ul className="con-outcomes">
             {d.outcomes.map((o) => (
               <li key={o.conceptId}>
-                <Badge tone={o.outcome === 'accepted' ? 'success' : o.outcome === 'rejected' ? 'danger' : 'neutral'}>{o.outcome}</Badge> <ConceptLinkButton id={o.conceptId} label={o.conceptId.slice(0, 8)} /> {o.rationale}
+                <Badge tone={o.outcome === 'accepted' ? 'success' : o.outcome === 'rejected' ? 'danger' : 'neutral'}>{o.outcome}</Badge> <ConceptLinkButton id={o.conceptId} label={<RefLabel type="concept" id={o.conceptId} />} /> {o.rationale}
               </li>
             ))}
           </ul>

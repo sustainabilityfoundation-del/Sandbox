@@ -15,6 +15,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import type { PlatformHost } from '../contract/host'
 import type { ModuleManifest } from '../contract/modules'
 import type { SharedContext, ToolApi, ToolCommand, ViewStateUpdate } from '../contract/tool'
+import type { InspectorSubject } from '../contract/inspector'
 import type { AnyToolDefinition } from '../react/defineTool'
 
 export interface MockState {
@@ -28,6 +29,7 @@ export interface MockState {
   viewStates: Record<string, unknown>
   scroll: Record<string, number>
   commands: Record<string, ToolCommand[]>
+  inspectorSubject: InspectorSubject | null
   /** Requests to open other tools; the harness hosts only one. */
   openRequests: string[]
 }
@@ -84,6 +86,7 @@ export function createMockHost(tool: AnyToolDefinition, options: MockHostOptions
     viewStates: {},
     scroll: {},
     commands: {},
+    inspectorSubject: null,
     openRequests: [],
   }))
   const get = store.getState
@@ -192,6 +195,7 @@ export function createMockHost(tool: AnyToolDefinition, options: MockHostOptions
       },
       getObjectRevision: (id, revision) => repository.getRevision(PROJECT_ID, id, revision).catch(() => undefined),
       getBaselines: () => get().baselines,
+      setInspectorSubject: (subject) => set({ inspectorSubject: subject }),
       registerCommand: (command) => {
         set((s) => ({ commands: { ...s.commands, [viewId]: [...(s.commands[viewId] ?? []).filter((c) => c.id !== command.id), command] } }))
         return () => set((s) => ({ commands: { ...s.commands, [viewId]: (s.commands[viewId] ?? []).filter((c) => c !== command) } }))
