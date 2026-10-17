@@ -16,7 +16,7 @@ export interface ModelerViewState {
   metaclassFilter: string
   /** Narrow layouts show one pane at a time. */
   pane: 'browser' | 'view' | 'properties'
-  dialog: null | { kind: 'create'; ownerId: string | null } | { kind: 'connect'; contextId: string } | { kind: 'project' }
+  dialog: null | { kind: 'create'; ownerId: string | null } | { kind: 'connect'; contextId: string } | { kind: 'project' } | { kind: 'import-requirements' }
   zoom: number
 }
 

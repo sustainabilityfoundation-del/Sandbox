@@ -26,6 +26,7 @@ created earlier in the same transaction.
 | `deleteElement` | Deletes an element with everything it owns; `removeReferences` also removes references to it |
 | `applyText` | Replaces or appends the members of the root, a package or a definition, from text |
 | `setMetadata` | Platform metadata: ManagedRequirement, CadRepresentation, ConceptLink |
+| `importRequirement` | Bring a managed requirement into the model: one requirement carrying ManagedRequirement (UUID, pinned revision, key, title), optional `satisfy` links; idempotent by UUID |
 
 The JSON schemas are served by `GET /api/sysml/v1/commands` and returned by the assistant operation
 `describe_commands`. Example transaction:

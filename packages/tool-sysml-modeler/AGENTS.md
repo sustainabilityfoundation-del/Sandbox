@@ -21,8 +21,8 @@ SysML Modeler tool (ID `sysml-modeler`, entitlement `tool:sysml`). Owner: the Sy
   and a help mapping in `src/help.ts`.
 - Help: every toolbar item, assistant operation and significant control (`data-help-id`) is mapped in
   `src/help.ts`; update `help/*.md` in the same change as the feature.
-- Requirements text is read from `RequirementsService`; the model stores only the UUID and revision
-  (`EWS::ManagedRequirement`).
+- Requirements text is read from `RequirementsService`; the model stores only the UUID, the pinned revision, the key and the title
+  (`EWS::ManagedRequirement`); `importRequirement` brings one in, idempotent by UUID (AUD-5).
 
 ## Run
 

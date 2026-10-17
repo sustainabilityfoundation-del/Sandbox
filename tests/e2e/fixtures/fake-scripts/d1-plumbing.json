@@ -234,11 +234,24 @@
                 "element": "BitHolder::HolderBlock",
                 "productElement": "${projects.list_artifacts.data.0.ref.id}"
               }
+            },
+            {
+              "name": "sysml-modeler.import_requirement",
+              "arguments": {
+                "requirement": [
+                  "REQ-001",
+                  "REQ-002"
+                ],
+                "satisfiedBy": [
+                  "BitHolder::HolderBlock"
+                ],
+                "explanation": "Bring the managed requirements into the System Model, satisfied by the holder block."
+              }
             }
           ]
         },
         {
-          "final": "I prepared allocating ${requirements.search.data.requirements.0.key} to the product element ${projects.list_artifacts.data.0.key}, and linking the SysML part definition HolderBlock to it. Apply both."
+          "final": "I prepared allocating ${requirements.search.data.requirements.0.key} to the product element ${projects.list_artifacts.data.0.key}, linking the SysML part definition HolderBlock to it, and bringing REQ-001 and REQ-002 into the System Model satisfied by HolderBlock. Apply all three."
         }
       ]
     },

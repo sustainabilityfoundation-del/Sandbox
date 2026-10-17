@@ -25,6 +25,7 @@ export const sysmlServerManifest: ServerModuleDescriptor = {
     'sysml-modeler.find_elements': 'search',
     'sysml-modeler.impact': 'calculate',
     'sysml-modeler.link_requirement': 'propose',
+    'sysml-modeler.import_requirement': 'propose',
     'sysml-modeler.propose_commands': 'propose',
     'sysml-modeler.propose_text': 'propose',
     'sysml-modeler.read_element': 'read',

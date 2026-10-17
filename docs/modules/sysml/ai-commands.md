@@ -30,6 +30,7 @@ assistant never simulates clicks and never touches the database.
 | `deleteElement` | Deletes the element, its owned subtree and relationships owned by it; refuses when other elements reference it unless `removeReferences` | `elementId`, `removeReferences?` |
 | `applyText` | Parses textual notation and reconciles it with the namespace's current members (§4) | `namespaceId`, `text`, `mode: 'replace-members' \| 'append'` |
 | `setMetadata` | Platform metadata (managed requirement, CAD representation) | `elementId`, `metadata`, `values` |
+| `importRequirement` | A requirement usage carrying `EWS::ManagedRequirement` (UUID, revision, key, title) and optional `Satisfy` usages; reuses the element that already carries the UUID | `ownerId`, `requirementId`, `key`, `title`, `revision?`, `satisfiedBy?` |
 
 All commands are pure functions over a working copy; references to elements created earlier in the
 same transaction use placeholders (`$name`). Library elements are read-only.

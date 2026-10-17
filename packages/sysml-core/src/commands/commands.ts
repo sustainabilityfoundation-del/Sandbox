@@ -7,6 +7,7 @@ import { Builder, patch } from '../syntax/build'
 import type { Range } from '../syntax/lexer'
 import { parse, parseExpression } from '../syntax/parser'
 import type { Diagnostic } from '../validation/diagnostic'
+import { referencedRequirement, satisfyingChain } from '../query/matrix'
 import { preserveIdentity } from './reconcile'
 
 /**
@@ -83,6 +84,12 @@ export type Command =
   | { op: 'deleteElement'; elementId: ElementRef; removeReferences?: boolean }
   | { op: 'applyText'; namespaceId: ElementRef; text: string; mode?: 'replace-members' | 'append' }
   | { op: 'setMetadata'; elementId: ElementRef; metadata: (typeof METADATA_KINDS)[number]; values: Record<string, string | number | null> | null }
+  /**
+   * Brings a managed requirement (Requirements Management) into the model (AUD-5): a requirement usage carrying
+   * `@EWS::ManagedRequirement { requirementId; revision; requirementKey; title }`, and optional `satisfy` links. Idempotent by
+   * `requirementId`: a requirement element that already carries it is reused, never duplicated.
+   */
+  | { op: 'importRequirement'; ownerId: ElementRef; requirementId: string; key: string; title: string; revision?: number; satisfiedBy?: string[]; ref?: string }
 
 export class CommandError extends Error {
   constructor(
@@ -106,6 +113,8 @@ export interface CommandContext {
 export interface CommandOutcome {
   /** Main element created or affected. */
   elementId?: string
+  /** importRequirement: the element already existed and was reused. */
+  reused?: boolean
   /** Diagnostics from parsing text or expressions (only errors abort). */
   diagnostics?: Diagnostic[]
 }
@@ -488,6 +497,8 @@ export function executeCommand(ctx: CommandContext, cmd: Command): CommandOutcom
     }
     case 'applyText':
       return applyText(ctx, cmd)
+    case 'importRequirement':
+      return importRequirement(ctx, cmd)
     case 'setMetadata': {
       const el = writable(ctx, ref(cmd.elementId))
       if (!METADATA_KINDS.includes(cmd.metadata)) throw new CommandError('invalid', `metadata must be one of ${METADATA_KINDS.join(', ')}.`)
@@ -510,6 +521,89 @@ export function executeCommand(ctx: CommandContext, cmd: Command): CommandOutcom
       return { elementId: el['@id'] }
     }
   }
+}
+
+/** The requirement definition or usage that carries `EWS::ManagedRequirement` for this managed requirement ID (identity rule: at most one). */
+export function findManagedRequirementElement(model: Model, requirementId: string): Element | undefined {
+  const s = new Semantics(model)
+  const wanted = requirementId.trim().toLowerCase()
+  let found: Element | undefined
+  for (const m of model.elements()) {
+    if (m['@type'] !== 'MetadataUsage' || model.isLibrary(m['@id'])) continue
+    if (!s.featureTypes(m['@id']).some((t) => s.qualifiedName(t) === 'EWS::ManagedRequirement')) continue
+    const owner = s.owner(m['@id'])
+    if (!owner || !/^Requirement(Definition|Usage)$/.test(owner['@type'])) continue
+    if (readManagedId(s, m['@id'])?.toLowerCase() !== wanted) continue
+    // Prefer a usage (a matrix row) over a definition.
+    if (!found || (owner['@type'] === 'RequirementUsage' && found['@type'] !== 'RequirementUsage')) found = owner
+  }
+  return found
+}
+
+function readManagedId(s: Semantics, metadataId: string): string | undefined {
+  for (const f of s.ownedMembers(metadataId)) {
+    if (s.name(f['@id']) !== 'requirementId') continue
+    const fv = s.ownedRelationships(f['@id']).find((r) => r['@type'] === 'FeatureValue')
+    const v = fv ? s.get(refId(fv, 'ownedRelatedElement')) : undefined
+    if (v?.['@type'] === 'LiteralString') return String(v.value)
+  }
+  return undefined
+}
+
+function importRequirement(ctx: CommandContext, cmd: Extract<Command, { op: 'importRequirement' }>): CommandOutcome {
+  const { model, placeholders } = ctx
+  const requirementId = typeof cmd.requirementId === 'string' ? cmd.requirementId.trim() : ''
+  if (!UUID_PATTERN.test(requirementId)) throw new CommandError('invalid', 'requirementId must be the managed requirement UUID (keys such as REQ-001 are display text, not identity).')
+  const key = typeof cmd.key === 'string' ? cmd.key.trim() : ''
+  if (!key) throw new CommandError('invalid', 'key (the requirement key such as REQ-001) must not be empty.')
+  if (cmd.revision !== undefined && !(Number.isInteger(cmd.revision) && cmd.revision >= 1)) throw new CommandError('invalid', 'revision must be an integer from 1.')
+  const owner = writable(ctx, resolveRef(model, cmd.ownerId, placeholders, 'owner'))
+  if (!isKindOf(owner['@type'], 'Namespace')) throw new CommandError('invalid', `${semanticsOf(model).label(owner['@id'])} (${owner['@type']}) cannot own members.`)
+  let reused = true
+  let req = findManagedRequirementElement(model, requirementId)
+  if (!req) {
+    reused = false
+    const s0 = new Semantics(model)
+    if (s0.ownedMembers(owner['@id']).some((m) => m.declaredName === key)) throw new CommandError('not-allowed', `${s0.label(owner['@id'])} already has a member named ${key} that is not linked to this managed requirement. Pick another owner or rename it.`)
+    const created = executeCommand(ctx, { op: 'createElement', ownerId: owner['@id'], kind: 'RequirementUsage', name: key, shortName: key })
+    req = model.get(created.elementId!)!
+    const title = String(cmd.title ?? '').replace(/\s+/g, ' ').trim()
+    executeCommand(ctx, { op: 'setMetadata', elementId: req['@id'], metadata: 'ManagedRequirement', values: { requirementId, ...(cmd.revision !== undefined ? { revision: cmd.revision } : {}), requirementKey: key, ...(title ? { title } : {}) } })
+  }
+  const reqOwner = new Semantics(model).owner(req['@id'])
+  const satOwner = reqOwner && isKindOf(reqOwner['@type'], 'Namespace') && !model.isLibrary(reqOwner['@id']) ? reqOwner['@id'] : owner['@id']
+  const targets = cmd.satisfiedBy ?? []
+  if (!Array.isArray(targets) || targets.some((x) => typeof x !== 'string' || !x.trim())) throw new CommandError('invalid', 'satisfiedBy must be a list of element references.')
+  // A requirement definition cannot be satisfied itself: satisfy its usage (an existing one, else one created next to it).
+  let subject = req
+  if (targets.length && req['@type'] === 'RequirementDefinition') {
+    const s = new Semantics(model)
+    const usage = [...model.elements()].find((e) => e['@type'] === 'RequirementUsage' && !model.isLibrary(e['@id']) && s.featureTypes(e['@id']).includes(req!['@id']))
+    if (usage) subject = usage
+    else {
+      const taken = new Set(s.ownedMembers(satOwner).map((m) => m.declaredName))
+      const name = taken.has(key) ? `${key}_usage` : key
+      subject = model.get(executeCommand(ctx, { op: 'createElement', ownerId: satOwner, kind: 'RequirementUsage', name, typeIds: [req['@id']] }).elementId!)!
+    }
+  }
+  for (const target of targets) {
+    let by = target.trim()
+    let resolved: Element | undefined
+    try {
+      resolved = resolveRef(model, by, placeholders, 'satisfying element')
+    } catch {
+      resolved = undefined // a feature chain such as motor.power: resolved when built
+    }
+    if (resolved) {
+      by = resolved['@id']
+      const s = new Semantics(model)
+      const have = [...model.elements()].some((e) => e['@type'] === 'SatisfyRequirementUsage' && referencedRequirement(s, e['@id']) === subject['@id'] && satisfyingChain(s, e['@id']).join('.') === resolved!['@id'])
+      if (have) continue
+    }
+    executeCommand(ctx, { op: 'satisfy', ownerId: satOwner, requirementId: subject['@id'], by })
+  }
+  if (cmd.ref) placeholders.set(cmd.ref.startsWith('$') ? cmd.ref : `$${cmd.ref}`, req['@id'])
+  return { elementId: req['@id'], reused }
 }
 
 function topOwner(s: Semantics, id: string): string {

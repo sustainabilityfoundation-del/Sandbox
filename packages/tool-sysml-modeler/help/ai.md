@@ -5,7 +5,7 @@ kind: reference
 summary: What the assistant can do in the SysML Modeler, and how its changes are previewed, validated, applied with provenance and undone.
 keywords: [ai, assistant, chatgpt, proposal, automation, agent, operations]
 related: [sysml-modeler.commands, sysml-modeler.history, sysml-modeler.validation]
-operations: [sysml-modeler.describe_commands, sysml-modeler.find_elements, sysml-modeler.read_element, sysml-modeler.validate, sysml-modeler.impact, sysml-modeler.explain_commit, sysml-modeler.propose_commands, sysml-modeler.propose_text, sysml-modeler.matrix, sysml-modeler.coverage, sysml-modeler.behavior, sysml-modeler.create_project, sysml-modeler.satisfy_requirement, sysml-modeler.link_requirement, sysml-modeler.link_product_element]
+operations: [sysml-modeler.describe_commands, sysml-modeler.find_elements, sysml-modeler.read_element, sysml-modeler.validate, sysml-modeler.impact, sysml-modeler.explain_commit, sysml-modeler.propose_commands, sysml-modeler.propose_text, sysml-modeler.matrix, sysml-modeler.coverage, sysml-modeler.behavior, sysml-modeler.create_project, sysml-modeler.satisfy_requirement, sysml-modeler.import_requirement, sysml-modeler.link_requirement, sysml-modeler.link_product_element]
 ---
 
 The assistant uses the **same typed commands and validation** as the editor. It never clicks in
@@ -24,6 +24,7 @@ the interface and never writes to the database.
 | `sysml-modeler.matrix`, `.coverage`, `.behavior` | read | Relationship matrices, requirement coverage, action flows and state machines |
 | `sysml-modeler.create_project` | proposal | Create the SysML project of a platform project (new projects start with none) in one proposal: initial text (parts, actions, allocations), managed requirements allocated to parts, and parts that represent existing product elements |
 | `sysml-modeler.satisfy_requirement` | proposal | Allocate managed requirements to parts of an existing model: a SysML requirement linked to the managed requirement (pinned revision) and `satisfy … by …` |
+| `sysml-modeler.import_requirement` | proposal | Bring a managed requirement (key or UUID) into the model as a requirement carrying its UUID, pinned revision, key and title, with optional `satisfy` links; idempotent, never a second element for the same managed requirement |
 | `sysml-modeler.link_requirement` | proposal | Link a SysML requirement to a managed requirement (UUID, pinned revision) |
 | `sysml-modeler.link_product_element` | proposal | The part or item represents a Project Management product element (UUID, pinned revision) |
 

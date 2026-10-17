@@ -124,8 +124,43 @@ try {
   await applyAll(reply, 'requirements (stakeholder and AI-proposed)', 2)
   reply = await ask('D1 architecture')
   await applyAll(reply, 'product element and SysML project', 2)
+  // AUD-5: the System Model matrix before the managed requirements are brought in: empty, and it says why.
+  const matrixContext = await browser.newContext({ viewport: { width: 1600, height: 1000 } })
+  await matrixContext.addInitScript(() => localStorage.setItem('ews.services.v1', JSON.stringify({ requirementsMode: 'api', devUser: 'eli' })))
+  const matrixPage = await matrixContext.newPage()
+  const openMatrix = async () => {
+    await matrixPage.goto(`${env.base}?project=${encodeURIComponent(P)}&tool=sysml-modeler`)
+    await matrixPage.waitForSelector('.smod-statusbar', { timeout: 60000 })
+    // The Matrix tab can sit in the toolbar overflow ("More actions").
+    if (await matrixPage.getByRole('button', { name: 'Matrix', exact: true }).count()) await matrixPage.getByRole('button', { name: 'Matrix', exact: true }).first().click()
+    else {
+      await matrixPage.getByRole('button', { name: 'More actions' }).click()
+      await matrixPage.getByRole('menuitem', { name: /Matrix/ }).click()
+    }
+    await matrixPage.waitForSelector('[data-help-id="sysml-modeler.matrix"]', { timeout: 20000 })
+    await matrixPage.waitForTimeout(1500)
+  }
+  await openMatrix()
+  const emptyText = (await matrixPage.locator('[data-help-id="sysml-modeler.matrix"]').first().textContent()) ?? ''
+  check(emptyText.includes('Managed requirements appear here once they are brought into the System Model') && /This project has 2 managed requirements/.test(emptyText), 'the empty matrix says that managed requirements appear once they are brought into the System Model (2 in this project)')
+  check(await matrixPage.getByRole('button', { name: 'Bring in managed requirements' }).first().isEnabled(), 'the empty matrix offers the bridge action')
+  await matrixPage.screenshot({ path: `${shots}/matrix-before.png` })
   reply = await ask('D1 allocate')
-  await applyAll(reply, 'requirement allocation and SysML product-element link', 2)
+  check((await operations(reply)).includes('sysml-modeler.import_requirement'), `the model brings the managed requirements into the System Model (${await operations(reply)})`)
+  await applyAll(reply, 'requirement allocation, SysML product-element link and managed requirements in the System Model', 3)
+  // The satisfy matrix through the API: REQ-001 and REQ-002 are rows, each satisfied by HolderBlock (filled cells), one element each.
+  const sysmlProject = (await get(`/api/sysml/v1/projects?platformProjectId=${encodeURIComponent(P)}`))[0]
+  const sysmlHead = (await get(`/api/sysml/v1/projects/${sysmlProject['@id']}/commits?limit=1`))[0]['@id']
+  const modelText = (await get(`/api/sysml/v1/projects/${sysmlProject['@id']}/commits/${sysmlHead}/text`)).text
+  const rows = [...modelText.matchAll(/requirement <'(REQ-\d+)'> '\1' \{\s*@EWS::ManagedRequirement \{[^}]*requirementId = "([0-9a-f-]{36})";[^}]*revision = (\d+);[^}]*requirementKey = "\1";[^}]*title = "([^"]+)";/g)].map((m) => ({ key: m[1], id: m[2], revision: Number(m[3]), title: m[4] }))
+  const cells = [...modelText.matchAll(/satisfy '(REQ-\d+)' by HolderBlock;/g)].map((m) => m[1])
+  check(rows.map((r) => r.key).join() === 'REQ-001,REQ-002' && cells.join() === 'REQ-001,REQ-002' && new Set(rows.map((r) => r.id)).size === 2, `the satisfy matrix has 2 rows with filled cells through the API (${rows.map((r) => `${r.key} rev ${r.revision} satisfied by HolderBlock`).join('; ')})`)
+  await openMatrix()
+  const headers = await matrixPage.locator('table[aria-label="satisfy matrix"] tbody th').allTextContents()
+  check(headers.length === 2 && /REQ-001/.test(headers[0]) && /REQ-002/.test(headers[1]) && !/[0-9a-f]{8}-[0-9a-f]{4}/.test(headers.join(' ')), `the System Model matrix shows 2 rows with stable IDs (${headers.join(' | ')})`)
+  check((await matrixPage.locator('table[aria-label="satisfy matrix"] td.is-filled').count()) === 2, 'the System Model matrix has 2 filled cells')
+  await matrixPage.screenshot({ path: `${shots}/matrix-after.png` })
+  await matrixContext.close()
 
   // Step 5: alternatives.
   reply = await ask('D1 alternatives')

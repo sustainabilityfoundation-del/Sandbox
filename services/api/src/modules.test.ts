@@ -82,7 +82,7 @@ describe('AI policy from the installed manifests', () => {
     expect(policy.classify('sysml-modeler.impact')?.operationClass).toBe('calculate')
     expect(policy.classify('sysml-modeler.find_elements')?.operationClass).toBe('search')
     expect(policy.classify('sysml-modeler.propose_commands')?.operationClass).toBe('propose')
-    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('sysml-modeler.'))).toHaveLength(15)
+    expect(Object.keys(policy.catalogue).filter((n) => n.startsWith('sysml-modeler.'))).toHaveLength(16)
     expect(ALL_SERVER_MODULES.find((m) => m.id === 'sysml-modeler')?.proposals).toEqual({ entitlement: 'tool:sysml' })
   })
 

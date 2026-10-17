@@ -38,6 +38,7 @@ const CALLS: Record<string, Record<string, unknown>> = {
   link_requirement: { element: 'ActuatorSystem::Requirements::load', requirement: 'REQ-001' },
   link_product_element: { element: 'ActuatorSystem::Mechanical::Rod', productElement: '7d1f3c2e-8b1a-4c55-9e0f-1a2b3c4d5e6f' },
   create_project: { name: 'Second model', initialText: 'package Second;' },
+  import_requirement: { requirement: 'REQ-001', satisfiedBy: ['ActuatorSystem::Mechanical::Rod'] },
   satisfy_requirement: { requirements: [{ requirement: 'REQ-001', satisfiedBy: ['ActuatorSystem::Mechanical::Rod'] }] },
 }
 
@@ -98,6 +99,52 @@ describe('assistant operations without a mounted view (headless, C9)', () => {
     const out = await ui.run([command as never])
     expect(out.diagnostics.introduced.map((d) => d.ruleId)).toContain('SYSML-UNIT-DIMENSION')
     ui.dispose()
+  })
+})
+
+describe('import_requirement (AUD-5)', () => {
+  const REQ2 = { id: '5b1c7e2a-0002-4e6a-9c1d-6f0a3d2b1002', key: 'REQ-002', title: 'Stroke', statement: 'x', status: 'approved', revision: 2 }
+  const withTwo = () => {
+    const h = headless()
+    const base = h.ctx.services as unknown as { requirements: { get: (id: string) => Promise<unknown>; resolve: (k: string) => Promise<unknown> } }
+    const all = [REQ, REQ2]
+    base.requirements.get = async (id) => all.find((r) => r.id === id)
+    base.requirements.resolve = async (k) => all.find((r) => r.key === k)
+    return h
+  }
+  const modelOf = async (client: ReturnType<typeof createLocalSysmlClient>) => {
+    const [p] = await client.listProjects('PRJ-ACT100')
+    const branch = await client.getBranch(p.id, p.defaultBranchId)
+    return client.loadModel(p.id, branch.headCommitId!)
+  }
+
+  it('is previewed, pins id/revision/key/title, adds satisfy, and a second import changes nothing (one element)', async () => {
+    const { client, run } = withTwo()
+    const first = (await run('import_requirement', { requirement: 'REQ-002', satisfiedBy: ['ActuatorSystem::Mechanical::Rod'] })) as ServiceProposal
+    expect(first.kind).toBe('service-proposal')
+    expect(first.preview.length).toBeGreaterThan(0)
+    expect((await modelOf(client)).elements()).toBeTruthy()
+    expect(requirementCoverage(await modelOf(client)).requirements.filter((r) => r.managed?.requirementId === REQ2.id)).toHaveLength(0) // nothing written before Apply
+    await first.apply({ conversationId: 'c', proposalId: 'p1', messageId: 'm' })
+    const cov = requirementCoverage(await modelOf(client)).requirements.filter((r) => r.managed?.requirementId === REQ2.id)
+    expect(cov).toHaveLength(1)
+    expect(cov[0]).toMatchObject({ managed: { requirementId: REQ2.id, revision: 2, requirementKey: 'REQ-002', title: 'Stroke' }, status: 'satisfied' })
+    const again = (await run('import_requirement', { requirement: 'REQ-002', satisfiedBy: ['ActuatorSystem::Mechanical::Rod'] })) as { kind: string; summary: string }
+    expect(again.kind).toBe('data')
+    expect(again.summary).toMatch(/already contains this; nothing to change/)
+    // A different satisfying part adds only the missing link, on the same element.
+    const more = (await run('import_requirement', { requirement: 'REQ-002', satisfiedBy: ['ActuatorSystem::Mechanical::Rod', 'ActuatorSystem::Mechanical::Gearbox'] })) as ServiceProposal
+    await more.apply({ conversationId: 'c', proposalId: 'p2', messageId: 'm' })
+    const final = requirementCoverage(await modelOf(client)).requirements.filter((r) => r.managed?.requirementId === REQ2.id)
+    expect(final).toHaveLength(1)
+    expect(final[0].satisfiedBy).toHaveLength(2)
+  })
+
+  it('refuses without the Requirements service and for an unknown requirement', async () => {
+    const { ctx, tool } = headless()
+    const action = tool.assistant!.actions.find((a) => a.name === 'sysml-modeler.import_requirement')!
+    await expect(action.run({ requirement: 'REQ-001' }, { ...ctx, services: {} as PlatformServices })).rejects.toThrow(/Requirements service is not available/)
+    await expect(action.run({ requirement: 'REQ-404' }, ctx)).rejects.toThrow(/No managed requirement REQ-404/)
   })
 })
 

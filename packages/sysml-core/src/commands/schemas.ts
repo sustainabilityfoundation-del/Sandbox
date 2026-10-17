@@ -81,9 +81,27 @@ export const COMMAND_SCHEMAS: CommandSchema[] = [
   },
   {
     op: 'setMetadata',
-    summary: 'Attach (or with null remove) platform metadata: ManagedRequirement {requirementId, revision}, CadRepresentation {cadRef: "<documentUuid>/<entityId>", revision, role}, ProductElement {productElementId: "<product element UUID>", revision}, ConceptLink {conceptId}.',
+    summary: 'Attach (or with null remove) platform metadata: ManagedRequirement {requirementId, revision, requirementKey, title},CadRepresentation {cadRef: "<documentUuid>/<entityId>", revision, role}, ProductElement {productElementId: "<product element UUID>", revision}, ConceptLink {conceptId}.',
     effect: 'update',
     schema: obj('setMetadata', { elementId: ref, metadata: { enum: [...METADATA_KINDS] }, values: { anyOf: [{ type: 'object', additionalProperties: { type: ['string', 'number', 'null'] } }, { type: 'null' }] } }, ['elementId', 'metadata', 'values']),
+  },
+  {
+    op: 'importRequirement',
+    summary: 'Bring a managed requirement (Requirements Management) into the model: a requirement usage carrying EWS::ManagedRequirement (UUID, pinned revision, key, title), and optional satisfy links. Idempotent by requirementId: an element that already carries it is reused, never duplicated.',
+    effect: 'create',
+    schema: obj(
+      'importRequirement',
+      {
+        ownerId: ref,
+        requirementId: { type: 'string', description: 'Managed requirement UUID (identity)' },
+        key: { type: 'string', minLength: 1, description: 'Display key, e.g. REQ-001' },
+        title: { type: 'string' },
+        revision: { type: 'integer', minimum: 1, description: 'Pinned revision' },
+        satisfiedBy: { type: 'array', items: ref, description: 'Parts or features that satisfy it (satisfy links; skipped when already present)' },
+        ref: { type: 'string', pattern: '^\\$?[A-Za-z_][A-Za-z0-9_]*$', description: 'Placeholder for later commands' },
+      },
+      ['ownerId', 'requirementId', 'key', 'title'],
+    ),
   },
 ]
 

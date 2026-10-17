@@ -191,3 +191,28 @@ optimistic concurrency with `details.currentRevision`, exact-revision reads, req
 links with direction, committed-change events, and baseline-scoped reads (or a clear error when an
 adapter has no baselines). Current results: demo adapter (root `npm test`), HTTP adapter against the
 real API and PostgreSQL as editor `eli` and as SysML-only `nia` (`npm run req:test:db`).
+
+## 6. System Model (SysML Modeler): bringing a managed requirement into the model (AUD-5)
+
+This section is about the `System Model` module (`packages/sysml-core`, IDs `sysml-modeler`), not the illustrative
+SysML tool of sections 1 to 4. It makes no SysML v2 conformance claim.
+
+| Managed requirement (Requirements service) | SysML element in the model | Notes |
+| --- | --- | --- |
+| UUID (identity) | `@EWS::ManagedRequirement { requirementId }` | The identity rule: one model element per managed requirement UUID; keys are display text |
+| Pinned revision | `revision` | Pinned at import; moving it is a separate, reviewed action (Update pin) |
+| Key (`REQ-001`) | `requirementKey` and the element's name and short name | Shown in matrix headers instead of UUIDs |
+| Title | `title` | Display only. The statement is not copied |
+| Requirement | One requirement usage in the target package (`requirement <'REQ-001'> 'REQ-001'`) | If only a requirement definition carries the link (for example linked by `link_requirement`), a requirement usage typed by that definition is used when a `satisfy` link is needed (definition plus usage) |
+| Satisfaction claim | `satisfy 'REQ-001' by <part>` | Optional at import; a modelled claim, not evidence |
+
+- Command `importRequirement` (`ownerId`, `requirementId`, `key`, `title`, `revision?`, `satisfiedBy?`), assistant
+  operation `sysml-modeler.import_requirement` (class propose, previewed through the existing proposal flow) and the Matrix
+  dialog "Bring in managed requirements" run the same command.
+- **Idempotent.** If a requirement definition or usage already carries the same `requirementId`, it is reused (pin
+  unchanged) and only missing `satisfy` links are added; a second element is never created. A repeated request that changes
+  nothing is reported as such and commits nothing.
+- Requirement data is read through the SDK requirements service port (`list`, `get`, `resolve`); the module imports no
+  Requirements internals. Without the service the dialog and the operation say so and change nothing.
+- The Satisfy matrix and Coverage list only requirements that exist in the model. Managed requirements that were not
+  brought in do not appear; the empty matrix says so and offers the action.

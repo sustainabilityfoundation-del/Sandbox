@@ -265,6 +265,44 @@ describe('model services, schema discovery, OpenAPI and events', () => {
   })
 })
 
+describe('importRequirement command (AUD-5, database)', () => {
+  const RID = '5b1c7e2a-00a5-4e6a-9c1d-6f0a3d2b10a5'
+  let command: Record<string, unknown> = {}
+  beforeAll(async () => {
+    // Earlier tests in this file edit the shared example, so pick a part definition that exists now.
+    const found = await env.call('eli', 'GET', `${P}/commits/${(await head()).commitId}/search?metaclass=PartDefinition&text=Rod&limit=5`)
+    const target = (found.body as { qualifiedName?: string }[]).find((x) => x.qualifiedName?.startsWith('ActuatorSystem::'))?.qualifiedName
+    expect(target, JSON.stringify(found.body).slice(0, 200)).toBeTruthy()
+    const owner = target!.split('::').slice(0, 2).join('::')
+    command = { op: 'importRequirement', ownerId: owner, requirementId: RID, key: 'REQ-AUD5', title: 'Bridge test', revision: 2, satisfiedBy: [target] }
+  })
+  const textOf = async () => (await env.call('eli', 'GET', `${P}/commits/${(await head()).commitId}/text`)).body.text as string
+
+  it('is published in the command schemas and the AI descriptor', async () => {
+    const schemas = await env.call('eli', 'GET', `${BASE}/commands`)
+    expect(JSON.stringify(schemas.body)).toContain('importRequirement')
+  })
+
+  it('previews, commits once, and a second import of the same managed requirement is a no-op (one element)', async () => {
+    const dry = await tx([command], { dryRun: true })
+    expect(dry.status, JSON.stringify(dry.body).slice(0, 400)).toBe(200)
+    expect(dry.body.dryRun).toBe(true)
+    expect((await textOf()).includes(RID)).toBe(false)
+    const first = await tx([command], { headers: idem() })
+    expect(first.status).toBe(200)
+    const after = await textOf()
+    expect(after).toContain(`requirementId = "${RID}"`)
+    expect(after).toContain('requirementKey = "REQ-AUD5"')
+    expect(after.split(`requirement <'REQ-AUD5'>`)).toHaveLength(2)
+    expect(after.split("satisfy 'REQ-AUD5' by").length).toBe(2)
+    const second = await tx([command], { headers: idem() })
+    expect(second.body.changes?.length ?? second.body.commit?.changeCount ?? 0).toBe(0)
+    expect((await textOf()).split(`requirementId = "${RID}"`)).toHaveLength(2)
+    const bad = await tx([{ ...command, requirementId: 'REQ-AUD5' }], { dryRun: true })
+    expect(bad.status).toBe(422)
+  })
+})
+
 describe('large-model baseline (database)', () => {
   it('stores a generated model of ~30 000 elements and commits small changes quickly', async () => {
     const lines = ['package Big {', '    private import ISQ::*;', '    private import SI::*;']
