@@ -117,6 +117,17 @@ Legal, licence and commercial-terms questions stay listed for the owner and do n
 ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only) producing the §20 report; practice research
 (NASA SE Handbook, interface management, INCOSE, 15288/29148 summaries, SysML interfaces) on branch research/ecii-practice.
 
+## Integration queue update (17 October 2026, hourly check-in)
+
+- Merged to local main: AI increment A (5c0537b), ECII increment 1 (4764ff3), AUD-5 SysML matrix (cf216cd, green integration
+  run: 1575 tests, all DB tiers, builds, 17/17 e2e flows). **Local main is 6 commits ahead of origin: pushing and merging into
+  `../Sandbox-integration` are blocked by the Claude Code permission classifier; the owner must push or add a permission rule.**
+- AI increment C (gateway), `feature/ai-infra-c-gateway` at 4f53300: Opus review found mock mode reaching stored connections
+  (and revoking them), user mode refusing the owner's ChatGPT connection by default, and test stacks ignoring `EWS_AI_MODE`.
+  All fixed and re-reviewed; req:test:db 583, ai:test:db 181, demo-d1 3/3. Waits for its integration run (blocked as above).
+- Queued for integration: `cad/name-and-check-ui` (df241fb), then the gateway.
+- In progress: ECII increment 2 (architecture-first and readiness), `feature/ecii-2-architecture`.
+
 ## Integration queue update (17 October 2026, about 02:15 EDT)
 Merged since: feature/ct-2c2-sdk with CT-2c1 (4678e3a); cad/c1-sketching-reliability with OSS-9 (756b317); both after green
 integration runs (16/16 e2e; services/api infrastructure test fails only under load, AUD-14). In integration: feature/ai-infra-a-core
