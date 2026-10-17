@@ -7,8 +7,10 @@ Brief: [aws-deployment-brief.md](../specifications/aws-deployment-brief.md).
 
 ## 1. Summary
 
-- **Today (audit):** an AWS Amplify Hosting static build (likely; not verifiable without AWS access) serving the GLB viewer at the root and the
-  workspace at `/workspace/`. No backend, no database and no `/api` routing exist in AWS, so every module that needs `services/api` fails.
+- **Today (verified by the live audit, [DEPLOYMENT_AUDIT.md](DEPLOYMENT_AUDIT.md) L1-L12):** account 477165397126 (the organization's
+  management account) contains only the Amplify static app `d2pllj7b1wqfae` in **us-east-2**. It serves the GLB viewer at the root and the
+  workspace at `/workspace/`. All 121 builds succeeded. No backend, no database and no `/api` routing exist in any region, so every module that
+  needs `services/api` fails. There is no existing data to preserve.
 - **Recommendation:** per environment, one CloudFront distribution in front of an S3 bucket (workspace and viewer) and, for `/api/*`, an
   internal Application Load Balancer reached through a CloudFront VPC origin; one ECS Fargate task (ARM64) running the existing `services/api`
   image; Amazon RDS for PostgreSQL 17 (single-AZ) in private subnets; EFS for `STORAGE_DIR` until S3 adapters exist; Secrets Manager; CloudWatch.
@@ -201,7 +203,7 @@ an S3 assets bucket and roles (small cost). Upstream contribution: none planned 
 
 | Risk | Mitigation |
 | --- | --- |
-| An existing AWS deployment holds data this audit could not see (Amplify has no database, so likely none; an unknown RDS or EC2 database is possible) | Read-only inventory first (O1, runbook §2). Nothing existing is modified, replaced or deleted; the new stacks use new names. Amplify is left running until the owner retires it. |
+| Existing data in AWS | **None exists** (live audit L5, L10): no database, bucket, file system or secret in any region. The Amplify app is left running until the owner retires it; the new stacks use new names. |
 | IaC replaces or deletes a stateful resource | RDS, EFS, buckets and secrets get `RemovalPolicy.RETAIN` (snapshot for RDS), deletion protection, stack termination protection; the pipeline parses the change set and refuses any `Replace` or `Remove` on them without a manual, approved procedure. |
 | A migration damages data | Migrations are additive (AGENTS.md); one transaction each; prod snapshot before migrating; point-in-time recovery 14 days. |
 | Container starts embedded PostgreSQL and data disappears | Code change C3 (fail fast when deployed without `EWS_PG=external`); IaC sets the variable. |
@@ -227,13 +229,13 @@ Mapped to the brief's phases (§11). Each increment ends in a committed checkpoi
 
 | # | Decision or access | Recommendation |
 | --- | --- | --- |
-| O1 | Read-only AWS access for the audit (IAM user or role with `ReadOnlyAccess`, or the owner runs runbook §2 and pastes results), and the account ID | needed before increment B |
-| O2 | AWS region | the region of the existing Amplify app, or one near the owner (for example eu-west-2 or us-east-1) |
+| O1 | Read-only AWS access: **done** (SSO profile `engineering-dev`, live audit L1). Deploy access later comes through the GitHub OIDC roles and a deploy permission set | done |
+| O2 | AWS region | **us-east-2**, where the existing Amplify app and the SSO profile's default region are (live audit L1, L3). Note that CloudFront certificates for a custom domain must still be in us-east-1 |
 | O3 | Approval of the monthly cost (AWS_COST_ESTIMATE.md) and of creating billable resources | dev first; prod after E on dev |
 | D3 | Sign-in for deployed environments: (a) development identities behind an edge access gate (CloudFront Function with a shared password; prototype only; needs C5: an explicit identity switch independent of `NODE_ENV`); (b) Amazon Cognito at the ALB with the user mapped to `platform.users` (small platform change); (c) OIDC bearer tokens in the API and workspace (larger platform change) | (a) for dev now; (b) or (c) before prod holds real users. With (a) and `SEED_ON_START=false` the database has no users, so C5 also needs a way to create the named people (platform users and memberships) without the sample project and data |
-| D4 | The existing Amplify app: keep (add `/api` proxy rewrite, root redirect) or retire after dev works on CloudFront; stop its auto-build on every push to `main` (about 60 pushes a day) | retire after increment B is accepted |
+| D4 | The existing Amplify app `d2pllj7b1wqfae`: now, add a `/` → `/workspace/` redirect (free, reversible). Later, either keep it and add an `/api/<*>` proxy rewrite to the dev API origin, or retire it once dev works on CloudFront. Also decide whether to stop auto-building every push to `main` (about 27 builds a day, roughly USD 35 a month) | redirect now; retire after increment B is accepted |
 | D5 | Blob storage: EFS now, S3 adapters later (module owners) | yes |
-| D6 | One AWS account with dev and prod stacks, or separate accounts (AWS Organizations) | one account for the prototype |
+| D6 | The current account 477165397126 is the **management account** of organization `o-wz12ylch90` (live audit L1). AWS recommends keeping workloads out of the management account | create one member account (for example `ews-workloads`) for dev and prod stacks, or accept the management account for the prototype as an explicit owner decision |
 | D7 | Domain name (Route 53 or external DNS) for HTTPS on a custom name | optional; CloudFront names work without one |
 | D8 | GitHub: create environments `dev` and `production` (owner as required reviewer); repository variables for account ID and region; whether the repository stays public | needed for increment C |
 | D9 | Alarm e-mail address | owner's choice |

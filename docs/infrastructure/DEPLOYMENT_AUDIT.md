@@ -7,7 +7,141 @@ Related: [DATABASE_DEPLOYMENT.md](DATABASE_DEPLOYMENT.md), [AWS_COST_ESTIMATE.md
 Every statement is marked **Verified** (with how) or **Assumed**. Nothing in AWS or GitHub was changed. No test suite or build was run
 (the machine is shared with an integration run).
 
-## 0. Access available to this audit
+The **live inventory** below (added on branch `infra/aws-audit-live`) replaces the assumptions in §0, §2 and §4 about AWS. §1 (the repository)
+still stands.
+
+## Live inventory (17 October 2026)
+
+Read-only, run 13:00-13:45 UTC with AWS CLI 2.38.1, profile `engineering-dev`. Every call was a describe, list or get call. No secret values were
+retrieved: Amplify environment variables were read only as name lists, and the console build spec was printed with a redaction filter.
+The deployed site was fetched with HTTP GET only. No database connection was made, no CloudWatch logs exist to read, and no test or build was run.
+"Verified (cmd)" names the command used. "Inferred" means a conclusion drawn from verified facts.
+
+### L1. Account and access
+- **Verified** (`sts get-caller-identity`): account `477165397126`; principal
+  `arn:aws:sts::477165397126:assumed-role/AWSReservedSSO_ReadOnlyAccess_6a7d3449274e53a3/kim-dev` (IAM Identity Center, read-only permission set).
+  The profile's default region is `us-east-2`.
+- **Verified** (`organizations describe-organization`): this account is the **management account** of organization `o-wz12ylch90`.
+- **Verified** (`iam list-roles`, `iam list-users`): no IAM users; the only roles are AWS service-linked roles and the SSO read-only role.
+  **No GitHub OIDC provider** (`iam list-open-id-connect-providers`: empty), so no role trusts GitHub.
+- **Verified** (`kms describe-key`): one customer-managed multi-region KMS key in us-east-2, created 17 October 2026 at 11:43 UTC. Its description
+  says it is the IAM Identity Center key, so it is not an application resource. It has no alias.
+
+### L2. Inventory across all 17 enabled regions
+**Verified** (`ec2 describe-regions`, then per region: `amplify list-apps`, `ec2 describe-instances`, `ecs list-clusters`,
+`ecr describe-repositories`, `apprunner list-services`, `lambda list-functions`, `apigateway get-rest-apis`, `apigatewayv2 get-apis`,
+`elasticbeanstalk describe-environments`, `rds describe-db-instances`, `rds describe-db-clusters`, `elasticache describe-cache-clusters`,
+`efs describe-file-systems`, `secretsmanager list-secrets`, `ssm describe-parameters`, `cloudformation list-stacks`, `logs describe-log-groups`,
+`cloudwatch describe-alarms`, `ec2 describe-vpcs` (non-default), `acm list-certificates`). Lightsail instances, container services and
+databases were checked in the 14 regions where Lightsail runs.
+
+| Resource | Result |
+| --- | --- |
+| Amplify | **1 app, us-east-2 only** (details L3) |
+| EC2, ECS, ECR, App Runner, Lambda, API Gateway (REST and HTTP), Elastic Beanstalk | **none in any region**. App Runner returned an error in 6 regions where it is not offered. |
+| RDS instances, Aurora clusters, Lightsail databases, ElastiCache | **none in any region** |
+| EFS, Secrets Manager secrets, SSM parameters | **none in any region** |
+| CloudFormation stacks, CloudWatch log groups, CloudWatch alarms, ACM certificates | **none in any region** |
+| VPCs | default VPC only (us-east-2 `172.31.0.0/16`, default security group only); no non-default VPC in any region |
+| S3 buckets (`s3api list-buckets`), CloudFront distributions (`cloudfront list-distributions`) | **none**. Amplify Hosting's storage and CDN are AWS-managed and do not appear in the account. |
+| Route 53 hosted zones and registered domains | **none** |
+| Resource Groups Tagging API (us-east-2, us-east-1) | only the KMS key and a payment instrument; nothing else is tagged |
+| Cost Explorer (`ce get-cost-and-usage`) | **AccessDenied: "User not enabled for cost explorer access"**. Cost Explorer is not enabled, or this role may not use it. No budgets exist (`budgets describe-budgets`). The account plan is `PAID` with USD 0 credits remaining (`freetier get-account-plan-state`). |
+
+### L3. Frontend hosting and what the URL serves
+- **Verified** (`amplify list-apps`): app `Sandbox` (`d2pllj7b1wqfae`), platform `WEB` (static hosting, no server-side compute, no compute or service role),
+  repository `github.com/sustainabilityfoundation-del/Sandbox`, created 12 October 2026 at 02:18 UTC. It has no environment variables, no basic auth
+  and one custom rule: `/<*>` → `/index.html` with status `404-200`.
+- **Verified** (`amplify list-branches`): one branch `main`, stage PRODUCTION, **auto-build on**, no basic auth, no environment variables.
+- **Verified** (`amplify list-domain-associations`): no custom domain. The URL is `https://main.d2pllj7b1wqfae.amplifyapp.com`.
+- **Verified** (`amplify list-jobs`, `get-job`): **121 jobs, all SUCCEED** (BUILD, DEPLOY, VERIFY), job 1 on 12 October through job 121 on commit
+  `bcb5e97` (current `main`) on 17 October at 13:20 UTC. That is 531 build minutes, 4.4 minutes per build on average. The console build spec is the
+  same as `amplify.yml` (`get-app` build spec, redacted print).
+- **Verified (HTTP GET):**
+
+| Path | Response |
+| --- | --- |
+| `/` | 200 `text/html`, title "GLB Model Viewer" (the standalone viewer) |
+| `/workspace/` | 200, title "Engineering Workspace (mockup)", bundle `/workspace/assets/index-DvdXjnuW.js` (the current workspace build) |
+| `/workspace` | 301 → `/workspace/` (served by S3 behind CloudFront: `Server: AmazonS3`) |
+| `/api/health` | **301 → `/api/health/`, then 404 with the GLB viewer's `index.html` as the body** |
+| `/api/platform/v1/me` | 301, then the same 404 HTML |
+| `/nonexistent.js` | 404 |
+
+### L4. Backend
+**Verified** (L2): no compute of any kind exists in any region: no EC2, ECS, App Runner, Lambda, API Gateway, Beanstalk or Lightsail, and no
+Amplify compute role. **No backend runs.** `/api/*` reaches only Amplify's static store (L3).
+
+### L5. PostgreSQL
+**Verified** (L2): no RDS instance, Aurora cluster or Lightsail database in any enabled region. **No managed PostgreSQL exists, so nothing
+holds platform data in AWS.** Engine, version, size, Multi-AZ, public access, backups and encryption do not apply.
+
+### L6. Schemas and migrations in AWS
+**Inferred:** with no database and no backend there are no deployed schemas and no applied migrations. No connection was made (the rules forbid
+it, and there is nothing to connect to). No CloudWatch log groups exist that could show migration output. The schema inventory from code (§1.4:
+9 schemas, 27 migrations) is what the first deployment will create.
+
+### L7. Deployment configuration, CI and logs
+- **Verified:** the only deployment mechanism is Amplify's own GitHub integration (auto-build on push to `main`). No GitHub Actions workflow deploys
+  (anonymous GitHub API: one workflow, `.github/workflows/ci.yml`).
+- **Verified** (GitHub API): 65 CI runs: 3 success, 34 failure, 28 cancelled. The latest four failed in `npm run check`
+  (`CommandSurfaces.browser.test.ts`: "Element is outside of the viewport", runs 62-64) and in "Requirements database tests" (run 65).
+  CI and Amplify are independent: **Amplify deployed all 121 commits, including those whose CI failed.**
+- **Verified:** no CloudWatch log groups or alarms exist in any region. Amplify build logs are reachable only through presigned URLs, which were not
+  fetched because the job steps already show SUCCEED.
+
+### L8. Root cause (revised, with evidence)
+The site is not broken by a failed deployment. **The deployment succeeds, but it can only ever contain the static half of the platform.**
+1. **No backend and no database exist in AWS** (L2, L4, L5). The workspace calls same-origin `/api/...` (§1.6). On Amplify those requests are
+   redirected (301) and then answered with **404 and the GLB viewer's HTML** (L3). The workspace's health check (`response.ok`) therefore reports
+   the API as unreachable, and every module that loads data (projects, requirements, System Model, CAD, Conceptualize, settings, assistant) fails.
+2. **The root URL serves the GLB viewer, not the platform** (L3: `/` title "GLB Model Viewer"). The workspace is reachable only at `/workspace/`.
+3. Secondary: even a backend added now would refuse every request in production mode, because production sign-in is not built (§1.7). That is a
+   design gap the repair has to decide on (D3), not a cause of today's symptom.
+
+Ruled out by evidence: failed Amplify builds (121 of 121 succeeded), a missing workspace build (`/workspace/` serves the current bundle), and an
+existing database that is unreachable (none exists).
+
+### L9. Corrective actions (revised; smallest repair first, brief §11 phase 2)
+1. **Immediate, owner approval, free, reversible:** add an Amplify redirect `/` → `/workspace/` (302) ahead of the existing rule, so visitors reach
+   the workspace. The viewer stays reachable at `/index.html`. Optional: turn off auto-build on `main` and build on demand, or from a release branch,
+   to stop paying for about 27 builds a day.
+2. **Repair (needs approval of billable resources, D3, and the Platform code changes C3, C4, C7 and C5 if D3 = a):** a dev backend in **us-east-2**
+   as AWS_ARCHITECTURE.md describes (one Fargate task, RDS PostgreSQL 17, EFS, Secrets Manager), reached at `/api/*` on the same origin. Either:
+   - keep Amplify and add one rewrite `/api/<*>` → `https://<api origin>/api/<*>` (status 200, proxy) above the `/<*>` rule. The target must be HTTPS, so the API needs either a domain with an ACM certificate on the load balancer or its own CloudFront distribution. This is the smallest
+     frontend change. Its behaviour with SSE event streams must be checked on dev; streams resume after a drop.
+   - or serve dev from its own CloudFront distribution (AWS_ARCHITECTURE.md §4.3) and retire Amplify after acceptance.
+3. Nothing needs to be migrated, restored or preserved: there is no existing data in AWS (L5).
+
+### L10. Risks to existing data
+**Verified:** none in AWS: no database, bucket, file system or secret exists (L2, L5). The only stateful item is the Amplify app with its build
+history. The rewrite and redirect changes in L9 are reversible console or CLI edits. **Inferred:** the real platform data, including the D1
+project, lives only on the owner's machine (embedded PostgreSQL in `.data/pg` and blobs in `.data/objects`), so it has no off-machine backup. Copying it to
+AWS would be a separate, explicit owner decision; it is not part of the deployment.
+
+### L11. Cost (revised)
+- **Actual spend: not readable**, because Cost Explorer is not enabled for this account (L2). The owner can enable it under Billing → Cost Explorer,
+  or read the Amplify line on the bill.
+- **Inferred from verified usage:** the only billable service is Amplify Hosting: 531 build minutes in 5 days, at USD 0.01 per minute (standard
+  build instance; the account has no free-tier credits left), is about **USD 5.30 so far**. At the current pace of about 27 builds a day, that is
+  **roughly USD 35 a month**, plus negligible storage and transfer. This replaces the USD 120 guess in AWS_COST_ESTIMATE.md §4.
+
+### L12. Deployed versus intended architecture
+
+| Component | Intended (AWS_ARCHITECTURE.md) | Deployed |
+| --- | --- | --- |
+| Frontend | S3 and CloudFront per environment; `/` → `/workspace/` | Amplify static `WEB` app; `/` is the GLB viewer |
+| `/api/*` routing | CloudFront behaviour → ALB → Fargate | none (SPA fallback 404) |
+| Backend | ECS Fargate, 1 task | none |
+| Database | RDS PostgreSQL 17, private | none |
+| Blobs | EFS, later S3 | none |
+| Secrets | Secrets Manager (DB, `EWS_ASSISTANT_KEY`) | none |
+| Networking | VPC, two AZs, no NAT | default VPC only, unused |
+| IAM / CI deploy | GitHub OIDC roles, environments | none; Amplify's GitHub integration only |
+| Observability | CloudWatch logs and alarms, budgets | none; no budget, and Cost Explorer is off |
+| Account | dev and prod stacks | a single management account; no member account for workloads |
+
+## 0. Access available to the first (repository-only) audit (superseded by the live inventory)
 
 | Source | Result |
 | --- | --- |
@@ -116,7 +250,7 @@ Conceptualize and Requirements APIs).
   The public origin is derived from `API_HOST:API_PORT` (no override), which is wrong behind a proxy (minor change C7).
 - **Verified:** CI uses no secrets and no AWS credentials (`permissions: contents: read`).
 
-## 2. What is deployed
+## 2. What is deployed (first audit, assumptions; see the live inventory L2-L5)
 
 | Item | Status |
 | --- | --- |
@@ -142,7 +276,7 @@ Conceptualize and Requirements APIs).
 - **Annotations (Verified):** actions/checkout@v4, setup-node@v4 and upload-artifact@v4 run on deprecated Node 20 runtimes (forced to 24); `ubuntu-latest`
   moves to Ubuntu 26 from 19 October 2026. Neither breaks CI today.
 
-## 4. What is broken: most likely causes of "the AWS-hosted application is not working"
+## 4. What is broken: most likely causes (first audit; revised in L8)
 
 Ranked by likelihood. Without AWS access none can be proven; the evidence is from code and configuration.
 
