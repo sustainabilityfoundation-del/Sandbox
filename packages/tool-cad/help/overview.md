@@ -6,7 +6,7 @@ summary: Explore the illustrative actuator representation.
 keywords: [cad, demo]
 ---
 
-This **demo** tool displays **mock geometry with no CAD kernel**: a parametric side elevation of an actuator housing, rod and motor. It is not a solid modeler, manufacturing model or general CAD import/export tool. For actual kernel-based modeling, see [CAD Modeler](help:cad-modeler.overview).
+This **demo** tool displays **mock geometry with no CAD kernel**: a parametric side elevation of an actuator housing, rod and motor. It is not a solid modeler, manufacturing model or general CAD import/export tool. For actual kernel-based modeling, see [CAD](help:cad-modeler.overview).
 
 Open CAD from the workspace tool selector with a project containing demo CAD representations. Select a shape to select its physical component across tools. Requirements resolve to representations of their allocated components; an unlinked object remains selected without a matching shape.
 

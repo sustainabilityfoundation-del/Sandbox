@@ -1,0 +1,211 @@
+{
+  "id": "ecii-e-sensor",
+  "description": "Recorded tool-call script for ECII Test E (generalization), a sensor bracket mounted to an existing industrial machine, replayed by the FAKE provider. It proves the same structure as Test A for an unrelated domain: intent, architectures, diversity and readiness through the real operations. It is not a model run and says nothing about reasoning quality. Domain words appear here as fixture values only.",
+  "turns": [
+    {
+      "user": "^Design a bracket that mounts a vibration sensor to an existing industrial machine",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.interpret_intent",
+              "arguments": {
+                "designObject": "Sensor bracket",
+                "role": "accessory",
+                "integration": "hosted",
+                "rationale": "The bracket holds a sensor on a machine that already exists, so it works with an existing system whose type and frame are not stated.",
+                "externalSystems": [
+                  {
+                    "id": "sys-1",
+                    "name": "Industrial machine (type and frame not stated)",
+                    "role": "host",
+                    "description": "The machine the sensor is to be mounted on; its model and mounting surfaces are not given.",
+                    "identified": false,
+                    "owner": "external",
+                    "relation": "mounts-to"
+                  }
+                ],
+                "objectives": [
+                  "Hold a vibration sensor rigidly enough to measure the machine"
+                ],
+                "environment": [
+                  "Industrial floor, vibration, possible oil and heat"
+                ],
+                "questions": [
+                  {
+                    "id": "Q1",
+                    "text": "Which machine, and where on it should the sensor sit?",
+                    "why": "The available mounting surfaces and the measurement point decide which attachment can work; guessing would risk a bracket that does not fit or measures the wrong thing.",
+                    "impact": "blocks",
+                    "options": [
+                      "Continue with generic mounting concepts",
+                      "Tell me the machine make and model",
+                      "Upload photos or drawings of the machine",
+                      "Supply measurements of the mounting surfaces"
+                    ],
+                    "state": "open",
+                    "needId": "system-0"
+                  }
+                ],
+                "reason": "ECII Test E: interpret the intent before designing"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I interpreted this as an accessory that mounts to an existing machine; the machine is not identified yet. Apply the intent to record it. I have not designed anything yet."
+        }
+      ]
+    },
+    {
+      "user": "^ECII E sensor architectures",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.develop_alternatives",
+              "arguments": {
+                "text": "Ways to mount a vibration sensor on an existing industrial machine",
+                "name": "Sensor mounting architectures",
+                "level": "architecture",
+                "alternatives": [
+                  {
+                    "name": "Magnetic base on a flat surface",
+                    "summary": "A magnet holds the sensor base to a flat steel surface.",
+                    "architecture": {
+                      "hostInterface": "A flat ferrous surface on the machine",
+                      "interfaceGeometry": "Surface size, flatness and coating are not known",
+                      "advantages": [
+                        "No tools and no change to the machine"
+                      ],
+                      "risks": [
+                        "Poor vibration coupling through a coating"
+                      ],
+                      "assumptions": [
+                        "A suitable ferrous surface exists (unverified)"
+                      ],
+                      "attachmentPrinciple": "Magnetic attraction between the base and the surface",
+                      "loadPath": "Sensor weight and vibration pass through the magnet face into the machine",
+                      "installationRemoval": "Place on the surface; pull off",
+                      "disadvantages": [
+                        "Holding force falls with heat and coating"
+                      ],
+                      "evidenceRequired": [
+                        "Surface material, finish and temperature at the measurement point"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Plate bolted to an existing tapped hole",
+                    "summary": "A small plate is bolted to a tapped hole the machine already has.",
+                    "architecture": {
+                      "hostInterface": "An existing tapped hole near the measurement point",
+                      "interfaceGeometry": "Thread size, depth and position are not known",
+                      "advantages": [
+                        "Stiff coupling"
+                      ],
+                      "risks": [
+                        "Over-tightening damages the thread"
+                      ],
+                      "assumptions": [
+                        "A spare hole exists (unverified)"
+                      ],
+                      "attachmentPrinciple": "Plate clamped by a screw into the existing hole",
+                      "loadPath": "Vibration and weight pass through the screw and plate face into the machine",
+                      "installationRemoval": "Undo the screw, fit the plate, refasten",
+                      "disadvantages": [
+                        "Needs a spare hole in the right place"
+                      ],
+                      "evidenceRequired": [
+                        "Position, thread and depth of candidate holes"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Band clamp around a round housing",
+                    "summary": "A strap clamp holds the sensor against a cylindrical part.",
+                    "architecture": {
+                      "hostInterface": "A cylindrical housing section near the measurement point",
+                      "interfaceGeometry": "Housing diameter and surface are not known",
+                      "advantages": [
+                        "Fits many sizes"
+                      ],
+                      "risks": [
+                        "Loss of coupling over time"
+                      ],
+                      "assumptions": [
+                        "A round section exists (unverified)"
+                      ],
+                      "attachmentPrinciple": "Strap tightened around the housing section",
+                      "loadPath": "Strap tension presses the sensor base against the housing",
+                      "installationRemoval": "Loosen the strap and slide the assembly off",
+                      "disadvantages": [
+                        "Strap can creep or loosen under vibration"
+                      ],
+                      "evidenceRequired": [
+                        "Diameter range of candidate sections"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared three different ways to mount the sensor on the machine; each names the feature it depends on and the evidence needed, and none states a dimension I do not know. Apply to record them."
+        }
+      ]
+    },
+    {
+      "user": "^ECII E sensor readiness",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Sensor mounting architectures"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.assess_diversity",
+              "arguments": {
+                "parentId": "${conceptualize.search.data.concepts.0.key}",
+                "minimum": 3
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Magnetic base on a flat surface"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.evaluate_readiness",
+              "arguments": {
+                "conceptId": "${conceptualize.search.data.concepts.0.key}",
+                "activity": "cad-handoff"
+              }
+            }
+          ]
+        },
+        {
+          "final": "${conceptualize.assess_diversity.data.distinctArchitectures} distinct architectures (${conceptualize.assess_diversity.data.verdict}). ${conceptualize.evaluate_readiness.data.label}"
+        }
+      ]
+    }
+  ]
+}

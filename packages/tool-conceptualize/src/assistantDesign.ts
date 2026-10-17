@@ -387,7 +387,7 @@ designActions.push(
     name: 'conceptualize.record_evidence',
     label: 'Prepare an evidence record from a check',
     description:
-      'Prepare an evidence record from a check result (for example a CAD Modeler check): the source artifact with its revision (a whole CAD document as { module: "cad", kind: "cad-document", id: <documentUuid>, revision: <document revision> }, or a cad-modeler-entity), the tool name and version, the measured values with units, each optionally checked against a constraint (CST-…), and the subjects (constraints, Concepts, Functions). Values are points (C11 qualification kind point). Conceptualize computes satisfied/violated from the constraint bound at its current revision; nothing is claimed beyond what was measured. Basis is estimate unless given; the assistant never records verified evidence.',
+      'Prepare an evidence record from a check result (for example a CAD check): the source artifact with its revision (a whole CAD document as { module: "cad", kind: "cad-document", id: <documentUuid>, revision: <document revision> }, or a cad-modeler-entity), the tool name and version, the measured values with units, each optionally checked against a constraint (CST-…), and the subjects (constraints, Concepts, Functions). Values are points (C11 qualification kind point). Conceptualize computes satisfied/violated from the constraint bound at its current revision; nothing is claimed beyond what was measured. Basis is estimate unless given; the assistant never records verified evidence.',
     parameters: {
       type: 'object',
       properties: {

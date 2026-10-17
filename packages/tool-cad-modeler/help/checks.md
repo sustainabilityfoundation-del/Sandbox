@@ -2,11 +2,36 @@
 help_id: cad-modeler.checks
 title: Checking the model against design constraints
 kind: guide
-summary: The assistant measures the regenerated model and compares the results with design-constraint bounds read from Conceptualize; every result records the document revision and kernel version.
+summary: Check against constraints (toolbar or assistant) measures the regenerated model and compares the results with design-constraint bounds read from Conceptualize; every result records the document revision and kernel version.
 keywords: [check, verify, constraint, bound, requirement, measurement, evidence, binding, wall thickness, mass, bounding box, outdated]
 related: [cad-modeler.parameters, cad-modeler.patterns, cad-modeler.ai]
 operations: [cad-modeler.check, cad-modeler.check_bindings]
 ---
+
+## Check against constraints (toolbar)
+
+Choose **Check against constraints** in the toolbar (or the button at the top of the **Diagnostics** tab). It runs the same
+check as the assistant operation below on the open document and lists the result in Diagnostics. It is read-only: the
+model, its revisions and the project are not changed, and nothing is recorded as evidence.
+The result is kept for this browser session only (not saved, not restored after a reload) and belongs to the document and
+model version it measured. After any edit it is marked **Outdated, run again** and is never shown as a current pass. The
+toolbar button is disabled while a check runs.
+
+Each row of the result shows:
+
+- the parameter or measure, and its status: **Pass**, **Fail** or **Not checkable** (with the reason);
+- the **measured value with its unit**;
+- the **bound** it was compared with: the constraint's stable ID (for example CST-004), the operator and limits, the
+  revision compared and the constraint statement;
+- the **source**: *Kernel* (measured on the solid by the geometry kernel) or *Model* (read from a parameter or a solved
+  sketch dimension), with what was measured.
+
+When no parameter is bound to a design constraint the panel says so and explains how to bind one. The solid validity of
+every body is listed below the measures. Parameters in the Model tab show the bound constraint by its stable ID and
+statement, never by an internal identifier. The keyboard and touch paths are the same as for any toolbar command: the
+command can be reached from the command palette and the tablet and phone tool menus.
+
+## The assistant operation
 
 **cad-modeler.check** (assistant operation, read-only) regenerates the model and measures it. Each
 measurement is compared with the **bound of a design constraint as stored in Conceptualize**: the

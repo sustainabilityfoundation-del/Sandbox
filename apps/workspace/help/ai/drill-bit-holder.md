@@ -33,7 +33,7 @@ Conceptualize and Requirements tools in your subscription (development user **el
    request: that operation's scripted principle library treats "belt" as a belt drive (known limitation).
 5. *"Draft requirements from its quantified constraints."* This prepares **draft** requirements in
    Requirements, linked to the Concept; approval stays in Requirements.
-6. Optional: ask for a simple holder block in the CAD Modeler. The model uses the CAD commands and you
+6. Optional: ask for a simple holder block in CAD. The model uses the CAD commands and you
    review the preview; the geometry is a concept, not a verified fit.
 
 Real models vary: if the model skips a step or asks a question, answer it. Nothing changes until you

@@ -1,6 +1,6 @@
 # AGENTS.md: @ews/cad-service
 
-CAD Modeler document service: PostgreSQL schema `cad` (native `ews-cad` documents with immutable
+CAD document service: PostgreSQL schema `cad` (native `ews-cad` documents with immutable
 revisions), validation by `@ews/cad-core`, ETag/If-Match, Idempotency-Key, outbox and SSE, OpenAPI 3.1,
 the server manifest (`src/manifest.ts`, module ID `cad-modeler`, M4). Hosted by `@ews/api` at
 `/api/cad/v1`. Owner: CAD agent. Specifications: [docs/modules/cad/service.md](../../docs/modules/cad/service.md),

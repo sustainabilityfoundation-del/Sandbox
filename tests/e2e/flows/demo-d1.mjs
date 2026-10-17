@@ -1,7 +1,7 @@
 // Demonstration D1 PLUMBING test (docs/specifications/demo-ai-engineering.md). The FAKE provider replays a
 // recorded tool-call script (tests/e2e/fixtures/fake-scripts/d1-plumbing.json) through the real workspace,
 // assistant service, policy, previews, Apply and the real module services (Project Management, Conceptualize,
-// Requirements, System Model, CAD Modeler with the OCCT kernel). It proves the plumbing; it is NOT a model run and
+// Requirements, System Model, CAD with the OCCT kernel). It proves the plumbing; it is NOT a model run and
 // does NOT count as D1 acceptance. The live run with a real model follows docs/modules/ai-interface/d1-live-run.md.
 //
 // Start the stack with the fake provider and its scripts: `npm run ai:dev:fake`
@@ -156,7 +156,9 @@ try {
   await matrixPage.screenshot({ path: `${shots}/matrix-before.png` })
   reply = await ask('D1 allocate')
   check((await operations(reply)).includes('sysml-modeler.import_requirement'), `the model brings the managed requirements into the System Model (${await operations(reply)})`)
-  await applyAll(reply, 'requirement allocation, SysML product-element link and managed requirements in the System Model', 3)
+  await applyAll(reply, 'allocation of both requirements, SysML product-element link and managed requirements in the System Model', 4)
+  const reqAll = await get(`/api/requirements/v1/projects/${P}/requirements`)
+  check(reqAll.items?.length === 2 && reqAll.items.map((r) => r.origin).sort().join() === 'ai-proposed,stakeholder', `both requirements keep their origin (${reqAll.items?.map((r) => `${r.key}:${r.origin}`).join(', ')})`)
   // The satisfy matrix through the API: REQ-001 and REQ-002 are rows, each satisfied by HolderBlock (filled cells), one element each.
   const sysmlProject = (await get(`/api/sysml/v1/projects?platformProjectId=${encodeURIComponent(P)}`))[0]
   const sysmlHead = (await get(`/api/sysml/v1/projects/${sysmlProject['@id']}/commits?limit=1`))[0]['@id']
@@ -170,6 +172,21 @@ try {
   check((await matrixPage.locator('table[aria-label="satisfy matrix"] td.is-filled').count()) === 2, 'the System Model matrix has 2 filled cells')
   await matrixPage.screenshot({ path: `${shots}/matrix-after.png` })
   await matrixContext.close()
+
+  // Step 4b (ECII increment 2, plan section 5: D1-a and D1-b): the mounting architectures come before the layout alternatives.
+  // The bolted block stays the selected architecture for the CAD steps; it is provisional while the drill is not identified.
+  reply = await ask('D1 mounting architectures')
+  check((await operations(reply)).includes('conceptualize.develop_alternatives'), `the model proposed mounting architectures before any layout (${await operations(reply)})`)
+  await applyAll(reply, 'mounting architectures', 1)
+  const blockConcept = ((await get(`/api/concepts/v1/projects/${P}/concepts?text=${encodeURIComponent('Bolted block on the accessory mount')}&limit=10`)).items ?? []).find((c) => c.name === 'Bolted block on the accessory mount')
+  const bolted = blockConcept ? await get(`/api/concepts/v1/projects/${P}/concepts/${blockConcept.id}`) : undefined
+  check(bolted?.definition?.architecture?.level === 'architecture' && /two holes/.test(bolted.definition.architecture.attachmentPrinciple) && bolted.definition.architecture.assumptions.length > 0, 'D1-b the bolted block is recorded as an architecture, with its hole spacing as an unverified assumption')
+  reply = await ask('D1 diversity')
+  const diverse = await answer(reply)
+  check((await operations(reply)).includes('conceptualize.assess_diversity') && /3 distinct mounting architectures \(diverse\)/.test(diverse), `the three mounting architectures are really different: ${diverse.slice(0, 160)}`)
+  reply = await ask('D1 readiness')
+  const gate = await answer(reply)
+  check(/Provisional: readiness is Exploratory/.test(gate) && /remains the selected architecture/.test(gate), `D1-b the bolted block is labelled provisional with readiness Exploratory: ${gate.slice(0, 220)}`)
 
   // Step 5: alternatives.
   reply = await ask('D1 alternatives')
@@ -204,6 +221,43 @@ try {
   const rechecked = await answer(reply)
   check(/pocket width 6\.8 mm against \S+ revision 2 \(satisfied\), kernel-measured pocket width 6\.8 mm \(satisfied\)/.test(rechecked) && near(/gap ([\d.]+) mm \(satisfied\)/.exec(rechecked)?.[1], 2.2) && /Outdated bindings: 0\./.test(rechecked), `the rerun check reflects the change: ${rechecked.slice(0, 220)}`)
   await page.screenshot({ path: `${shots}/02-check.png` })
+
+  // Step 7 in the interface (AUD-3, AUD-4): the toolbar command "Check against constraints" runs the same check on the
+  // open document and the Diagnostics panel lists bound (with the stable CST-nnn ID), measured value, result and source.
+  {
+    await page.keyboard.press('Escape')
+    await page.click('[data-rail-tool="cad-modeler"]')
+    await page.waitForSelector('.cadm-root, .cadm-welcome, [data-tool="cad-modeler"]', { timeout: 30000 })
+    await page.getByRole('tab', { name: 'Model', exact: true }).click()
+    const refText = await page.getByTestId('param-binding-ref').first().textContent({ timeout: 60000 })
+    check(/^CST-\d+$/.test((refText ?? '').trim()), `the parameter binding shows the stable constraint ID (${refText})`)
+    check(!/[0-9a-f]{8}-[0-9a-f]{4}/.test((await page.locator('.cadm-side').innerText())), 'no UUID appears in the CAD panels')
+    await page.screenshot({ path: `${shots}/03-cad-binding-label.png` })
+    // The toolbar command (it may sit in the overflow menu next to the docked panels).
+    const direct = page.getByRole('button', { name: 'Check against constraints', exact: true }).first()
+    await page.waitForTimeout(500)
+    if (await direct.isVisible().catch(() => false)) await direct.click()
+    else {
+      await page.getByRole('button', { name: 'More actions' }).first().click()
+      await page.getByRole('menuitem', { name: 'Check against constraints' }).first().click()
+    }
+    const panel = page.getByTestId('check-panel')
+    await panel.getByTestId('check-summary').waitFor({ timeout: 120000 })
+    const results = panel.getByTestId('check-result')
+    const bound = panel.locator('[data-testid=check-result]:has([data-testid=check-bound])')
+    check((await bound.count()) >= 1, `the panel lists ${await bound.count()} measure(s) with a bound`)
+    const boundText = (await bound.first().innerText()).replace(/\s+/g, ' ')
+    check(/CST-\d+/.test(boundText) && /<=|<|>=|>|=|between/.test(boundText) && /6\.8/.test(boundText) && /Pass/.test(boundText) && /Model/.test(boundText), `the bound row shows ID, bound, measured value, result and source: ${boundText.slice(0, 200)}`)
+    check((await results.filter({ hasText: /solid validity/ }).first().innerText()).includes('Kernel'), 'solid validity is listed with kernel provenance')
+    check((await panel.getByText(/make no claim of structural adequacy/).count()) === 1, 'the panel states that results make no claim of adequacy or compliance')
+    await page.screenshot({ path: `${shots}/04-cad-check-panel.png` })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.waitForTimeout(500)
+    check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'no horizontal page scroll on a phone')
+    await page.screenshot({ path: `${shots}/05-cad-check-phone.png` })
+    await page.setViewportSize({ width: 1600, height: 1000 })
+    await openAssistant()
+  }
 
   // Step 9: STEP export with read-back, and a download.
   reply = await ask('D1 export')

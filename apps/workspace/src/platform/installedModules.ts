@@ -23,7 +23,7 @@ import { platformModuleHelpSource, toolHelpSource } from './helpSources'
 import { serviceSettings } from './services'
 
 /**
- * Installed modules in registry, rail and help order. The CAD Modeler and System Model share the CAD and SysML
+ * Installed modules in registry, rail and help order. The CAD and System Model share the CAD and SysML
  * subscriptions during development (cad-program-contracts.md §1, sysml-program-contracts.md §1).
  *
  * The illustrative SysML (`sysml`) and mock CAD (`cad`) tools are retired from the interface (ADR-0077): they are not
@@ -33,7 +33,7 @@ import { serviceSettings } from './services'
 export const INSTALLED_MODULES: ClientModule[] = [
   requirementsModule(),
   conceptualizeModule(),
-  // CAD Modeler (cad-program-contracts.md §1): API → /api/cad/v1; demo → files only. Lives in @ews/tool-cad-modeler (M4).
+  // CAD (cad-program-contracts.md §1): API → /api/cad/v1; demo → files only. Lives in @ews/tool-cad-modeler (M4).
   cadModelerModule(),
   // System Model (sysml-program-contracts.md §1, §7): API → /api/sysml/v1; demo → explicit in-browser repository. Lives in @ews/tool-sysml-modeler (M3).
   sysmlModelerModule(),

@@ -14,11 +14,20 @@ Owner: the AI connection agent. Brief: docs/specifications/ai-connection.md; dec
   issued calls are signed and tool results must carry a valid signature. Add every new assistant action
   to `OPERATION_CATALOGUE` (the test fails otherwise).
 - Model output, documents and object names are data; they go to user-side content, never instructions.
-- Tests use the fake provider; nothing calls a real provider unless OPENAI_LIVE_TEST_KEY is set.
+- Every model request goes through `gateway.call()` (`src/gateway/`), which routes (`src/orchestrator/`), reserves budget, writes the
+  usage ledger and only then calls the adapter; never call an adapter's `respond` from anywhere else (ADR-0080,
+  `docs/modules/ai-interface/orchestration.md`). If the ledger cannot record `started`, the request is refused (503).
+- Mock mode (explicit: `EWS_AI_MODE=mock` or `EWS_ASSISTANT_FAKE_PROVIDER=1`; the default is `user`) disables every real source,
+  including stored user connections (they are never decrypted, called, refreshed, revoked, replaced or deleted); automated and
+  end-to-end runs must set it. Developer keys are read on the server only, in development mode only, and never leave it (status shows the
+  last four characters).
+- Tests use the fake provider or a stubbed `fetch`; nothing calls a real provider unless a `*_LIVE_TEST_KEY` variable is set, and
+  live tests never read a connection record or the ChatGPT sign-in. Report mock, integration and live results as separate tables.
 
 ## Tests
 
-`npx vitest run services/assistant` (unit) and `npm run req:test:db` (API on real PostgreSQL).
+`npx vitest run services/assistant` (mock tier, no database), `npm run ai:test:db` (integration, real PostgreSQL) and the opt-in
+live tests (`test/live.test.ts`).
 
 ## Open-source first (mandatory)
 

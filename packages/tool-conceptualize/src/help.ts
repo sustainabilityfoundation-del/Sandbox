@@ -45,6 +45,8 @@ const OPERATIONS: [string, string][] = [
   ['conceptualize.interpret_intent', 'conceptualize.context'],
   ['conceptualize.read_context', 'conceptualize.context'],
   ['conceptualize.identify_gaps', 'conceptualize.context'],
+  ['conceptualize.assess_diversity', 'conceptualize.architecture'],
+  ['conceptualize.evaluate_readiness', 'conceptualize.architecture'],
 ]
 
 const CONTROLS: [string, string][] = [
@@ -119,6 +121,8 @@ const CONTROLS: [string, string][] = [
   ['conceptualize.calculation.evidence', 'conceptualize.calculations'],
   ['conceptualize.context', 'conceptualize.context'],
   ['conceptualize.context.gaps', 'conceptualize.context'],
+  ['conceptualize.architectures', 'conceptualize.architecture'],
+  ['conceptualize.readiness', 'conceptualize.architecture'],
 ]
 
 export const conceptualizeHelp: HelpManifest = {

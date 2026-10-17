@@ -34,7 +34,7 @@ const summary = {
   },
 }
 
-/** Platform reference to a CAD Modeler entity (CR-CAD-1, approved). */
+/** Platform reference to a CAD entity (CR-CAD-1, approved). */
 export function entityRef(documentId: string, entityId: string | null, revision?: number) {
   return { module: 'cad' as const, kind: 'cad-modeler-entity', id: `${documentId}/${entityId ?? documentId}`, ...(revision !== undefined ? { revision } : {}) }
 }
@@ -154,7 +154,7 @@ export function registerRoutes(app: FastifyInstance, services: Services, registr
     path: `${D}/{documentId}/entities/{entityId}`,
     operationId: 'resolveEntity',
     tag: 'Documents',
-    summary: 'Resolve a CAD Modeler entity for cross-module references (ArtifactRef, CR-CAD-1)',
+    summary: 'Resolve a CAD entity for cross-module references (ArtifactRef, CR-CAD-1)',
     description:
       'entityId is a document-local ID (part-1, ext-5, par-2, sk-3 …), the document ID itself, or a stable face name (ext-5/cap-end, URL-encoded). Returns the platform reference { module: "cad", kind: "cad-modeler-entity", id: "<documentId>/<entityId>", revision }. Face names are checked against the feature that generates them; whether the face exists in the regenerated geometry is not checked by the server (no kernel).',
     permission: 'read',

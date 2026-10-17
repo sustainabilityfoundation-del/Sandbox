@@ -83,7 +83,7 @@ describe('constraint references for CAD (CR-AI-9)', () => {
   it('record_evidence accepts a whole CAD document as source', async () => {
     const DOC = '7e57c0de-0000-4000-8000-00000000d0c1'
     const p = (await con('conceptualize.record_evidence').run(
-      { title: 'CAD check of the block', subjects: ['CON-001'], source: { module: 'cad', kind: 'cad-document', id: DOC, revision: 3 }, tool: { name: 'CAD Modeler check', version: '1.0.0' }, results: [{ name: 'Volume', value: 600, unit: 'mm^3' }] },
+      { title: 'CAD check of the block', subjects: ['CON-001'], source: { module: 'cad', kind: 'cad-document', id: DOC, revision: 3 }, tool: { name: 'CAD check', version: '1.0.0' }, results: [{ name: 'Volume', value: 600, unit: 'mm^3' }] },
       ctx(),
     )) as ServiceProposal
     const applied = await p.apply(provenance)

@@ -37,7 +37,7 @@ beforeEach(async () => {
   downloads.length = 0
 })
 
-describe('CAD Modeler assistant (AI path through the shared commands)', () => {
+describe('CAD assistant (AI path through the shared commands)', () => {
   it('plans a plate with the demo planner, previews the kernel result and applies it', async () => {
     const plan = cadModelerTool.assistant!.demo!('Create a plate 80 x 40 x 10 with a 12 mm hole in the CAD modeler', { selectionIds: [] })
     expect(plan?.reply).toMatch(/Demo planner/)
@@ -99,7 +99,7 @@ describe('CAD Modeler assistant (AI path through the shared commands)', () => {
   it('reports invalid commands as errors to the assistant instead of preparing a proposal', async () => {
     await expect(call('cad-modeler.run_commands', { commands: [{ command: 'extrude_profile', input: { sketchId: 'sk-1', distance: -3 } }] })).rejects.toThrow(/command 1, extrude_profile/)
     await expect(call('cad-modeler.run_commands', { commands: [] })).rejects.toBeInstanceOf(ActionError)
-    await expect(call('cad-modeler.undo', {})).rejects.toThrow(/No CAD Modeler document/)
+    await expect(call('cad-modeler.undo', {})).rejects.toThrow(/No CAD document/)
   })
 
   it('exports STEP AP242 and the native file after approval, and reopens the native file', async () => {
@@ -120,7 +120,7 @@ describe('CAD Modeler assistant (AI path through the shared commands)', () => {
   })
 })
 
-describe('CAD Modeler tool definition', () => {
+describe('CAD tool definition', () => {
   it('ships a valid help manifest that maps every toolbar item and assistant operation', () => {
     const help = cadModelerTool.help!
     expect(validateHelpManifest(help)).toEqual([])

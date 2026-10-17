@@ -25,7 +25,7 @@ Each phase is split into short sprints (development-workflow.md) with a committe
 | 3 | Create a product and initial concept | E (product), C/D (Conceptualize) | real Conceptualize; product registry after ADR-0063 | verifiable if ADR-0063 accepted; otherwise product only as a twin component in a multi-project twin (CR-PM-MS-1) |
 | 4 | Add requirements through Requirements | C | real | verifiable |
 | 5 | SysML elements connected to requirements | C/D | real System Model (managed-requirement link exists) | verifiable |
-| 6 | CAD part or assembly through CAD | C/D | real CAD Modeler if `services/cad` is integrated; else contract-test adapter | depends on CAD integration into `main` |
+| 6 | CAD part or assembly through CAD | C/D | real CAD if `services/cad` is integrated; else contract-test adapter | depends on CAD integration into `main` |
 | 7 | Link the CAD artifact to the product structure | D/E | PM `represents` link (until CAD-native mapping) | verifiable after E |
 | 8 | Record a decision and rationale | C | real Conceptualize decisions | verifiable |
 | 9 | Task associated with an artifact | B (API), D (link to module artifact) | real | verifiable |

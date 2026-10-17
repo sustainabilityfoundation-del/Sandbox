@@ -1,6 +1,6 @@
 # AGENTS.md: @ews/cad-kernel
 
-Geometric kernel adapter of the CAD Modeler (ADR-0021). Owner: CAD agent.
+Geometric kernel adapter of the CAD (ADR-0021). Owner: CAD agent.
 
 ## Responsibilities
 

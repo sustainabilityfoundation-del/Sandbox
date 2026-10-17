@@ -62,7 +62,7 @@ the same conventions with local copies (SysML asked for a shared package, CR-SYS
 - SDK `ArtifactRef { module: 'requirements' | 'sysml' | 'cad' | 'analysis' | 'twin' | 'external', id,
   revision?, kind? }` (`packages/platform-sdk/src/contract/concepts.ts`, SDK 1.5).
 - Agreed schemes (contracts §1): System Model `{module:'sysml', kind:'sysml-model-element',
-  id:'<sysmlProjectId>/<elementId>', revision:<commit number>}`; CAD Modeler `{module:'cad',
+  id:'<sysmlProjectId>/<elementId>', revision:<commit number>}`; CAD `{module:'cad',
   kind:'cad-modeler-entity', id:'<documentUuid>/<entityId>', revision:<document revision>}`;
   requirements by UUID; twin objects by twin ID.
 - Design reasoning requested `ArtifactModule` + `'conceptualize' | 'reasoning'` (CR-S1, SDK 1.6, pending).
@@ -74,7 +74,7 @@ the same conventions with local copies (SysML asked for a shared package, CR-SYS
 | Requirements | `requirement.created/updated/archived/restored/relationships-changed`, `requirements.baseline-created`, `requirements.import-completed`, `requirements.collection-changed` | `eventId, type, projectId, entityId, committedRevision, configurationId?, occurredAt, actor` |
 | Conceptualize | `concept.created/revised/relationships-changed/implementation-linked/implementation-unlinked/selected/superseded/decision-recorded` | same shape |
 | System Model | `sysml.project-created`, `sysml.branch-created`, `sysml.commit-created`, `sysml.tag-created` | per commit, not per element |
-| CAD Modeler (branch) | `cad.document-created`, `cad.revision-created`, `cad.document-archived` | `documentId, revision, sourceKind` |
+| CAD (branch) | `cad.document-created`, `cad.revision-created`, `cad.document-archived` | `documentId, revision, sourceKind` |
 
 Events identify the entity and revision but carry no summary (name, kind, state). A registry consumer must
 re-read summaries from the owning module; that is the reason for the `ArtifactSource.describe` call in

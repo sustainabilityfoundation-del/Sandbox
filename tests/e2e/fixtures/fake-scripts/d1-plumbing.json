@@ -254,7 +254,7 @@
             {
               "name": "requirements.search",
               "arguments": {
-                "text": "six"
+                "text": "bit"
               }
             }
           ]
@@ -264,7 +264,7 @@
             {
               "name": "requirements.allocate",
               "arguments": {
-                "requirementId": "${requirements.search.data.requirements.0.id}",
+                "requirementId": "${requirements.search.data.requirements.[key=REQ-001].id}",
                 "add": [
                   {
                     "kind": "product-element",
@@ -272,6 +272,19 @@
                   }
                 ],
                 "rationale": "The holder block holds the bits."
+              }
+            },
+            {
+              "name": "requirements.allocate",
+              "arguments": {
+                "requirementId": "${requirements.search.data.requirements.[key=REQ-002].id}",
+                "add": [
+                  {
+                    "kind": "product-element",
+                    "id": "${projects.list_artifacts.data.0.ref.id}"
+                  }
+                ],
+                "rationale": "The pocket width sets the bit fit."
               }
             },
             {
@@ -297,7 +310,7 @@
           ]
         },
         {
-          "final": "I prepared allocating ${requirements.search.data.requirements.0.key} to the product element ${projects.list_artifacts.data.0.key}, linking the SysML part definition HolderBlock to it, and bringing REQ-001 and REQ-002 into the System Model satisfied by HolderBlock. Apply all three."
+          "final": "I prepared allocating REQ-001 and REQ-002 to the product element ${projects.list_artifacts.data.0.key}, linking the SysML part definition HolderBlock to it, and bringing REQ-001 and REQ-002 into the System Model satisfied by HolderBlock. Apply all four."
         }
       ]
     },
@@ -772,6 +785,174 @@
         },
         {
           "final": "I prepared a STEP export of the active document for download (geometry only; the native model keeps the feature history)."
+        }
+      ]
+    },
+    {
+      "user": "^D1 mounting architectures",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Drill bit holder block"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.develop_alternatives",
+              "arguments": {
+                "text": "Ways the holder block can work with the drill: compare the mounting architectures before the layout",
+                "parentId": "${conceptualize.search.data.concepts.0.key}",
+                "level": "architecture",
+                "alternatives": [
+                  {
+                    "name": "Bolted block on the accessory mount",
+                    "summary": "The block is bolted to the drill accessory mount (the selected architecture for the CAD steps).",
+                    "architecture": {
+                      "hostInterface": "The drill accessory mount with two mounting holes (spacing assumed, not measured)",
+                      "interfaceGeometry": "Hole spacing is assumed to be 25 mm; the real value is unknown until the drill is identified",
+                      "advantages": [
+                        "Rigid and simple"
+                      ],
+                      "risks": [
+                        "The assumed hole spacing may be wrong"
+                      ],
+                      "assumptions": [
+                        "Two holes 25 mm apart (assumed, not verified)"
+                      ],
+                      "attachmentPrinciple": "Block bolted to the accessory mount through two holes",
+                      "loadPath": "Weight of the block and bits goes through the bolts into the mount in shear",
+                      "installationRemoval": "Two bolts and a hand tool",
+                      "disadvantages": [
+                        "Depends on the mount geometry of the drill"
+                      ],
+                      "evidenceRequired": [
+                        "Drill model and the measured hole spacing"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Clamp around the housing",
+                    "summary": "A split clamp closes around a section of the drill housing.",
+                    "architecture": {
+                      "hostInterface": "A housing section that a clamp can encircle",
+                      "interfaceGeometry": "Section size is unknown",
+                      "advantages": [
+                        "No holes needed"
+                      ],
+                      "risks": [
+                        "No suitable section on this drill"
+                      ],
+                      "assumptions": [
+                        "A clampable section exists (unverified)"
+                      ],
+                      "attachmentPrinciple": "Friction clamp tightened around the housing section",
+                      "loadPath": "Clamping friction carries the weight into the housing",
+                      "installationRemoval": "Open, slide over the section, tighten",
+                      "disadvantages": [
+                        "Can slip or mark the housing"
+                      ],
+                      "evidenceRequired": [
+                        "Measurements of the housing sections"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Slide-in rail adapter",
+                    "summary": "A tongue on the block engages a rail or slot of the drill.",
+                    "architecture": {
+                      "hostInterface": "An existing rail or slot on the drill",
+                      "interfaceGeometry": "Rail profile is unknown",
+                      "advantages": [
+                        "Quick to fit"
+                      ],
+                      "risks": [
+                        "Detent wear"
+                      ],
+                      "assumptions": [
+                        "The drill has a rail or slot (unverified)"
+                      ],
+                      "attachmentPrinciple": "Sliding tongue engaging a rail or slot, locked with a detent",
+                      "loadPath": "Weight goes through the tongue flanks into the rail",
+                      "installationRemoval": "Slide on and off along the rail",
+                      "disadvantages": [
+                        "Only works if the drill has a rail"
+                      ],
+                      "evidenceRequired": [
+                        "Profile of the rail or slot"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared three different mounting architectures for the block before any layout: bolted to the accessory mount, a clamp around the housing, and a slide-in rail adapter. The bolted block stays the selected architecture for the CAD steps, and it is provisional because the drill is not identified. Apply to record them."
+        }
+      ]
+    },
+    {
+      "user": "^D1 diversity",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Drill bit holder block"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.assess_diversity",
+              "arguments": {
+                "parentId": "${conceptualize.search.data.concepts.0.key}",
+                "minimum": 3
+              }
+            }
+          ]
+        },
+        {
+          "final": "${conceptualize.assess_diversity.data.distinctArchitectures} distinct mounting architectures (${conceptualize.assess_diversity.data.verdict}); variants of one architecture are not counted."
+        }
+      ]
+    },
+    {
+      "user": "^D1 readiness",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Bolted block on the accessory mount"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.evaluate_readiness",
+              "arguments": {
+                "conceptId": "${conceptualize.search.data.concepts.0.key}",
+                "activity": "cad-handoff"
+              }
+            }
+          ]
+        },
+        {
+          "final": "${conceptualize.evaluate_readiness.data.label}. The bolted block remains the selected architecture and everything built from it is provisional until the drill is identified and its mount is measured."
         }
       ]
     }

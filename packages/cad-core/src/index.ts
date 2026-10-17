@@ -1,5 +1,5 @@
 /**
- * @ews/cad-core: the CAD Modeler's framework- and kernel-free core (ADR-0020).
+ * @ews/cad-core: the CAD's framework- and kernel-free core (ADR-0020).
  * Native open model (ADR-0022), typed commands and transactions (ADR-0023), sketch solver (ADR-0025),
  * regeneration with topological naming (ADR-0024) and observability queries.
  */

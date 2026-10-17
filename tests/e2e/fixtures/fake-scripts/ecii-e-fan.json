@@ -1,0 +1,205 @@
+{
+  "id": "ecii-e-fan",
+  "description": "Recorded tool-call script for ECII Test E (generalization), a cooling fan module integrated into an electronic enclosure, replayed by the FAKE provider. It proves the same structure for an unrelated domain, with the host identified and owned by the project, so its readiness differs from the sensor script. It is not a model run and says nothing about reasoning quality. Domain words appear here as fixture values only.",
+  "turns": [
+    {
+      "user": "^Design a cooling fan module that integrates into my electronic enclosure",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.interpret_intent",
+              "arguments": {
+                "designObject": "Cooling fan module",
+                "role": "component",
+                "integration": "embedded",
+                "rationale": "The module is installed inside an enclosure that belongs to the same project, so it is embedded in an identified system.",
+                "externalSystems": [
+                  {
+                    "id": "sys-1",
+                    "name": "Electronic enclosure (project design)",
+                    "role": "host",
+                    "description": "The enclosure designed in this project; its walls, vents and card guides are project data.",
+                    "identified": true,
+                    "owner": "project",
+                    "relation": "integrates-with"
+                  }
+                ],
+                "objectives": [
+                  "Move air through the enclosure to keep electronics within temperature limits"
+                ],
+                "environment": [
+                  "Indoor, dust possible"
+                ],
+                "informationNeeds": [
+                  {
+                    "id": "N1",
+                    "text": "Pattern and size of the module mounting holes",
+                    "tier": 3,
+                    "subject": "sys-1",
+                    "route": "measure",
+                    "state": "open"
+                  }
+                ],
+                "reason": "ECII Test E: interpret the intent before designing"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I interpreted this as a component embedded in an enclosure from this project; the host is identified and owned by the project. Apply the intent to record it. I have not designed anything yet."
+        }
+      ]
+    },
+    {
+      "user": "^ECII E fan architectures",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.develop_alternatives",
+              "arguments": {
+                "text": "Ways to integrate a cooling fan module into an electronic enclosure",
+                "name": "Fan integration architectures",
+                "level": "architecture",
+                "alternatives": [
+                  {
+                    "name": "Slot-in module on card guides",
+                    "summary": "The module slides into card guides the enclosure already has.",
+                    "architecture": {
+                      "hostInterface": "The enclosure card guides",
+                      "interfaceGeometry": "Guide spacing and slot depth come from the enclosure design",
+                      "advantages": [
+                        "Tool-free service"
+                      ],
+                      "risks": [
+                        "Latch wear"
+                      ],
+                      "assumptions": [
+                        "A free card slot is available (unverified)"
+                      ],
+                      "attachmentPrinciple": "Module slides into guides and locks with a latch",
+                      "loadPath": "Module weight rests in the guides; airflow reaction is carried by the latch",
+                      "installationRemoval": "Slide in until the latch clicks; release the latch to remove",
+                      "disadvantages": [
+                        "Uses a card slot"
+                      ],
+                      "evidenceRequired": [
+                        "Free slot position and guide dimensions from the enclosure model"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Screwed to the wall at a vent opening",
+                    "summary": "The module is screwed to the inside of a wall around a vent.",
+                    "architecture": {
+                      "hostInterface": "A vent opening in an enclosure wall",
+                      "interfaceGeometry": "Opening size and screw positions come from the enclosure design",
+                      "advantages": [
+                        "Simple and stiff"
+                      ],
+                      "risks": [
+                        "Vibration noise through the wall"
+                      ],
+                      "assumptions": [
+                        "The opening is large enough for the chosen module (unverified)"
+                      ],
+                      "attachmentPrinciple": "Module frame fastened around the opening with screws",
+                      "loadPath": "Module weight and vibration pass through the screws into the wall",
+                      "installationRemoval": "Fasten from inside; unscrew to remove",
+                      "disadvantages": [
+                        "Needs access to the inside of the wall"
+                      ],
+                      "evidenceRequired": [
+                        "Opening size and wall thickness from the enclosure model"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Hinged panel replacing a blanking plate",
+                    "summary": "A hinged panel carrying the module replaces a blanking plate.",
+                    "architecture": {
+                      "hostInterface": "A blanking plate position on the enclosure front",
+                      "interfaceGeometry": "Plate position and frame size come from the enclosure design",
+                      "advantages": [
+                        "Easy access for cleaning"
+                      ],
+                      "risks": [
+                        "Dust ingress at the panel edge"
+                      ],
+                      "assumptions": [
+                        "The blanking plate can be replaced (unverified)"
+                      ],
+                      "attachmentPrinciple": "Hinged panel with the module, closed against the enclosure frame",
+                      "loadPath": "Module weight is carried by the hinge and the closing latch",
+                      "installationRemoval": "Swing open for service; the panel unhooks from the hinge",
+                      "disadvantages": [
+                        "Alters the enclosure front"
+                      ],
+                      "evidenceRequired": [
+                        "Front frame dimensions and sealing needs"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared three different ways to integrate the fan module into the enclosure; each names the feature it depends on and the evidence needed, and none states a dimension I do not know. Apply to record them."
+        }
+      ]
+    },
+    {
+      "user": "^ECII E fan readiness",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Fan integration architectures"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.assess_diversity",
+              "arguments": {
+                "parentId": "${conceptualize.search.data.concepts.0.key}",
+                "minimum": 3
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Slot-in module on card guides"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.evaluate_readiness",
+              "arguments": {
+                "conceptId": "${conceptualize.search.data.concepts.0.key}",
+                "activity": "cad-handoff"
+              }
+            }
+          ]
+        },
+        {
+          "final": "${conceptualize.assess_diversity.data.distinctArchitectures} distinct architectures (${conceptualize.assess_diversity.data.verdict}). ${conceptualize.evaluate_readiness.data.label}"
+        }
+      ]
+    }
+  ]
+}

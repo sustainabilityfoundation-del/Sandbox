@@ -1,6 +1,6 @@
 /**
  * Per-project workspace defaults (integration milestone 1, C12). New projects open the real modules: Requirements,
- * Conceptualize, System Model and CAD Modeler. The legacy example project PRJ-ACT100 opens the same real modules (the illustrative SysML and mock CAD tools are
+ * Conceptualize, System Model and CAD. The legacy example project PRJ-ACT100 opens the same real modules (the illustrative SysML and mock CAD tools are
  * retired from the interface, ADR-0077; their IDs and the data they wrote are kept).
  * Tool IDs are the workspace tool registry's IDs; tools of a module disabled for the project are left out.
  */

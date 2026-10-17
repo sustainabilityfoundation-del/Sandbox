@@ -375,7 +375,7 @@ function HandoffDialog({ card, onClose }: { card: ConceptCard; onClose: () => vo
   return (
     <Dialog title={`CAD handoff: ${card.concept.key}`} isOpen onOpenChange={(o) => !o && onClose()} footer={<Button variant="text" onPress={onClose}>Close</Button>}>
       <div className="con-form" data-help-id="conceptualize.visual.handoff">
-        <p>A revision-pinned package of intent, components, interfaces, parameters, envelopes, constraints, requirement and decision links. Missing information is listed, never invented. Open it in the CAD Modeler to create the CAD document.</p>
+        <p>A revision-pinned package of intent, components, interfaces, parameters, envelopes, constraints, requirement and decision links. Missing information is listed, never invented. Open it in CAD to create the CAD document.</p>
         <Button variant="filled" icon="add" onPress={() => void create()}>
           Build handoff from revision {card.concept.revision}
         </Button>

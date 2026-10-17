@@ -1,6 +1,8 @@
 # AI metering and pricing
 
-Status: increment A implemented (contract, registries, ledger core; not yet called by the gateway, which is increment C).
+Status: increment A implemented (contract, registries, ledger core); increment C calls it from the gateway
+([orchestration.md](orchestration.md), [ADR-0080](../../decisions/0080-developer-mock-and-meter-only-modes-and-the-fail-safe.md)): `started`
+with `reserved_cost`, then `completed`, `failed` or `cancelled`; `context_id` (migration 0004).
 Decision: [ADR-0079](../../decisions/0079-usage-ledger-pricing-registry-and-decimal-policy.md). Brief:
 [§8 and §9](../../specifications/ai-infrastructure-brief.md). Plan: [ai-infrastructure-plan.md](../../specifications/ai-infrastructure-plan.md).
 Code: `services/assistant/src/{models,pricing,ledger}.ts`, `config/models`, `config/pricing`, migration `0003_usage.sql`.

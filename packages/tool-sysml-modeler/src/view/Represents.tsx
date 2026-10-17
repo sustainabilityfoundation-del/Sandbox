@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { message, type ModelerSession } from '../session'
 
 /**
- * What a SysML element represents (CR-SYSML-03, CR-PM-SYS-1): CAD Modeler entities and product
+ * What a SysML element represents (CR-SYSML-03, CR-PM-SYS-1): CAD entities and product
  * elements of Project Management, as SysML-owned references (`@EWS::CadRepresentation`,
  * `@EWS::ProductElement`). Product elements are picked from and shown through the Project Management
  * registry (`services.projects`); nothing of theirs is copied into the model.

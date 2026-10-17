@@ -9,7 +9,7 @@ document generated from the route definitions is authoritative. The API host ser
 - Stores native ews-cad documents (format 1.x) per platform project, as immutable revisions.
 - Validates every write with the published JSON Schema and cad-core's referential rules, the same
   checks the client runs.
-- Resolves CAD Modeler entity references (CR-CAD-1).
+- Resolves CAD entity references (CR-CAD-1).
 - Announces committed changes through a transactional outbox and Server-Sent Events.
 
 It does not regenerate geometry. Regeneration stays in the client (the kernel worker); see
@@ -131,7 +131,7 @@ that the adapter writes nothing.
 
 `@ews/cad-client` provides `createHttpCadClient` (this API) and `createLocalCadClient` (explicit
 in-memory store for the harness and demos). Both pass the same contract tests
-(`defineCadClientContract`). The CAD Modeler uses the client until SDK 1.6 adds
+(`defineCadClientContract`). The CAD uses the client until SDK 1.6 adds
 `PlatformServices.cad`.
 
 ## Testing

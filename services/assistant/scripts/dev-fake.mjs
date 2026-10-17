@@ -14,6 +14,6 @@ if (!npmCli) {
   console.error('Start this with npm run ai:dev:fake.')
   process.exit(1)
 }
-const child = spawn(process.execPath, [npmCli, 'run', 'dev', '--', ...process.argv.slice(2)], { stdio: 'inherit', env: { ...process.env, EWS_ASSISTANT_FAKE_PROVIDER: '1', EWS_ASSISTANT_FAKE_SCRIPTS: process.env.EWS_ASSISTANT_FAKE_SCRIPTS ?? scripts } })
+const child = spawn(process.execPath, [npmCli, 'run', 'dev', '--', ...process.argv.slice(2)], { stdio: 'inherit', env: { ...process.env, EWS_AI_MODE: 'mock', EWS_ASSISTANT_FAKE_PROVIDER: '1', EWS_ASSISTANT_FAKE_SCRIPTS: process.env.EWS_ASSISTANT_FAKE_SCRIPTS ?? scripts } })
 child.on('exit', (code) => process.exit(code ?? 0))
 process.on('SIGINT', () => undefined)

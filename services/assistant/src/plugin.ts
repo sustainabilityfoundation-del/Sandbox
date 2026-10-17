@@ -88,6 +88,19 @@ export const assistantPlugin: FastifyPluginAsync<AssistantPluginOptions> = async
     return backend.respond(principal, request.body as WireRequest, controller.signal)
   })
 
+  // ---- routing, developer mode and usage (ADR-0080) ---------------------------------------------------------
+  app.get('/routing/options', { schema: { querystring: projectQuery } }, async (request) => backend.routingOptions(await who(request), pid(request)))
+
+  app.get('/developer/status', async (request) => backend.developerStatus(await who(request)))
+
+  app.post('/developer/providers/:id/validate', { schema: { params: { type: 'object', properties: { id: { type: 'string', pattern: '^[a-z][a-z0-9-]{1,40}$' } } } } }, async (request) =>
+    backend.validateDeveloperProvider(await who(request), (request.params as { id: string }).id),
+  )
+
+  app.get('/usage', { schema: { querystring: { type: 'object', properties: { conversationId: { type: 'string', minLength: 1, maxLength: 100 }, period: { enum: ['month', 'day'] } } } } }, async (request) =>
+    backend.usage(await who(request), request.query as { conversationId?: string; period?: 'month' | 'day' }),
+  )
+
   app.get('/audit', { schema: { querystring: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 200 } } } } }, async (request) => ({
     records: await backend.store.auditRecords((await who(request)).userId, Number((request.query as { limit?: number }).limit ?? 50)),
   }))
@@ -173,8 +186,8 @@ export function assistantOpenApi() {
   const security = [{ devUser: [] }, { bearer: [] }]
   const err = { $ref: '#/components/schemas/Error' }
   const errors = {
-    '4XX': { description: 'Error `{ error: { code, message, details } }`: invalid 400/422, unauthenticated 401, forbidden 403 (not a member, forged tool result), not-connected / plan-usage-disabled / not-available 409, provider-rate-limit / usage-limit / insufficient-quota 429', content: { 'application/json': { schema: err } } },
-    '5XX': { description: 'provider-invalid-credential, provider-unavailable, provider-model-not-found 502; provider-timeout 504; unavailable 500', content: { 'application/json': { schema: err } } },
+    '4XX': { description: 'Error `{ error: { code, message, details } }`: invalid 400/422, unauthenticated 401, forbidden 403 (not a member, forged tool result), not-connected / plan-usage-disabled / not-available 409, provider-rate-limit / usage-limit / insufficient-quota 429, budget-exceeded 429, model-unavailable / no-model-available 409, mock-mode 409', content: { 'application/json': { schema: err } } },
+    '5XX': { description: 'provider-invalid-credential, provider-unavailable, provider-model-not-found 502; provider-timeout 504; metering-unavailable / metering-degraded 503 (usage cannot be recorded; nothing is sent to the provider); unavailable 500', content: { 'application/json': { schema: err } } },
   }
   const projectId = { name: 'projectId', in: 'query', required: true, schema: PROJECT }
   const ok = (description: string, schema: unknown = { type: 'object' }) => ({ '200': { description, content: { 'application/json': { schema } } }, ...errors })
@@ -217,6 +230,10 @@ export function assistantOpenApi() {
       '/proposals/{id}': { get: { operationId: 'getProposal', tags: ['Proposals'], summary: 'One of your proposals', security, parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: ok('Proposal') } },
       '/proposals/{id}/apply': { post: { operationId: 'applyProposal', tags: ['Proposals'], summary: 'Apply a declarative proposal: revalidate identity, membership, entitlements, project (C13), expected revisions and idempotency, then execute through the module API', security, parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, projectId], responses: ok('Applied (or already applied); 409 stale, project-mismatch or apply-in-browser; 422 module-refused') } },
       '/proposals/{id}/outcome': { post: { operationId: 'recordProposalOutcome', tags: ['Proposals'], summary: 'Record the outcome of a proposal applied in the browser (twin, closure) or a rejection', security, parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: ok('Recorded') } },
+      '/routing/options': { get: { operationId: 'getRoutingOptions', tags: ['Routing'], summary: 'Models you could use, each with whether it can be chosen (Manual) or is eligible for the automatic modes, and why not', security, parameters: [projectId], responses: ok('Options') } },
+      '/developer/status': { get: { operationId: 'getDeveloperStatus', tags: ['Developer'], summary: 'Developer or mock mode status: providers (last four key characters only), validation, models, mode, monthly budget used. 404 outside these modes', security, responses: ok('Status') } },
+      '/developer/providers/{id}/validate': { post: { operationId: 'validateDeveloperProvider', tags: ['Developer'], summary: 'Validate a developer key with the provider’s model list (development mode)', security, parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: ok('Account state') } },
+      '/usage': { get: { operationId: 'getUsage', tags: ['Usage'], summary: 'Your usage and estimated cost from the ledger: for one conversation (conversationId) or by month or day (period). Estimates, not invoices; simulated (mock) usage is listed apart', security, parameters: [{ name: 'conversationId', in: 'query', schema: { type: 'string' } }, { name: 'period', in: 'query', schema: { enum: ['month', 'day'] } }], responses: ok('Usage') } },
       '/audit': { get: { operationId: 'getAudit', tags: ['Audit'], summary: 'Your recent AI calls: time, model, operations, tokens, outcome', security, parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200 } }], responses: ok('Records') } },
     },
   }

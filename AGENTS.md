@@ -248,7 +248,7 @@ Rules and formats: [docs/agents](docs/agents/README.md); decision [ADR-0072](doc
 
 - Launch additional agents for routine work in this repository unless asked (the definitions in `.claude/agents/` are for work the coordinator assigns).
 - Delete or rewrite user data in migrations.
-- Claim SysML v2 compliance or real ChatGPT access in UI or docs. The CAD Modeler uses a real kernel
+- Claim SysML v2 compliance or real ChatGPT access in UI or docs. CAD uses a real kernel
   (Open CASCADE); describe it with its documented limits, and never present the mock CAD tool as a kernel.
 - Present a planned capability as working. Keep `apps/workspace/src/platform/capabilities.ts`
   and `docs/roadmap.md` in step.

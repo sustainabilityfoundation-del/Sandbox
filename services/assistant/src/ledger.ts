@@ -28,6 +28,8 @@ export interface UsageEventInput {
   requestId: string
   operationId: string
   workflowId?: string
+  /** Context package the request was built from (migration 0004; ECII Amendment 2). */
+  contextId?: string
   organizationId?: string
   userId?: string
   projectId?: string
@@ -58,6 +60,7 @@ export interface UsageEventRow {
   requestId: string
   operationId: string
   workflowId?: string
+  contextId?: string
   organizationId?: string
   userId?: string
   projectId?: string
@@ -132,6 +135,7 @@ function mapRow(r: Record<string, unknown>): UsageEventRow {
     requestId: r.request_id as string,
     operationId: r.operation_id as string,
     workflowId: str(r.workflow_id),
+    contextId: str(r.context_id),
     organizationId: str(r.organization_id),
     userId: str(r.user_id),
     projectId: str(r.project_id),
@@ -205,7 +209,7 @@ type Queryable = Pick<Pool | PoolClient, 'query'>
 const COLUMNS = `idempotency_key, event, request_id, operation_id, workflow_id, organization_id, user_id, project_id, module_id, conversation_id,
   provider, model, source, billing, simulated, input_tokens, output_tokens, cached_input_tokens, cache_write_tokens, cache_write_1h_tokens, reasoning_tokens, units,
   provider_usage_details, usage_reported, currency, estimated_provider_cost, actual_provider_cost, reserved_cost, credits_charged,
-  pricing_version, rates_used, accounting_status, corrects_event_id, reason, occurred_at, payload_hash`
+  pricing_version, rates_used, accounting_status, corrects_event_id, reason, occurred_at, payload_hash, context_id`
 
 export class UsageLedger {
   constructor(private readonly db: Queryable) {}
@@ -235,7 +239,7 @@ export class UsageLedger {
       u?.cacheWriteTokens ?? null, u?.cacheWrite1hTokens ?? null, u?.reasoningTokens ?? null, JSON.stringify(u?.units ?? []), detail ? JSON.stringify(detail) : null,
       hasUsage ? u!.reported : 'none', input.currency ?? 'USD', input.estimatedProviderCost ?? null, input.actualProviderCost ?? u?.providerCost?.amount ?? null,
       input.reservedCost ?? null, input.creditsCharged ?? null, input.pricingVersion ?? null, input.ratesUsed ? JSON.stringify(input.ratesUsed) : null,
-      input.accountingStatus ?? 'estimated', extra.correctsEventId ?? null, extra.reason ?? null, input.occurredAt ?? new Date().toISOString(), hash,
+      input.accountingStatus ?? 'estimated', extra.correctsEventId ?? null, extra.reason ?? null, input.occurredAt ?? new Date().toISOString(), hash, input.contextId ?? null,
     ]
     const marks = values.map((_, i) => `$${i + 1}`).join(', ')
     const inserted = await this.db.query(`INSERT INTO assistant.usage_events (${COLUMNS}) VALUES (${marks}) ON CONFLICT (idempotency_key) DO NOTHING RETURNING *`, values)
@@ -284,6 +288,7 @@ export class UsageLedger {
       requestId: original.requestId,
       operationId: original.operationId,
       workflowId: original.workflowId,
+      contextId: original.contextId,
       organizationId: original.organizationId,
       userId: original.userId,
       projectId: original.projectId,

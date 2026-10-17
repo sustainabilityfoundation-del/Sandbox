@@ -152,10 +152,10 @@ export function createSysmlServicePort(sysml: SysmlModelService): ReferencePort 
   }
 }
 
-/** SDK 1.8 read client of the CAD Modeler (`PlatformServices.cad`). */
+/** SDK 1.8 read client of the CAD (`PlatformServices.cad`). */
 export function createCadServicePort(cad: CadService): ReferencePort {
   return {
-    name: 'CAD Modeler (SDK read client)',
+    name: 'CAD (SDK read client)',
     adapter: false,
     supports: (ref) => ref.module === 'cad' && (referenceKind(ref) === 'cad-modeler-entity' || referenceKind(ref) === 'cad-document'),
     async resolve(projectId, ref) {
@@ -168,7 +168,7 @@ export function createCadServicePort(cad: CadService): ReferencePort {
         const v = r.value
         return { state: 'found', label: `${v.label} (${v.entityType}, ${v.documentTitle})${v.archived ? ', archived' : ''}`, latest: v.latestRevision, ...(v.verifiedInGeometry ? {} : { detail: 'Named in the model; only regeneration confirms it in the geometry.' }) }
       } catch (err) {
-        return { state: 'unavailable', detail: `CAD Modeler not reachable: ${err instanceof Error ? err.message : String(err)}` }
+        return { state: 'unavailable', detail: `CAD not reachable: ${err instanceof Error ? err.message : String(err)}` }
       }
     },
   }

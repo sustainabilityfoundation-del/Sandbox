@@ -1,5 +1,5 @@
 // SDK 1.8 (milestone C5): implemented by `createCadReadService` in `@ews/cad-client`.
-/** CAD Modeler read access for other modules (SDK 1.8, contract C5). Read-only. */
+/** CAD read access for other modules (SDK 1.8, contract C5). Read-only. */
 export interface CadArtifactRefInput {
   module: string
   kind: string

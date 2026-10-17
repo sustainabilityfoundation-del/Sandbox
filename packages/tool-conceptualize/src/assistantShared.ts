@@ -46,7 +46,7 @@ export async function resolveRef(client: ConceptsModuleClient, key: string, allo
 }
 
 /**
- * The reference other modules bind to (CAD Modeler bind_parameter and check, CR-AI-9): exactly the scheme
+ * The reference other modules bind to (CAD bind_parameter and check, CR-AI-9): exactly the scheme
  * CAD accepts, { module: 'conceptualize', kind: 'constraint', id, revision }.
  */
 export const constraintBindingRef = (c: { id: string; revision: number }) => ({ module: 'conceptualize' as const, kind: 'constraint' as const, id: c.id, revision: c.revision })

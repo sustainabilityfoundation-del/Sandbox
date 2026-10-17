@@ -1,4 +1,4 @@
-/** Private state of one CAD Modeler view instance (never shared model data). */
+/** Private state of one CAD view instance (never shared model data). */
 
 export type PanelTab = 'model' | 'edit' | 'inspect' | 'diagnostics'
 
@@ -19,6 +19,7 @@ export type SelectionItem =
   | { kind: 'sketch-entity'; id: string; sketchId: string }
   | { kind: 'parameter'; id: string; partId: string }
 
+
 export type ViewPreset = 'fit' | 'iso' | 'front' | 'top' | 'right'
 
 export interface CadModelerViewState {
@@ -38,7 +39,7 @@ export interface CadModelerViewState {
   dialog?: 'open' | null
   viewRequest: { kind: ViewPreset; seq: number } | null
   /** Mirror of session flags so the toolbar re-renders when they change. */
-  status: { hasDoc: boolean; canUndo: boolean; canRedo: boolean; hasBody: boolean; dirty: boolean; busy: boolean }
+  status: { hasDoc: boolean; canUndo: boolean; canRedo: boolean; hasBody: boolean; dirty: boolean; busy: boolean; checking: boolean }
 }
 
 export const INITIAL_VIEW_STATE: CadModelerViewState = {
@@ -48,5 +49,5 @@ export const INITIAL_VIEW_STATE: CadModelerViewState = {
   selection: [],
   showEdges: true,
   viewRequest: null,
-  status: { hasDoc: false, canUndo: false, canRedo: false, hasBody: false, dirty: false, busy: false },
+  status: { hasDoc: false, canUndo: false, canRedo: false, hasBody: false, dirty: false, busy: false, checking: false },
 }

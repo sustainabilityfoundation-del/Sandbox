@@ -13,7 +13,7 @@ other modules, version-aware (pinned to the revision current when linked):
 | Type | ID |
 | --- | --- |
 | System Model element | `<projectId>/<elementId>` (both UUIDs); revision = commit number on the default branch |
-| CAD Modeler entity | `<documentUuid>/<entityId>`; revision = CAD document revision |
+| CAD entity | `<documentUuid>/<entityId>`; revision = CAD document revision |
 | Analysis result | test-adapter ID (no Analysis module exists) |
 | Product element | A product element of Project Management (product registry), by UUID |
 | Project document | A Project Management document, work item or milestone, by UUID (for example review minutes used as evidence) |
@@ -27,8 +27,8 @@ CAD model is deleted.
 Status badges: *Current*, *Changed since linked* (stale; **Accept revision N** pins the new revision
 after you reviewed the change), *Not found* (broken), *Follows latest*, *Test adapter*.
 References to the real modules are checked through the owning module: product elements, project
-documents and (once those modules register them) SysML and CAD Modeler entities through the Project
-Management registry. Until the SDK provides SysML and CAD Modeler read clients, System Model elements are
+documents and (once those modules register them) SysML and CAD entities through the Project
+Management registry. Until the SDK provides SysML and CAD read clients, System Model elements are
 checked by a labelled **adapter** (existence at the head of the default branch; a newer commit is shown as
 *Changed since linked*, although the element itself may be unchanged). Without a read client the badge says
 *Not checked*.

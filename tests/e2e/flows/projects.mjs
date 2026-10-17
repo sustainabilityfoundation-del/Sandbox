@@ -62,7 +62,7 @@ check('open', /^[0-9a-f-]{36}$/.test(projectId ?? ''), `opened the new project $
 check('open', (await switcher.textContent())?.includes(uniqueKey), `switcher shows ${uniqueKey} (${(await switcher.textContent())?.trim()})`)
 const tabIds = await page.evaluate(async () => (await import('/workspace/src/platform/store.ts')).useWorkspaceStore.getState().openToolIds)
 const tabs = await openToolNames()
-check('C12', ['Requirements', 'Conceptualize', 'System Model', 'CAD Modeler'].every((n) => tabs.some((t) => t.includes(n))), `real modules open by default: ${tabs.join(' | ')}`)
+check('C12', ['Requirements', 'Conceptualize', 'System Model', 'CAD'].every((n) => tabs.some((t) => t.includes(n))), `real modules open by default: ${tabs.join(' | ')}`)
 check('C12', !tabIds.some((id) => id === 'sysml' || id === 'cad'), 'illustrative SysML and mock CAD are not opened by default')
 const treeText = await page.locator('.ws-app').textContent()
 check('empty', !/ACT-100|ROD-120|Actuator assembly/.test(treeText ?? ''), 'no example data anywhere in the new project')

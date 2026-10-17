@@ -1,4 +1,4 @@
-// CAD Modeler inside the workspace (port 5199): open the tool, AI workflow through the demo assistant
+// CAD inside the workspace (port 5199): open the tool, AI workflow through the demo assistant
 // (proposal card with kernel-predicted result → Apply → the view shows the body), then a human edit
 // and an assistant follow-up that respects the version, help (F1 content), capability inventory.
 import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
@@ -34,13 +34,10 @@ await page.goto(exampleUrl())
 await page.waitForSelector('.ws-app')
 await page.waitForTimeout(1500)
 
-// Open the CAD Modeler from the command palette.
-await page.keyboard.press('Control+k')
-await page.waitForSelector('.ws-launcher')
-await page.keyboard.type('CAD Modeler')
-await page.keyboard.press('Enter')
+// Open the CAD from the command palette.
+await page.click('[data-rail-tool="cad-modeler"]')
 await page.getByRole('button', { name: 'New part' }).waitFor({ timeout: 30000 })
-check(true, 'CAD Modeler opens in the workspace (start page)')
+check(true, 'CAD opens in the workspace (start page)')
 await page.screenshot({ path: `${shots}/ws-01-start.png` })
 
 // AI path: the demo assistant plans typed commands; the card shows the kernel prediction.
@@ -61,7 +58,7 @@ await card.locator('button:has-text("Apply")').click()
 await card.locator(':text("Applied")').first().waitFor({ timeout: 60000 })
 check(true, 'Apply runs the commands (proposal applied)')
 await page.getByText('30869 mm³').first().waitFor({ timeout: 60000 })
-check(true, 'the CAD Modeler view shows the applied body (30869 mm³)')
+check(true, 'the CAD view shows the applied body (30869 mm³)')
 await page.waitForTimeout(1500)
 await page.screenshot({ path: `${shots}/ws-03-applied.png` })
 

@@ -4,7 +4,7 @@ import type { AssistantActionContext, ConceptsService } from '@ews/platform-sdk'
 /**
  * Concept → CAD handoff (visual concept exploration, concept-visualization-contracts.md §1).
  *
- * The CAD Modeler reads Conceptualize's revision-pinned handoff package ('conceptualize.cad-handoff/1') and the
+ * CAD reads Conceptualize's revision-pinned handoff package ('conceptualize.cad-handoff/1') and the
  * staleness of a concept revision through `ConceptHandoffPort`, taken from the SDK 1.9 members of
  * `ConceptsService` (getHandoff, revisionStaleness).
  */

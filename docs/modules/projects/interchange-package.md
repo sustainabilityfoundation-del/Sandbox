@@ -67,7 +67,7 @@ bytes with checksums. Proposed formats (each module confirms):
 | Requirements | `ews-requirements-json` 1.0 (requirements with revisions, collections, attributes, relationships, baselines) | ReqIF 1.2 export (existing exchange feature) for tool interoperability |
 | Conceptualize | `ews-concepts-json` 1.0 (Concepts with revisions, decisions, trade studies, evidence, implementations) | — |
 | System Model | SysML v2 standard JSON per commit history (`ews-sysml-commits` 1.0) | textual notation of the head (`.sysml`) |
-| CAD Modeler | `ews-cad` native documents with all revisions (ADR-0022) | STEP of the latest revision where the kernel exports it |
+| CAD | `ews-cad` native documents with all revisions (ADR-0022) | STEP of the latest revision where the kernel exports it |
 | Twin (browser) | `ews-twin-json` (model snapshot, history, baselines) reported by the workspace | — |
 
 ## 3. Versioning and compatibility

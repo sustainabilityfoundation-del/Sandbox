@@ -1,6 +1,6 @@
 # AGENTS.md: @ews/cad-core
 
-Framework- and kernel-free core of the CAD Modeler (ADR-0020). Owner: CAD agent. Specifications:
+Framework- and kernel-free core of the CAD (ADR-0020). Owner: CAD agent. Specifications:
 [docs/modules/cad](../../docs/modules/cad/README.md).
 
 ## Responsibilities

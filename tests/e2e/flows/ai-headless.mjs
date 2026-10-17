@@ -168,6 +168,9 @@ const report = await page.evaluate(async ({ VIEW_CONTROLS, EXPECTED_REFUSALS, re
     'conceptualize.interpret_intent': { designObject: `Headless intent ${stamp}`, role: 'standalone', integration: 'standalone', rationale: 'headless flow', objectives: ['Holds a load'] },
     'conceptualize.read_context': { intentId: headlessIntent.id },
     'conceptualize.identify_gaps': { intentId: headlessIntent.id },
+    // ECII increment 2: two alternatives compared (without architecture blocks they are reported as unclassified); readiness of the applied intent.
+    'conceptualize.assess_diversity': { conceptIds: [alternative, transmission] },
+    'conceptualize.evaluate_readiness': { intentId: headlessIntent.id, activity: 'architecture-concepts' },
     'conceptualize.propose_requirement': { conceptId: actuator },
     'conceptualize.request_realization': { conceptId: actuator, targetModule: 'cad' },
     'conceptualize.next_steps': { conceptId: actuator },

@@ -296,7 +296,7 @@ describe('D1-CON operations (headless, service proposals)', () => {
   it('record_evidence carries the pinned source, tool, point results and pinned constraints; basis estimate', async () => {
     const { calls, concepts } = make()
     const p = (await action('conceptualize.record_evidence').run(
-      { title: 'CAD check', subjects: ['CON-001'], source: { module: 'cad', kind: 'cad-modeler-entity', id: 'doc/doc', revision: 4 }, tool: { name: 'CAD Modeler check', version: '1.2.0' }, results: [{ name: 'Minimum wall', value: 1.8, unit: 'mm', constraintId: 'CST-004' }] },
+      { title: 'CAD check', subjects: ['CON-001'], source: { module: 'cad', kind: 'cad-modeler-entity', id: 'doc/doc', revision: 4 }, tool: { name: 'CAD check', version: '1.2.0' }, results: [{ name: 'Minimum wall', value: 1.8, unit: 'mm', constraintId: 'CST-004' }] },
       context({ concepts }),
     )) as ServiceProposal
     expect(p.preview.map((i) => i.proposed).join(' | ')).toContain('1.8 mm (point) vs CST-004 t >= 2 mm (rev 2)')
@@ -305,7 +305,7 @@ describe('D1-CON operations (headless, service proposals)', () => {
     const applied = await p.apply({ conversationId: 'C-9', proposalId: 'CP-3', messageId: 'M1' })
     expect(applied.summary).toContain('Minimum wall: violated')
     const body = calls.slice(before).find((c) => c.url.endsWith('/evidence'))!.body
-    expect(body).toMatchObject({ basis: 'estimate', source: { module: 'cad', revision: 4 }, tool: { name: 'CAD Modeler check', version: '1.2.0' }, results: [{ name: 'Minimum wall', value: 1.8, unit: 'mm', qualification: { kind: 'point' }, constraint: { type: 'constraint', id: CST, revision: 2 } }] })
+    expect(body).toMatchObject({ basis: 'estimate', source: { module: 'cad', revision: 4 }, tool: { name: 'CAD check', version: '1.2.0' }, results: [{ name: 'Minimum wall', value: 1.8, unit: 'mm', qualification: { kind: 'point' }, constraint: { type: 'constraint', id: CST, revision: 2 } }] })
     expect(body.subjects).toEqual([{ module: 'conceptualize', type: 'concept', id: 'c1' }, { module: 'conceptualize', type: 'constraint', id: CST }])
     expect(action('conceptualize.record_evidence').parameters).toMatchObject({ properties: { basis: { enum: ['estimate', 'assessment', 'assumption', 'ai-hypothesis'] } } })
   })

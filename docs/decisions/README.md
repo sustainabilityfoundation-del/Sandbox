@@ -20,12 +20,14 @@ editing an accepted one.
 | [0012](0012-read-time-projection-of-external-objects.md) | Read-time projection of externally owned objects into the twin's model | Accepted |
 | [0014](0014-unified-help-system.md) | Unified help system with module-owned documentation | Accepted |
 | [0015](0015-conceptualize-module.md) | Conceptualize: Concepts independent of their implementations | Accepted |
+| [0080](0080-developer-mock-and-meter-only-modes-and-the-fail-safe.md) | Developer, mock and meter-only modes, the gateway and the metering fail-safe (mock disables every real source; budget reservation under an advisory lock; 503 when the ledger is unavailable) | Proposed |
 | [0079](0079-usage-ledger-pricing-registry-and-decimal-policy.md) | Usage ledger, pricing registry and decimal policy (built-in insert-only ledger; decimal.js; OpenMeter and Langfuse evaluated) | Proposed |
 | [0077](0077-retire-illustrative-tools-system-model.md) | Retire the illustrative tools from the interface; name the SysML tool "System Model" (amends ADR-0027 phase 4 and ADR-0030) | Accepted (16 Oct 2026) |
 | [0076](0076-cad-sketch-solver-planegcs-oracle.md) | CAD sketch solver: replaceable interface, planegcs as a development-time oracle only | Proposed |
 | [0075](0075-cad-occt-shape-history-naming.md) | CAD naming: OCCT shape history as the second signal (amends 0024) | Proposed |
 | [0074](0074-capability-registry-and-toolbars.md) | Capability registry and capability-complete toolbars (manifest inventory extended; computed implementation state; CommandBar; AI list_capabilities; amends ADR-0013) | Accepted |
 | [0081](0081-ecii-placement-and-interface-ownership.md) | ECII placement across existing modules, federated context graph, interface ownership (option A), product origin | Proposed |
+| [0083](0083-architecture-first-and-readiness-criteria.md) | ECII architecture-first generation, diversity assessment and readiness criteria as data (advisory in Phase 1) | Proposed |
 | [0073](0073-sbom-and-licence-checks.md) | SBOM, machine-readable dependency register and licence policy check from npm built-ins and the lockfile (no new dependency) | Proposed |
 | [0072](0072-agent-context-management.md) | Agent context management: context levels, model routing, controls and lifecycle hooks | Accepted (16 Oct 2026) |
 | [0070](0070-development-assurance-boundaries.md) | Boundaries for future standards-aware development assurance (profiles as data, classifications keep their standard, configuration-specific evidence, distinct states) | Accepted |

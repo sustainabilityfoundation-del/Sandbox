@@ -111,7 +111,7 @@ export function registerVisualRoutes(app: FastifyInstance, services: HostService
     handler: async (rc) => ({ body: await rc.read((ctx) => listHandoffs(ctx.db, rc.projectId, (rc.query as { conceptId?: string }).conceptId)) }),
   })
   route({
-    method: 'GET', path: '/projects/{projectId}/handoffs/{handoffId}', operationId: 'getCadHandoff', tag: 'Visuals', summary: 'Read a CAD handoff package (for the CAD Modeler)', params: Type.Object({ projectId: Type.String(), handoffId: Type.String() }),
+    method: 'GET', path: '/projects/{projectId}/handoffs/{handoffId}', operationId: 'getCadHandoff', tag: 'Visuals', summary: 'Read a CAD handoff package (for the CAD)', params: Type.Object({ projectId: Type.String(), handoffId: Type.String() }),
     permission: 'read', crossModule: true, responses: { 200: { description: 'Handoff', schema: V.Handoff }, ...READ },
     handler: async (rc) => ({ body: await rc.read((ctx) => requireHandoff(ctx.db, rc.projectId, rc.params.handoffId)) }),
   })
