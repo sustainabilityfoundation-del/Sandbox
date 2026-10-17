@@ -2,6 +2,7 @@
 -- usage_events is INSERT-ONLY: a trigger refuses UPDATE and DELETE; mistakes are fixed by compensating
 -- 'correction' rows. Money is numeric(20,10) (strings on the wire, decimal.js in code). No prompt or response
 -- text is stored here, by design. Additive migration; schemas 0001 and 0002 are unchanged.
+-- context_id (ECII plan Amendment 2) is deliberately NOT here: it arrives in migration 0004 (increment C).
 
 CREATE TABLE assistant.pricing (
   provider text NOT NULL,
@@ -62,11 +63,13 @@ CREATE TABLE assistant.usage_events (
   rates_used jsonb,                    -- snapshot of the rates, so the cost is reproducible
   accounting_status text NOT NULL DEFAULT 'estimated' CHECK (accounting_status IN ('estimated', 'provisional', 'settled', 'reconciled')),
   corrects_event_id uuid REFERENCES assistant.usage_events (id),
+  payload_hash text NOT NULL,          -- sha256 of the event content: a replay with other content under the same key is refused
   reason text,                         -- short reason for a correction; never request content
   occurred_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now(),
   -- Bring-your-own-key and consumer-plan usage is not consumed from the platform: it never carries credits.
   CONSTRAINT usage_events_no_credits_for_byok CHECK (credits_charged IS NULL OR billing NOT IN ('byok', 'consumer-plan')),
+  CONSTRAINT usage_events_source_billing_mock CHECK ((source = 'mock') = (billing = 'mock')),
   CONSTRAINT usage_events_mock_is_simulated CHECK (billing <> 'mock' OR simulated),
   CONSTRAINT usage_events_correction_target CHECK ((event = 'correction') = (corrects_event_id IS NOT NULL)),
   CONSTRAINT usage_events_non_negative CHECK (

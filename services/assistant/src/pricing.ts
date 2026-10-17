@@ -21,6 +21,8 @@ export const PRICING_CONFIG_DIR = join(dirname(fileURLToPath(import.meta.url)), 
 
 /** Standard token dimensions; any other key is a per-unit dimension (image, second, request, ...). */
 export const TOKEN_DIMENSIONS = ['input', 'output', 'cachedInput', 'cacheWrite', 'reasoning'] as const
+/** Every token dimension, including the cache-lifetime split. A modifier applies to these unless it says otherwise. */
+export const DEFAULT_MODIFIER_DIMENSIONS: readonly string[] = [...TOKEN_DIMENSIONS, 'cacheWrite5m', 'cacheWrite1h']
 const DIMENSION_RE = /^[a-z][A-Za-z0-9_-]*$/
 
 export interface RateTier {
@@ -41,8 +43,18 @@ export interface Rate {
 
 export interface Discount {
   name: string
-  /** Multiplier applied to the total, for example "0.5" for a batch discount. */
+  /** Multiplier, for example "0.5" for a batch discount. */
   factor: string
+  /** Dimensions it multiplies; absent means every dimension (record-level discounts). Modifiers always record it explicitly. */
+  appliesTo?: string[]
+}
+
+/** Typed pricing failure: an adapter bug or an invalid modifier selection, never silently corrected. */
+export class PricingError extends Error {
+  constructor(readonly code: 'negative-uncached-input' | 'negative-visible-output' | 'modifier-refused' | 'unknown-modifier', message: string) {
+    super(message)
+    this.name = 'PricingError'
+  }
 }
 
 /** A price band within a model, selected by the request's input size (long-context pricing). Bounds are inclusive. */
@@ -55,8 +67,14 @@ export interface ContextBand {
 /** A price modifier that applies only when the caller says so (batch, priority, regional endpoint, data residency). */
 export interface PriceModifier {
   name: string
-  /** Multiplier on the whole cost: 0.5 for a 50% batch discount, 1.1 for a 10% uplift, 2 for priority. */
+  /** Multiplier on the dimensions it applies to: 0.5 for a 50% batch discount, 1.1 for a 10% uplift, 2 for priority. */
   factor: string
+  /**
+   * Dimensions the factor multiplies. Default: the token dimensions only (tool, search and per-unit fees are not
+   * discounted or uplifted unless listed here).
+   */
+  appliesTo?: string[]
+  /** The tier this modifier stands for. It is refused when the matched record already is that tier (the rates include it). */
   serviceTier?: string
   /** Model IDs it applies to; absent means every model of the provider. */
   models?: string[]
@@ -206,6 +224,7 @@ export function validatePricingFile(raw: unknown, file = 'pricing registry'): Pr
     if (!Array.isArray(raw.modifiers)) problems.push('modifiers must be an array')
     else raw.modifiers.forEach((m: unknown, i: number) => {
       if (!isObject(m) || typeof m.name !== 'string' || !isDecimalString(m.factor)) problems.push(`modifiers[${i}] needs a name and a decimal factor`)
+      else if (m.appliesTo !== undefined && !(Array.isArray(m.appliesTo) && m.appliesTo.length && m.appliesTo.every((d) => typeof d === 'string' && DIMENSION_RE.test(d)))) problems.push(`modifiers[${i}].appliesTo must be a non-empty array of dimension names`)
     })
   }
   if (problems.length) throw new RegistryValidationError(file, problems)
@@ -246,12 +265,26 @@ export function resolvePricing(records: PricingRecord[], model: string, at: Date
 
 /** The snapshot a ledger row keeps. `applied` are the selected modifiers (batch, priority...), recorded as discounts so the cost reproduces. */
 export const snapshotOf = (r: PricingRecord, applied: PriceModifier[] = []): RatesSnapshot => {
-  const discounts = [...(r.discounts ?? []), ...applied.map((m) => ({ name: m.name, factor: m.factor }))]
+  const discounts: Discount[] = [...(r.discounts ?? []), ...applied.map((m) => ({ name: m.name, factor: m.factor, appliesTo: [...(m.appliesTo ?? DEFAULT_MODIFIER_DIMENSIONS)] }))]
   return { pricingVersion: r.pricingVersion, currency: r.currency, verified: r.verified, rates: r.rates, ...(discounts.length ? { discounts } : {}), ...(r.serviceTier ? { serviceTier: r.serviceTier } : {}), ...(r.contextBand ? { contextBand: r.contextBand } : {}) }
 }
 
 /** The record with the file's model-independent rates (tool and search fees) merged under its own rates. */
 export const withSharedRates = (file: PricingFile, r: PricingRecord): PricingRecord => (file.sharedRates ? { ...r, rates: { ...file.sharedRates, ...r.rates } } : r)
+
+/**
+ * Selects modifiers by name for a matched record. Refuses an unknown name, a modifier not meant for the model, and a
+ * modifier whose tier the record already is (a batch record already carries the batch price: applying batchDiscount
+ * again would count it twice).
+ */
+export function selectModifiers(file: PricingFile, record: PricingRecord, names: string[]): PriceModifier[] {
+  return names.map((name) => {
+    const m = (file.modifiers ?? []).find((x) => x.name === name && (!x.models || x.models.some((p) => matchesModel(p, record.model))))
+    if (!m) throw new PricingError('unknown-modifier', `No modifier "${name}" for ${file.provider}/${record.model}.`)
+    if (m.serviceTier && m.serviceTier === (record.serviceTier ?? 'standard')) throw new PricingError('modifier-refused', `Modifier "${name}" is refused: the matched record is already the ${m.serviceTier} tier, so its rates include it.`)
+    return m
+  })
+}
 
 /** xAI reports cost in ticks (1e10 ticks = 1 USD); returns the provider-reported cost for ProviderUsage.providerCost. */
 export const ticksToUsd = (ticks: number | string): { amount: string; currency: 'USD' } => ({ amount: new Money(ticks).div(10_000_000_000).toFixed(MONEY_SCALE), currency: 'USD' })
@@ -283,21 +316,30 @@ export function usageQuantities(usage: Pick<ProviderUsage, 'inputTokens' | 'outp
   const reasoning = usage.reasoningTokens ?? 0
   const q: Record<string, number> = {}
   if (usage.inputTokens !== undefined) {
-    q.input = Math.max(0, usage.inputTokens - cached - write)
+    const uncached = usage.inputTokens - cached - write
+    // Negative means cached or cache-write tokens were also counted outside inputTokens: an adapter double count. Fail loudly.
+    if (uncached < 0) throw new PricingError('negative-uncached-input', `inputTokens ${usage.inputTokens} is smaller than cached ${cached} + cache-write ${write}; ProviderUsage.inputTokens must include them.`)
+    q.input = uncached
     if (cached) q.cachedInput = cached
     if (write - write1h > 0) q.cacheWrite = write - write1h
     if (write1h) q.cacheWrite1h = write1h
   }
   if (usage.outputTokens !== undefined) {
-    q.output = Math.max(0, usage.outputTokens - reasoning)
+    if (usage.outputTokens < reasoning) throw new PricingError('negative-visible-output', `outputTokens ${usage.outputTokens} is smaller than reasoning ${reasoning}; ProviderUsage.outputTokens must include reasoning.`)
+    q.output = usage.outputTokens - reasoning
     if (reasoning) q.reasoning = reasoning
   }
   for (const u of usage.units ?? []) q[u.dimension] = (q[u.dimension] ?? 0) + u.quantity
   return q
 }
 
-/** When a provider has no rate for a dimension, it is billed at the first of these that has one. */
-const FALLBACK: Record<string, string[]> = { cachedInput: ['input'], cacheWrite: ['cacheWrite5m', 'input'], cacheWrite1h: ['cacheWrite', 'input'], reasoning: ['output'] }
+/**
+ * When a provider has no rate for a dimension, it is billed at the first of these that has one.
+ * Choice for `cacheWrite1h`: with no 1 hour rate it is billed at the 5 minute cache-write rate (`cacheWrite5m`, then the
+ * generic `cacheWrite`), never at the plain input rate: a cache write costs at least the 5 minute premium, so this is
+ * the closest rate the provider publishes and the least likely to under-state the cost.
+ */
+const FALLBACK: Record<string, string[]> = { cachedInput: ['input'], cacheWrite: ['cacheWrite5m', 'input'], cacheWrite1h: ['cacheWrite5m', 'cacheWrite', 'input'], reasoning: ['output'] }
 
 /**
  * Cost of one usage from a rates snapshot (the stored form). Pure and deterministic: the same snapshot and usage
@@ -308,6 +350,7 @@ export function costFromSnapshot(usage: Parameters<typeof usageQuantities>[0], s
   const lines: CostLine[] = []
   const missing: string[] = []
   let sum = new Money(0)
+  const discounts = snapshot.discounts ?? []
   for (const [dimension, quantity] of Object.entries(quantities)) {
     if (!(quantity > 0)) continue
     let rate = snapshot.rates[dimension]
@@ -320,11 +363,12 @@ export function costFromSnapshot(usage: Parameters<typeof usageQuantities>[0], s
       missing.push(dimension)
       continue
     }
-    const amount = amountFor(rate, new Money(quantity))
+    // Each discount or modifier multiplies only the dimensions it applies to (all of them when appliesTo is absent).
+    let amount = amountFor(rate, new Money(quantity))
+    for (const d of discounts) if (!d.appliesTo || d.appliesTo.includes(dimension)) amount = amount.mul(d.factor)
     sum = sum.plus(amount)
     lines.push({ dimension, quantity: String(quantity), ...(billedAs ? { billedAs } : {}), amount: amount.toFixed(MONEY_SCALE) })
   }
-  for (const d of snapshot.discounts ?? []) sum = sum.mul(d.factor)
   const pricedTotal = sum.toFixed(MONEY_SCALE)
   return { currency: snapshot.currency, pricingVersion: snapshot.pricingVersion, verified: snapshot.verified, lines, missing, total: missing.length ? null : pricedTotal, pricedTotal }
 }

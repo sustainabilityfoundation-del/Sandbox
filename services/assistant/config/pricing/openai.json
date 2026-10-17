@@ -1880,6 +1880,7 @@
   {
    "name": "batchDiscount",
    "factor": "0.5",
+   "serviceTier": "batch",
    "unit": "fraction discount (50%)",
    "sourceUrl": "https://developers.openai.com/api/docs/guides/batch",
    "note": "Per batch guide: 50% lower cost than synchronous APIs; 24h window."

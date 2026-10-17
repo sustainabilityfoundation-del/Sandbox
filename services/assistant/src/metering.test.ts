@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { LedgerError, priceUsage, sanitizeRaw, UsageLedger, type UsageEventInput } from './ledger'
 import { createFakeProvider } from './providers/fake'
 import { createOpenAIProvider, normaliseOpenAIUsage } from './providers/openai'
-import type { PricingRecord } from './pricing'
+import type { PricingFile, PricingRecord } from './pricing'
 
 /** Mock tier (no network, no database): brief section 17 criteria 8 (usage normalised) and 20 (BYOK carries no credits). */
 
@@ -54,10 +54,11 @@ describe('criterion 8: provider usage is normalised', () => {
   it('builds the cost fields of a ledger event from usage and the pricing record in force', () => {
     // TEST FIXTURE rate, not a provider price.
     const record: PricingRecord = { pricingVersion: 'TEST-FIXTURE-v1', model: 'm', effectiveFrom: '2026-01-01', currency: 'USD', verified: false, sourceUrl: null, retrievedAt: null, rates: { input: { price: '1.00', per: 1_000_000 }, output: { price: '2.00', per: 1_000_000 } } }
-    const fields = priceUsage({ inputTokens: 1_000_000, outputTokens: 500_000, reported: 'provider' }, record)
+    const file: PricingFile = { schemaVersion: 1, provider: 'x', records: [record] }
+    const fields = priceUsage({ inputTokens: 1_000_000, outputTokens: 500_000, reported: 'provider' }, file, record)
     expect(fields).toMatchObject({ estimatedProviderCost: '2.0000000000', pricingVersion: 'TEST-FIXTURE-v1', currency: 'USD' })
     expect(fields.ratesUsed?.rates.input.price).toBe('1.00')
-    expect(priceUsage({ inputTokens: 1, reported: 'provider' }, undefined)).toEqual({})
+    expect(priceUsage({ inputTokens: 1, reported: 'provider' }, file, undefined)).toEqual({})
   })
 })
 

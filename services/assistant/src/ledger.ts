@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
-import { calculateCost, MONEY_SCALE, Money, snapshotOf, type PricingFile, type PricingRecord, type RatesSnapshot } from './pricing'
+import { costFromSnapshot, MONEY_SCALE, Money, snapshotOf, withSharedRates, type PriceModifier, type PricingFile, type PricingRecord, type RatesSnapshot } from './pricing'
 import type { ProviderUsage } from './providers/types'
 
 /**
@@ -14,7 +15,7 @@ export type UsageBilling = 'meter_only' | 'byok' | 'consumer-plan' | 'mock'
 export type AccountingStatus = 'estimated' | 'provisional' | 'settled' | 'reconciled'
 
 export class LedgerError extends Error {
-  constructor(readonly code: 'credits-not-allowed' | 'invalid-event' | 'not-found' | 'pricing-conflict', message: string) {
+  constructor(readonly code: 'credits-not-allowed' | 'invalid-event' | 'not-found' | 'pricing-conflict' | 'idempotency-mismatch', message: string) {
     super(message)
     this.name = 'LedgerError'
   }
@@ -104,12 +105,20 @@ export function sanitizeRaw(raw: unknown, depth = 0): Record<string, unknown> | 
   return Object.keys(out).length ? out : undefined
 }
 
-/** Fills the cost fields of a `completed` event from provider usage and the pricing record in force. */
-export function priceUsage(usage: ProviderUsage, record: PricingRecord | undefined): Pick<UsageEventInput, 'estimatedProviderCost' | 'pricingVersion' | 'ratesUsed' | 'currency'> {
+/**
+ * Fills the cost fields of a `completed` event from provider usage and the pricing record in force. The stored snapshot
+ * is exactly what priced the usage: the record's rates with the file's shared rates (tool and search fees) merged in, and
+ * the selected modifiers (`selectModifiers`) as discounts, so `costFromSnapshot` reproduces the stored cost.
+ */
+export function priceUsage(usage: ProviderUsage, file: PricingFile, record: PricingRecord | undefined, applied: PriceModifier[] = []): Pick<UsageEventInput, 'estimatedProviderCost' | 'pricingVersion' | 'ratesUsed' | 'currency'> {
   if (!record) return {}
-  const cost = calculateCost(usage, record)
-  return { ...(cost.total !== null ? { estimatedProviderCost: cost.total } : {}), pricingVersion: record.pricingVersion, ratesUsed: snapshotOf(record), currency: record.currency }
+  const snapshot = snapshotOf(withSharedRates(file, record), applied)
+  const cost = costFromSnapshot(usage, snapshot)
+  return { ...(cost.total !== null ? { estimatedProviderCost: cost.total } : {}), pricingVersion: record.pricingVersion, ratesUsed: snapshot, currency: record.currency }
 }
+
+/** Hash of an event's content (without its timestamp), to tell a replay from a different event under the same key. */
+const payloadHash = (input: UsageEventInput, extra: object): string => createHash('sha256').update(canonical(JSON.parse(JSON.stringify({ ...input, occurredAt: undefined, ...extra })))).digest('hex')
 
 const num = (v: unknown): number | undefined => (v === null || v === undefined ? undefined : Number(v))
 const str = (v: unknown): string | undefined => (v === null || v === undefined ? undefined : String(v))
@@ -182,7 +191,7 @@ export interface AggregateRow {
   cachedInputTokens: number
   cacheWriteTokens: number
   reasoningTokens: number
-  /** Sum of estimated provider cost (corrections included). */
+  /** One row per key and currency: amounts in different currencies are never added together. Sum of estimated provider cost (corrections included). */
   estimatedProviderCost: string
   actualProviderCost: string
   /** Per event, the actual cost when settled, otherwise the estimate. */
@@ -196,7 +205,7 @@ type Queryable = Pick<Pool | PoolClient, 'query'>
 const COLUMNS = `idempotency_key, event, request_id, operation_id, workflow_id, organization_id, user_id, project_id, module_id, conversation_id,
   provider, model, source, billing, simulated, input_tokens, output_tokens, cached_input_tokens, cache_write_tokens, cache_write_1h_tokens, reasoning_tokens, units,
   provider_usage_details, usage_reported, currency, estimated_provider_cost, actual_provider_cost, reserved_cost, credits_charged,
-  pricing_version, rates_used, accounting_status, corrects_event_id, reason, occurred_at`
+  pricing_version, rates_used, accounting_status, corrects_event_id, reason, occurred_at, payload_hash`
 
 export class UsageLedger {
   constructor(private readonly db: Queryable) {}
@@ -214,6 +223,7 @@ export class UsageLedger {
     if (input.creditsCharged !== undefined && (input.billing === 'byok' || input.billing === 'consumer-plan')) {
       throw new LedgerError('credits-not-allowed', `${input.billing} usage is not consumed from the platform and never carries credits.`)
     }
+    const hash = payloadHash(input, extra)
     const billingMock = input.billing === 'mock'
     const u = input.usage
     const detail = sanitizeRaw(u?.raw)
@@ -225,12 +235,13 @@ export class UsageLedger {
       u?.cacheWriteTokens ?? null, u?.cacheWrite1hTokens ?? null, u?.reasoningTokens ?? null, JSON.stringify(u?.units ?? []), detail ? JSON.stringify(detail) : null,
       hasUsage ? u!.reported : 'none', input.currency ?? 'USD', input.estimatedProviderCost ?? null, input.actualProviderCost ?? u?.providerCost?.amount ?? null,
       input.reservedCost ?? null, input.creditsCharged ?? null, input.pricingVersion ?? null, input.ratesUsed ? JSON.stringify(input.ratesUsed) : null,
-      input.accountingStatus ?? 'estimated', extra.correctsEventId ?? null, extra.reason ?? null, input.occurredAt ?? new Date().toISOString(),
+      input.accountingStatus ?? 'estimated', extra.correctsEventId ?? null, extra.reason ?? null, input.occurredAt ?? new Date().toISOString(), hash,
     ]
     const marks = values.map((_, i) => `$${i + 1}`).join(', ')
     const inserted = await this.db.query(`INSERT INTO assistant.usage_events (${COLUMNS}) VALUES (${marks}) ON CONFLICT (idempotency_key) DO NOTHING RETURNING *`, values)
     if (inserted.rows[0]) return { inserted: true, event: mapRow(inserted.rows[0]) }
     const existing = await this.db.query('SELECT * FROM assistant.usage_events WHERE idempotency_key = $1', [input.idempotencyKey])
+    if (existing.rows[0].payload_hash !== hash) throw new LedgerError('idempotency-mismatch', `Idempotency key ${input.idempotencyKey} was already used for an event with different content.`)
     return { inserted: false, event: mapRow(existing.rows[0]) }
   }
 
@@ -260,7 +271,7 @@ export class UsageLedger {
     original: string
     idempotencyKey: string
     reason: string
-    deltas: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number; cacheWriteTokens?: number; cacheWrite1hTokens?: number; reasoningTokens?: number; estimatedProviderCost?: string; actualProviderCost?: string }
+    deltas: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number; cacheWriteTokens?: number; cacheWrite1hTokens?: number; reasoningTokens?: number; estimatedProviderCost?: string; actualProviderCost?: string; creditsCharged?: string; reservedCost?: string }
     accountingStatus?: AccountingStatus
   }): Promise<{ inserted: boolean; event: UsageEventRow }> {
     const original = await this.get(options.original)
@@ -287,6 +298,8 @@ export class UsageLedger {
       pricingVersion: original.pricingVersion,
       estimatedProviderCost: d.estimatedProviderCost,
       actualProviderCost: d.actualProviderCost,
+      creditsCharged: d.creditsCharged,
+      reservedCost: d.reservedCost,
       accountingStatus: options.accountingStatus ?? 'provisional',
       usage: { inputTokens: d.inputTokens, outputTokens: d.outputTokens, cachedInputTokens: d.cachedInputTokens, cacheWriteTokens: d.cacheWriteTokens, cacheWrite1hTokens: d.cacheWrite1hTokens, reasoningTokens: d.reasoningTokens, reported: 'provider' },
     }
@@ -307,6 +320,7 @@ export class UsageLedger {
         inputTokens: neg(o.inputTokens), outputTokens: neg(o.outputTokens), cachedInputTokens: neg(o.cachedInputTokens),
         cacheWriteTokens: neg(o.cacheWriteTokens), cacheWrite1hTokens: neg(o.cacheWrite1hTokens), reasoningTokens: neg(o.reasoningTokens),
         estimatedProviderCost: negMoney(o.estimatedProviderCost), actualProviderCost: negMoney(o.actualProviderCost),
+        creditsCharged: negMoney(o.creditsCharged), reservedCost: negMoney(o.reservedCost),
       },
     })
   }
@@ -340,8 +354,8 @@ export class UsageLedger {
          COALESCE(sum(estimated_provider_cost), 0)::text AS estimated, COALESCE(sum(actual_provider_cost), 0)::text AS actual,
          COALESCE(sum(COALESCE(actual_provider_cost, estimated_provider_cost)), 0)::text AS cost,
          COALESCE(sum(credits_charged), 0)::text AS credits,
-         COALESCE(min(currency), 'USD') AS currency
-       FROM assistant.usage_events WHERE ${where.join(' AND ')} GROUP BY 1 ORDER BY 1`,
+         currency
+       FROM assistant.usage_events WHERE ${where.join(' AND ')} GROUP BY 1, currency ORDER BY 1, currency`,
       params,
     )
     const money = (s: string) => new Money(s).toFixed(MONEY_SCALE)

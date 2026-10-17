@@ -6,6 +6,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import Decimal from 'decimal.js'
 
 const seedPath = process.argv[2]
 if (!seedPath) throw new Error('usage: import-pricing-seed.mjs <provider-pricing-seed.json>')
@@ -38,7 +39,7 @@ function bandOf(label) {
 }
 
 const tierOf = (t) => (t.startsWith('fast') ? 'fast' : t)
-const factorOf = (r) => (/discount/.test(r.dimension) ? String(1 - Number(r.unitRate)) : /uplift/.test(r.dimension) ? String(1 + Number(r.unitRate)) : r.unitRate)
+const factorOf = (r) => (/discount/.test(r.dimension) ? new Decimal(1).minus(r.unitRate).toFixed() : /uplift/.test(r.dimension) ? new Decimal(1).plus(r.unitRate).toFixed() : r.unitRate)
 const rateOf = (r) => ({ price: r.unitRate, per: perOf(r.unit), unit: r.unit })
 
 const out = {}
@@ -48,7 +49,7 @@ const groups = new Map()
 for (const r of seed.records) {
   const f = file(r.provider)
   if (MODIFIER.test(r.dimension)) {
-    f.modifiers.push({ name: dimensionOf(r.dimension), factor: factorOf(r), ...(r.serviceTier !== 'standard' ? { serviceTier: tierOf(r.serviceTier) } : {}), ...(r.modelId ? { models: [r.modelId] } : {}), unit: r.unit, sourceUrl: r.sourceUrl, ...(r.notes ? { note: r.notes } : {}) })
+    f.modifiers.push({ name: dimensionOf(r.dimension), factor: factorOf(r), ...(dimensionOf(r.dimension) === 'batchDiscount' ? { serviceTier: 'batch' } : r.serviceTier !== 'standard' ? { serviceTier: tierOf(r.serviceTier) } : {}), ...(r.modelId ? { models: [r.modelId] } : {}), unit: r.unit, sourceUrl: r.sourceUrl, ...(r.notes ? { note: r.notes } : {}) })
     continue
   }
   const model = r.modelId ?? (r.displayName ? `display:${r.displayName}` : null)

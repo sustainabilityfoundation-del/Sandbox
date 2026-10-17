@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateCost, costFromSnapshot, isPriced, listPricingProviders, loadPricing, resolvePricing, snapshotOf, ticksToUsd, validatePricingFile, withSharedRates, type PricingFile, type PricingRecord } from './pricing'
+import { calculateCost, costFromSnapshot, isPriced, listPricingProviders, loadPricing, PricingError, resolvePricing, selectModifiers, snapshotOf, usageQuantities, ticksToUsd, validatePricingFile, withSharedRates, type PricingFile, type PricingRecord } from './pricing'
 
 /**
  * Mock tier (no network, no database). Brief section 17 criteria 9, 10 and 19 for pricing.
@@ -164,8 +164,60 @@ describe('criterion 19: historical pricing is reproducible', () => {
 
   it('keeps a selected modifier in the snapshot so a batch or priority cost reproduces', () => {
     const snap = snapshotOf(v1, [{ name: 'batch', factor: '0.5' }])
-    expect(snap.discounts).toEqual([{ name: 'batch', factor: '0.5' }])
+    expect(snap.discounts).toMatchObject([{ name: 'batch', factor: '0.5' }])
     expect(costFromSnapshot(usage, snap).total).toBe('0.1629060000')
+  })
+})
+
+describe('modifiers: dimensions and tier', () => {
+  // TEST FIXTURE: tokens plus a per-call search fee.
+  const base = rec({ rates: { input: { price: '2.00', per: 1_000_000 }, output: { price: '10.00', per: 1_000_000 }, webSearchCalls: { price: '10', per: 1000 } } })
+  const batch = { name: 'batchDiscount', factor: '0.5', serviceTier: 'batch' }
+  const usage = { inputTokens: 1_000_000, outputTokens: 100_000, units: [{ dimension: 'webSearchCalls', quantity: 100 }] }
+
+  it('applies a modifier to token dimensions only by default, leaving tool and search fees at full price', () => {
+    // tokens 2 + 1 = 3 -> 1.5; search 100/1000*10 = 1.00 unchanged
+    expect(costFromSnapshot(usage, snapshotOf(base, [batch])).total).toBe('2.5000000000')
+    expect(snapshotOf(base, [batch]).discounts?.[0].appliesTo).toContain('input')
+    expect(snapshotOf(base, [batch]).discounts?.[0].appliesTo).not.toContain('webSearchCalls')
+  })
+
+  it('applies a modifier to the dimensions it declares', () => {
+    const all = { name: 'uplift', factor: '2', appliesTo: ['input', 'webSearchCalls'] }
+    // input 2 -> 4, output 1 stays, search 1 -> 2
+    expect(costFromSnapshot(usage, snapshotOf(base, [all])).total).toBe('7.0000000000')
+  })
+
+  it('refuses the batch modifier on a record that is already the batch tier, and accepts it on standard', () => {
+    const file: PricingFile = { schemaVersion: 1, provider: 'p', records: [], modifiers: [batch, { name: 'regional', factor: '1.1', models: ['other-model'] }] }
+    expect(selectModifiers(file, base, ['batchDiscount'])).toEqual([batch])
+    expect(() => selectModifiers(file, rec({ serviceTier: 'batch' }), ['batchDiscount'])).toThrowError(PricingError)
+    expect(() => selectModifiers(file, rec({ serviceTier: 'batch' }), ['batchDiscount'])).toThrow(/already the batch tier/)
+    expect(() => selectModifiers(file, base, ['regional'])).toThrow(/No modifier/)
+    expect(() => selectModifiers(file, base, ['nope'])).toMatchObject
+  })
+
+  it('ships the OpenAI batch modifier tied to the batch tier', () => {
+    const f = loadPricing('openai')
+    expect(f.modifiers?.find((m) => m.name === 'batchDiscount')?.serviceTier).toBe('batch')
+    const batchRecord = f.records.find((r) => r.serviceTier === 'batch')!
+    expect(() => selectModifiers(f, batchRecord, ['batchDiscount'])).toThrow(PricingError)
+  })
+})
+
+describe('usage normalisation errors and fallbacks', () => {
+  it('raises a typed error, not a clamp, when cached plus cache-write tokens exceed the input (adapter double count)', () => {
+    expect(() => usageQuantities({ inputTokens: 100, cachedInputTokens: 80, cacheWriteTokens: 40 })).toThrowError(PricingError)
+    expect(() => usageQuantities({ inputTokens: 100, cachedInputTokens: 80, cacheWriteTokens: 40 })).toThrow(expect.objectContaining({ code: 'negative-uncached-input' }) as never)
+    expect(usageQuantities({ inputTokens: 120, cachedInputTokens: 80, cacheWriteTokens: 40 }).input).toBeUndefined
+    expect(() => usageQuantities({ outputTokens: 5, reasoningTokens: 9 })).toThrow(PricingError)
+  })
+
+  it('bills a 1 hour cache write at the 5 minute cache-write rate when no 1 hour rate exists', () => {
+    const r = rec({ rates: { input: { price: '4', per: 1_000_000 }, cacheWrite5m: { price: '5', per: 1_000_000 } } })
+    const c = calculateCost({ inputTokens: 1_000_000, cacheWriteTokens: 1_000_000, cacheWrite1hTokens: 1_000_000 }, r)
+    expect(c.lines.find((l) => l.dimension === 'cacheWrite1h')?.billedAs).toBe('cacheWrite5m')
+    expect(c.total).toBe('5.0000000000')
   })
 })
 

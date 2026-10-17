@@ -5,8 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { inject } from 'vitest'
 import { dropDatabase, ensureDatabase } from '../../api/src/database'
 import { migrateAssistant } from '../src/db/migrate'
-import { LedgerError, syncPricing, UsageLedger, type UsageEventInput } from '../src/ledger'
-import { listPricingProviders, loadPricing } from '../src/pricing'
+import { LedgerError, priceUsage, syncPricing, UsageLedger, type UsageEventInput } from '../src/ledger'
+import { costFromSnapshot, listPricingProviders, loadPricing, selectModifiers } from '../src/pricing'
 
 /**
  * Integration tier (real PostgreSQL, npm run ai:test:db): the usage ledger. Brief section 17 criterion 12 (duplicate
@@ -61,12 +61,20 @@ describe('criterion 12: duplicate events do not produce duplicate charges', () =
     expect(total).toMatchObject({ requests: 1, inputTokens: 100, outputTokens: 20, estimatedProviderCost: '0.0010000000' })
   })
 
-  it('a retry with different content still adds nothing and returns the first row', async () => {
+  it('a replay with identical content (even with a later timestamp) adds nothing and returns the first row', async () => {
     const first = event({ idempotencyKey: 'k-retry', estimatedProviderCost: '0.0020000000' })
     await ledger.record(first)
-    const again = await ledger.record({ ...first, estimatedProviderCost: '9.0000000000' })
+    const again = await ledger.record({ ...first, occurredAt: '2031-01-01T00:00:00Z' })
     expect(again.inserted).toBe(false)
     expect(again.event.estimatedProviderCost).toBe('0.0020000000')
+  })
+
+  it('a replay with a different payload raises idempotency-mismatch and adds nothing', async () => {
+    const first = event({ idempotencyKey: 'k-mismatch', estimatedProviderCost: '0.0020000000' })
+    await ledger.record(first)
+    await expect(ledger.record({ ...first, estimatedProviderCost: '9.0000000000' })).rejects.toMatchObject({ code: 'idempotency-mismatch' })
+    await expect(ledger.record({ ...first, usage: { inputTokens: 1, reported: 'provider' } })).rejects.toBeInstanceOf(LedgerError)
+    expect((await ledger.get('k-mismatch'))?.estimatedProviderCost).toBe('0.0020000000')
   })
 })
 
@@ -80,13 +88,23 @@ describe('ledger schema', () => {
 
   it('refuses credits on BYOK and consumer-plan rows in the database itself, and marks mock rows simulated', async () => {
     const insert = (billing: string, credits: string | null, simulated: boolean) =>
-      pool.query(`INSERT INTO assistant.usage_events (idempotency_key, event, request_id, operation_id, provider, model, source, billing, simulated, credits_charged) VALUES ($1, 'completed', 'r', 'o', 'p', 'm', 'user-connection', $2, $3, $4)`, [`raw-${randomBytes(4).toString('hex')}`, billing, simulated, credits])
+      pool.query(`INSERT INTO assistant.usage_events (idempotency_key, event, request_id, operation_id, provider, model, source, billing, simulated, credits_charged, payload_hash) VALUES ($1, 'completed', 'r', 'o', 'p', 'm', 'user-connection', $2, $3, $4, 'h')`, [`raw-${randomBytes(4).toString('hex')}`, billing, simulated, credits])
     await expect(insert('byok', '1', false)).rejects.toThrow(/no_credits_for_byok/)
     await expect(insert('consumer-plan', '1', false)).rejects.toThrow(/no_credits_for_byok/)
-    await expect(insert('mock', null, false)).rejects.toThrow(/mock_is_simulated/)
+    await expect(insert('mock', null, false)).rejects.toThrow(/source_billing_mock|mock_is_simulated/)
     await insert('meter_only', '1', false)
     const mock = await ledger.record(event({ simulated: false }))
     expect(mock.event.simulated).toBe(true)
+  })
+
+  it('requires source = mock exactly when billing = mock (database check)', async () => {
+    const insert = (source: string, billing: string) =>
+      pool.query(`INSERT INTO assistant.usage_events (idempotency_key, event, request_id, operation_id, provider, model, source, billing, simulated, payload_hash) VALUES ($1, 'completed', 'r', 'o', 'p', 'm', $2, $3, true, 'h')`, [`raw-${randomBytes(4).toString('hex')}`, source, billing])
+    await expect(insert('developer-key', 'mock')).rejects.toThrow(/source_billing_mock/)
+    await expect(insert('mock', 'meter_only')).rejects.toThrow(/source_billing_mock/)
+    await expect(insert('mock', 'byok')).rejects.toThrow(/source_billing_mock/)
+    await insert('mock', 'mock')
+    await insert('developer-key', 'meter_only')
   })
 
   it('stores money exactly (numeric(20,10)) and no prompt or response text', async () => {
@@ -101,6 +119,23 @@ describe('ledger schema', () => {
     const { ticksToUsd } = await import('../src/pricing')
     const { event: row } = await ledger.record(event({ usage: { inputTokens: 10, cacheWriteTokens: 4, cacheWrite1hTokens: 3, providerCost: ticksToUsd(12_345_678_900), reported: 'provider' } }))
     expect(row).toMatchObject({ actualProviderCost: '1.2345678900', cacheWriteTokens: 4, cacheWrite1hTokens: 3 })
+  })
+
+  it('reproduces a stored cost with tool fees and a batch modifier from the row alone', async () => {
+    // TEST FIXTURE rates: tokens plus a per-call search fee in the file's shared rates.
+    const record = { pricingVersion: 'TEST-FIXTURE-v8', model: 'm', effectiveFrom: '2026-01-01', currency: 'USD', verified: false, sourceUrl: null, retrievedAt: null, rates: { input: { price: '3.00', per: 1_000_000 }, output: { price: '15.00', per: 1_000_000 } } }
+    const file = { schemaVersion: 1 as const, provider: 'openai', records: [record], sharedRates: { webSearchCalls: { price: '10', per: 1000 } }, modifiers: [{ name: 'batchDiscount', factor: '0.5', serviceTier: 'batch' }] }
+    const usage = { inputTokens: 2_000_000, outputTokens: 500_000, units: [{ dimension: 'webSearchCalls', quantity: 30 }], reported: 'provider' as const }
+    const fields = priceUsage(usage, file, record, selectModifiers(file, record, ['batchDiscount']))
+    // tokens (6 + 7.5) * 0.5 = 6.75, search 0.30 at full price
+    expect(fields.estimatedProviderCost).toBe('7.0500000000')
+    const { event: row } = await ledger.record(event({ usage, ...fields, billing: 'meter_only', source: 'developer-key', provider: 'openai', model: 'm' }))
+    const again = (await ledger.get(row.idempotencyKey))!
+    expect(again.ratesUsed?.rates.webSearchCalls).toBeDefined()
+    expect(again.units).toEqual([{ dimension: 'webSearchCalls', quantity: 30 }])
+    const reproduced = costFromSnapshot({ inputTokens: again.inputTokens, outputTokens: again.outputTokens, units: again.units }, again.ratesUsed!)
+    expect(reproduced.total).toBe(again.estimatedProviderCost)
+    expect(reproduced.total).toBe('7.0500000000')
   })
 
   it('reproduces a stored cost from the row alone', async () => {
@@ -138,7 +173,8 @@ describe('aggregation and corrections', () => {
     const { event: orig } = await ledger.record(event({ idempotencyKey: 'k-orig', conversationId: conv, estimatedProviderCost: '0.4000000000' }))
     const fix = await ledger.correct({ original: 'k-orig', idempotencyKey: 'k-fix', reason: 'provider invoice lower', deltas: { estimatedProviderCost: '-0.1000000000', inputTokens: -20 } })
     expect(fix.event).toMatchObject({ event: 'correction', correctsEventId: orig.id, reason: 'provider invoice lower', conversationId: conv })
-    expect((await ledger.correct({ original: 'k-orig', idempotencyKey: 'k-fix', reason: 'again', deltas: { estimatedProviderCost: '-9' } })).inserted).toBe(false)
+    expect((await ledger.correct({ original: 'k-orig', idempotencyKey: 'k-fix', reason: 'provider invoice lower', deltas: { estimatedProviderCost: '-0.1000000000', inputTokens: -20 } })).inserted).toBe(false)
+    await expect(ledger.correct({ original: 'k-orig', idempotencyKey: 'k-fix', reason: 'again', deltas: { estimatedProviderCost: '-9' } })).rejects.toMatchObject({ code: 'idempotency-mismatch' })
     const [t] = await ledger.aggregate({ groupBy: 'conversation', conversationId: conv })
     expect(t).toMatchObject({ requests: 1, inputTokens: 80, cost: '0.3000000000' })
     await ledger.reverse('k-orig', 'k-rev', 'recorded in error')
@@ -147,6 +183,36 @@ describe('aggregation and corrections', () => {
     expect((await ledger.get('k-orig'))?.estimatedProviderCost).toBe('0.4000000000')
     await expect(ledger.correct({ original: 'k-fix', idempotencyKey: 'k-x', reason: 'r', deltas: {} })).rejects.toBeInstanceOf(LedgerError)
     await expect(ledger.correct({ original: 'missing', idempotencyKey: 'k-y', reason: 'r', deltas: {} })).rejects.toMatchObject({ code: 'not-found' })
+  })
+})
+
+describe('credits and reservations in compensation', () => {
+  it('a reversed row with credits and a reservation nets to zero', async () => {
+    const conv = 'conv-credits'
+    await ledger.record(event({ idempotencyKey: 'k-cr', conversationId: conv, billing: 'meter_only', source: 'developer-key', estimatedProviderCost: '0.4000000000', creditsCharged: '2.5000000000', reservedCost: '0.5000000000' }))
+    await ledger.reverse('k-cr', 'k-cr-rev', 'charged in error')
+    const [t] = await ledger.aggregate({ groupBy: 'conversation', conversationId: conv })
+    expect(t).toMatchObject({ cost: '0.0000000000', creditsCharged: '0.0000000000', inputTokens: 0 })
+    const sums = (await pool.query(`SELECT sum(credits_charged)::text AS c, sum(reserved_cost)::text AS r FROM assistant.usage_events WHERE conversation_id = $1`, [conv])).rows[0]
+    expect(Number(sums.c)).toBe(0)
+    expect(Number(sums.r)).toBe(0)
+  })
+
+  it('a correction can carry a credit delta', async () => {
+    await ledger.record(event({ idempotencyKey: 'k-cd', conversationId: 'conv-cd', billing: 'meter_only', source: 'developer-key', creditsCharged: '3' }))
+    await ledger.correct({ original: 'k-cd', idempotencyKey: 'k-cd-fix', reason: 'credit rate fixed', deltas: { creditsCharged: '-1' } })
+    const [t] = await ledger.aggregate({ groupBy: 'conversation', conversationId: 'conv-cd' })
+    expect(t.creditsCharged).toBe('2.0000000000')
+  })
+})
+
+describe('aggregation by currency', () => {
+  it('never adds amounts in different currencies', async () => {
+    const conv = 'conv-ccy'
+    await ledger.record(event({ conversationId: conv, estimatedProviderCost: '1.0000000000', currency: 'USD' }))
+    await ledger.record(event({ conversationId: conv, estimatedProviderCost: '2.0000000000', currency: 'EUR' }))
+    const rows = await ledger.aggregate({ groupBy: 'conversation', conversationId: conv })
+    expect(rows.map((r) => [r.currency, r.cost])).toEqual([['EUR', '2.0000000000'], ['USD', '1.0000000000']])
   })
 })
 
