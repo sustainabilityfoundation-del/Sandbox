@@ -163,6 +163,15 @@ ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only
   (3) shared password gate in front of the dev site until Cognito sign-in (before production); (4) run workloads in a **new member
   account** (owner creates it in AWS Organizations). Still open: Amplify auto-build on every push, Cost Explorer and budget alert,
   domain, production approver, alarm e-mail, whether the GitHub repository stays public.
+- **Merged 34a28a5:** readable IDs (AUD-4), Conceptualize bounds and Inspector (AUD-6, SDK 1.16.0), AWS platform readiness
+  (green run: 1701 tests, all DB tiers, 17/17 e2e, db:migrate idempotent).
+- **In integration (`integrate/next` fe213cd):** AI context assembly (CE-1, 93a182e; two security blockers fixed and re-reviewed:
+  AI access/sharing/ceiling settings bind every context path, per owning module; untrusted text folded; TRUNCATE blocked; hard
+  400-item/256 KB ceiling; setting `ai.context.max-tokens`; injection off by default) and AWS dev stack (aec0c08; CDK in
+  standalone `infra/aws`, 68 resources in DEV_STACK_RESOURCES.md, about $52/month or $41 with a night schedule; password gate in a
+  CloudFront Function with KVS; OIDC role limited to main; pinned actions; scoped bootstrap policies; root redirect to
+  /workspace/ with the viewer at /viewer/; ADR-0088). No AWS writes made.
+- Running: CAD sprint C2 (holes, mirror, circular pattern, shell, draft, combine; `~k` name-move fix), `cad/c2-features`.
 - Owner's main checkout lacks `@salusoft89/planegcs` (added by C1): run `npm install` before restarting `npm run dev`.
 
 ## Integration queue update (17 October 2026, about 02:15 EDT)
