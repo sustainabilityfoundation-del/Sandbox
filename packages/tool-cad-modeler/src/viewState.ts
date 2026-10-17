@@ -16,6 +16,7 @@ export type SelectionItem =
   | { kind: 'face' | 'edge'; id: string; bodyId: string }
   | { kind: 'body'; id: string }
   | { kind: 'feature'; id: string }
+  | { kind: 'sketch-entity'; id: string; sketchId: string }
   | { kind: 'parameter'; id: string; partId: string }
 
 
