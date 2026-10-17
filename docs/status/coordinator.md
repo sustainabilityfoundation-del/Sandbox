@@ -171,7 +171,12 @@ ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only
   standalone `infra/aws`, 68 resources in DEV_STACK_RESOURCES.md, about $52/month or $41 with a night schedule; password gate in a
   CloudFront Function with KVS; OIDC role limited to main; pinned actions; scoped bootstrap policies; root redirect to
   /workspace/ with the viewer at /viewer/; ADR-0088). No AWS writes made.
-- Running: CAD sprint C2 (holes, mirror, circular pattern, shell, draft, combine; `~k` name-move fix), `cad/c2-features`.
+- **Merged d1eeb6b:** CE-1 context assembly (off by default) and AWS dev stack with root redirect (green run: 1728 tests, all DB
+  tiers, infra tests and offline synth, 17/17 e2e plus digest-mode replays). Owner may now start runbook part A.
+- CAD sprint C2 (`cad/c2-features`): all six features implemented on OCCT (mirror, pattern, draft partial). Opus review: three
+  required fixes in progress (pre-1.4 `~k` references must resolve lost, not move; draft must reject unchanged faces; ADR-0089
+  index row). ADR renumbered 0088 to 0089.
+- Running: CE-2 basic evaluation of proposals (`feature/ce-2-evaluation`; advisory findings, never blocking Apply).
 - Owner's main checkout lacks `@salusoft89/planegcs` (added by C1): run `npm install` before restarting `npm run dev`.
 
 ## Integration queue update (17 October 2026, about 02:15 EDT)
