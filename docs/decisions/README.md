@@ -20,6 +20,7 @@ editing an accepted one.
 | [0012](0012-read-time-projection-of-external-objects.md) | Read-time projection of externally owned objects into the twin's model | Accepted |
 | [0014](0014-unified-help-system.md) | Unified help system with module-owned documentation | Accepted |
 | [0015](0015-conceptualize-module.md) | Conceptualize: Concepts independent of their implementations | Accepted |
+| [0079](0079-usage-ledger-pricing-registry-and-decimal-policy.md) | Usage ledger, pricing registry and decimal policy (built-in insert-only ledger; decimal.js; OpenMeter and Langfuse evaluated) | Proposed |
 | [0077](0077-retire-illustrative-tools-system-model.md) | Retire the illustrative tools from the interface; name the SysML tool "System Model" (amends ADR-0027 phase 4 and ADR-0030) | Accepted (16 Oct 2026) |
 | [0076](0076-cad-sketch-solver-planegcs-oracle.md) | CAD sketch solver: replaceable interface, planegcs as a development-time oracle only | Proposed |
 | [0075](0075-cad-occt-shape-history-naming.md) | CAD naming: OCCT shape history as the second signal (amends 0024) | Proposed |

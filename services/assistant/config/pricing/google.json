@@ -1,0 +1,976 @@
+{
+ "schemaVersion": 1,
+ "provider": "google",
+ "note": "Imported from provider-pricing-seed.json (commercial research, retrieved 2026-10-16). Every record is unverified: a person must check it against its sourceUrl and a new pricingVersion is published when it is. effectiveFrom is the retrieval date because no provider page states when the price took effect. Anthropic, Google and xAI pages list display names for many models; those records use the model \"display:<name>\" until the adapter maps the real API ID.",
+ "records": [
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "display:Gemini 2.5 Flash and Flash-Lite",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "searchGroundingPrompts": {
+     "price": "35",
+     "per": 1000,
+     "unit": "USD per 1,000 grounded prompts"
+    }
+   },
+   "notes": {
+    "searchGroundingPrompts": "1,500 free per day on paid; 500 per day on the free tier."
+   },
+   "note": "The source page shows a display name, not the API model ID; this record matches no request until an adapter maps the ID."
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "display:Gemini 2.5 Pro",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "searchGroundingPrompts": {
+     "price": "35",
+     "per": 1000,
+     "unit": "USD per 1,000 grounded prompts"
+    }
+   },
+   "notes": {
+    "searchGroundingPrompts": "1,500 free per day."
+   },
+   "note": "The source page shows a display name, not the API model ID; this record matches no request until an adapter maps the ID."
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "display:Gemini 3 and newer",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "searchGroundingRequests": {
+     "price": "14",
+     "per": 1000,
+     "unit": "USD per 1,000 search requests"
+    },
+    "mapsGroundingQueries": {
+     "price": "14",
+     "per": 1000,
+     "unit": "USD per 1,000 queries"
+    }
+   },
+   "notes": {
+    "searchGroundingRequests": "5,000 free requests per month shared across Gemini 3+ models. One prompt may trigger several billed searches.",
+    "mapsGroundingQueries": "5,000 free per month shared."
+   },
+   "note": "The source page shows a display name, not the API model ID; this record matches no request until an adapter maps the ID."
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-2.5-flash",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "0.3",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.03",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "notes": {
+    "input": "Text/image/video input; audio input 1.00. Free tier: yes.",
+    "output": "Output price includes thinking tokens. Text/image/video input; audio input 1.00. Free tier: yes.",
+    "cachedInput": "Text/image/video input; audio input 1.00. Free tier: yes.",
+    "cacheStorage": "Explicit caching storage. Text/image/video input; audio input 1.00. Free tier: yes."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-2.5-flash",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "batch",
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "0.15",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "1.25",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Batch and Flex share the batch price. Audio input 0.50.",
+    "output": "Output price includes thinking tokens. Batch and Flex share the batch price. Audio input 0.50."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-2.5-flash-lite",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "0.1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "0.4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.01",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "notes": {
+    "input": "Text/image/video input; audio input 0.30. Free tier: yes.",
+    "output": "Output price includes thinking tokens. Text/image/video input; audio input 0.30. Free tier: yes.",
+    "cachedInput": "Text/image/video input; audio input 0.30. Free tier: yes.",
+    "cacheStorage": "Explicit caching storage. Text/image/video input; audio input 0.30. Free tier: yes."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-2.5-pro",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt <=200k",
+    "maxInputTokens": 200000
+   },
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "1.25",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "10",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.125",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "4.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "notes": {
+    "input": "Free tier: yes.",
+    "output": "Output price includes thinking tokens. Free tier: yes.",
+    "cachedInput": "Free tier: yes.",
+    "cacheStorage": "Explicit caching storage. Free tier: yes."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-2.5-pro",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt >200k",
+    "minInputTokens": 200001
+   },
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "15",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.25",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "4.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "notes": {
+    "input": "Free tier: yes.",
+    "output": "Output price includes thinking tokens. Free tier: yes.",
+    "cachedInput": "Free tier: yes.",
+    "cacheStorage": "Explicit caching storage. Free tier: yes."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3-pro-image",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "imageOutput1k2k": {
+     "price": "0.134",
+     "per": 1,
+     "unit": "USD per image (1K or 2K)"
+    }
+   },
+   "notes": {
+    "imageOutput1k2k": "4K about 0.24 per image."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.1-flash-image",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "imageOutputTokens": {
+     "price": "60",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "imageOutputTokens": "Page figures approx 0.067 per 1K image, 0.101 per 2K, 0.151 per 4K."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.1-flash-lite",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "0.25",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "1.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.025",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "notes": {
+    "input": "Text/image/video input rate; audio input 0.50, audio cached 0.05. Free tier: yes.",
+    "output": "Output price includes thinking tokens. Text/image/video input rate; audio input 0.50, audio cached 0.05. Free tier: yes.",
+    "cachedInput": "Text/image/video input rate; audio input 0.50, audio cached 0.05. Free tier: yes.",
+    "cacheStorage": "Explicit caching storage. Text/image/video input rate; audio input 0.50, audio cached 0.05. Free tier: yes."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.1-pro-preview",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt <=200k",
+    "maxInputTokens": 200000
+   },
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "12",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "4.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "notes": {
+    "input": "Preview model. Free tier: no.",
+    "output": "Output price includes thinking tokens. Preview model. Free tier: no.",
+    "cachedInput": "Preview model. Free tier: no.",
+    "cacheStorage": "Explicit caching storage. Preview model. Free tier: no."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.1-pro-preview",
+   "currency": "USD",
+   "verified": false,
+   "contextBand": {
+    "label": "prompt >200k",
+    "minInputTokens": 200001
+   },
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "18",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "4.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "notes": {
+    "input": "Preview model. Free tier: no.",
+    "output": "Output price includes thinking tokens. Preview model. Free tier: no.",
+    "cachedInput": "Preview model. Free tier: no.",
+    "cacheStorage": "Explicit caching storage. Preview model. Free tier: no."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.1-pro-preview",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "batch",
+   "contextBand": {
+    "label": "prompt <=200k",
+    "maxInputTokens": 200000
+   },
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "6",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Batch and Flex share the batch price.",
+    "output": "Output price includes thinking tokens. Batch and Flex share the batch price."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.5-flash-lite",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "0.3",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "2.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.03",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "notes": {
+    "input": "Free tier: yes.",
+    "output": "Output price includes thinking tokens. Free tier: yes.",
+    "cachedInput": "Free tier: yes.",
+    "cacheStorage": "Explicit caching storage. Free tier: yes."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.6-flash",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "0.75",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "3.75",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.075",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "0.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "notes": {
+    "input": "Free tier: yes. The change date was stated for 3.8 Flash; same date assumed in the extract for 3.6 Flash, check the source.",
+    "output": "Output price includes thinking tokens. Free tier: yes. The change date was stated for 3.8 Flash; same date assumed in the extract for 3.6 Flash, check the source.",
+    "cachedInput": "Free tier: yes. The change date was stated for 3.8 Flash; same date assumed in the extract for 3.6 Flash, check the source.",
+    "cacheStorage": "Explicit caching storage. Free tier: yes. The change date was stated for 3.8 Flash; same date assumed in the extract for 3.6 Flash, check the source."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16-scheduled-2027-01-01",
+   "model": "gemini-3.6-flash",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2027-01-01",
+   "rates": {
+    "input": {
+     "price": "1.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "7.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.15",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "note": "Scheduled change shown on the source page, effective 2027-01-01."
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.8-flash",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "0.75",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "3.75",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.075",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "0.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "notes": {
+    "input": "Free tier: yes. No long-context tier.",
+    "output": "Output price includes thinking tokens. Free tier: yes. No long-context tier.",
+    "cachedInput": "Free tier: yes. No long-context tier.",
+    "cacheStorage": "Explicit caching storage. Free tier: yes. No long-context tier."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16-scheduled-2027-01-01",
+   "model": "gemini-3.8-flash",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2027-01-01",
+   "rates": {
+    "input": {
+     "price": "1.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "7.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.15",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cacheStorage": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens per hour"
+    }
+   },
+   "note": "Scheduled change shown on the source page, effective 2027-01-01."
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.8-flash",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "batch",
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "0.375",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "1.875",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Batch and Flex share the batch price.",
+    "output": "Output price includes thinking tokens. Batch and Flex share the batch price."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16-scheduled-2027-01-01",
+   "model": "gemini-3.8-flash",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "batch",
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2027-01-01",
+   "rates": {
+    "input": {
+     "price": "0.75",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "3.75",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "note": "Scheduled change shown on the source page, effective 2027-01-01."
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.8-flash",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "priority",
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "1.35",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "6.75",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "output": "Output price includes thinking tokens. "
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16-scheduled-2027-01-01",
+   "model": "gemini-3.8-flash",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "priority",
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2027-01-01",
+   "rates": {
+    "input": {
+     "price": "2.7",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "13.5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "note": "Scheduled change shown on the source page, effective 2027-01-01."
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-3.8-live",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "audioInputTokens": {
+     "price": "3",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "audioInputTokens": "About 0.005 per minute. Text input 0.75; audio output 12.00 (about 0.018 per minute); text output 4.50."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-4-argon",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "10",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Implicit caching only (no explicit caching). Free tier: no.",
+    "output": "Output price includes thinking tokens. Implicit caching only (no explicit caching). Free tier: no.",
+    "cachedInput": "Implicit caching only (no explicit caching). Free tier: no."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16-scheduled-2026-12-01",
+   "model": "gemini-4-argon",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-12-01",
+   "rates": {
+    "input": {
+     "price": "4",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "20",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "cachedInput": {
+     "price": "0.2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "note": "Scheduled change shown on the source page, effective 2026-12-01."
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-4-argon",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "batch",
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "5",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "input": "Batch and Flex share the batch price.",
+    "output": "Output price includes thinking tokens. Batch and Flex share the batch price."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16-scheduled-2026-12-01",
+   "model": "gemini-4-argon",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "batch",
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-12-01",
+   "rates": {
+    "input": {
+     "price": "2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "10",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "note": "Scheduled change shown on the source page, effective 2026-12-01."
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-4-argon",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "priority",
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "input": {
+     "price": "3.6",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "18",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "output": "Output price includes thinking tokens. "
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16-scheduled-2026-12-01",
+   "model": "gemini-4-argon",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "priority",
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-12-01",
+   "rates": {
+    "input": {
+     "price": "7.2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    },
+    "output": {
+     "price": "36",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "note": "Scheduled change shown on the source page, effective 2026-12-01."
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-embedding-2",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "textInputTokens": {
+     "price": "0.2",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   },
+   "notes": {
+    "textInputTokens": "Image 0.45 per 1M (0.00012 per image); audio 6.50 per 1M (0.00016 per second); video 12.00 per 1M (0.00079 per frame). Free tier: yes."
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "gemini-embedding-2",
+   "currency": "USD",
+   "verified": false,
+   "serviceTier": "batch",
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "textInputTokens": {
+     "price": "0.1",
+     "per": 1000000,
+     "unit": "USD per 1M tokens"
+    }
+   }
+  },
+  {
+   "pricingVersion": "google-seed-2026-10-16",
+   "model": "veo-3.1-generate-preview",
+   "currency": "USD",
+   "verified": false,
+   "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrievedAt": "2026-10-16",
+   "sourceVersion": "Page states \"last updated 2026-10-16 UTC\". Where a change is scheduled the page shows current and later prices joined by an arrow; the first value is recorded as current.",
+   "effectiveFrom": "2026-10-16",
+   "rates": {
+    "videoSeconds720p1080p": {
+     "price": "0.4",
+     "per": 1,
+     "unit": "USD per second (with audio)"
+    }
+   },
+   "notes": {
+    "videoSeconds720p1080p": "4K 0.60 per second. Successful generations only."
+   }
+  }
+ ]
+}
