@@ -166,6 +166,13 @@ export function structureGaps(c: IntentContent): IntentGap[] {
   return gaps
 }
 
+/** A need's subject names a system when it equals the system's name or one contains the other (case-insensitive). */
+function sameSubject(system: string | undefined, subject: string | undefined): boolean {
+  const a = (system ?? '').trim().toLowerCase()
+  const b = (subject ?? '').trim().toLowerCase()
+  return a !== '' && b !== '' && (a.includes(b) || b.includes(a))
+}
+
 /** The gaps of one intent revision (see structureGaps for the structural ones). */
 export function computeGaps(c: IntentContent): IntentGaps {
   const systemGaps = structureGaps(c)
@@ -173,7 +180,7 @@ export function computeGaps(c: IntentContent): IntentGaps {
   for (const n of c.informationNeeds) {
     if (n.state !== 'open') continue
     // An open need about a system that already has a structural gap is the same gap: one entry keeping both IDs.
-    const twin = n.subject ? systemGaps.find((g) => g.source === 'structure' && g.subject === n.subject && g.ref !== undefined) : undefined
+    const twin = n.subject ? systemGaps.find((g) => g.source === 'structure' && g.ref !== undefined && sameSubject(g.subject, n.subject)) : undefined
     if (twin) {
       twin.ids = [...(twin.ids ?? [twin.id]), `need-${n.id}`]
       if (GAP_TIERS.indexOf(TIER_OF_NEED[n.tier]) < GAP_TIERS.indexOf(twin.tier)) twin.tier = TIER_OF_NEED[n.tier]

@@ -77,7 +77,7 @@ describe('gaps are computed from the structure', () => {
     expect(computeGaps(intent({ integration: 'connected', externalSystems: [] })).gaps.map((g) => g.id)).toEqual(['systems'])
   })
   it('an open need about a system that already has a structural gap is merged into it, keeping both IDs', () => {
-    const need = { id: 'N1', text: 'which model', tier: 1 as const, route: 'ask-user' as const, state: 'open' as const, subject: 'Existing apparatus' }
+    const need = { id: 'N1', text: 'which model', tier: 1 as const, route: 'ask-user' as const, state: 'open' as const, subject: 'existing apparatus' }
     const g = computeGaps(intent({ informationNeeds: [need, { ...need, id: 'N2', subject: 'Something else' }] }))
     expect(g.gaps.map((x) => x.id)).toEqual(['system-0', 'need-N2'])
     expect(g.gaps[0].ids).toEqual(['system-0', 'need-N1'])
