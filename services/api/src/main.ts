@@ -8,7 +8,17 @@ import { buildServer, prepareDatabase } from './server'
 import { loadAssistantKey } from '@ews/assistant-service'
 
 loadEnvFile()
-const cfg = readConfig()
+let cfg: ReturnType<typeof readConfig>
+try {
+  cfg = readConfig()
+} catch (e) {
+  // Deployed without an external database, or an invalid setting: fail fast with a clear message.
+  console.error(e instanceof Error ? e.message : e)
+  process.exit(1)
+}
+if (cfg.production && cfg.allowDevIdentities) {
+  console.warn('[security] EWS_ALLOW_DEV_IDENTITIES=1: this deployed instance accepts the X-Dev-User header, so anyone who can reach it can act as any seeded development user. Use only behind an access gate (prototype).')
+}
 let stopDb: () => Promise<void> = async () => undefined
 if (cfg.pgMode === 'embedded') {
   const handle = await startEmbedded(cfg.embedded)
@@ -31,6 +41,7 @@ const server = await buildServer({
   pool,
   storage: localObjectStorage(cfg.storageDir),
   production: cfg.production,
+  devIdentities: cfg.allowDevIdentities,
   logger: true,
   reqifSchemaDir: cfg.reqifSchemaDir,
   outboxRetentionHours: cfg.outboxRetentionHours,
@@ -40,7 +51,7 @@ const server = await buildServer({
   // AI runtime (ADR-0080): user mode by default (people's own connections, as before); mock only when EWS_AI_MODE=mock or
   // EWS_ASSISTANT_FAKE_PROVIDER=1 (no external credentials, stored connections ignored); development with provider keys from the
   // environment when EWS_AI_MODE=development.
-  assistant: { key: loadAssistantKey({ production: cfg.production, repoRoot: REPO_ROOT }), publicOrigin: `http://${cfg.host}:${cfg.port}`, fakeProvider: ai.mode === 'mock' && !cfg.production, ai },
+  assistant: { key: loadAssistantKey({ production: cfg.production, repoRoot: REPO_ROOT }), publicOrigin: cfg.publicOrigin ?? `http://${cfg.host}:${cfg.port}`, fakeProvider: ai.mode === 'mock' && !cfg.production, ai },
 })
 await server.app.listen({ host: cfg.host, port: cfg.port })
 console.log(`Requirements API on http://${cfg.host}:${cfg.port}/api/requirements/v1 (OpenAPI: /api/requirements/v1/openapi.json), database ${cfg.databaseName} (${cfg.pgMode}).`)

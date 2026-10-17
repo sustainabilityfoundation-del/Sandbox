@@ -25,6 +25,7 @@ architecture: [docs/architecture.md](../../docs/architecture.md).
 ```bash
 npm run dev:api                # backend alone (API :8787, embedded PostgreSQL)
 npx vitest run services/api/src
+npm run db:migrate             # all nine schemas (src/migrations.ts); add -- --check for a read-only report (exit 1 if pending or drifted)
 npm run req:test:db            # services/api/test on a disposable real PostgreSQL (all services)
 npm run typecheck -w @ews/api
 ```
