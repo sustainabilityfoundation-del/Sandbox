@@ -109,6 +109,14 @@ Owner: "focus on getting the cad working better woth more functionality". CAD Mo
 [cad-sprints-c1-c3.md](../specifications/cad-sprints-c1-c3.md): C1 sketching by clicks and reliability (after OSS-9 merges), C2 part features
 (holes, mirror, circular pattern, shell, draft, body booleans), C3 measurement, STEP import, STL, loft and sweep. Owner decisions listed there.
 
+## Owner: "Do everything automatically" (16 October 2026, about 22:30 EDT)
+No pull requests; the coordinator merges verified work to main after review (where required) and a green integration run, for all
+work including ECII and the AI infrastructure. Reversible owner questions proceed on recorded defaults (owner may change them):
+AI development budget USD 25 per month as one cap across providers; "Sign in with ChatGPT" stays local and Manual-only.
+Legal, licence and commercial-terms questions stay listed for the owner and do not block work.
+ECII ([brief](../specifications/ecii-brief.md)): ECII Architect (Opus, read-only) producing the §20 report; practice research
+(NASA SE Handbook, interface management, INCOSE, 15288/29148 summaries, SysML interfaces) on branch research/ecii-practice.
+
 ## Integration queue (16 October 2026, 22:15 EDT)
 Integration runs use the separate worktree ../Sandbox-integration; the main checkout stays on main (the owner's dev server).
 Order (reviewer): (1) ui/retire-illustrative-rename-system-model (approved; review fixes in, main merged at 3dc5291);
