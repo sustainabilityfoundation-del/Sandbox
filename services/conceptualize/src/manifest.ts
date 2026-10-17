@@ -58,5 +58,8 @@ export const conceptualizeServerManifest: ServerModuleDescriptor = {
     'conceptualize.interpret_intent': 'propose',
     'conceptualize.read_context': 'read',
     'conceptualize.identify_gaps': 'calculate',
+    // ECII increment 2: architecture-first generation and the readiness gate (appended by the ECII implementer, COORDINATOR REVIEW)
+    'conceptualize.assess_diversity': 'calculate',
+    'conceptualize.evaluate_readiness': 'calculate',
   },
 }

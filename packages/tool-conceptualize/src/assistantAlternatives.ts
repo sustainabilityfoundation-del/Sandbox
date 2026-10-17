@@ -2,6 +2,8 @@ import { ActionError, type AssistantActionDefinition, type ServiceProposalItem }
 import type { CriterionCategory, CriterionInput, DefinitionInput, ExplorationCreate, Quantity, StatementInput, StatementKind } from '@ews/conceptualize-client'
 import { assistantProvenance, connection, optString, proposal, resolve, string } from './assistantShared'
 import { definitionSchema } from './assistantVisual'
+import { architectureOf, architectureSchema, LEVELS, levelOf, readinessNote, type Level } from './assistantArchitecture'
+import type { ArchitectureInput } from '@ews/conceptualize-client'
 import { formatQuantity, KIND_LABEL } from './domain'
 import { parameterLabel } from './layout/renderLayout'
 import { generationRecord, illustrationAvailability, illustrationInstruction, refusalRecord, visualizationPort } from './visualization'
@@ -92,9 +94,11 @@ interface ModelAlternative {
   parts: string[]
   /** Engineering definition (components, parameters, interfaces, layout): validated by the service. */
   definition?: DefinitionInput
+  /** ECII increment 2: the architecture block (level architecture) or the parent link (level variant). */
+  architecture?: ArchitectureInput
 }
 
-function alternativesOf(raw: unknown): ModelAlternative[] {
+function alternativesOf(raw: unknown, level?: Level, parentArchitecture?: string): ModelAlternative[] {
   if (raw === undefined || raw === null || (Array.isArray(raw) && raw.length === 0)) return bad(REFUSE_NO_ALTERNATIVES)
   if (!Array.isArray(raw)) return bad(`alternatives must be an array. ${REFUSE_NO_ALTERNATIVES}`)
   if (raw.length > 20) bad('At most 20 alternatives.')
@@ -103,7 +107,8 @@ function alternativesOf(raw: unknown): ModelAlternative[] {
     if (!isObj(a)) return bad(`${at} must be an object { name, summary, description?, statements? }. ${REFUSE_NO_ALTERNATIVES}`)
     const parts = a.parts === undefined || a.parts === null ? [] : Array.isArray(a.parts) ? a.parts.map((p, j) => text(p, `${at}.parts[${j}]`)!) : bad(`${at}.parts must be an array of names.`)
     if (a.definition !== undefined && a.definition !== null && !isObj(a.definition)) bad(`${at}.definition must be an object { intent?, components?, parameters?, interfaces?, layout? }.`)
-    return { name: text(a.name, `${at}.name`)!, summary: text(a.summary, `${at}.summary`)!, description: text(a.description, `${at}.description`, false), statements: modelStatements(a.statements, `${at}.statements`), parts, ...(isObj(a.definition) ? { definition: a.definition as DefinitionInput } : {}) }
+    const architecture = architectureOf(a.architecture, level, parentArchitecture, at)
+    return { name: text(a.name, `${at}.name`)!, summary: text(a.summary, `${at}.summary`)!, description: text(a.description, `${at}.description`, false), statements: modelStatements(a.statements, `${at}.statements`), parts, ...(isObj(a.definition) ? { definition: a.definition as DefinitionInput } : {}), ...(architecture ? { architecture } : {}) }
   })
   const names = out.map((a) => a.name.toLowerCase())
   const dup = names.find((n, i) => names.indexOf(n) !== i)
@@ -179,6 +184,24 @@ function tradeStudyOf(raw: unknown, alternatives: ModelAlternative[], fallbackTi
 export const MODEL_GENERATOR = 'assistant proposal (alternatives as written in the conversation)'
 
 const statementLine = (s: StatementInput) => `${KIND_LABEL[s.kind]}: ${s.text}${s.quantity ? ` ${formatQuantity(s.quantity)}` : ''}`
+const architectureLines = (a: ModelAlternative): ServiceProposalItem[] => {
+  const b = a.architecture
+  if (!b) return []
+  if (b.level === 'variant') return [{ label: `${a.name}: variant of`, proposed: b.parent ?? '', basis: 'ai-hypothesis' }]
+  const line = (label: string, v: string | string[] | undefined): ServiceProposalItem[] => (v && v.length ? [{ label: `${a.name}: ${label}`, proposed: Array.isArray(v) ? v.join('; ') : v, basis: 'ai-hypothesis' }] : [])
+  return [
+    ...line('host interface', b.hostInterface),
+    ...line('attachment principle', b.attachmentPrinciple),
+    ...line('interface geometry', b.interfaceGeometry),
+    ...line('load path', b.loadPath),
+    ...line('installation and removal', b.installationRemoval),
+    ...line('advantages', b.advantages),
+    ...line('disadvantages', b.disadvantages),
+    ...line('risks', b.risks),
+    ...line('assumptions (unverified)', b.assumptions),
+    ...line('evidence required', b.evidenceRequired),
+  ]
+}
 const scoreText = (s: Score) => (s.qualitative != null ? `${s.qualitative}/5` : s.value != null ? `${s.value}${s.unit ? ` ${s.unit}` : ''}` : `${s.low}–${s.high}${s.unit ? ` ${s.unit}` : ''}`)
 
 export const developAlternatives: AssistantActionDefinition = {
@@ -190,13 +213,16 @@ export const developAlternatives: AssistantActionDefinition = {
     'Optionally supply `tradeStudy`: criteria with weights, and scores per alternative and criterion with a rationale (qualitative 1–5, or value / low–high in the criterion unit). ' +
     'Everything is recorded exactly as you write it, as AI hypotheses (or the basis you give: assumption, estimate). The objective text is kept verbatim. ' +
     'Give `parentId` to put the alternatives under an existing Concept; otherwise `name` names the new parent Concept. Nothing is invented by this operation; without alternatives it refuses. One atomic change, applied only after review. ' +
-    'Propose 3 alternatives unless the user asks for another number; make them differ in architecture, mechanism, packaging or manufacture, not only in styling. Give each a `definition` (components, parameters with units, interfaces and a structured layout) so it is drawn as a dimensioned layout and compared side by side (`visuals.layout`, default true). `visuals.illustration` also requests illustrative images when image generation is available (otherwise the reason is shown and layouts still work).',
+    'Propose 3 alternatives unless the user asks for another number; make them differ in architecture, mechanism, packaging or manufacture, not only in styling. ' +
+    'Architecture first: when the design object works with another system, first record the different ways it could work with it with `level: "architecture"` and an `architecture` block per alternative (host interface, attachment principle, interface geometry, load path, installation and removal, advantages, disadvantages, risks, assumptions, evidence required), then check them with conceptualize.assess_diversity. Only afterwards explore parameters, orientation, material and local shape with `level: "variant"` and `parentArchitecture` naming the architecture; a set that differs only in parameters is a set of variants, not of architectures. State unverified host features as assumptions or evidence required; never invent them. The preview says whether the output is provisional (conceptualize.evaluate_readiness). Give each a `definition` (components, parameters with units, interfaces and a structured layout) so it is drawn as a dimensioned layout and compared side by side (`visuals.layout`, default true). `visuals.illustration` also requests illustrative images when image generation is available (otherwise the reason is shown and layouts still work).',
   parameters: {
     type: 'object',
     properties: {
       text: { type: 'string', description: 'The design objective in the user’s words (kept verbatim).' },
       name: { type: 'string', description: 'Name of the new parent Concept (when no parentId).' },
       parentId: { type: 'string', description: 'Existing Concept (key or UUID) the alternatives belong to.' },
+      level: { type: 'string', enum: [...LEVELS], description: 'architecture: the alternatives are different ways the solution is organised (each needs an architecture block). variant: parameter, material or local-shape variations of one architecture (needs parentArchitecture). Omit only for generic alternatives outside the architecture-first workflow.' },
+      parentArchitecture: { type: 'string', description: 'level variant: key, ID or name of the architecture the alternatives vary.' },
       statements: { ...statementsSchema, description: 'Statements of the parent Concept, e.g. the constraints of the objective.' },
       alternatives: {
         type: 'array',
@@ -204,7 +230,7 @@ export const developAlternatives: AssistantActionDefinition = {
         maxItems: 20,
         items: {
           type: 'object',
-          properties: { name: string, summary: string, description: string, statements: statementsSchema, parts: { type: 'array', items: string, maxItems: 30, description: 'Names of child Concepts (functional decomposition).' }, definition: definitionSchema },
+          properties: { name: string, summary: string, description: string, statements: statementsSchema, parts: { type: 'array', items: string, maxItems: 30, description: 'Names of child Concepts (functional decomposition).' }, architecture: architectureSchema, definition: definitionSchema },
           required: ['name', 'summary'],
         },
       },
@@ -240,7 +266,10 @@ export const developAlternatives: AssistantActionDefinition = {
   async run(args, ctx) {
     const objective = text(args.text, '“text”')!
     // Validate the model's content before touching the service, so a missing list is refused clearly.
-    const alternatives = alternativesOf(args.alternatives)
+    const level = levelOf(args)
+    const parentArchitecture = optString(args, 'parentArchitecture')
+    if (parentArchitecture && level !== 'variant') bad('parentArchitecture belongs to level variant.')
+    const alternatives = alternativesOf(args.alternatives, level, parentArchitecture)
     const parentStatements = modelStatements(args.statements, 'statements')
     const { client, projectId } = connection(ctx)
     const visualsArg = (isObj(args.visuals) ? args.visuals : {}) as { layout?: boolean; illustration?: boolean }
@@ -263,11 +292,13 @@ export const developAlternatives: AssistantActionDefinition = {
         ...(a.description ? { description: a.description } : {}),
         statements: a.statements,
         ...(a.parts.length ? { children: a.parts.map((p) => ({ name: p, abstraction: 'function' as const })) } : {}),
-        ...(a.definition ? { definition: a.definition, stage: a.definition.layout ? ('layout' as const) : ('exploration' as const) } : {}),
+        ...(a.definition || a.architecture ? { definition: { ...(a.definition ?? {}), ...(a.architecture ? { architecture: a.architecture } : {}) }, stage: a.definition?.layout ? ('layout' as const) : ('exploration' as const) } : {}),
       })),
       ...(tradeStudy ? { tradeStudy } : {}),
       generator: MODEL_GENERATOR,
     }
+    // Advisory readiness (ECII increment 2): architecture-first output is provisional until the context supports its activity.
+    const readiness = level ? await readinessNote(client, level === 'architecture' ? 'architecture-concepts' : 'host-specific-concepts') : undefined
     const preview: ServiceProposalItem[] = [
       existing ? { label: 'Parent Concept (existing)', proposed: `${existing.key} ${existing.name}`, targetId: existing.id } : { label: 'Parent Concept', proposed: parentName!, basis: 'ai-hypothesis' },
       { label: 'Objective (your words)', proposed: objective, basis: 'user-statement' },
@@ -276,6 +307,7 @@ export const developAlternatives: AssistantActionDefinition = {
         { label: `Alternative ${i + 1}`, proposed: `${a.name}: ${a.summary}${a.parts.length ? ` (parts: ${a.parts.join(', ')})` : ''}`, basis: 'ai-hypothesis' },
         ...(a.description ? [{ label: `${a.name}: description`, proposed: a.description, basis: 'ai-hypothesis' as const }] : []),
         ...a.statements.map((s): ServiceProposalItem => ({ label: `${a.name}: statement`, proposed: statementLine(s), basis: s.basis as ModelBasis })),
+        ...architectureLines(a),
         ...(a.definition
           ? [
               { label: `${a.name}: components`, proposed: (a.definition.components ?? []).map((c) => `${c.id ? `${c.id} ` : ''}${c.name}`).join(', ') || '(none)', basis: 'ai-hypothesis' as const },
@@ -284,6 +316,8 @@ export const developAlternatives: AssistantActionDefinition = {
             ]
           : []),
       ]),
+      ...(level ? [{ label: 'Level', proposed: level === 'architecture' ? 'Architectures (different ways the solution is organised)' : `Variants of ${parentArchitecture}` }] : []),
+      ...(readiness ? [{ label: 'Readiness (advisory)', proposed: readiness.label }] : []),
       ...(tradeStudy
         ? [
             { label: 'Trade study', proposed: `${tradeStudy.title}: ${tradeStudy.criteria.map((c) => `${c.name} (weight ${c.weight}, ${c.direction}${c.unit ? `, ${c.unit}` : ''})`).join('; ')}`, basis: 'ai-hypothesis' as const },
@@ -298,6 +332,7 @@ export const developAlternatives: AssistantActionDefinition = {
       preview,
       assumptions: [
         'The alternatives, statements and scores are the assistant’s proposals, not research results or measurements.',
+        ...(readiness?.provisional ? [`${readiness.label}. These are provisional concepts, not validated engineering solutions.`] : []),
         ...(tradeStudy?.scores?.length ? ['Trade-study scores are AI hypotheses for discussion; the ranking is preliminary.'] : []),
         ...(illustrations ? [illustrations.available ? `Illustrations are requested (${illustrations.adapter}); they are illustrative, not to scale. ${illustrations.reason}` : `Illustrations are not available: ${illustrations.reason} The layouts are drawn as usual; no image is made.`] : []),
       ],
@@ -338,7 +373,17 @@ export const developAlternatives: AssistantActionDefinition = {
             }
           }
         }
-        return { summary: `Recorded ${alts.map((c) => `${c.key} ${c.name}`).join(', ')} as alternatives${parent ? ` of ${parent.key}` : existing ? ` of ${existing.key}` : ''}${tradeStudy ? ' with a trade study' : ''}${notes.length ? `. Visuals: ${notes.join('; ')}` : ''}`, createdIds: [...e.created.concepts.map((c) => c.id), ...visualIds] }
+        // Level architecture: say at once whether the alternatives are really different (deterministic, advisory).
+        let diversityNote = ''
+        if (level === 'architecture' && alts.length > 1) {
+          try {
+            const d = await client.assessDiversity({ conceptIds: alts.map((c) => c.id) })
+            diversityNote = `. Diversity: ${d.distinctCount} distinct architecture(s), ${d.verdict}${d.findings.length ? ` (${d.findings[0]})` : ''}`
+          } catch (err) {
+            diversityNote = `. Diversity not assessed (${(err as Error).message})`
+          }
+        }
+        return { summary: `Recorded ${alts.map((c) => `${c.key} ${c.name}`).join(', ')} as alternatives${level ? ` (level ${level})` : ''}${parent ? ` of ${parent.key}` : existing ? ` of ${existing.key}` : ''}${tradeStudy ? ' with a trade study' : ''}${notes.length ? `. Visuals: ${notes.join('; ')}` : ''}${diversityNote}`, createdIds: [...e.created.concepts.map((c) => c.id), ...visualIds] }
       },
       async undo() {
         if (!explorationId) return { summary: 'Nothing to undo.' }

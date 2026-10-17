@@ -5,6 +5,7 @@ import { registeredReferencePorts } from './references'
 import { designActions, designDemo } from './assistantDesign'
 import { visualActions } from './assistantVisual'
 import { intentActions } from './assistantIntent'
+import { architectureActions } from './assistantArchitecture'
 import { assistantProvenance, connection, constraintBindingRef, optString, proposal, resolve, string, UUID } from './assistantShared'
 import { generateExploration } from './ai/generator'
 import { demoAlternativesArguments, developAlternatives, modelStatements, statementsSchema } from './assistantAlternatives'
@@ -414,6 +415,6 @@ export const conceptsDemo: DemoPlanner = (text, ctx) => {
   return null
 }
 
-const actions: AssistantActionDefinition[] = [...conceptActions, ...designActions, ...visualActions, ...intentActions]
+const actions: AssistantActionDefinition[] = [...conceptActions, ...designActions, ...visualActions, ...intentActions, ...architectureActions]
 
 export const conceptsAssistant: AssistantContribution = { actions, demo: conceptsDemo }

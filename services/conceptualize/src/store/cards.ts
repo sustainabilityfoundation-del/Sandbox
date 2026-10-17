@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { invalid, notFound } from '../errors'
+import { provisionalLabel } from '../domain/architecture'
 import { readDefinition, type EngineeringDefinition } from '../domain/definition'
 import type { ConceptDto, DecisionDto } from '../http/schemas'
 import { listDecisions, listSets, requireSet } from './alternatives'
+import { readinessOf } from './architecture'
 import { listAssumptions } from './assumptions'
 import { requireConcept } from './concepts'
 import { listConstraints } from './constraints'
@@ -141,7 +143,7 @@ export async function setCards(db: Queryable, projectId: string, setId: string):
 // ---- CAD handoff ------------------------------------------------------------------------------------------------------
 
 export interface HandoffItem {
-  kind: 'open-question' | 'uncertainty' | 'missing-definition' | 'parameter-range' | 'unplaced-component' | 'interface-without-parameters' | 'unchecked-constraint' | 'not-selected' | 'unvalidated-assumption'
+  kind: 'open-question' | 'uncertainty' | 'missing-definition' | 'parameter-range' | 'unplaced-component' | 'interface-without-parameters' | 'unchecked-constraint' | 'not-selected' | 'unvalidated-assumption' | 'provisional-readiness'
   text: string
   ref: string | null
 }
@@ -187,10 +189,22 @@ export async function buildHandoffPackage(db: Queryable, projectId: string, conc
   for (const x of card.constraints) if (x.coverage === 'intended') unresolved.push({ kind: 'unchecked-constraint', text: `${x.key} ${x.statement} has no recorded check.`, ref: x.id })
   for (const a of card.assumptions) if (a.validationStatus !== 'validated') unresolved.push({ kind: 'unvalidated-assumption', text: `${a.key} ${a.statement} (${a.validationStatus})`, ref: a.id })
   if (!card.membership.some((m) => m.status === 'selected') && concept.maturity !== 'selected') unresolved.push({ kind: 'not-selected', text: `${concept.key} is not recorded as the selected alternative.`, ref: concept.id })
+  // ECII increment 2: the readiness gate is advisory in Phase 1. A handoff built before the interfaces are verified is labelled
+  // provisional and lists what is unmet; it is never refused. Without an engineering intent readiness cannot be assessed.
+  const readiness = await readinessOf(db, projectId, { activity: 'cad-handoff', conceptId: concept.id })
+  const gate = readiness.activities[0]
+  if (readiness.intent && gate && readiness.provisional) {
+    unresolved.push({ kind: 'provisional-readiness', text: provisionalLabel(readiness.level, gate.unmet, 'cad-handoff'), ref: readiness.intent.id })
+    for (const u of gate.unmet) unresolved.push({ kind: 'provisional-readiness', text: u.text, ref: u.ref ?? readiness.intent.id })
+  }
   return {
     schema: 'conceptualize.cad-handoff/1',
     concept: { id: concept.id, key: concept.key, name: concept.name, revision: concept.revision, stage: concept.stage, maturity: concept.maturity },
     intent: def.intent,
+    architecture: def.architecture,
+    readiness: readiness.intent
+      ? { assessed: true, activity: 'cad-handoff', intent: readiness.intent.key, level: readiness.level, provisional: readiness.provisional, advisory: true, unmet: gate?.unmet ?? [], criteriaVersion: readiness.criteriaVersion }
+      : { assessed: false, activity: 'cad-handoff', advisory: true, note: 'No engineering intent is recorded, so readiness was not assessed; interpret the intent first.' },
     components: def.components,
     relationships: def.relationships,
     interfaces: def.interfaces,

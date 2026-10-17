@@ -45,6 +45,131 @@
           "final": "Gaps: ${conceptualize.identify_gaps.data.counts.essential} essential, ${conceptualize.identify_gaps.data.counts.concept} concept. No system gaps and nothing to research, so I will continue without asking."
         }
       ]
+    },
+    {
+      "user": "^ECII D architectures",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.develop_alternatives",
+              "arguments": {
+                "text": "Standalone ways to organise a freestanding organizer",
+                "name": "Organizer architectures",
+                "level": "architecture",
+                "alternatives": [
+                  {
+                    "name": "Tiered rack with drilled slots",
+                    "summary": "Stacked tiers, each with a row of slots.",
+                    "architecture": {
+                      "hostInterface": "",
+                      "interfaceGeometry": "",
+                      "advantages": [
+                        "No interface to any other system"
+                      ],
+                      "risks": [],
+                      "assumptions": [],
+                      "attachmentPrinciple": "Items stand upright in slots in stepped tiers",
+                      "loadPath": "Weight rests on the work surface through the base",
+                      "installationRemoval": "Place on the surface; nothing to install",
+                      "disadvantages": [
+                        "Large footprint"
+                      ],
+                      "evidenceRequired": [
+                        "Number and size of the items to store"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Magnetic strip with clips",
+                    "summary": "A strip holds items along a edge.",
+                    "architecture": {
+                      "hostInterface": "",
+                      "interfaceGeometry": "",
+                      "advantages": [
+                        "No interface to any other system"
+                      ],
+                      "risks": [],
+                      "assumptions": [],
+                      "attachmentPrinciple": "Items held along a strip by magnetic attraction",
+                      "loadPath": "Weight is carried by the strip and its fixing",
+                      "installationRemoval": "Screw the strip to a wall or stand",
+                      "disadvantages": [
+                        "Needs a fixing surface"
+                      ],
+                      "evidenceRequired": [
+                        "Mass of the items and a mounting surface"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Rotating carousel",
+                    "summary": "A turntable with radial slots.",
+                    "architecture": {
+                      "hostInterface": "",
+                      "interfaceGeometry": "",
+                      "advantages": [
+                        "No interface to any other system"
+                      ],
+                      "risks": [],
+                      "assumptions": [],
+                      "attachmentPrinciple": "Items in radial slots on a rotating disc",
+                      "loadPath": "Weight rests on the base through a central bearing",
+                      "installationRemoval": "Place on the surface; the disc lifts off",
+                      "disadvantages": [
+                        "More parts than a fixed rack"
+                      ],
+                      "evidenceRequired": [
+                        "Number of items and the reach of the person"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "final": "Because the organizer works alone, there is no host interface to identify. I prepared three standalone architectures: a tiered rack, a magnetic strip and a rotating carousel. Apply to record them."
+        }
+      ]
+    },
+    {
+      "user": "^ECII D readiness",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Organizer architectures"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.assess_diversity",
+              "arguments": {
+                "parentId": "${conceptualize.search.data.concepts.0.key}",
+                "minimum": 3
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.evaluate_readiness",
+              "arguments": {}
+            }
+          ]
+        },
+        {
+          "final": "${conceptualize.assess_diversity.data.distinctArchitectures} distinct standalone architectures (${conceptualize.assess_diversity.data.verdict}). ${conceptualize.evaluate_readiness.data.label}. Nothing outside the design object needs researching or verifying."
+        }
+      ]
     }
   ]
 }

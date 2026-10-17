@@ -680,3 +680,4 @@ export interface UnitCheck {
 import type { DefinitionInput, EngineeringDefinition, Stage } from './visualTypes'
 export type * from './visualTypes'
 export type * from './intentTypes'
+export type * from './architectureTypes'

@@ -26,6 +26,7 @@ editing an accepted one.
 | [0075](0075-cad-occt-shape-history-naming.md) | CAD naming: OCCT shape history as the second signal (amends 0024) | Proposed |
 | [0074](0074-capability-registry-and-toolbars.md) | Capability registry and capability-complete toolbars (manifest inventory extended; computed implementation state; CommandBar; AI list_capabilities; amends ADR-0013) | Accepted |
 | [0081](0081-ecii-placement-and-interface-ownership.md) | ECII placement across existing modules, federated context graph, interface ownership (option A), product origin | Proposed |
+| [0083](0083-architecture-first-and-readiness-criteria.md) | ECII architecture-first generation, diversity assessment and readiness criteria as data (advisory in Phase 1) | Proposed |
 | [0073](0073-sbom-and-licence-checks.md) | SBOM, machine-readable dependency register and licence policy check from npm built-ins and the lockfile (no new dependency) | Proposed |
 | [0072](0072-agent-context-management.md) | Agent context management: context levels, model routing, controls and lifecycle hooks | Accepted (16 Oct 2026) |
 | [0070](0070-development-assurance-boundaries.md) | Boundaries for future standards-aware development assurance (profiles as data, classifications keep their standard, configuration-specific evidence, distinct states) | Accepted |

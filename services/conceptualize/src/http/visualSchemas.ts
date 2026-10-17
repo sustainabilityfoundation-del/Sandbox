@@ -13,7 +13,7 @@ const AssetRef = Type.Object({ assetId: Text(200, 1), sha256: Type.Optional(Type
 const ProvenanceOut = Type.Object({ sourceKind: Type.String(), conversationId: Nullable(Type.String()), proposalId: Nullable(Type.String()), messageId: Nullable(Type.String()) })
 
 export const DefinitionChange = Type.Object({
-  area: L('intent', 'component', 'relationship', 'interface', 'parameter', 'layout'),
+  area: L('intent', 'component', 'relationship', 'interface', 'parameter', 'layout', 'architecture'),
   id: Type.String(),
   change: L('added', 'removed', 'changed'),
   label: Type.String(),

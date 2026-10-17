@@ -264,7 +264,7 @@ export async function updateIntent(ctx: Ctx, id: string, patch: IntentPatchDto, 
   return (await getIntent(ctx.db, ctx.projectId, id))!
 }
 
-const contentOf = (i: IntentOut): IntentContent => ({
+export const contentOf = (i: IntentOut): IntentContent => ({
   designObject: i.designObject,
   role: i.role,
   integration: i.integration,

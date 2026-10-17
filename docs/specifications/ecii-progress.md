@@ -2,9 +2,10 @@
 
 ## Status (one page; kept current by the ECII implementer)
 
-- **State:** increment 1 (engineering intent and clarification) implemented on `feature/ecii-1-intent`, based on main 515cba8; not merged.
+- **State:** increment 1 is on main. Increment 2 (architecture-first and readiness) implemented on `feature/ecii-2-architecture` (from main 4764ff3); not merged.
+- **Increment 2 done:** architecture block in the Concept definition (no migration); `develop_alternatives` `level`; operations `assess_diversity` and `evaluate_readiness` (calculate); provisional labelling in previews and `create_cad_handoff`; scripts `ecii-e-sensor`, `ecii-e-fan`, A6-A8 in `ecii-a`, D3 in `ecii-d`, D1-a/D1-b steps in `d1-plumbing`; [ADR-0083](../decisions/0083-architecture-first-and-readiness-criteria.md) (open-source paragraph included: none suitable found).
 - **Done:** `INT-` type and migration 0008; operations `interpret_intent`, `read_context`, `identify_gaps`; artifact kind `intent`; capability entries and help; instruction lines in `wire.ts`; replay scripts `ecii-a.json`, `ecii-d.json`; D1 plumbing script intent step; browser flow `ecii`; PostgreSQL and unit tests including the domain-word isolation test; [engineering-context.md](../modules/engineering-context.md); [ADR-0081](../decisions/0081-ecii-placement-and-interface-ownership.md).
-- **Next actions:** increment 2 (architecture-first generation, readiness gate; Tests A6-A8, D3); increment 3 (`IFC-` interfaces, facts, product `origin`, `document_sources`); increment 4 (research port with fixture adapter). A live evaluation of Tests A-E against the rubric is needed; the replay tests do not cover reasoning quality.
+- **Next actions:** increment 3 (`IFC-` interfaces, facts, product `origin`, `document_sources`); increment 4 (research port with fixture adapter). A live evaluation of Tests A-E against the rubric is needed; the replay tests do not cover reasoning quality.
 - **Blockers:** none. Open points for the coordinator: the conceptualize-service gateway-header addition (`X-Ews-Source`, `X-Ews-Proposal`) is in this branch; the model sees intent validation errors only when the person applies the proposal (no dry-run endpoint yet).
 - **Archive:** none yet.
 
@@ -21,6 +22,10 @@ Decisions made in the implementation:
 - `interpret_intent` is a declarative proposal (platform gateway); Conceptualize accepts the gateway provenance headers like the CAD service.
 - `read_context` returns the project's non-archived concepts (first 100), all constraints, the intent's assumptions and its open questions.
 - The intent is not a `DesignEntityType` yet (no design links to intents in this increment).
+
+## Increment 2 record
+
+Decisions: numbered ADR-0083 (plan reservation) instead of the next free 0082; `provisional` means below Interfaces Verified or gate unmet (Exploratory permits provisional concepts); a design that works alone has nothing to verify and reaches Interfaces Verified; with another system it cannot until increment 3 supplies facts; with no intent readiness is not assessed (handoff carries `assessed: false`, no unresolved entry). Open: the model sees architecture validation errors only at Apply (no dry run); readiness criteria have no per-project override yet; diversity is wording-based. Live evaluation of A-E is still needed.
 
 ## Verification
 

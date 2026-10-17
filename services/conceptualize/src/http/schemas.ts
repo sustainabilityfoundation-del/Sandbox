@@ -134,6 +134,31 @@ const LayoutItemFields = { componentId: ItemId, x: Coord, y: Coord, width: Coord
 const LayoutDimensionFields = { parameterId: ItemId, componentId: ItemId, axis: L('x', 'y') }
 const opt = <T extends Record<string, TSchema>>(o: T, keep: (keyof T)[]) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, keep.includes(k) ? v : Type.Optional(v)])) as { [K in keyof T]: TSchema }
 
+const ArchitectureTextFields = {
+  hostInterface: Text(2000),
+  attachmentPrinciple: Text(2000),
+  interfaceGeometry: Text(2000),
+  loadPath: Text(2000),
+  installationRemoval: Text(2000),
+}
+const ArchitectureListFields = {
+  advantages: Type.Array(Text(1000, 1), { maxItems: 30 }),
+  disadvantages: Type.Array(Text(1000, 1), { maxItems: 30 }),
+  risks: Type.Array(Text(1000, 1), { maxItems: 30 }),
+  assumptions: Type.Array(Text(1000, 1), { maxItems: 30 }),
+  evidenceRequired: Type.Array(Text(1000, 1), { maxItems: 30 }),
+}
+const ArchitectureLevel = L('architecture', 'variant')
+export const ArchitectureOut = Type.Object(
+  { level: ArchitectureLevel, parent: Type.String(), ...ArchitectureTextFields, ...ArchitectureListFields },
+  { $id: 'ArchitectureBlock', description: 'How a solution is organised before dimensions are chosen (ECII increment 2). A variant names the architecture it varies.' },
+)
+const optional = <T extends Record<string, TSchema>>(o: T) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Type.Optional(v)])) as { [K in keyof T]: TSchema }
+export const ArchitectureIn = Type.Object(
+  { level: ArchitectureLevel, parent: Type.Optional(Text(300)), ...optional(ArchitectureTextFields), ...optional(ArchitectureListFields) },
+  { $id: 'ArchitectureInput', additionalProperties: false },
+)
+
 export const Definition = Type.Object(
   {
     intent: Type.String({ description: 'Functional intent: what the Concept must do' }),
@@ -142,6 +167,7 @@ export const Definition = Type.Object(
     interfaces: Type.Array(Type.Object({ id: ItemId, ...InterfaceFields })),
     parameters: Type.Array(Type.Object({ id: ItemId, ...ParameterFields }), { description: 'Defined engineering values with units and basis (never "verified": verification comes from recorded checks)' }),
     layout: Nullable(Type.Object({ view: L('top', 'front', 'side', 'section'), unit: Type.String(), items: Type.Array(Type.Object(LayoutItemFields)), dimensions: Type.Array(Type.Object({ id: ItemId, ...LayoutDimensionFields })) })),
+    architecture: Nullable(ArchitectureOut),
     idSeq: Type.Integer({ minimum: 0 }),
   },
   { $id: 'EngineeringDefinition', description: 'The authoritative engineering definition of a Concept revision. Layouts render it; CAD consumes it; images never write it.' },
@@ -149,6 +175,7 @@ export const Definition = Type.Object(
 export const DefinitionInput = Type.Object(
   {
     intent: Type.Optional(Text(4000)),
+    architecture: Type.Optional(Nullable(ArchitectureIn)),
     components: Type.Optional(Type.Array(Type.Object({ id: Type.Optional(ItemId), ...opt(ComponentFields, ['name']) }, { additionalProperties: false }), { maxItems: 200 })),
     relationships: Type.Optional(Type.Array(Type.Object({ id: Type.Optional(ItemId), ...opt(RelationshipFields, ['type', 'from', 'to']) }, { additionalProperties: false }), { maxItems: 400 })),
     interfaces: Type.Optional(Type.Array(Type.Object({ id: Type.Optional(ItemId), ...opt(InterfaceFields, ['name', 'between']) }, { additionalProperties: false }), { maxItems: 200 })),

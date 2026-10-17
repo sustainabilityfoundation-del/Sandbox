@@ -1,4 +1,5 @@
 import { convert, quantityProblem, sameDimension } from './units'
+import { architectureProblems, readArchitecture, type ArchitectureBlock, type ArchitectureInput } from './architecture'
 import type { Basis } from './rules'
 
 /**
@@ -87,11 +88,13 @@ export interface EngineeringDefinition {
   interfaces: ComponentInterface[]
   parameters: Parameter[]
   layout: Layout | null
+  /** ECII increment 2: how the solution is organised (architecture or variant); null for definitions written before. */
+  architecture: ArchitectureBlock | null
   /** Highest numeric ID suffix ever assigned (IDs are never reused). */
   idSeq: number
 }
 
-export const EMPTY_DEFINITION: EngineeringDefinition = { intent: '', components: [], relationships: [], interfaces: [], parameters: [], layout: null, idSeq: 0 }
+export const EMPTY_DEFINITION: EngineeringDefinition = { intent: '', components: [], relationships: [], interfaces: [], parameters: [], layout: null, architecture: null, idSeq: 0 }
 
 /** Stored definitions written before migration 0007 are `{}`. */
 export function readDefinition(raw: unknown): EngineeringDefinition {
@@ -103,6 +106,7 @@ export function readDefinition(raw: unknown): EngineeringDefinition {
     interfaces: d.interfaces ?? [],
     parameters: d.parameters ?? [],
     layout: d.layout ?? null,
+    architecture: readArchitecture(d.architecture),
     idSeq: d.idSeq ?? 0,
   }
 }
@@ -120,6 +124,8 @@ export interface DefinitionInput {
   interfaces?: (Opt<ComponentInterface, 'id' | 'kind' | 'description' | 'parameterIds'> & { between: string[] })[]
   parameters?: (Opt<Parameter, 'id' | 'name' | 'value' | 'min' | 'max' | 'basis' | 'componentId' | 'constraintId' | 'note'>)[]
   layout?: (Opt<Layout, 'view' | 'unit' | 'dimensions'> & { items: Opt<LayoutItem, 'shape'>[]; dimensions?: Opt<LayoutDimension, 'id'>[] }) | null
+  /** Omitted keeps the previous block; null removes it. */
+  architecture?: ArchitectureInput | null
 }
 
 export interface DefinitionContext {
@@ -308,8 +314,14 @@ export function normalizeDefinition(input: DefinitionInput, previous: Engineerin
       if (d.axis !== 'x' && d.axis !== 'y') errors[`${at}.axis`] = 'x or y'
     })
   }
+  let architecture: ArchitectureBlock | null = previous.architecture ?? null
+  if (input.architecture !== undefined) {
+    architecture = input.architecture === null ? null : readArchitecture(input.architecture)
+    if (input.architecture !== null && !architecture) errors['architecture.level'] = 'one of architecture, variant'
+    else if (architecture) Object.assign(errors, architectureProblems(architecture))
+  }
   if (Object.keys(errors).length) throw new DefinitionError(errors)
-  return { intent: (input.intent ?? '').trim(), components, relationships, interfaces, parameters, layout, idSeq: seq }
+  return { intent: (input.intent ?? '').trim(), components, relationships, interfaces, parameters, layout, architecture, idSeq: seq }
 }
 
 // ---- layout geometry and scale -----------------------------------------------------------------------------
@@ -338,7 +350,7 @@ export function layoutNotToScale(d: EngineeringDefinition): boolean {
 // ---- change detection (staleness) ---------------------------------------------------------------------------
 
 export interface DefinitionChange {
-  area: 'intent' | 'component' | 'relationship' | 'interface' | 'parameter' | 'layout'
+  area: 'intent' | 'component' | 'relationship' | 'interface' | 'parameter' | 'layout' | 'architecture'
   id: string
   change: 'added' | 'removed' | 'changed'
   label: string
@@ -363,6 +375,7 @@ const paramLabel = (p: Parameter) => `${p.symbol} = ${p.value ?? `${p.min ?? 'â€
 export function definitionChanges(a: EngineeringDefinition, b: EngineeringDefinition): DefinitionChange[] {
   return [
     ...(a.intent !== b.intent ? [{ area: 'intent' as const, id: 'intent', change: 'changed' as const, label: 'functional intent' }] : []),
+    ...(!same(a.architecture ?? null, b.architecture ?? null) ? [{ area: 'architecture' as const, id: 'architecture', change: (a.architecture ? (b.architecture ? 'changed' : 'removed') : 'added') as DefinitionChange['change'], label: 'architecture' }] : []),
     ...diffList('component', a.components, b.components, (c) => c.name),
     ...diffList('relationship', a.relationships, b.relationships, (r) => `${r.from} ${r.type} ${r.to}`),
     ...diffList('interface', a.interfaces, b.interfaces, (f) => f.name),
@@ -375,7 +388,7 @@ export function definitionChanges(a: EngineeringDefinition, b: EngineeringDefini
 export const RELEVANT: Record<'layout' | 'illustration' | 'handoff' | 'downstream', DefinitionChange['area'][]> = {
   layout: ['component', 'parameter', 'layout'],
   illustration: ['intent', 'component', 'interface', 'parameter'],
-  handoff: ['intent', 'component', 'relationship', 'interface', 'parameter', 'layout'],
+  handoff: ['intent', 'architecture', 'component', 'relationship', 'interface', 'parameter', 'layout'],
   downstream: ['component', 'interface', 'parameter'],
 }
 

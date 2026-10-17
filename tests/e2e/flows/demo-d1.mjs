@@ -136,6 +136,21 @@ try {
   reply = await ask('D1 allocate')
   await applyAll(reply, 'requirement allocation and SysML product-element link', 2)
 
+  // Step 4b (ECII increment 2, plan section 5: D1-a and D1-b): the mounting architectures come before the layout alternatives.
+  // The bolted block stays the selected architecture for the CAD steps; it is provisional while the drill is not identified.
+  reply = await ask('D1 mounting architectures')
+  check((await operations(reply)).includes('conceptualize.develop_alternatives'), `the model proposed mounting architectures before any layout (${await operations(reply)})`)
+  await applyAll(reply, 'mounting architectures', 1)
+  const blockConcept = ((await get(`/api/concepts/v1/projects/${P}/concepts?text=${encodeURIComponent('Bolted block on the accessory mount')}&limit=10`)).items ?? []).find((c) => c.name === 'Bolted block on the accessory mount')
+  const bolted = blockConcept ? await get(`/api/concepts/v1/projects/${P}/concepts/${blockConcept.id}`) : undefined
+  check(bolted?.definition?.architecture?.level === 'architecture' && /two holes/.test(bolted.definition.architecture.attachmentPrinciple) && bolted.definition.architecture.assumptions.length > 0, 'D1-b the bolted block is recorded as an architecture, with its hole spacing as an unverified assumption')
+  reply = await ask('D1 diversity')
+  const diverse = await answer(reply)
+  check((await operations(reply)).includes('conceptualize.assess_diversity') && /3 distinct mounting architectures \(diverse\)/.test(diverse), `the three mounting architectures are really different: ${diverse.slice(0, 160)}`)
+  reply = await ask('D1 readiness')
+  const gate = await answer(reply)
+  check(/Provisional: readiness is Exploratory/.test(gate) && /remains the selected architecture/.test(gate), `D1-b the bolted block is labelled provisional with readiness Exploratory: ${gate.slice(0, 220)}`)
+
   // Step 5: alternatives.
   reply = await ask('D1 alternatives')
   await applyAll(reply, 'alternatives', 1)

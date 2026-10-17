@@ -85,3 +85,29 @@ gaps.
 PostgreSQL tests cover structure validation, revisioning, basis rules and gaps; the replay scripts `ecii-a.json` and `ecii-d.json`
 run through the browser flow `ecii`. They prove structure, gating and plumbing, **not reasoning quality**: whether a model reads a
 request well is a live evaluation of Tests A-E against a rubric.
+
+## 3. Architecture-first generation and the readiness gate (increment 2)
+
+Decision record: [ADR-0083](../decisions/0083-architecture-first-and-readiness-criteria.md). Code: `services/conceptualize/src/domain/architecture.ts`
+(rules, no model, no keyword rules), `store/architecture.ts`, `http/architectureRoutes.ts`; assistant side
+`packages/tool-conceptualize/src/assistantArchitecture.ts`. No migration: the architecture block is part of the Concept's engineering
+definition (JSONB, validated by `normalizeDefinition` for the user and the assistant alike).
+
+- **Architecture block** (`definition.architecture`): `level` (`architecture` or `variant`), `parent` (variants name the architecture they vary), `hostInterface`,
+  `attachmentPrinciple`, `interfaceGeometry`, `loadPath`, `installationRemoval`, `advantages`, `disadvantages`, `risks`, `assumptions`, `evidenceRequired`.
+  An architecture needs the principle, load path, installation and removal, one disadvantage and one item of evidence required. Omitting the block in a
+  revision keeps the stored one; `null` removes it. A change is an `architecture` area change, so a CAD handoff built earlier is flagged possibly outdated.
+- **`develop_alternatives`** gains `level`, `parentArchitecture` and a per-alternative `architecture`; without `level` it behaves as before. The preview shows the block,
+  a "Readiness (advisory)" line and, when unmet, a provisional assumption. After Apply, level architecture reports the diversity result.
+- **`assess_diversity`** (`GET /diversity?conceptIds|setId|parentId&minimum`, calculate): token similarity per signature field (host interface, principle,
+  geometry, load path, installation), thresholds as data; same principle or mean similarity above the threshold means the same architecture
+  ("differs only in parameters" when parameter values differ); variants and unclassified items are listed, not counted.
+- **`evaluate_readiness`** (`GET /readiness?intentId&activity&conceptId`, calculate): levels not-established, Exploratory, Context Established, Interfaces
+  Verified; criteria are an ordered list of named checks (`READINESS_CRITERIA`, version `readiness-criteria/1`); activities architecture-concepts (Exploratory),
+  host-specific-concepts (Context Established), dimensioned-design and cad-handoff (Interfaces Verified). The result has the hook `contextReadiness
+  { state, blockingIssues }` for the context package. Output is *provisional* whenever the level is below Interfaces Verified or the gate is unmet.
+  Until increment 3 supplies interface and fact records, a design object that works with another system cannot reach Interfaces Verified; one that works
+  alone has nothing to verify. **Advisory in Phase 1**: nothing is refused.
+- **`create_cad_handoff`**: the package carries `architecture` and `readiness`; unmet items are listed as `provisional-readiness` unresolved entries.
+- **Tests**: `domain/architecture.test.ts`, `test/architecture.api.test.ts` (PostgreSQL), `assistantArchitecture.test.ts`, replay scripts `ecii-a` (A6-A8),
+  `ecii-d` (D3), `ecii-e-sensor`, `ecii-e-fan` (Test E), `d1-plumbing` (D1-a, D1-b), browser flows `ecii` and `demo-d1`. They prove structure, not reasoning quality.

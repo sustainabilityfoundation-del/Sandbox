@@ -73,6 +73,245 @@
           "final": "Essential gap: ${conceptualize.identify_gaps.data.gaps.0.text}. Question: ${conceptualize.read_context.data.openQuestions.0.text} Why: ${conceptualize.read_context.data.openQuestions.0.why} Options: (1) ${conceptualize.read_context.data.openQuestions.0.options.0}; (2) ${conceptualize.read_context.data.openQuestions.0.options.1}; (3) ${conceptualize.read_context.data.openQuestions.0.options.2}; (4) ${conceptualize.read_context.data.openQuestions.0.options.3}."
         }
       ]
+    },
+    {
+      "user": "^ECII A architectures",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.develop_alternatives",
+              "arguments": {
+                "text": "Ways the holder could attach to a drill whose model is not yet known",
+                "name": "Holder mounting architectures",
+                "level": "architecture",
+                "alternatives": [
+                  {
+                    "name": "Reuse the existing accessory fastener",
+                    "summary": "The holder is clamped under a fastener the drill already has for accessories.",
+                    "architecture": {
+                      "hostInterface": "An existing accessory fastener location on the drill, if the model has one",
+                      "interfaceGeometry": "Fastener thread, boss position and spacing are not known for this model",
+                      "advantages": [
+                        "No change to the drill"
+                      ],
+                      "risks": [
+                        "The fastener may loosen under vibration"
+                      ],
+                      "assumptions": [
+                        "The drill has such a fastener (unverified)"
+                      ],
+                      "attachmentPrinciple": "Holder body clamped under the head of an existing fastener",
+                      "loadPath": "Weight of the holder and its contents goes into the fastener boss in shear",
+                      "installationRemoval": "Remove the fastener, place the holder, refasten",
+                      "disadvantages": [
+                        "Needs a suitable existing fastener"
+                      ],
+                      "evidenceRequired": [
+                        "Drill model and the position and thread of the fastener"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Clamp around a housing feature",
+                    "summary": "A split clamp closes around a cylindrical or prismatic part of the drill housing.",
+                    "architecture": {
+                      "hostInterface": "An outer housing section that a clamp can encircle",
+                      "interfaceGeometry": "Section size, shape and surface finish are not known for this model",
+                      "advantages": [
+                        "Needs no fastener or slot on the drill"
+                      ],
+                      "risks": [
+                        "A suitable section may not exist on this model"
+                      ],
+                      "assumptions": [
+                        "A clampable section exists (unverified)"
+                      ],
+                      "attachmentPrinciple": "Friction clamp tightened around the housing section",
+                      "loadPath": "Clamping friction carries the weight into the housing",
+                      "installationRemoval": "Open the clamp, slide it over the section, tighten; reverse to remove",
+                      "disadvantages": [
+                        "Can slip under load or mark the housing"
+                      ],
+                      "evidenceRequired": [
+                        "Photos or measurements of the housing sections"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Attach to an existing rail or slot",
+                    "summary": "A tongue on the holder engages a rail or slot that the drill already has.",
+                    "architecture": {
+                      "hostInterface": "An existing rail, slot or accessory interface on the drill",
+                      "interfaceGeometry": "Rail profile and slot dimensions are not known for this model",
+                      "advantages": [
+                        "Quick to fit and remove"
+                      ],
+                      "risks": [
+                        "The detent may wear"
+                      ],
+                      "assumptions": [
+                        "The drill has a rail or slot (unverified)"
+                      ],
+                      "attachmentPrinciple": "Sliding tongue engaging a rail or slot, locked with a detent",
+                      "loadPath": "Weight goes through the tongue flanks into the rail or slot",
+                      "installationRemoval": "Slide on and off along the rail; the detent releases by hand",
+                      "disadvantages": [
+                        "Only works if the drill has the rail or slot"
+                      ],
+                      "evidenceRequired": [
+                        "Drill model and the profile of the rail or slot"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared three different ways the holder could attach to the drill: reuse an existing accessory fastener, clamp around a housing feature, or engage an existing rail or slot. Each one names the host feature it depends on and the evidence needed; none of them states a dimension of your drill. Apply to record them; they are provisional until the drill is identified."
+        }
+      ]
+    },
+    {
+      "user": "^ECII A readiness",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Holder mounting architectures"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.assess_diversity",
+              "arguments": {
+                "parentId": "${conceptualize.search.data.concepts.0.key}",
+                "minimum": 3
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Reuse the existing accessory fastener"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.evaluate_readiness",
+              "arguments": {
+                "conceptId": "${conceptualize.search.data.concepts.0.key}"
+              }
+            }
+          ]
+        },
+        {
+          "final": "Diversity: ${conceptualize.assess_diversity.data.distinctArchitectures} distinct architectures (${conceptualize.assess_diversity.data.verdict}). Readiness: ${conceptualize.evaluate_readiness.data.level}. Host-specific concepts need the drill identified: ${conceptualize.evaluate_readiness.data.activities.[activity=host-specific-concepts].unmet.0}. Everything here is provisional."
+        }
+      ]
+    },
+    {
+      "user": "^ECII A variants",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Holder mounting architectures"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.develop_alternatives",
+              "arguments": {
+                "text": "Storage layouts of the fastener-clamp architecture",
+                "parentId": "${conceptualize.search.data.concepts.0.key}",
+                "level": "variant",
+                "parentArchitecture": "Reuse the existing accessory fastener",
+                "alternatives": [
+                  {
+                    "name": "Four-position layout of the fastener holder",
+                    "summary": "Same fastener-clamp architecture with four storage positions.",
+                    "definition": {
+                      "parameters": [
+                        {
+                          "symbol": "positions",
+                          "name": "Storage positions",
+                          "value": 4,
+                          "unit": "1"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "Six-position layout of the fastener holder",
+                    "summary": "Same fastener-clamp architecture with six storage positions.",
+                    "definition": {
+                      "parameters": [
+                        {
+                          "symbol": "positions",
+                          "name": "Storage positions",
+                          "value": 6,
+                          "unit": "1"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "final": "I prepared two storage layouts as variants of one architecture, the fastener clamp. They differ only in parameters, so they are not new architectures; Apply to record them."
+        }
+      ]
+    },
+    {
+      "user": "^ECII A variant check",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.search",
+              "arguments": {
+                "text": "Holder mounting architectures"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "name": "conceptualize.assess_diversity",
+              "arguments": {
+                "parentId": "${conceptualize.search.data.concepts.0.key}",
+                "minimum": 3
+              }
+            }
+          ]
+        },
+        {
+          "final": "Still ${conceptualize.assess_diversity.data.distinctArchitectures} distinct architectures; the two layouts are variants (${conceptualize.assess_diversity.data.variants.0})."
+        }
+      ]
     }
   ]
 }

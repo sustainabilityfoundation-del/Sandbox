@@ -6,10 +6,11 @@ import { CROSS_MODULE_ENTITLEMENTS, ENTITLEMENT, type RouteSpec } from './route'
 import { CALC_SCHEMAS } from './calcSchemas'
 import { DESIGN_SCHEMAS } from './designSchemas'
 import { INTENT_SCHEMAS } from './intentSchemas'
+import { ARCHITECTURE_SCHEMAS } from './architectureSchemas'
 import { SCHEMAS as BASE_SCHEMAS } from './schemas'
 
 const REPLACED = new Set(['Decision', 'DecisionCreate', 'Evidence', 'EvidenceCreate'])
-const SCHEMAS = [...BASE_SCHEMAS.filter((s) => !REPLACED.has(s.$id as string)), ...DESIGN_SCHEMAS, ...CALC_SCHEMAS, ...INTENT_SCHEMAS]
+const SCHEMAS = [...BASE_SCHEMAS.filter((s) => !REPLACED.has(s.$id as string)), ...DESIGN_SCHEMAS, ...CALC_SCHEMAS, ...INTENT_SCHEMAS, ...ARCHITECTURE_SCHEMAS]
 
 /** Strips TypeBox symbols and replaces named sub-schemas by `$ref`s to components. */
 /**

@@ -450,6 +450,16 @@ export class ConceptsModuleClient {
     return this.get<T.IntentContext>(`/intents/${encodeURIComponent(idOrKey)}/context`)
   }
 
+  // ---- architecture diversity and context readiness (ECII increment 2) -----------------------------------------------
+  /** Deterministic: are these alternatives different architectures? Name them with conceptIds, setId or parentId. */
+  assessDiversity(q: { conceptIds?: string[]; setId?: string; parentId?: string; minimum?: number }) {
+    return this.get<T.DiversityResult>('/diversity', { ...q, conceptIds: q.conceptIds?.join(',') } as Q)
+  }
+  /** Advisory readiness per downstream activity; the latest active intent unless intentId is given. */
+  readiness(q: { intentId?: string; activity?: T.ReadinessActivity; conceptId?: string } = {}) {
+    return this.get<T.ContextReadiness>('/readiness', { ...q } as Q)
+  }
+
   // ---- utilities ------------------------------------------------------------------------------------------------------------------------
   permissions() {
     return this.get<T.MyPermissions>('/me/permissions')
