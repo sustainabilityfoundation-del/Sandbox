@@ -109,6 +109,14 @@ Owner: "focus on getting the cad working better woth more functionality". CAD Mo
 [cad-sprints-c1-c3.md](../specifications/cad-sprints-c1-c3.md): C1 sketching by clicks and reliability (after OSS-9 merges), C2 part features
 (holes, mirror, circular pattern, shell, draft, body booleans), C3 measurement, STEP import, STL, loft and sweep. Owner decisions listed there.
 
+## Merging to main (owner, 16 October 2026)
+Owner: "I take bake the command to not push to main. It is ok for you to automatically do this." The coordinator merges verified
+work to main automatically again (after review where required and a green integration run); feature branches stay the working
+model for agents. The AI infrastructure brief's "never push directly to main" is withdrawn.
+
+Fable usage limit reached at about 19:45 EDT; the Fable window ended at 21:45. Stopped Fable work was preserved (C1 naming fix
+committed 5c64c5a; CT-2c2 snapshot committed) and continues on the normal routing.
+
 ## Model routing override (owner, 16 October 2026)
 Owner: "Can you switch to fable for a sprint to maximize usage for this week?" All newly started agents use Fable
 (`model: fable`) until 21:45 EDT on 16 October 2026 (owner: "It resets in 3 hours so only run fable until then"), instead of the AGENTS.md routing (Opus review and architecture, Sonnet
