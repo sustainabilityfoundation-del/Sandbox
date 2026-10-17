@@ -1,4 +1,4 @@
-# CAD Modeler: command and query API specification
+# CAD: command and query API specification
 
 Status: Proposed with ADR-0023. Authoritative definitions: `packages/cad-core/src/commands/registry.ts`
 (commands) and `catalog.ts` (queries). Machine-readable catalogue with every input JSON Schema,

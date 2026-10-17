@@ -341,7 +341,7 @@ export const visualActions: AssistantActionDefinition[] = [
   {
     name: 'conceptualize.create_cad_handoff',
     label: 'Prepare a CAD handoff',
-    description: 'Prepare the structured, revision-pinned CAD handoff package of a Concept (normally the selected alternative): intent, components, interfaces, parameters, envelopes, constraints with coverage, requirement and decision links, and unresolved items. Missing information is listed, never invented; propose the missing definition instead. The CAD Modeler reads it to create the CAD document.',
+    description: 'Prepare the structured, revision-pinned CAD handoff package of a Concept (normally the selected alternative): intent, components, interfaces, parameters, envelopes, constraints with coverage, requirement and decision links, and unresolved items. Missing information is listed, never invented; propose the missing definition instead. The CAD reads it to create the CAD document.',
     parameters: { type: 'object', properties: { conceptId: string }, required: ['conceptId'], additionalProperties: false },
     async run(args, ctx) {
       const { client } = connection(ctx)
@@ -364,7 +364,7 @@ export const visualActions: AssistantActionDefinition[] = [
         ],
         async apply(p) {
           const h = await client.createHandoff(c.id, { conceptRevision: c.revision, provenance: assistantProvenance(p), idempotencyKey: `${p.conversationId}:${p.proposalId}:handoff` })
-          return { summary: `${h.key} built from ${c.key} rev ${h.conceptRevision} (${h.package.unresolved.length} unresolved items). Handoff ID ${h.id} for the CAD Modeler.`, createdIds: [h.id] }
+          return { summary: `${h.key} built from ${c.key} rev ${h.conceptRevision} (${h.package.unresolved.length} unresolved items). Handoff ID ${h.id} for the CAD.`, createdIds: [h.id] }
         },
       })
     },

@@ -1,4 +1,4 @@
-# CAD Modeler: requirements specification
+# CAD: requirements specification
 
 Status: Proposed (CAD agent, 15 October 2026). Derived from the owner brief
 ([cad-program.md](../../specifications/cad-program.md)) and the competitive research

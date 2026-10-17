@@ -1,6 +1,6 @@
 # AGENTS.md: @ews/cad-client
 
-Browser client of the CAD Modeler document service: `CadClient` over HTTP (`/api/cad/v1`, `src/http.ts`),
+Browser client of the CAD document service: `CadClient` over HTTP (`/api/cad/v1`, `src/http.ts`),
 the explicit in-browser local adapter (`src/local.ts`), read helpers, settings, and the contract test
 suite (`src/contractTests.ts`) that `services/cad` runs against the real service. Owner: CAD agent.
 Contracts: [cad-program-contracts.md](../../docs/specifications/cad-program-contracts.md) §1;

@@ -17,7 +17,7 @@ import { useSyncExternalStore } from 'react'
 import pkg from '../package.json'
 
 /**
- * The CAD Modeler session of this window: open documents (each a CadEngine with history and
+ * The CAD session of this window: open documents (each a CadEngine with history and
  * regeneration), the active document, the geometric kernel and file transfer. The view and the
  * assistant actions both use this one session, so they operate on the same model through the same
  * commands (ADR-0023). Documents live in memory; Save writes the open native file (.ewscad).
@@ -161,7 +161,7 @@ export class CadSession {
       attached = false
     }
   }
-  /** True while at least one CAD Modeler view is mounted in this window. */
+  /** True while at least one CAD view is mounted in this window. */
   get viewMounted(): boolean {
     return this.views > 0
   }
@@ -207,7 +207,7 @@ export class CadSession {
   /** The document to act on: the given one, else the active one; throws a clear error otherwise. */
   require(id?: string | null): OpenDocument {
     const d = this.document(id)
-    if (!d) throw new CadError('not-found', id ? `CAD document ${id} is not open.` : 'No CAD Modeler document is open. Create one first (New) or open a .ewscad file.')
+    if (!d) throw new CadError('not-found', id ? `CAD document ${id} is not open.` : 'No CAD document is open. Create one first (New) or open a .ewscad file.')
     return d
   }
   setActive(id: string) {

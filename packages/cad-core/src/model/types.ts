@@ -1,5 +1,5 @@
 /**
- * The native, open parametric model of the CAD Modeler (`ews-cad`, format 1.x).
+ * The native, open parametric model of the CAD (`ews-cad`, format 1.x).
  * Specification: docs/modules/cad/native-format.md; JSON Schema: schema/ews-cad.schema.json.
  *
  * The document stores design intent only. B-rep, meshes and mass properties are derived by

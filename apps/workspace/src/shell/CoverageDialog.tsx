@@ -34,7 +34,7 @@ const MODULES: { id: 'all' | CapabilityModule; label: string }[] = [
   { id: 'requirements', label: 'Requirements' },
   { id: 'conceptualize', label: 'Conceptualize' },
   { id: 'sysml-modeler', label: 'System Model' },
-  { id: 'cad-modeler', label: 'CAD Modeler' },
+  { id: 'cad-modeler', label: 'CAD' },
   { id: 'projects', label: 'Projects' },
 ]
 

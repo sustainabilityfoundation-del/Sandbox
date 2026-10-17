@@ -76,7 +76,7 @@ describe('D1: CAD check against real Conceptualize constraints, recorded as evid
 
     // Record the check as evidence (what conceptualize.record_evidence submits).
     const ev = report.evidence!
-    expect(ev).toMatchObject({ basis: 'estimate', source: { module: 'cad', kind: 'cad-modeler-entity', revision: 1 }, tool: { name: expect.stringMatching(/CAD Modeler check/) } })
+    expect(ev).toMatchObject({ basis: 'estimate', source: { module: 'cad', kind: 'cad-modeler-entity', revision: 1 }, tool: { name: expect.stringMatching(/CAD check/) } })
     const recorded = await mc.createEvidence(
       {
         subjects: ev.subjects.map((id) => ({ module: 'conceptualize', type: 'constraint', id })),

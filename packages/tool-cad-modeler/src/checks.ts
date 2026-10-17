@@ -405,7 +405,7 @@ export async function runChecks(doc: CadDocument, regen: RegenerationResult, opt
           title: `CAD check of ${doc.metadata.title} (revision ${options.storedRevision})`,
           subjects: [...new Set(comparable.map((r) => r.bound!.constraint.id))],
           source: { module: 'cad', kind: 'cad-modeler-entity', id: `${doc.documentId}/${doc.documentId}`, revision: options.storedRevision, label: `${doc.metadata.title}, revision ${options.storedRevision}` },
-          tool: { name: `CAD Modeler check (${kernel.name})`, version: `${options.toolVersion ?? 'unknown'}; kernel ${kernel.version}` },
+          tool: { name: `CAD check (${kernel.name})`, version: `${options.toolVersion ?? 'unknown'}; kernel ${kernel.version}` },
           results: comparable.map((r) => ({ name: r.quantity, value: r.measured!.value, unit: r.measured!.unit, constraintId: r.bound!.constraint.id, note: r.method })),
           basis: 'estimate',
           kind: 'analysis',

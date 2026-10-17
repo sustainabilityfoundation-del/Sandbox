@@ -2,7 +2,7 @@ import { HELP_SCHEMA_VERSION, parseHelpMarkdown, type HelpManifest } from '@ews/
 import pkg from '../package.json'
 
 /**
- * Help manifest of the CAD Modeler (SDK 1.4, docs/modules/help.md). Topics are the Markdown files
+ * Help manifest of the CAD (SDK 1.4, docs/modules/help.md). Topics are the Markdown files
  * in ../help; help IDs (`cad-modeler.*`) are stable across redesigns.
  */
 const files = import.meta.glob('../help/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
@@ -10,7 +10,7 @@ const files = import.meta.glob('../help/*.md', { query: '?raw', import: 'default
 export const cadModelerHelp: HelpManifest = {
   schemaVersion: HELP_SCHEMA_VERSION,
   moduleId: 'cad-modeler',
-  displayName: 'CAD Modeler',
+  displayName: 'CAD',
   moduleVersion: pkg.version,
   docsVersion: pkg.version,
   landingTopic: 'cad-modeler.overview',
@@ -35,6 +35,7 @@ export const cadModelerHelp: HelpManifest = {
     { toolbarItem: 'redo', helpId: 'cad-modeler.history' },
     { toolbarItem: 'fit', helpId: 'cad-modeler.viewport' },
     { toolbarItem: 'export-step', helpId: 'cad-modeler.export-step' },
+    { toolbarItem: 'check', helpId: 'cad-modeler.checks' },
     // Controls inside the view (data-help-id).
     { control: 'cad-modeler.viewport', helpId: 'cad-modeler.viewport' },
     { control: 'cad-modeler.feature-tree', helpId: 'cad-modeler.regeneration' },
@@ -60,6 +61,7 @@ export const cadModelerHelp: HelpManifest = {
     { control: 'cad-modeler.part.material', helpId: 'cad-modeler.references' },
     { control: 'cad-modeler.references', helpId: 'cad-modeler.references' },
     { control: 'cad-modeler.diagnostics', helpId: 'cad-modeler.regeneration' },
+    { control: 'cad-modeler.check', helpId: 'cad-modeler.checks' },
     // Assistant operations (the registry stays authoritative for what runs).
     { operation: 'cad-modeler.describe_model', helpId: 'cad-modeler.ai' },
     { operation: 'cad-modeler.query', helpId: 'cad-modeler.ai' },

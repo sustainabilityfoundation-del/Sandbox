@@ -48,7 +48,7 @@ export const projectsHelp: HelpManifest = {
         { control: 'projects.switcher', title: 'Open Project Home', text: 'The header shows the open project. Choose it to open Project Home.' },
         { title: 'New project', text: 'Choose the New project tab.' },
         { control: 'projects.wizard', title: 'Name and key', text: 'Give the project a name; the key is suggested from it. Choose disciplines, unit system and template, then Create and open.' },
-        { control: 'projects.switcher', title: 'Your project is open', text: 'The header now shows your project. It is empty in every module; Requirements, Conceptualize, System Model and CAD Modeler are open.' },
+        { control: 'projects.switcher', title: 'Your project is open', text: 'The header now shows your project. It is empty in every module; Requirements, Conceptualize, System Model and CAD are open.' },
       ],
     },
   ],

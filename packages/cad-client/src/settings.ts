@@ -1,7 +1,7 @@
 import type { SettingDefinition, SettingsContribution } from '@ews/platform-sdk'
 
 /**
- * CAD Modeler settings (SDK 1.6 SettingsContribution). Only display settings, per person:
+ * CAD settings (SDK 1.6 SettingsContribution). Only display settings, per person:
  * measurement units, viewport tessellation and view defaults. Nothing here changes the model or its
  * regeneration: the native format stays in millimetres, and the solver and naming tolerances stay
  * fixed so every person regenerates a stored revision identically (contract C4). Dimension and
@@ -70,7 +70,7 @@ export const CAD_SETTING_DEFINITIONS: SettingDefinition[] = [
   {
     id: CAD_SETTING_IDS.showEdges,
     label: 'Show edges',
-    description: 'Draw the edges of bodies in new CAD Modeler views. The Edges button in the view still toggles them.',
+    description: 'Draw the edges of bodies in new CAD views. The Edges button in the view still toggles them.',
     helpId: 'cad-modeler.settings',
     scope: 'user',
     group: 'View',
@@ -80,6 +80,6 @@ export const CAD_SETTING_DEFINITIONS: SettingDefinition[] = [
 ]
 
 export const CAD_SETTINGS: SettingsContribution = {
-  page: { id: 'cad-modeler', title: 'CAD Modeler', description: 'Display units, tessellation and view defaults. The model itself is always stored in millimetres.' },
+  page: { id: 'cad-modeler', title: 'CAD', description: 'Display units, tessellation and view defaults. The model itself is always stored in millimetres.' },
   definitions: CAD_SETTING_DEFINITIONS,
 }

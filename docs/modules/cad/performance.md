@@ -1,4 +1,4 @@
-# CAD Modeler: performance targets and benchmarks
+# CAD: performance targets and benchmarks
 
 Status: targets proposed; Phase 1 measurements recorded (Node 24, in-process OCCT WASM, Windows
 laptop, 15 October 2026). Machine-dependent; the regression test uses generous limits.

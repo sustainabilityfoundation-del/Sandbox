@@ -28,7 +28,7 @@ Every change is a proposal. **Apply** runs it through the same command executor 
 against the model version the preview was made for; if you changed the model meanwhile, it is
 refused. **Undo** on an applied proposal restores the previous state if nothing changed since.
 
-**With the CAD Modeler closed.** Every operation also works when no CAD Modeler tab is open. The
+**With the CAD closed.** Every operation also works when no CAD tab is open. The
 assistant picks the document like this:
 
 - the document you name;
@@ -38,7 +38,7 @@ assistant picks the document like this:
 If the project has several documents, it asks which one you mean. A document that is not open is
 loaded from the project, and regeneration and previews run in the kernel worker as usual.
 
-While no CAD Modeler tab is open, applying a change also saves it as a new revision in the project,
+While no CAD tab is open, applying a change also saves it as a new revision in the project,
 with the conversation and proposal as its provenance. The preview shows the revision it will create.
 If someone else saved a newer revision first, the save is refused and the change is not kept.
 

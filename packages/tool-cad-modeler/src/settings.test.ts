@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { cadModelerTool } from './index'
 import { CAD_SETTINGS, CAD_SETTING_DEFINITIONS, measure } from './settings'
 
-describe('CAD Modeler settings contribution (SDK 1.6)', () => {
+describe('CAD settings contribution (SDK 1.6)', () => {
   it('is registered on the tool, valid, user-scoped and display-only', () => {
     expect(cadModelerTool.settings).toBe(CAD_SETTINGS)
     expect(validateSettingDefinitions(CAD_SETTING_DEFINITIONS)).toEqual([])

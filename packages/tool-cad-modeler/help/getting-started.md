@@ -1,13 +1,13 @@
 ---
 help_id: cad-modeler.getting-started
-title: Getting started with the CAD Modeler
+title: Getting started with the CAD
 kind: tutorial
 summary: Create a part, sketch a constrained rectangle, extrude it, change a dimension and save the model.
 keywords: [getting started, first part, tutorial, sketch, extrude]
 related: [cad-modeler.sketch, cad-modeler.features, cad-modeler.parameters, cad-modeler.document]
 ---
 
-1. Open **CAD Modeler** (Ctrl+K, then type "CAD Modeler"). Choose **New part**. A document with
+1. Open **CAD** (Ctrl+K, then type "CAD"). Choose **New part**. A document with
    one empty part opens and the **Edit** tab shows **New sketch**.
 2. Keep plane **XY** and choose **Create sketch**. The sketch view replaces the 3D view.
 3. Under **Add geometry** choose **Rectangle**, keep corner 0, 0, enter width 80 and height 40, and

@@ -1,4 +1,4 @@
-// CAD Modeler D1 building blocks in the workspace UI: a regular polygon (fully constrained) on a face, a
+// CAD D1 building blocks in the workspace UI: a regular polygon (fully constrained) on a face, a
 // pocket cut, and a linear pattern of it; the volume matches the analytic value. Fixture: the built-in
 // example plate (no product data). Run against `npm run dev` in API or demo mode.
 import { env, launchOptions, shotsDir, exampleUrl, demoAssistantContext } from '../lib/env.mjs'
@@ -39,7 +39,7 @@ await page.goto(exampleUrl())
 await page.waitForSelector('.ws-app')
 await page.keyboard.press('Control+k')
 await page.waitForSelector('.ws-launcher')
-await page.keyboard.type('CAD Modeler')
+await page.keyboard.type('CAD')
 await page.keyboard.press('Enter')
 await page.getByRole('button', { name: 'Example: plate with hole' }).click()
 // The first regeneration loads the OCCT WASM in the worker.

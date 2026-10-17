@@ -204,7 +204,7 @@ library package EWS {
         attribute revision : Integer[0..1];
     }
     metadata def CadRepresentation {
-        doc /* The part is represented by a CAD Modeler entity (CR-SYSML-03): cadRef = "<documentUuid>/<entityId>", revision = the CAD document revision. The reference is owned by SysML; no CAD data is copied. */
+        doc /* The part is represented by a CAD entity (CR-SYSML-03): cadRef = "<documentUuid>/<entityId>", revision = the CAD document revision. The reference is owned by SysML; no CAD data is copied. */
         attribute cadRef : String;
         attribute revision : Integer[0..1];
         attribute role : String[0..1];

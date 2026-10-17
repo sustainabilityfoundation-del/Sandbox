@@ -101,7 +101,7 @@ records only modelling assumptions it needs as `comment`/metadata on elements.
 
 ### 5.3 CAD (CR-SYSML-03, decided 15 October 2026)
 
-A part-to-CAD mapping references a **CAD Modeler entity** with exactly this `ArtifactRef`:
+A part-to-CAD mapping references a **CAD entity** with exactly this `ArtifactRef`:
 
 ```ts
 { module: 'cad', kind: 'cad-modeler-entity', id: '<documentUuid>/<entityId>', revision: <document revision> }
@@ -140,7 +140,7 @@ Management plugin; Project Management never writes SysML data through it.
   carry the keyword (`part def Rod`). Deep links: `{ toolId: 'sysml-modeler', params: { sysmlProjectId, elementId | tagId } }`.
 - `relations` report SysML-owned relationships for the link index: `satisfies` and `allocated-to`
   (between registered elements; feature chains are reported from their first feature), `represents`
-  (CAD Modeler entities and product elements, §5.3 and §5.5) and `stands-for` (managed requirement,
+  (CAD entities and product elements, §5.3 and §5.5) and `stands-for` (managed requirement,
   with the pinned revision).
 - Events: `sysml.project-created` → upserted project; `sysml.commit-created` on the default branch →
   upserted (the project and the changed registered elements) and retired (deleted elements, or

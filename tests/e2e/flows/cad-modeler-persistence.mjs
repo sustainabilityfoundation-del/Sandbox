@@ -1,4 +1,4 @@
-// CAD Modeler persistence in the workspace with the backend (contract C4 and related):
+// CAD persistence in the workspace with the backend (contract C4 and related):
 // - save, open and revisions in the CAD service;
 // - a concurrent save refused (SSE notice) and the local change kept in a file;
 // - fillet on stable edge names, edge picking, a sketch on a face, a datum plane, regeneration in the
@@ -57,7 +57,7 @@ await page.waitForSelector('.ws-app')
 await page.waitForTimeout(1500)
 await page.keyboard.press('Control+k')
 await page.waitForSelector('.ws-launcher')
-await page.keyboard.type('CAD Modeler')
+await page.keyboard.type('CAD')
 await page.keyboard.press('Enter')
 await page.getByRole('button', { name: 'Open from project' }).waitFor({ timeout: 30000 })
 check(true, 'API mode: the start page offers Open from project')

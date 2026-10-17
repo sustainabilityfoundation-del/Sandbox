@@ -121,8 +121,8 @@ async function closePalette() {
   // Navigation: tabs stay but explain.
   await tab('cad-modeler').click()
   await page.waitForTimeout(250)
-  check(tag, (await toast().count()) > 0, 'choosing the CAD Modeler in the rail explains why it is locked instead of opening it')
-  check(tag, (await page.locator('.ws-tool-host[data-tool="cad-modeler"]').count()) === 0, 'the CAD Modeler view is not rendered')
+  check(tag, (await toast().count()) > 0, 'choosing the CAD in the rail explains why it is locked instead of opening it')
+  check(tag, (await page.locator('.ws-tool-host[data-tool="cad-modeler"]').count()) === 0, 'the CAD view is not rendered')
   for (const id of ['sysml-modeler', 'cad-modeler', 'conceptualize']) {
     check(tag, (await page.locator(`[data-rail-tool="${id}"][aria-label*="not in your subscription"]`).count()) === 1, `the ${id} rail entry says it is not in the subscription`)
   }
@@ -133,7 +133,7 @@ async function closePalette() {
   await page.keyboard.type('CAD')
   await page.waitForTimeout(150)
   const cadItem = page.locator('[role="menuitem"]', { hasText: 'Locked: not in your subscription' }).first()
-  check(tag, (await cadItem.getAttribute('aria-disabled')) === 'true', 'palette shows the CAD Modeler locked and disabled, with the reason')
+  check(tag, (await cadItem.getAttribute('aria-disabled')) === 'true', 'palette shows the CAD locked and disabled, with the reason')
   await shot('1-palette-locked')
   await closePalette()
   // Search: choosing a locked tool explains instead of opening.
@@ -147,7 +147,7 @@ async function closePalette() {
   await page.goto(exampleUrl(`tool=cad-modeler`))
   await page.waitForSelector('.ws-app')
   await page.waitForTimeout(600)
-  check(tag, (await page.locator('[data-rail-tool][aria-current="page"]').getAttribute('data-rail-tool')) !== 'cad-modeler', 'direct route ?tool=cad-modeler does not open the CAD Modeler')
+  check(tag, (await page.locator('[data-rail-tool][aria-current="page"]').getAttribute('data-rail-tool')) !== 'cad-modeler', 'direct route ?tool=cad-modeler does not open the CAD')
   check(tag, (await toast().count()) > 0, 'the direct route explains why')
   // The retired illustrative tools have no route at all: the ID is unknown, not "locked".
   await page.goto(exampleUrl(`tool=cad`))
@@ -162,14 +162,14 @@ async function closePalette() {
   await detached.waitForTimeout(400)
   check(tag, (await detached.locator('[data-locked-tool="sysml-modeler"]').count()) === 1 && (await detached.locator('.ws-tool-host[data-tool="sysml-modeler"]').count()) === 0, 'a detached System Model window shows the locked explanation')
   await detached.close()
-  // ChatGPT cannot reach the CAD Modeler.
+  // ChatGPT cannot reach the CAD.
   await page.click('[data-dock-tab="assistant"]')
   await page.waitForSelector('.as-input textarea')
   const before = await revision()
   await page.fill('.as-input textarea', 'Open CAD and show the rod.')
   await page.press('.as-input textarea', 'Enter')
   await page.waitForFunction(() => [...document.querySelectorAll('.as-assistant .as-text')].some((e) => e.textContent.includes('subscription')), null, { timeout: 15000 })
-  check(tag, (await revision()) === before && (await page.locator('[data-proposal-id]').count()) === 0, 'ChatGPT explains instead of opening the CAD Modeler')
+  check(tag, (await revision()) === before && (await page.locator('[data-proposal-id]').count()) === 0, 'ChatGPT explains instead of opening the CAD')
   // Requirements still works.
   await tab('requirements').click()
   check(tag, (await page.locator('.req-table').count()) === 1, 'Requirements opens')
@@ -204,7 +204,7 @@ async function closePalette() {
   check(tag, (await inspected()) === 'ROD-120', 'the shared selection is still ROD-120 in the System Model')
   await tab('cad-modeler').click()
   await page.waitForTimeout(500)
-  check(tag, (await inspected()) === 'ROD-120', 'and in the CAD Modeler')
+  check(tag, (await inspected()) === 'ROD-120', 'and in the CAD')
   await shot('3-shared-selection')
   // An object no module shows keeps the selection too.
   await tree(REQ['REQ-003']).click()
@@ -264,7 +264,7 @@ async function closePalette() {
   watch(popup)
   await popup.waitForSelector('.ws-detached')
   await popup.waitForSelector('.ws-tool-host[data-tool="cad-modeler"]', { timeout: 8000 })
-  check(tag, (await popup.locator('.ws-tool-host[data-tool="cad-modeler"]').count()) === 1, 'the detached CAD Modeler window shows the tool')
+  check(tag, (await popup.locator('.ws-tool-host[data-tool="cad-modeler"]').count()) === 1, 'the detached CAD window shows the tool')
   await setPlan('Requirements only')
   await popup.waitForSelector('[data-locked-tool="cad-modeler"]', { timeout: 4000 }).catch(() => {})
   check(tag, (await popup.locator('[data-locked-tool="cad-modeler"]').count()) === 1, 'the detached window locks when the subscription loses CAD')

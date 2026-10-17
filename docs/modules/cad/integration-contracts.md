@@ -1,4 +1,4 @@
-# CAD Modeler: integration contracts
+# CAD: integration contracts
 
 Status: Proposed (CAD agent). Binding rules: contracts §4–§6. Items marked **CR** are contract change
 requests for the coordinator (also listed in the progress file). Nothing here changes other modules.
@@ -8,7 +8,7 @@ requests for the coordinator (also listed in the progress file). Nothing here ch
 - CAD owns documents, parts, features, parameters, sketches and their revisions (document
   `version`). Entity IDs are document-local and deterministic; global identity is
   `cadm:<documentUuid>/<entityId>`; faces use their stable names (`cadm:<doc>/ext-5/cap-end`).
-- **CR-CAD-1 (ArtifactRef for CAD Modeler entities):** other modules reference CAD Modeler entities
+- **CR-CAD-1 (ArtifactRef for CAD entities):** other modules reference CAD entities
   with SDK 1.5 `ArtifactRef { module: 'cad', id: 'cadm:<doc>/<entity>', kind, revision }`, `kind` ∈
   `cad-document | cad-part | cad-feature | cad-parameter | cad-face`, `revision` = document version
   (omit to follow the latest). Twin `CAD-…` IDs keep their current meaning. Alternative: a new
@@ -36,7 +36,7 @@ requests for the coordinator (also listed in the progress file). Nothing here ch
 ## 4. Conceptualize
 
 - `realizes` references from CAD parts to Concept UUIDs (stored now). With CR-CAD-1, Conceptualize
-  ConceptImplementations can point to CAD Modeler parts via ArtifactRef; `conceptsForArtifact`
+  ConceptImplementations can point to CAD parts via ArtifactRef; `conceptsForArtifact`
   then shows "realizes concept" in the CAD inspector (planned, uses `services.concepts`).
 - Alternatives: several CAD documents or parts can realise one concept; concept identity is never
   stored in geometry.

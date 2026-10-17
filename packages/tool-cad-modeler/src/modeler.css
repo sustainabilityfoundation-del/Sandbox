@@ -88,6 +88,13 @@
   .cadm-edge-list { display: flex; flex-direction: column; gap: var(--ws-space-1); max-height: 260px; overflow: auto; padding: var(--ws-space-1); border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); }
   .cadm-entity-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--ws-space-1); max-height: 220px; overflow: auto; }
 
+  .cadm-check { display: flex; flex-direction: column; gap: var(--ws-space-2); }
+  .cadm-check-summary { display: flex; flex-wrap: wrap; gap: var(--ws-space-2); }
+  .cadm-check-list { display: flex; flex-direction: column; gap: var(--ws-space-2); margin: 0; padding: 0; list-style: none; }
+  .cadm-check-item { display: flex; flex-direction: column; gap: var(--ws-space-1); padding: var(--ws-space-2); border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); }
+  .cadm-check-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ws-space-2); }
+  .cadm-check-name { font-family: var(--ws-font-mono); font-size: var(--ws-font-size-sm); font-weight: var(--ws-weight-medium); overflow-wrap: anywhere; }
+
   .cadm-props { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--ws-space-1) var(--ws-space-3); margin: 0; font-size: var(--ws-font-size-sm); }
   .cadm-props dt { color: var(--ws-text-3); }
   .cadm-props dd { margin: 0; overflow-wrap: anywhere; }

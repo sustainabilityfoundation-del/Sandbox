@@ -202,6 +202,6 @@ export const Handoff = Type.Object(
     createdBy: Type.String(),
     provenance: ProvenanceOut,
   },
-  { $id: 'CadHandoff', description: 'Immutable, revision-pinned package for the CAD Modeler. Missing information is listed in unresolved, never invented.' },
+  { $id: 'CadHandoff', description: 'Immutable, revision-pinned package for the CAD. Missing information is listed in unresolved, never invented.' },
 )
 export const HandoffCreate = Type.Object({ target: Type.Optional(Type.Literal('cad')), conceptRevision: Type.Optional(Type.Integer({ minimum: 1 })) }, { $id: 'CadHandoffCreate', additionalProperties: false })

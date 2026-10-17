@@ -95,7 +95,7 @@ describe('projects.* assistant operations (headless, real services)', () => {
         mediaType: 'model/step',
         contentBase64: Buffer.from(step).toString('base64'),
         source: { module: 'cad', kind: 'cad-document', id: cadDoc.ref.id, revision: 1 },
-        tool: { name: 'CAD Modeler', version: '0.1.0' },
+        tool: { name: 'CAD', version: '0.1.0' },
         notes: 'STEP AP242, geometry only',
       },
       ctx,
@@ -103,7 +103,7 @@ describe('projects.* assistant operations (headless, real services)', () => {
     expect(store.preview.map((p) => p.label)).toEqual(['Document', 'File', 'Produced from', 'Produced by'])
     const storedId = (await store.apply(provenance(6))).createdIds![0]
     const stored = await client.transport.request<{ versions: { provenance?: { source?: { id: string; revision: number }; tool?: { name: string } } }[]; artifactId: string }>('GET', `/projects/${projectId}/documents/${storedId}`)
-    expect(stored.data.versions[0].provenance).toMatchObject({ source: { module: 'cad', kind: 'cad-document', id: cadDoc.ref.id, revision: 1 }, tool: { name: 'CAD Modeler', version: '0.1.0' } })
+    expect(stored.data.versions[0].provenance).toMatchObject({ source: { module: 'cad', kind: 'cad-document', id: cadDoc.ref.id, revision: 1 }, tool: { name: 'CAD', version: '0.1.0' } })
     const links = await client.links(projectId, { artifactId: stored.data.artifactId })
     expect(links).toContainEqual(expect.objectContaining({ type: 'describes', to: { artifactId: expect.any(String), revision: '1' } }))
     const bytes = await env.call('eli', 'GET', `/api/projects/v1/projects/${projectId}/documents/${storedId}/versions/1/content`)

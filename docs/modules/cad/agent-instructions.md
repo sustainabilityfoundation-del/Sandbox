@@ -1,6 +1,6 @@
-# CAD Modeler: development instructions for agents
+# CAD: development instructions for agents
 
-For people and agents working on the CAD Modeler. Root rules: [AGENTS.md](../../../AGENTS.md);
+For people and agents working on the CAD. Root rules: [AGENTS.md](../../../AGENTS.md);
 contracts and ownership: [cad-program-contracts.md](../../specifications/cad-program-contracts.md).
 Per-package rules: `packages/cad-core/AGENTS.md`, `packages/cad-kernel/AGENTS.md`,
 `packages/tool-cad-modeler/AGENTS.md`.

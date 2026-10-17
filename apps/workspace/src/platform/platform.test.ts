@@ -32,7 +32,7 @@ beforeAll(async () => {
 beforeEach(() => setPlan('all'))
 
 describe('tool catalogue', () => {
-  it('contains every installed tool (Requirements, Conceptualize, CAD Modeler and System Model); the illustrative SysML and mock CAD tools, Analysis and Verification are retired', () => {
+  it('contains every installed tool (Requirements, Conceptualize, CAD and System Model); the illustrative SysML and mock CAD tools, Analysis and Verification are retired', () => {
     // Derived from the installed list (module-registration.md), with a floor so an empty list cannot pass.
     expect(getTools().map((t) => t.id)).toEqual(collect().tools.map((t) => t.id))
     expect(getTools().length).toBeGreaterThanOrEqual(4)
@@ -100,7 +100,7 @@ describe('subscriptions', () => {
     expect(PLANS.map((p) => p.entitlements.length)).toEqual([1, 2, 4])
   })
 
-  it('Requirements only: Requirements opens, the System Model and CAD Modeler are refused with an explanation', () => {
+  it('Requirements only: Requirements opens, the System Model and CAD are refused with an explanation', () => {
     setPlan('requirements')
     expect(canOpenTool('requirements')).toBe(true)
     for (const id of ['sysml-modeler', 'cad-modeler']) {
@@ -123,7 +123,7 @@ describe('subscriptions', () => {
     expect(ws().activeToolId).toBe('requirements')
   })
 
-  it('Requirements and System Model: CAD Modeler stays locked', () => {
+  it('Requirements and System Model: CAD stays locked', () => {
     setPlan('requirements-sysml')
     expect(ws().activateTool('sysml-modeler').ok).toBe(true)
     expect(ws().activateTool('cad-modeler').ok).toBe(false)

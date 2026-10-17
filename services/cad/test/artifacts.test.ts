@@ -63,7 +63,7 @@ describe('CAD artifact source (CR-PM-REG-4)', () => {
     expect(source.module).toBe('cad')
     expect(source.contractVersion).toBe('1.0.0')
     const { name, kinds } = source.describeModule()
-    expect(name).toBe('CAD Modeler')
+    expect(name).toBe('CAD')
     expect(kinds.map((k) => k.kind)).toEqual(['cad-document', 'cad-modeler-entity'])
     for (const k of kinds) expect(ARTIFACT_CATEGORIES).toContain(k.category)
     expect(kinds.every((k) => k.navigable)).toBe(true)

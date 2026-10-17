@@ -1,13 +1,13 @@
 ---
 help_id: cad-modeler.overview
-title: CAD Modeler
+title: CAD
 kind: overview
 summary: Parametric part modeling with constrained sketches, extrude and revolve on an exact B-rep kernel, an open native format, STEP AP242 export and the same commands for people and the assistant.
 keywords: [cad, modeler, parametric, solid, b-rep, kernel, part, opencascade]
 related: [cad-modeler.getting-started, cad-modeler.sketch, cad-modeler.features, cad-modeler.ai]
 ---
 
-The **CAD Modeler** builds solid parts from a **feature history**: sketches with geometric and
+The **CAD** builds solid parts from a **feature history**: sketches with geometric and
 dimensional constraints, then **Extrude** and **Revolve** features that create, join or cut bodies,
 **Fillet** and **Chamfer** on edges chosen by stable names, and **datum planes**; sketches can lie
 on standard planes, datum planes or planar faces.

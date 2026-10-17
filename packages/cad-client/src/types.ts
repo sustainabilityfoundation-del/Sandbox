@@ -69,7 +69,7 @@ export interface CadEvent {
   parts?: CadPartDescriptor[]
 }
 
-/** Platform reference to a CAD Modeler entity (CR-CAD-1). */
+/** Platform reference to a CAD entity (CR-CAD-1). */
 export interface CadEntityRef {
   module: 'cad'
   kind: 'cad-modeler-entity'

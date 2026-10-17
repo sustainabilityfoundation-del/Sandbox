@@ -89,7 +89,7 @@ function createProjects(settings: ServiceSettings): ProjectsService | undefined 
   return createHttpProjectsService({ baseUrl: '/api/projects/v1', devUser: settings.devUser })
 }
 
-/** CAD Modeler read service (SDK 1.8): regenerates stored revisions in the shared kernel worker. API mode only. */
+/** CAD read service (SDK 1.8): regenerates stored revisions in the shared kernel worker. API mode only. */
 function createCad(settings: ServiceSettings): CadService | undefined {
   if (settings.requirementsMode === 'demo') return undefined
   return createWorkspaceCadService({ baseUrl: '/api/cad/v1', devUser: settings.devUser })

@@ -266,7 +266,7 @@ describe('decision and evidence extensions (CR-C5, CR-C6)', () => {
     const envelope = (await post('/constraints', { kind: 'dimensional', statement: 'Length within 100 mm', bound: { symbol: 'L', operator: '<=', quantity: { value: 100, unit: 'mm' } }, subjects: [ref('concept', c.id)], status: 'active' })).body
     const wall = (await post('/constraints', { kind: 'dimensional', statement: 'Wall at least 2 mm', bound: { symbol: 't', operator: '>=', quantity: { value: 2, unit: 'mm' } }, subjects: [ref('concept', c.id)], status: 'active' })).body
     const source = { module: 'cad', kind: 'cad-modeler-entity', id: '7e57c0de-0000-4000-8000-00000000cad1/7e57c0de-0000-4000-8000-00000000cad1', revision: 3, label: 'Holder document rev 3' }
-    const tool = { name: 'CAD Modeler check (Open CASCADE)', version: '7.8.1' }
+    const tool = { name: 'CAD check (Open CASCADE)', version: '7.8.1' }
     const results = [
       { name: 'Bounding length', value: 9.4, unit: 'cm', qualification: { kind: 'point' }, constraint: ref('constraint', envelope.id) },
       { name: 'Minimum wall', value: 1.5, unit: 'mm', qualification: { kind: 'point' }, constraint: { id: wall.id } },
@@ -408,7 +408,7 @@ describe('Project Management references (CR-PM-CON-1)', () => {
     expect(ev.body.artifact).toMatchObject({ module: 'projects', id: DOC })
     const link = await post(`/concepts/${c.id}/links`, { relation: 'references', artifact: { module: 'projects', kind: 'document', id: DOC } })
     expect(link.status).toBe(201)
-    // C3: System Model elements and CAD Modeler entities (scoped IDs, pinned revisions).
+    // C3: System Model elements and CAD entities (scoped IDs, pinned revisions).
     const real = await post('/implementations', {
       name: 'Housing in the modelers',
       conceptIds: [c.id],
