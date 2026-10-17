@@ -1,7 +1,6 @@
 # AWS deployment and database infrastructure: owner brief (17 October 2026)
 
-Owner brief, recorded verbatim. The pasted text ended mid-sentence in §8 ("Avoid unnecessary"); anything after that point was not
-received.
+Owner brief, recorded verbatim. Received in two parts (the second part completes §8 and adds §9-§12).
 
 ---
 
@@ -211,6 +210,81 @@ Follow these requirements:
 - Use existing platform SDK contracts.
 - Prefer mature open-source infrastructure tooling.
 - Keep infrastructure costs reasonable during prototype development.
-- Avoid unnecessary
+- Avoid unnecessary always-on resources.
+- Ensure the architecture can scale beyond the prototype.
+- Do not overengineer the initial deployment.
+- For the prototype, prioritize reliability, persistence, reproducibility, and low operating cost over high availability.
+- Provide a monthly AWS cost estimate before provisioning new billable resources.
 
-*(text ends here)*
+## 9. Agent coordination
+
+Spawn a dedicated agent named:
+
+aws-infrastructure
+
+The agent owns deployment infrastructure, database provisioning, CI/CD integration, and operational documentation.
+
+The lead coordinator remains responsible for:
+
+- Architecture consistency.
+- Cross-module dependencies.
+- Integration acceptance.
+- Conflict resolution.
+- Review and merge decisions.
+
+The infrastructure agent must work on its own branch/worktree.
+
+Do not modify unrelated module functionality.
+
+Where module changes are necessary, coordinate them with the relevant module owner.
+
+Do not merge into main without completing the existing review and validation process.
+
+## 10. Deliverables
+
+Produce:
+
+- docs/infrastructure/AWS_ARCHITECTURE.md
+- docs/infrastructure/DEPLOYMENT_AUDIT.md
+- docs/infrastructure/DATABASE_DEPLOYMENT.md
+- docs/infrastructure/DEPLOYMENT_RUNBOOK.md
+- docs/infrastructure/AWS_COST_ESTIMATE.md
+- Infrastructure-as-code definitions.
+- Updated GitHub Actions workflows.
+- Automated deployment smoke tests.
+- A pull request containing the implementation.
+
+The deployment runbook must explain how to deploy from scratch, update the application, apply migrations, inspect logs, diagnose failures, restore backups, and recover from unsuccessful deployments.
+
+## 11. Execution priorities
+
+Work in the following order:
+
+- Phase 1 — Audit: Identify the actual AWS deployment architecture and root causes of failure.
+- Phase 2 — Repair: Restore the existing frontend and backend deployment using the smallest safe changes.
+- Phase 3 — Persistence: Establish reliable database provisioning, migration, connectivity, and persistent storage.
+- Phase 4 — Automation: Implement reproducible infrastructure deployment and GitHub CI/CD.
+- Phase 5 — Verification: Complete real AWS end-to-end testing and document the operational procedures.
+
+Do not delay restoration of the working prototype for optional infrastructure enhancements.
+
+## 12. Immediate instructions
+
+Start by spawning the AWS infrastructure agent and performing the audit.
+
+Report the following before making significant infrastructure changes:
+
+- Current AWS architecture.
+- Existing AWS resources that can be verified.
+- Database implementation and deployment status.
+- Most likely causes of the website failure, supported by evidence.
+- Proposed corrective actions.
+- Estimated AWS operating cost.
+- Risks to existing data.
+- Changes requiring my approval.
+
+Proceed autonomously with repository inspection, documentation, local tests, and non-destructive fixes.
+
+Request approval before creating billable AWS resources, modifying production infrastructure, or performing any potentially destructive database operation.
+
+Success criterion: A commit to the approved deployment branch can be built, tested, and deployed through a documented automated process, resulting in a functioning engineering platform with persistent PostgreSQL-backed projects and engineering artifacts.
