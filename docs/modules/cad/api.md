@@ -75,13 +75,13 @@ against their schemas (in the catalogue).
 `regeneration-failed`. Regeneration failures are not command errors: the command commits and the
 feature reports `failed` / `blocked` with `details.reason` (`invalid-profile`, `upstream-failed`,
 `upstream-suppressed`, `no-target-body`, `profile-crosses-axis`, `invalid-value`, `sketch-conflicting`,
-`sketch-failed`, `invalid-shape`, `reference-lost` (a face or edge name no longer exists; details list
-the available names), `face-not-planar`, `blend-failed`).
+`sketch-failed`, `invalid-shape`, `reference-lost` (a face or edge name no longer exists; `details` carry `referenceKind` (`edge` or `face`), `lost` and `available`; repair it with `repair_reference`; the Diagnostics panel and the query `get_reference_repairs` list the candidates),
+`face-not-planar`, `blend-failed`). A blocked feature (`upstream-failed`, `upstream-suppressed`) carries `details.cause` (feature ID, name, status, message, reason): the root cause in the chain, also named in the message.
 
 ## 7. Versioning
 
 The catalogue has `catalogVersion` (1.1.0: adds `create_datum_plane`, `fillet_edges`, `chamfer_edges`
 and the plane options of `create_sketch` / `set_sketch_plane`; 1.2.0: adds `add_regular_polygon`,
 `pattern_linear`, `bind_parameter`, `unbind_parameter` and the pattern fields of `edit_feature`; 1.3.0: adds
-`set_document_source` and `clear_document_source`). Adding commands or optional inputs is a minor change;
+`set_document_source` and `clear_document_source`; 1.4.0: adds `repair_reference` and the query `get_reference_repairs`). Adding commands or optional inputs is a minor change;
 removing or changing semantics is major and needs a deprecation period with both versions served.

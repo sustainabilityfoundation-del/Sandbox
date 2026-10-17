@@ -6,7 +6,9 @@ Separate from the mock CAD tool (`packages/tool-cad`), which must not be edited.
 ## Responsibilities
 
 - View (`CadModelerView.tsx`): panels Model / Edit / Inspect / Diagnostics, 3D viewport
-  (`ui/Viewport.tsx`, three.js, meshes from the kernel worker), sketcher (`ui/Sketcher.tsx`, SVG).
+  (`ui/Viewport.tsx`, three.js, meshes from the kernel worker), sketch stage (`ui/SketchStage.tsx`: drawing bar and
+  click-to-draw state; `ui/Sketcher.tsx`: SVG view; `ui/sketchDraw.ts`: snapping and the clicks-to-commands mapping,
+  unit-tested without a DOM); Diagnostics with Repair reference (`ui/DiagnosticsPanel.tsx`).
 - Toolbar (`index.ts`): New, Open, Save, Sketch, Extrude, Revolve, Undo, Redo, Fit, Export STEP.
 - Session (`session.ts`): open documents (`CadEngine`), active document, kernel (Web Worker by
   default), downloads. Shared by the view and the assistant.

@@ -16,8 +16,11 @@ change are rebuilt, and failures are reported per feature.
 
 What is real in this version (Phase 1):
 
-- An exact boundary-representation kernel: **Open CASCADE Technology**, compiled to WebAssembly and
-  running in a **Web Worker**, so modelling never blocks the interface.
+- An exact boundary-representation kernel: **Open CASCADE Technology 8.0** (read from the library's
+  own STEP writer; replicad 1.1.0), compiled to WebAssembly and running in a **Web Worker**, so
+  modelling never blocks the interface.
+- **Click-to-draw sketching** (lines, rectangles, circles, polygons) with snapping, and a **Repair
+  reference** panel for faces and edges lost after an upstream change.
 - A numerical **sketch constraint solver** with degrees-of-freedom analysis, redundant and
   conflicting constraint detection, and driven (reference) dimensions.
 - **Parameters and expressions** (`width / 2`, `1 in`) used by dimensions and features.

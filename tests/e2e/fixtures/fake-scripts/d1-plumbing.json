@@ -463,6 +463,10 @@
               "arguments": {
                 "text": "Wall thickness"
               }
+            },
+            {
+              "name": "cad-modeler.check_bindings",
+              "arguments": {}
             }
           ]
         },
@@ -479,6 +483,15 @@
                     },
                     "constraint": {
                       "id": "${conceptualize.list_constraints.data.constraints.0.id}"
+                    }
+                  },
+                  {
+                    "measure": {
+                      "kind": "pattern-width",
+                      "featureId": "${cad-modeler.describe_model.data.tree.parts.0.features.[type=pattern-linear].id}"
+                    },
+                    "constraint": {
+                      "id": "${cad-modeler.check_bindings.data.current.[parameter=af].binding.ref.id}"
                     }
                   }
                 ]
@@ -525,7 +538,7 @@
           ]
         },
         {
-          "final": "Measured on CAD document revision ${cad-modeler.check.data.documentRevision} with ${cad-modeler.check.data.kernel.name}: pocket width ${cad-modeler.check.data.results.[quantity=parameter af].measured.value} mm (${cad-modeler.check.data.results.[quantity=parameter af].status}); gap between pockets ${cad-modeler.check.data.results.[quantity^=pattern].measured.value} mm (${cad-modeler.check.data.results.[quantity^=pattern].status}). These are measured values against the constraint bounds, not a statement of adequacy. I prepared an evidence record; apply it to store it in Conceptualize."
+          "final": "Measured on CAD document revision ${cad-modeler.check.data.documentRevision} with ${cad-modeler.check.data.kernel.name}: pocket width ${cad-modeler.check.data.results.[quantity=parameter af].measured.value} mm (${cad-modeler.check.data.results.[quantity=parameter af].status}) as the bound parameter; kernel-measured pocket width ${cad-modeler.check.data.results.2.measured.value} mm (${cad-modeler.check.data.results.2.status}) across the flats; gap between pockets ${cad-modeler.check.data.results.[quantity^=pattern].measured.value} mm (${cad-modeler.check.data.results.[quantity^=pattern].status}). These are measured values against the constraint bounds, not a statement of adequacy. I prepared an evidence record; apply it to store it in Conceptualize."
         }
       ]
     },
@@ -625,6 +638,10 @@
               "arguments": {
                 "text": "Wall thickness"
               }
+            },
+            {
+              "name": "cad-modeler.check_bindings",
+              "arguments": {}
             }
           ]
         },
@@ -642,18 +659,23 @@
                     "constraint": {
                       "id": "${conceptualize.list_constraints.data.constraints.0.id}"
                     }
+                  },
+                  {
+                    "measure": {
+                      "kind": "pattern-width",
+                      "featureId": "${cad-modeler.describe_model.data.tree.parts.0.features.[type=pattern-linear].id}"
+                    },
+                    "constraint": {
+                      "id": "${cad-modeler.check_bindings.data.current.[parameter=af].binding.ref.id}"
+                    }
                   }
                 ]
               }
-            },
-            {
-              "name": "cad-modeler.check_bindings",
-              "arguments": {}
             }
           ]
         },
         {
-          "final": "After the change, on revision ${cad-modeler.check.data.documentRevision}: pocket width ${cad-modeler.check.data.results.[quantity=parameter af].measured.value} mm against ${cad-modeler.check.data.results.[quantity=parameter af].bound.key} revision ${cad-modeler.check.data.results.[quantity=parameter af].bound.constraint.revision} (${cad-modeler.check.data.results.[quantity=parameter af].status}); gap ${cad-modeler.check.data.results.[quantity^=pattern].measured.value} mm (${cad-modeler.check.data.results.[quantity^=pattern].status}). Outdated bindings: ${cad-modeler.check_bindings.data.outdated.length}."
+          "final": "After the change, on revision ${cad-modeler.check.data.documentRevision}: pocket width ${cad-modeler.check.data.results.[quantity=parameter af].measured.value} mm against ${cad-modeler.check.data.results.[quantity=parameter af].bound.key} revision ${cad-modeler.check.data.results.[quantity=parameter af].bound.constraint.revision} (${cad-modeler.check.data.results.[quantity=parameter af].status}), kernel-measured pocket width ${cad-modeler.check.data.results.2.measured.value} mm (${cad-modeler.check.data.results.2.status}); gap ${cad-modeler.check.data.results.[quantity^=pattern].measured.value} mm (${cad-modeler.check.data.results.[quantity^=pattern].status}). Outdated bindings: ${cad-modeler.check_bindings.data.outdated.length}."
         }
       ]
     },

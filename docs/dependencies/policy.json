@@ -22,6 +22,15 @@
       "repository": "https://github.com/codemirror/view",
       "source": "docs/dependencies.md"
     },
+    "@salusoft89/planegcs": {
+      "repository": "https://github.com/Salusoft89/planegcs",
+      "status": "reviewed",
+      "approvedBy": "CAD sprint C1 (ADR-0076): development-time oracle only; the coordinator confirms on merge",
+      "adr": "ADR-0076",
+      "obligations": "LGPL-2.0-or-later (FreeCAD planegcs compiled to WebAssembly). Dev-only: a devDependency of @ews/cad-core used by planegcsOracle.test.ts; never imported by shipped code, never bundled or distributed (apps/workspace and the kernel worker do not reference it). If it were ever shipped, the LGPL terms (separate replaceable binary, licence text, source pointer) would apply and an ADR is needed first.",
+      "notes": "Independent oracle for the built-in sketch solver (OSS-11, ADR-0076). Dev-only.",
+      "distribution": "dev-only"
+    },
     "@fontsource/ibm-plex-mono": {
       "repository": "https://github.com/fontsource/font-files",
       "status": "approved",

@@ -19,7 +19,7 @@ npm run e2e -- platform help    # selected flows
 
 Flows (`flows/*.mjs`, one process each, exit code 0 = pass): `platform` (subscriptions, shared context, upgrade
 of version 0.1 data, retired illustrative tools absent and their data kept, detached windows, failure isolation, icons), `help`, `coverage`,
-`integration`, `vision`, `conceptualize`, `sysml-modeler`, `cad-modeler`, `cad-modeler-persistence` (CAD service revisions,
+`integration`, `vision`, `conceptualize`, `sysml-modeler`, `cad-modeler` (the workspace AI path, then click-to-draw by mouse, touch and keyboard, and Repair reference; fixture `fixtures/cad/slotted-block.ewscad`), `cad-modeler-persistence` (CAD service revisions,
 concurrency, edge features, deep link, units setting), `cad-d1` (regular polygon, pocket and linear pattern in the
 UI, volumes checked analytically), `ai-headless` (every engineering operation with all tool tabs closed; modules
 still tied to a view are listed as known-failing), `ai-fake-provider` (needs the API started with the fake provider:

@@ -16,3 +16,10 @@ Feature status: **OK**, **Failed** (with the reason, for example a non-positive 
 crossing the revolution axis), **Blocked** (an earlier sketch it needs failed or is suppressed) and
 **Suppressed**. A failure never stops the rest of the model. **Full regeneration** clears the cache
 and rebuilds everything.
+
+**Blocked features name their cause.** A blocked feature does not just say "failed": its message names
+the feature it needs, says whether that one failed or is suppressed, and quotes the message of the
+feature whose own failure started the chain (*Root cause in “Sketch 2” (sk-7): …*). **Diagnostics**
+shows the message with a **Show** button that selects that feature. Fix the root cause and the
+dependent features rebuild. A lost face or edge is repaired in **Diagnostics → Repair reference**
+([repair a lost reference](help:cad-modeler.repair-reference)).

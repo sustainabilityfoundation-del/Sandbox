@@ -146,7 +146,7 @@ try {
   // Step 7: check against the constraint bounds, then evidence in Conceptualize.
   reply = await ask('D1 check')
   const checked = await answer(reply)
-  check(/pocket width 6\.6 mm \(satisfied\)/.test(checked) && near(/gap between pockets ([\d.]+) mm \(satisfied\)/.exec(checked)?.[1], 2.4), `cad-modeler.check measured against the bounds: ${checked.slice(0, 220)}`)
+  check(/pocket width 6\.6 mm \(satisfied\) as the bound parameter; kernel-measured pocket width 6\.6 mm \(satisfied\)/.test(checked) && near(/gap between pockets ([\d.]+) mm \(satisfied\)/.exec(checked)?.[1], 2.4), `cad-modeler.check measured against the bounds: ${checked.slice(0, 220)}`)
   await applyAll(reply, 'evidence record', 1)
 
   // Step 8: a plain-language change: revise the constraint, find the outdated binding, update and re-bind, check again.
@@ -158,7 +158,7 @@ try {
   await applyAll(reply, 'update af and re-bind', 1)
   reply = await ask('D1 recheck')
   const rechecked = await answer(reply)
-  check(/pocket width 6\.8 mm against \S+ revision 2 \(satisfied\)/.test(rechecked) && near(/gap ([\d.]+) mm \(satisfied\)/.exec(rechecked)?.[1], 2.2) && /Outdated bindings: 0\./.test(rechecked), `the rerun check reflects the change: ${rechecked.slice(0, 220)}`)
+  check(/pocket width 6\.8 mm against \S+ revision 2 \(satisfied\), kernel-measured pocket width 6\.8 mm \(satisfied\)/.test(rechecked) && near(/gap ([\d.]+) mm \(satisfied\)/.exec(rechecked)?.[1], 2.2) && /Outdated bindings: 0\./.test(rechecked), `the rerun check reflects the change: ${rechecked.slice(0, 220)}`)
   await page.screenshot({ path: `${shots}/02-check.png` })
 
   // Step 9: STEP export with read-back, and a download.

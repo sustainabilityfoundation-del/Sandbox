@@ -273,6 +273,78 @@ export function failures(regen: RegenerationResult | undefined) {
   ).concat(regen.parts.flatMap((p) => p.parameters.filter((x) => x.error).map((x) => ({ partId: p.partId, featureId: `param:${x.name}`, name: x.name, status: 'failed' as const, error: x.error ?? null, warnings: [] }))))
 }
 
+export interface ReferenceRepairCandidate {
+  name: string
+  /** 0..1 name overlap with the lost reference. A suggestion for ordering only; never applied automatically. */
+  similarity: number
+  /** Parts of the lost name this candidate shares (feature or face names). */
+  shares: string[]
+}
+
+export interface ReferenceRepair {
+  partId: string
+  featureId: string
+  featureName: string
+  featureType: Feature['type']
+  referenceKind: 'edge' | 'face'
+  /** The message of the failure. */
+  message: string
+  lost: { name: string; candidates: ReferenceRepairCandidate[] }[]
+  /** Number of names that exist on the body (candidates are the best matches, at most 12 per lost name). */
+  available: number
+  /** Always true: the person (or an approved proposal) picks; repair_reference carries the choice. */
+  chooseExplicitly: true
+}
+
+const nameParts = (n: string) => n.replace(/^edge\(|\)(#\d+)?$/g, '').split(/[|/:~]/).filter(Boolean)
+
+/**
+ * Features whose face or edge reference was lost (reference-lost) with candidate replacements, best
+ * name matches first. Candidates are suggestions: repair_reference applies only the replacement a
+ * person or an approved proposal names.
+ */
+export function referenceRepairs(doc: CadDocument, regen: RegenerationResult | undefined): ReferenceRepair[] {
+  if (!regen) return []
+  const out: ReferenceRepair[] = []
+  for (const pr of regen.parts) {
+    const part = doc.parts.find((p) => p.id === pr.partId)
+    for (const r of pr.features) {
+      const d = r.error?.details
+      if (r.status !== 'failed' || d?.reason !== 'reference-lost') continue
+      const feature = part?.features.find((f) => f.id === r.featureId)
+      const kind = d.referenceKind === 'face' ? 'face' : 'edge'
+      const lost = Array.isArray(d.lost) ? (d.lost as string[]) : typeof d.face === 'string' ? [d.face] : []
+      const available = Array.isArray(d.available) ? (d.available as string[]) : []
+      const used = new Set(feature && (feature.type === 'fillet' || feature.type === 'chamfer') ? feature.edges : [])
+      out.push({
+        partId: pr.partId,
+        featureId: r.featureId,
+        featureName: r.name,
+        featureType: r.type,
+        referenceKind: kind,
+        message: r.error!.message,
+        lost: lost.map((name) => {
+          const parts = new Set(nameParts(name))
+          const candidates = available
+            .filter((c) => c !== name && !used.has(c))
+            .map((c) => {
+              const cp = new Set(nameParts(c))
+              const shares = [...parts].filter((x) => cp.has(x))
+              const union = new Set([...parts, ...cp]).size
+              return { name: c, similarity: Math.round((shares.length / (union || 1)) * 1000) / 1000, shares }
+            })
+            .sort((a, b) => b.similarity - a.similarity || a.name.localeCompare(b.name))
+            .slice(0, 12)
+          return { name, candidates }
+        }),
+        available: available.length,
+        chooseExplicitly: true,
+      })
+    }
+  }
+  return out
+}
+
 /** Summary of the last regeneration: what was rebuilt and what came from the cache. */
 export function regenerationSummary(regen: RegenerationResult | undefined) {
   if (!regen) return null

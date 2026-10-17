@@ -48,7 +48,8 @@ self.onmessage = async (event: MessageEvent<KernelRequest>) => {
     }
     self.postMessage({ id, ok: true, result } satisfies KernelResponse, transfer)
   } catch (e) {
-    const err = e as { code?: string; message?: string }
-    self.postMessage({ id, ok: false, error: { code: err?.code ?? 'kernel-failure', message: err?.message ?? String(e) } } satisfies KernelResponse)
+    const err = e as { code?: string; message?: string; details?: Record<string, unknown> }
+    // Structured details (lost and available names) travel with the error so Repair reference works in the browser too.
+    self.postMessage({ id, ok: false, error: { code: err?.code ?? 'kernel-failure', message: err?.message ?? String(e), ...(err?.details ? { details: err.details } : {}) } } satisfies KernelResponse)
   }
 }

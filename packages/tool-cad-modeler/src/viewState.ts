@@ -32,6 +32,8 @@ export interface CadModelerViewState {
   showEdgesSet?: boolean
   /** Edges highlighted in the 3D view (fillet and chamfer forms). */
   highlightEdges?: string[]
+  /** Options of the click-to-draw tools (defaults in sketchDraw.ts). */
+  drawOptions?: { dimensions?: boolean; infer?: boolean }
   /** Open dialog (documents of the project in the CAD service). */
   dialog?: 'open' | null
   viewRequest: { kind: ViewPreset; seq: number } | null

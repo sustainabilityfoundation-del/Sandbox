@@ -1,0 +1,286 @@
+{
+  "documentId": "00000000-0000-4000-8000-0000000000aa",
+  "format": "ews-cad",
+  "formatVersion": "1.3.0",
+  "metadata": {
+    "title": "Untitled"
+  },
+  "nextId": 37,
+  "parts": [
+    {
+      "features": [
+        {
+          "constraints": [
+            {
+              "entities": [
+                "ln-8"
+              ],
+              "id": "cn-12",
+              "type": "horizontal"
+            },
+            {
+              "entities": [
+                "ln-9"
+              ],
+              "id": "cn-13",
+              "type": "vertical"
+            },
+            {
+              "entities": [
+                "ln-10"
+              ],
+              "id": "cn-14",
+              "type": "horizontal"
+            },
+            {
+              "entities": [
+                "ln-11"
+              ],
+              "id": "cn-15",
+              "type": "vertical"
+            },
+            {
+              "entities": [
+                "ln-8"
+              ],
+              "id": "cn-16",
+              "name": "width",
+              "type": "length",
+              "value": 60
+            },
+            {
+              "entities": [
+                "ln-9"
+              ],
+              "id": "cn-17",
+              "name": "height",
+              "type": "length",
+              "value": 20
+            },
+            {
+              "entities": [
+                "origin",
+                "pt-4"
+              ],
+              "id": "cn-18",
+              "type": "coincident"
+            }
+          ],
+          "entities": [
+            {
+              "id": "pt-4",
+              "type": "point",
+              "x": 0,
+              "y": 0
+            },
+            {
+              "id": "pt-5",
+              "type": "point",
+              "x": 60,
+              "y": 0
+            },
+            {
+              "id": "pt-6",
+              "type": "point",
+              "x": 60,
+              "y": 20
+            },
+            {
+              "id": "pt-7",
+              "type": "point",
+              "x": 0,
+              "y": 20
+            },
+            {
+              "end": "pt-5",
+              "id": "ln-8",
+              "start": "pt-4",
+              "type": "line"
+            },
+            {
+              "end": "pt-6",
+              "id": "ln-9",
+              "start": "pt-5",
+              "type": "line"
+            },
+            {
+              "end": "pt-7",
+              "id": "ln-10",
+              "start": "pt-6",
+              "type": "line"
+            },
+            {
+              "end": "pt-4",
+              "id": "ln-11",
+              "start": "pt-7",
+              "type": "line"
+            }
+          ],
+          "id": "sk-3",
+          "name": "Sketch 1",
+          "plane": {
+            "kind": "standard",
+            "plane": "XY"
+          },
+          "type": "sketch"
+        },
+        {
+          "extent": {
+            "direction": "normal",
+            "distance": 20
+          },
+          "id": "ext-19",
+          "name": "Extrude 1",
+          "operation": "new",
+          "sketch": "sk-3",
+          "type": "extrude"
+        },
+        {
+          "constraints": [
+            {
+              "entities": [
+                "ln-25"
+              ],
+              "id": "cn-29",
+              "type": "horizontal"
+            },
+            {
+              "entities": [
+                "ln-26"
+              ],
+              "id": "cn-30",
+              "type": "vertical"
+            },
+            {
+              "entities": [
+                "ln-27"
+              ],
+              "id": "cn-31",
+              "type": "horizontal"
+            },
+            {
+              "entities": [
+                "ln-28"
+              ],
+              "id": "cn-32",
+              "type": "vertical"
+            },
+            {
+              "entities": [
+                "ln-25"
+              ],
+              "id": "cn-33",
+              "name": "width",
+              "type": "length",
+              "value": 4
+            },
+            {
+              "entities": [
+                "ln-26"
+              ],
+              "id": "cn-34",
+              "name": "height",
+              "type": "length",
+              "value": 22
+            }
+          ],
+          "entities": [
+            {
+              "id": "pt-21",
+              "type": "point",
+              "x": 10,
+              "y": -1
+            },
+            {
+              "id": "pt-22",
+              "type": "point",
+              "x": 14,
+              "y": -1
+            },
+            {
+              "id": "pt-23",
+              "type": "point",
+              "x": 14,
+              "y": 21
+            },
+            {
+              "id": "pt-24",
+              "type": "point",
+              "x": 10,
+              "y": 21
+            },
+            {
+              "end": "pt-22",
+              "id": "ln-25",
+              "start": "pt-21",
+              "type": "line"
+            },
+            {
+              "end": "pt-23",
+              "id": "ln-26",
+              "start": "pt-22",
+              "type": "line"
+            },
+            {
+              "end": "pt-24",
+              "id": "ln-27",
+              "start": "pt-23",
+              "type": "line"
+            },
+            {
+              "end": "pt-21",
+              "id": "ln-28",
+              "start": "pt-24",
+              "type": "line"
+            }
+          ],
+          "id": "sk-20",
+          "name": "Sketch 2",
+          "plane": {
+            "kind": "standard",
+            "offset": 20,
+            "plane": "XY"
+          },
+          "type": "sketch"
+        },
+        {
+          "extent": {
+            "direction": "reverse",
+            "distance": 12
+          },
+          "id": "ext-35",
+          "name": "Extrude 2",
+          "operation": "cut",
+          "sketch": "sk-20",
+          "type": "extrude"
+        },
+        {
+          "edges": [
+            "edge(ext-19/cap-end|ext-19/side:ln-8)"
+          ],
+          "id": "fil-36",
+          "name": "Fillet 1",
+          "radius": 0.5,
+          "type": "fillet"
+        }
+      ],
+      "id": "part-1",
+      "name": "Block",
+      "parameters": [
+        {
+          "expression": "3",
+          "id": "par-2",
+          "name": "n",
+          "unit": "mm"
+        }
+      ],
+      "semantics": []
+    }
+  ],
+  "references": [],
+  "units": {
+    "angle": "deg",
+    "length": "mm"
+  },
+  "version": 2
+}
