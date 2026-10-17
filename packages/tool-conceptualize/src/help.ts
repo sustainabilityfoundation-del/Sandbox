@@ -42,6 +42,9 @@ const OPERATIONS: [string, string][] = [
   ['conceptualize.compare_cards', 'conceptualize.visual'],
   ['conceptualize.reject_alternative', 'conceptualize.decision'],
   ['conceptualize.create_cad_handoff', 'conceptualize.visual.handoff'],
+  ['conceptualize.interpret_intent', 'conceptualize.context'],
+  ['conceptualize.read_context', 'conceptualize.context'],
+  ['conceptualize.identify_gaps', 'conceptualize.context'],
 ]
 
 const CONTROLS: [string, string][] = [
@@ -114,6 +117,8 @@ const CONTROLS: [string, string][] = [
   ['conceptualize.calculation.qualifications', 'conceptualize.calculations'],
   ['conceptualize.calculation.limits', 'conceptualize.calculations'],
   ['conceptualize.calculation.evidence', 'conceptualize.calculations'],
+  ['conceptualize.context', 'conceptualize.context'],
+  ['conceptualize.context.gaps', 'conceptualize.context'],
 ]
 
 export const conceptualizeHelp: HelpManifest = {

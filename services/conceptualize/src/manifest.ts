@@ -54,5 +54,9 @@ export const conceptualizeServerManifest: ServerModuleDescriptor = {
     'conceptualize.compare_cards': 'read',
     'conceptualize.reject_alternative': 'propose',
     'conceptualize.create_cad_handoff': 'propose',
+    // ECII increment 1: engineering intent and clarification (appended by the ECII implementer, COORDINATOR REVIEW)
+    'conceptualize.interpret_intent': 'propose',
+    'conceptualize.read_context': 'read',
+    'conceptualize.identify_gaps': 'calculate',
   },
 }

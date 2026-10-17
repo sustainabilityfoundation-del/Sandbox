@@ -44,6 +44,52 @@
       ]
     },
     {
+      "user": "^D1 intent",
+      "steps": [
+        {
+          "calls": [
+            {
+              "name": "conceptualize.interpret_intent",
+              "arguments": {
+                "designObject": "Drill bit holder",
+                "role": "accessory",
+                "integration": "hosted",
+                "rationale": "The holder mounts to the person's cordless drill, so it works with an existing system. (Plumbing script: a live run asks which model first; here the later steps carry a stated assumption.)",
+                "externalSystems": [
+                  {
+                    "id": "sys-1",
+                    "name": "Cordless drill (compatibility description only)",
+                    "role": "host",
+                    "description": "A Milwaukee-compatible cordless drill; its model and accessory interface are not identified.",
+                    "identified": false,
+                    "owner": "external",
+                    "relation": "mounts-to"
+                  }
+                ],
+                "objectives": [
+                  "Hold six hex-shank bits on the drill"
+                ],
+                "informationNeeds": [
+                  {
+                    "id": "N1",
+                    "text": "Identify the drill model and the features it offers for mounting accessories",
+                    "tier": 1,
+                    "subject": "sys-1",
+                    "route": "ask-user",
+                    "state": "open"
+                  }
+                ],
+                "reason": "D1 plumbing: interpret the intent before the concept"
+              }
+            }
+          ]
+        },
+        {
+          "final": "I recorded the engineering intent: an accessory that integrates with your cordless drill, which is not identified yet. Apply it. The plumbing steps after this proceed on a stated assumption about the mounting interface."
+        }
+      ]
+    },
+    {
       "user": "^D1 concept:",
       "steps": [
         {

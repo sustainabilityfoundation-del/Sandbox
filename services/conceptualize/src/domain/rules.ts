@@ -231,7 +231,7 @@ export const DECISION_OUTCOMES = ['accepted', 'rejected', 'deferred'] as const
 /** Which artifact modules are only reachable through a labelled test adapter (contracts §9). */
 export const TEST_ADAPTER_MODULES = ['analysis'] as const
 
-export const KEY_PREFIX = { concept: 'CON', decision: 'DEC', study: 'TS', implementation: 'IMP', set: 'ALT', evidence: 'EVD', function: 'FN', constraint: 'CST', assumption: 'ASM', calculation: 'CALC' } as const
+export const KEY_PREFIX = { concept: 'CON', decision: 'DEC', study: 'TS', implementation: 'IMP', set: 'ALT', evidence: 'EVD', function: 'FN', constraint: 'CST', assumption: 'ASM', calculation: 'CALC', intent: 'INT' } as const
 
 // ---- design knowledge (docs/modules/design-reasoning, CR-C1…C6) ------------------------------------------
 

@@ -426,6 +426,30 @@ export class ConceptsModuleClient {
     return this.get<T.CalculationLibraryEntry[]>('/calculation-library')
   }
 
+  // ---- engineering intent (ECII increment 1) ----------------------------------------------------------------
+  intents(q: { status?: string } = {}) {
+    return this.get<T.EngineeringIntent[]>('/intents', q)
+  }
+  intent(idOrKey: string, revision?: number) {
+    return this.get<T.EngineeringIntent>(`/intents/${encodeURIComponent(idOrKey)}`, { revision })
+  }
+  createIntent(input: T.IntentCreate, opts: WriteOpts = {}) {
+    return this.create<T.EngineeringIntent>('/intents', input, opts)
+  }
+  updateIntent(id: string, patch: T.IntentPatch, opts: WriteOpts & { expectedRevision: number }) {
+    return this.send<T.EngineeringIntent>('PATCH', `/intents/${id}`, { ...patch, expectedRevision: opts.expectedRevision, ...(opts.reason ? { reason: opts.reason } : {}) }, opts)
+  }
+  intentRevisions(id: string) {
+    return this.get<T.RevisionSummary[]>(`/intents/${id}/revisions`)
+  }
+  /** Deterministic: missing information in four tiers, computed from the structure of the intent. */
+  intentGaps(idOrKey: string, revision?: number) {
+    return this.get<T.IntentGaps>(`/intents/${encodeURIComponent(idOrKey)}/gaps`, { revision })
+  }
+  intentContext(idOrKey: string) {
+    return this.get<T.IntentContext>(`/intents/${encodeURIComponent(idOrKey)}/context`)
+  }
+
   // ---- utilities ------------------------------------------------------------------------------------------------------------------------
   permissions() {
     return this.get<T.MyPermissions>('/me/permissions')
