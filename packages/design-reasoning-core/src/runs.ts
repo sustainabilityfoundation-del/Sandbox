@@ -1,4 +1,5 @@
 import type { Basis } from '@ews/engineering-calc'
+import type { ContextSnapshotItem } from '@ews/platform-sdk'
 import type { AnyRef } from './refs'
 
 /**
@@ -32,14 +33,11 @@ export interface ReasoningRun {
   branchKey?: string
 }
 
-export interface ContextManifestItem {
-  ref: AnyRef
-  revision: number | null
-  via: 'seed' | 'graph' | 'filter' | 'search' | 'requirements-api' | 'client-attested'
-  /** Set when the source was a labelled adapter or fixture rather than the real module. */
-  adapter?: 'test-adapter' | 'test-fixture'
-  fields: string[]
-}
+/**
+ * A context manifest item. The shape was promoted to the SDK as `ContextSnapshotItem` (SDK 1.15, ECII plan Amendment 2,
+ * ADR-0085); this alias keeps the engine's narrower reference type. The SDK adds only optional fields and the `selector` value of `via`.
+ */
+export type ContextManifestItem = ContextSnapshotItem<AnyRef>
 
 export interface ContextManifest {
   id: string
